@@ -11,359 +11,125 @@
 -->
 
 <template>
-  <div class="security-settings">
-    <button class="close-btn" @click="goBack">×</button>
-    
-    <!-- Блоки настроек в едином стиле -->
+  <div class="security-settings page-with-close">
+    <PageCloseButton fallback="/settings" />
+
     <div class="management-blocks">
-      <!-- Столбец 1 -->
       <div class="blocks-column">
-        <!-- Блок RPC Провайдеры -->
         <div class="management-block">
           <h3>{{ $t('settings.rpc.title') }}</h3>
-          <p>{{ securitySettings.rpcConfigs.length > 0 ? t('settings.security.providersConfigured', { count: securitySettings.rpcConfigs.length }) : t('settings.security.providersNotConfigured') }}</p>
-          <button class="details-btn" @click="handleRpcDetailsClick">
+          <p>
+            {{
+              securitySettings.rpcConfigs.length > 0
+                ? t('settings.security.providersConfigured', { count: securitySettings.rpcConfigs.length })
+                : t('settings.security.providersNotConfigured')
+            }}
+          </p>
+          <button type="button" class="details-btn" @click="handleRpcDetailsClick">
             {{ $t('common.details') }}
           </button>
         </div>
       </div>
 
-      <!-- Столбец 2 -->
       <div class="blocks-column">
-        <!-- Блок Аутентификация -->
         <div class="management-block">
           <h3>{{ $t('settings.security.authentication') }}</h3>
-          <p>{{ securitySettings.authTokens.length > 0 ? t('settings.security.tokensConfigured', { count: securitySettings.authTokens.length }) : t('settings.security.tokensNotConfigured') }}</p>
-          <button class="details-btn" @click="showAuthSettings = !showAuthSettings">
+          <p>
+            {{
+              securitySettings.authTokens.length > 0
+                ? t('settings.security.tokensConfigured', { count: securitySettings.authTokens.length })
+                : t('settings.security.tokensNotConfigured')
+            }}
+          </p>
+          <button type="button" class="details-btn" @click="goAuthDetails">
             {{ $t('common.details') }}
           </button>
         </div>
       </div>
     </div>
-    
-    <div v-if="showRpcSettings" class="detail-panel">
-      <RpcProvidersSettings
-        :rpcConfigs="securitySettings.rpcConfigs"
-        @update="loadSettings"
-        @test="testRpcHandler"
-      />
-    </div>
-    <div v-if="showAuthSettings" class="detail-panel">
-      <AuthTokensSettings
-        :authTokens="securitySettings.authTokens"
-        @update="loadSettings"
-      />
-    </div>
-    
-    <!-- Модальное окно "Нет доступа" -->
-    <NoAccessModal 
-      :show="showNoAccessModal" 
+
+    <NoAccessModal
+      :show="showNoAccessModal"
       :title="$t('settings.accessRestricted')"
       :message="t('settings.security.rpcAdminOnly')"
-      @close="closeNoAccessModal" 
+      @close="closeNoAccessModal"
     />
   </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
-import { reactive, ref, onMounted, computed, provide } from 'vue';
-import api from '@/api/axios';
-import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
-import eventBus from '@/utils/eventBus';
-import RpcProvidersSettings from './RpcProvidersSettings.vue';
-import AuthTokensSettings from './AuthTokensSettings.vue';
+import { reactive, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthContext } from '@/composables/useAuth';
+import api from '@/api/axios';
 import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
-import wsClient from '@/utils/websocket';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[SecuritySettingsView] Clearing security data');
-    // Очищаем данные при выходе из системы
-    // SecuritySettingsView не нуждается в очистке данных
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[SecuritySettingsView] Refreshing security data');
-    // SecuritySettingsView не нуждается в обновлении данных
-  });
-});
-
-// Состояние для отображения/скрытия дополнительных настроек
-const showRpcSettings = ref(false);
-const showAuthSettings = ref(false);
-const isLoading = ref(true);
-const isSaving = ref(false);
-const showNoAccessModal = ref(false);
-
-// Получаем контекст авторизации
+const { t } = useI18n();
+const router = useRouter();
 const { canManageSettings } = usePermissions();
 
-// Настройки безопасности
+const showNoAccessModal = ref(false);
 const securitySettings = reactive({
   rpcConfigs: [],
-  authTokens: []
+  authTokens: [],
 });
 
-// Инициализация composable для работы с сетями блокчейн
-const { 
-  networkGroups, 
-  networkEntry, 
-  validateAndPrepareNetworkConfig,
-  resetNetworkEntry,
-  testRpcConnection,
-  testingRpc,
-  testingRpcId,
-  networks
-} = useBlockchainNetworks();
-
-// Реактивный объект для нового токена авторизации
-const newAuthToken = reactive({
-  name: '',
-  address: '',
-  minBalance: '1.0',
-  network: 'eth'
-});
-
-// Вспомогательная функция для маппинга сетевых ID в форматы токенов авторизации
-const getNetworkKeyForAuth = (networkId) => {
-  const mapping = {
-    'ethereum': 'eth',
-    'bsc': 'bsc',
-    'polygon': 'polygon',
-    'arbitrum': 'arbitrum',
-    'sepolia': 'sepolia',
-    'goerli': 'goerli',
-    'mumbai': 'mumbai',
-    'bsc-testnet': 'bsc-testnet',
-    'arbitrum-goerli': 'arbitrum-goerli'
-  };
-  return mapping[networkId] || networkId;
-};
-
-// Вычисляемый список сетей для выбора в форме
-const networkOptions = computed(() => {
-  if (!networks || !Array.isArray(networks.value)) return [];
-  
-  return networks.value
-    .filter(network => {
-      // Добавляем все сети из useBlockchainNetworks.js
-      return true; // Убираем фильтрацию для отображения всех доступных сетей
-    })
-    .map(network => ({
-      value: getNetworkKeyForAuth(network.value),
-      label: network.label
-    }));
-});
-
-// Загрузка настроек с бэкенда
-const loadSettings = async () => {
-  isLoading.value = true;
+async function loadSettings() {
   try {
-    // Загрузка RPC конфигураций
     const rpcResponse = await api.get('/settings/rpc');
-    if (rpcResponse.data && rpcResponse.data.success) {
-      securitySettings.rpcConfigs = (rpcResponse.data.data || []).map(rpc => ({
+    if (rpcResponse.data?.success) {
+      securitySettings.rpcConfigs = (rpcResponse.data.data || []).map((rpc) => ({
         networkId: rpc.network_id,
-        rpcUrl: rpc.rpc_url, // Реальный URL для функциональности
-        rpcUrlDisplay: rpc.rpc_url_display, // Маскированный URL для отображения (если есть)
-        chainId: rpc.chain_id
+        rpcUrl: rpc.rpc_url,
+        rpcUrlDisplay: rpc.rpc_url_display,
+        chainId: rpc.chain_id,
       }));
     }
-    
-    // Загрузка токенов для аутентификации
+
     const authResponse = await api.get('/settings/auth-tokens');
-    if (authResponse.data && authResponse.data.success) {
-      securitySettings.authTokens = (authResponse.data.data || []).map(token => ({
+    if (authResponse.data?.success) {
+      securitySettings.authTokens = (authResponse.data.data || []).map((token) => ({
         name: token.name,
         address: token.address,
         network: token.network,
         minBalance: token.min_balance,
-        readonlyThreshold: token.readonly_threshold || 1,
-        editorThreshold: token.editor_threshold || 2
+        readonlyThreshold: token.readonly_threshold ?? 1,
+        editorThreshold: token.editor_threshold ?? 1,
       }));
     }
-    
-    console.log('[SecuritySettingsView] Настройки успешно загружены с бэкенда');
   } catch (error) {
     console.error('[SecuritySettingsView] Ошибка при загрузке настроек:', error);
-    
-    // Если не удалось загрузить с бэкенда, устанавливаем дефолтные значения
-    setDefaultSettings();
-    
-    alert(t('settings.security.loadFailed'));
-  } finally {
-    isLoading.value = false;
+    securitySettings.rpcConfigs = [];
+    securitySettings.authTokens = [];
   }
-};
+}
 
-// Установка дефолтных значений
-const setDefaultSettings = () => {
-  securitySettings.rpcConfigs = [];
-  securitySettings.authTokens = [];
-};
-
-// Сохранение всех настроек безопасности на бэкенд
-const saveSecuritySettings = async () => {
-  isSaving.value = true;
-  try {
-    // Подготовка данных для отправки
-    const validRpcConfigs = securitySettings.rpcConfigs.filter(
-      c => c.networkId && c.rpcUrl
-    );
-    
-    const settingsData = {
-      rpcConfigs: validRpcConfigs,
-      authTokens: JSON.parse(JSON.stringify(securitySettings.authTokens))
-    };
-    
-    console.log('[SecuritySettingsView] Отправка настроек на сервер:', settingsData);
-    
-    // Отправка RPC конфигураций
-    const rpcResponse = await api.post('/settings/rpc', { 
-      rpcConfigs: settingsData.rpcConfigs 
-    });
-    
-    // Отправка токенов для аутентификации
-    const authResponse = await api.post('/settings/auth-tokens', { 
-      authTokens: settingsData.authTokens 
-    });
-    
-    if (rpcResponse.data.success && authResponse.data.success) {
-      alert(t('settings.security.saveSuccess'));
-      eventBus.emit('settings-updated');
-      eventBus.emit('auth-settings-saved', { tokens: settingsData.authTokens });
-    } else {
-      alert(t('settings.security.saveFailed'));
-    }
-  } catch (error) {
-    console.error('[SecuritySettingsView] Ошибка при сохранении настроек:', error);
-    alert(t('settings.security.saveError', { error: error.message || t('common.unknownError') }));
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-// Загрузка настроек при монтировании компонента
-onMounted(() => {
-  loadSettings();
-  
-  // Подписываемся на WebSocket события для обновления списка токенов
-  wsClient.onAuthTokenAdded(() => {
-    console.log('[SecuritySettingsView] WebSocket: токен добавлен, обновляем список');
-    loadSettings();
-  });
-  
-  wsClient.onAuthTokenDeleted(() => {
-    console.log('[SecuritySettingsView] WebSocket: токен удален, обновляем список');
-    loadSettings();
-  });
-  
-  wsClient.onAuthTokenUpdated(() => {
-    console.log('[SecuritySettingsView] WebSocket: токен обновлен, обновляем список');
-    loadSettings();
-  });
-});
-
-// --- Методы для RPC ---
-const addRpcConfig = () => {
-  const result = validateAndPrepareNetworkConfig();
-  if (!result.valid) {
-    alert(result.error);
-    return;
-  }
-  const { networkId, rpcUrl, chainId } = result.networkConfig;
-  if (securitySettings.rpcConfigs.some(rpc => rpc.networkId === networkId)) {
-    alert(t('settings.security.rpcExists', { networkId }));
-    return;
-  }
-  securitySettings.rpcConfigs.push({ networkId, rpcUrl, chainId });
-  resetNetworkEntry();
-};
-
-const removeRpcConfig = (index) => {
-  securitySettings.rpcConfigs.splice(index, 1);
-};
-
-const testRpcHandler = async (rpc) => {
-  try {
-    const result = await testRpcConnection(rpc.networkId, rpc.rpcUrl);
-    if (result.success) {
-      alert(result.message);
-    } else {
-      alert(t('settings.security.rpcConnectionError', { networkId: rpc.networkId, error: result.error }));
-    }
-  } catch (error) {
-    console.error('[SecuritySettingsView] Ошибка при тестировании RPC:', error);
-    alert(t('settings.security.rpcTestError', { error: error.message || t('common.unknownError') }));
-  }
-};
-
-// --- Методы для токенов аутентификации ---
-const addAuthToken = () => {
-  const name = newAuthToken.name.trim();
-  const address = newAuthToken.address.trim();
-  const minBalance = newAuthToken.minBalance.trim();
-  const network = newAuthToken.network;
-  if (name && address) {
-    if (securitySettings.authTokens.some(token => token.address.toLowerCase() === address.toLowerCase())) {
-      alert(t('settings.security.tokenExists', { address }));
-      return;
-    }
-    securitySettings.authTokens.push({ name, address, minBalance, network });
-    newAuthToken.name = '';
-    newAuthToken.address = '';
-    newAuthToken.minBalance = '1.0';
-    newAuthToken.network = 'eth';
-  } else {
-    alert(t('settings.security.fillTokenFields'));
-  }
-};
-
-const removeAuthToken = (index) => {
-  securitySettings.authTokens.splice(index, 1);
-};
-
-// provide для дочерних компонентов
-provide('rpcConfigs', securitySettings.rpcConfigs);
-provide('removeRpcConfig', removeRpcConfig);
-provide('addRpcConfig', addRpcConfig);
-provide('testRpcHandler', testRpcHandler);
-provide('testingRpc', testingRpc);
-provide('testingRpcId', testingRpcId);
-provide('networkGroups', networkGroups);
-provide('networkEntry', networkEntry);
-provide('validateAndPrepareNetworkConfig', validateAndPrepareNetworkConfig);
-provide('resetNetworkEntry', resetNetworkEntry);
-provide('authTokens', securitySettings.authTokens);
-provide('removeAuthToken', removeAuthToken);
-provide('addAuthToken', addAuthToken);
-provide('newAuthToken', newAuthToken);
-provide('networks', networks);
-
-// Функция для обработки клика по кнопке "Подробнее" для RPC провайдеров
-const handleRpcDetailsClick = () => {
+function handleRpcDetailsClick() {
   if (canManageSettings.value) {
-    // Если есть права на управление настройками - показываем детали RPC
-    showRpcSettings.value = !showRpcSettings.value;
-  } else {
-    // Если нет прав - показываем модальное окно с ограничением доступа
-    showNoAccessModal.value = true;
+    router.push({ name: 'settings-security-rpc' });
+    return;
   }
-};
+  showNoAccessModal.value = true;
+}
 
-// Функция для закрытия модального окна "Нет доступа"
-const closeNoAccessModal = () => {
+function goAuthDetails() {
+  router.push({ name: 'settings-security-auth' });
+}
+
+function closeNoAccessModal() {
   showNoAccessModal.value = false;
-};
+}
 
-const router = useRouter();
-const goBack = () => router.push('/settings');
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    securitySettings.rpcConfigs = [];
+    securitySettings.authTokens = [];
+  });
+  window.addEventListener('refresh-application-data', loadSettings);
+  loadSettings();
+});
 </script>
 
 <style scoped>
@@ -371,24 +137,6 @@ const goBack = () => router.push('/settings');
   position: relative;
 }
 
-/* Заголовок в стиле основной страницы настроек */
-.management-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.header-content h1 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 2rem;
-  font-weight: 700;
-}
-
-/* Блоки настроек в едином стиле */
 .management-blocks {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -428,6 +176,7 @@ const goBack = () => router.push('/settings');
   font-size: 1.5rem;
   font-weight: 600;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .management-block p {
@@ -436,6 +185,10 @@ const goBack = () => router.push('/settings');
   font-size: 1rem;
   line-height: 1.5;
   flex-grow: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .details-btn {
@@ -451,6 +204,7 @@ const goBack = () => router.push('/settings');
   min-width: 120px;
   flex-shrink: 0;
   margin-top: auto;
+  white-space: nowrap;
 }
 
 .details-btn:hover {
@@ -458,247 +212,10 @@ const goBack = () => router.push('/settings');
   transform: translateY(-1px);
 }
 
-.detail-panel {
-  margin-top: 3rem; /* Увеличиваем отступ сверху */
-  margin-bottom: 2rem; /* Добавляем отступ снизу */
-  padding: 2rem; /* Увеличиваем внутренние отступы */
-  border: 1px solid #e9ecef;
-  border-radius: 12px; /* Согласуем с основными блоками */
-  background-color: white; /* Белый фон как у основных блоков */
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); /* Добавляем тень */
-  animation: slideDown 0.3s ease;
+.page-with-close {
+  position: relative;
 }
 
-.configs-list {
-  margin-bottom: var(--spacing-md, 15px);
-}
-
-.config-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm, 10px);
-  border: 1px solid var(--color-grey-light, #eee);
-  border-radius: var(--radius-sm, 4px);
-  margin-bottom: var(--spacing-xs, 5px);
-  background-color: white;
-}
-
-.config-details {
-  flex: 1;
-}
-
-.config-actions {
-  display: flex;
-  gap: var(--spacing-sm, 10px);
-}
-
-.setting-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md, 15px);
-}
-
-.add-form {
-  padding-top: var(--spacing-md, 15px);
-  border-top: 1px dashed var(--color-grey-light, #eee);
-  margin-top: var(--spacing-md, 15px);
-}
-
-.form-group {
-  margin-bottom: var(--spacing-sm, 10px);
-}
-
-.form-label {
-  display: block;
-  margin-bottom: var(--spacing-xs, 5px);
-  font-weight: 500;
-}
-
-.form-control {
-  width: 100%;
-  max-width: 600px;
-  padding: var(--spacing-sm, 10px);
-  border: 1px solid var(--color-grey-light, #eee);
-  border-radius: var(--radius-sm, 4px);
-  font-size: 1rem;
-}
-
-small {
-  display: block;
-  margin-top: var(--spacing-xs, 5px);
-  color: var(--color-grey-dark, #777);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: var(--spacing-sm, 10px) var(--spacing-md, 15px);
-  border-radius: var(--radius-sm, 4px);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-lg {
-  padding: var(--spacing-md, 15px) var(--spacing-lg, 20px);
-  font-size: 1.125rem;
-}
-
-.btn-primary {
-  background-color: var(--color-primary, #4caf50);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: var(--color-primary-dark, #388e3c);
-}
-
-.btn-secondary {
-  background-color: var(--color-secondary, #2196f3);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: var(--color-secondary-dark, #1976d2);
-}
-
-.btn-info {
-  background-color: #17a2b8;
-  color: white;
-}
-
-.btn-info:hover:not(:disabled) {
-  background-color: #138496;
-}
-
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background-color: #c82333;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--color-primary, #4caf50);
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.btn-link:hover {
-  color: var(--color-primary-dark, #388e3c);
-  text-decoration: none;
-}
-
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(255, 255, 255, 0.7);
-  border-radius: var(--radius-md, 8px);
-  z-index: 5;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-left-color: var(--color-primary, #4caf50);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 10px;
-}
-
-.env-note {
-  background-color: rgba(33, 150, 243, 0.1);
-  border-left: 3px solid var(--color-secondary, #2196f3);
-  padding: 10px;
-  margin-bottom: 15px;
-  border-radius: 0 4px 4px 0;
-  color: #0d47a1;
-}
-
-.mt-2 {
-  margin-top: 10px;
-}
-
-.suggestion {
-  background-color: rgba(76, 175, 80, 0.1);
-  border-left: 3px solid var(--color-primary, #4caf50);
-  padding: 6px 10px;
-  margin-top: 8px;
-  border-radius: 0 4px 4px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideDown {
-  from { 
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
-  z-index: 10;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
-}
-
-/* Адаптивность */
 @media (max-width: 1024px) {
   .management-blocks {
     grid-template-columns: 1fr;
@@ -706,14 +223,18 @@ small {
 }
 
 @media (max-width: 768px) {
-  .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+  .management-blocks {
+    grid-template-columns: 1fr;
   }
-  
-  .header-content h1 {
-    font-size: 1.5rem;
+
+  .management-block {
+    height: auto;
+    min-height: 0;
+  }
+
+  .security-settings {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
-</style> 
+</style>

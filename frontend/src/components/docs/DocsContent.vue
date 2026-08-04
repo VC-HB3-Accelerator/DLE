@@ -23,7 +23,7 @@
         @click.prevent="crumb.path && navigateTo(crumb.path)"
       >
         {{ crumb.name }}
-        <i v-if="index < breadcrumbs.slice(0, -1).length - 1" class="fas fa-chevron-right breadcrumb-separator"></i>
+        <UiGlyph v-if="index < breadcrumbs.slice(0, -1).length - 1" name="chevron-right" class="breadcrumb-separator" :size="10" />
       </a>
     </nav>
 
@@ -31,7 +31,7 @@
     <header v-if="page" class="page-header">
       <div class="page-header-top">
         <button v-if="!hideBackButton" class="back-btn" @click="$emit('back')" :title="$t('content.publicPage.backToList')">
-          <i class="fas fa-arrow-left"></i>
+          <UiGlyph name="arrow-left" />
           <span>{{ $t('common.back') }}</span>
         </button>
         <div v-if="canManageDocs" class="page-header-actions">
@@ -40,7 +40,7 @@
             @click="editPage"
             :title="$t('content.publishedList.editDocument')"
           >
-            <i class="fas fa-edit"></i>
+            <UiGlyph name="edit" />
             <span>{{ $t('common.edit') }}</span>
           </button>
           <button
@@ -48,7 +48,7 @@
             @click="reindexPage"
             :title="$t('content.docsContent.reindexTitle')"
           >
-            <i class="fas fa-search"></i>
+            <UiGlyph name="search" />
             <span>{{ $t('content.docsContent.reindex') }}</span>
           </button>
           <button
@@ -56,7 +56,7 @@
             @click="confirmDeletePage"
             :title="$t('content.publishedList.deleteDocument')"
           >
-            <i class="fas fa-trash"></i>
+            <UiGlyph name="trash" />
             <span>{{ $t('common.delete') }}</span>
           </button>
         </div>
@@ -67,11 +67,11 @@
       </div>
       <div class="page-meta">
         <span class="meta-item">
-          <i class="fas fa-calendar"></i>
+          <UiGlyph name="calendar" />
           {{ formatDate(page.created_at) }}
         </span>
         <span v-if="page.category" class="meta-item">
-          <i class="fas fa-folder"></i>
+          <UiGlyph name="folder" />
           {{ page.category }}
         </span>
       </div>
@@ -89,7 +89,7 @@
       </div>
       <div v-else-if="page.content" class="content-text" v-html="formatContent"></div>
       <div v-else class="empty-content">
-        <i class="fas fa-file-alt"></i>
+        <UiGlyph name="file" :size="48" />
         <p>{{ $t('content.page.noContent') }}</p>
       </div>
     </article>
@@ -114,14 +114,14 @@
           @click.prevent="navigateTo(navigation.previous.path)"
         >
           <div class="nav-label">
-            <i class="fas fa-arrow-left"></i>
+            <UiGlyph name="arrow-left" />
             <span>{{ $t('content.docsContent.previous') }}</span>
           </div>
           <div class="nav-title">{{ navigation.previous.title }}</div>
         </a>
         <div v-else class="nav-link nav-prev disabled">
           <div class="nav-label">
-            <i class="fas fa-arrow-left"></i>
+            <UiGlyph name="arrow-left" />
             <span>{{ $t('content.docsContent.previous') }}</span>
           </div>
         </div>
@@ -136,14 +136,14 @@
         >
           <div class="nav-label">
             <span>{{ $t('content.docsContent.next') }}</span>
-            <i class="fas fa-arrow-right"></i>
+            <UiGlyph name="arrow-right" />
           </div>
           <div class="nav-title">{{ navigation.next.title }}</div>
         </a>
         <div v-else class="nav-link nav-next disabled">
           <div class="nav-label">
             <span>{{ $t('content.docsContent.next') }}</span>
-            <i class="fas fa-arrow-right"></i>
+            <UiGlyph name="arrow-right" />
           </div>
         </div>
       </div>
@@ -152,7 +152,7 @@
     <!-- Похожие статьи: временно отключено (дублирующие запросы / шум в SPA) -->
     <section v-if="false && page && isBlogPage && relatedArticles.length > 0" class="related-articles">
       <h3 class="related-title">
-        <i class="fas fa-newspaper"></i>
+        <UiGlyph name="file" />
         {{ $t('content.docsContent.readAlso') }}
       </h3>
       <div class="related-grid">
@@ -178,7 +178,7 @@
     <!-- Ошибка -->
     <div v-else-if="!page && !isLoading" class="error-state">
       <div class="error-icon">
-        <i class="fas fa-exclamation-triangle"></i>
+        <UiGlyph name="warning" :size="48" />
       </div>
       <h3>{{ $t('content.docsContent.notFoundTitle') }}</h3>
       <p>{{ $t('content.publicPage.notFoundDescription') }}</p>
@@ -201,6 +201,7 @@ import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
 import { useAuthContext } from '../../composables/useAuth';
 import BlogEngagementBar from '../blog/BlogEngagementBar.vue';
+import UiGlyph from '../UiGlyph.vue';
 import { PERMISSIONS } from '../../composables/permissions';
 
 const props = defineProps({
@@ -956,6 +957,9 @@ onUnmounted(() => {
   padding: 40px;
   min-height: 100%;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .back-btn {
@@ -1413,7 +1417,7 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .docs-content {
-    padding: 20px;
+    padding: 12px 0;
     min-height: auto;
     width: 100%;
     max-width: 100%;
@@ -1423,22 +1427,45 @@ onUnmounted(() => {
   }
 
   .page-header h1 {
-    font-size: 2rem;
+    font-size: 1.5rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .page-article {
     width: 100%;
-    overflow-x: auto;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .content-text {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .content-text :deep(pre),
+  .content-text :deep(table),
+  .content-text :deep(.ql-video),
+  .content-text :deep(iframe),
+  .content-text :deep(img) {
+    max-width: 100% !important;
+  }
+
+  .content-text :deep(pre),
+  .content-text :deep(table) {
+    display: block;
     overflow-x: auto;
-    word-wrap: break-word;
+    -webkit-overflow-scrolling: touch;
   }
 
   .file-preview {
     width: 100%;
+    max-width: 100%;
   }
 
   .pdf-embed {
@@ -1483,7 +1510,7 @@ onUnmounted(() => {
 }
 
 .related-title i {
-  color: var(--primary-color, #3b82f6);
+  color: var(--color-primary);
 }
 
 .related-grid {
@@ -1502,7 +1529,7 @@ onUnmounted(() => {
 }
 
 .related-card:hover {
-  border-color: var(--primary-color, #3b82f6);
+  border-color: var(--color-primary);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
   transform: translateY(-2px);
 }
@@ -1524,7 +1551,7 @@ onUnmounted(() => {
 
 .related-card-link {
   font-size: 0.875rem;
-  color: var(--primary-color, #3b82f6);
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -1536,6 +1563,17 @@ onUnmounted(() => {
   .related-articles {
     margin-top: 32px;
     padding-top: 24px;
+  }
+}
+
+
+/* TZ package D stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

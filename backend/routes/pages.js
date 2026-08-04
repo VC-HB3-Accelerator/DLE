@@ -779,7 +779,32 @@ router.post('/', conditionalUpload, async (req, res) => {
       seo = await ensureSeoForPage(created);
     }
 
-    res.json({ ...created, seoHtml: seo });
+    let feed_filter_ids = [];
+    let feed_filter_error;
+    if (Object.prototype.hasOwnProperty.call(bodyRaw, 'feed_filter_ids')) {
+      try {
+        const blogFeedService = require('../services/blogFeedService');
+        let rawIds = bodyRaw.feed_filter_ids;
+        if (typeof rawIds === 'string') {
+          try {
+            rawIds = JSON.parse(rawIds);
+          } catch {
+            rawIds = rawIds.split(',').map((s) => s.trim()).filter(Boolean);
+          }
+        }
+        feed_filter_ids = await blogFeedService.setPageFilterIds(created.id, rawIds);
+      } catch (filterErr) {
+        console.warn('[pages] POST: sync feed filters:', filterErr.message);
+        feed_filter_ids = [];
+        feed_filter_error = filterErr.message;
+      }
+    }
+
+    const createResponse = { ...created, seoHtml: seo, feed_filter_ids };
+    if (feed_filter_error) {
+      createResponse.feed_filter_error = feed_filter_error;
+    }
+    res.json(createResponse);
   } catch (error) {
     console.error('[pages] Ошибка при создании страницы:', error);
     console.error('[pages] Стек ошибки:', error.stack);
@@ -1095,6 +1120,13 @@ router.get('/:id', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Page not found' });
     
     const page = rows[0];
+
+    try {
+      const blogFeedService = require('../services/blogFeedService');
+      page.feed_filter_ids = await blogFeedService.getPageFilterIds(page.id);
+    } catch (e) {
+      page.feed_filter_ids = [];
+    }
     
     // Проверяем доступ к странице в зависимости от её видимости
     // authService уже объявлен выше при автоматической авторизации, используем его
@@ -1356,6 +1388,7 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   for (const [k, v] of Object.entries(incoming)) {
     if (FIELDS_TO_EXCLUDE.includes(k)) continue;
     if (k === 'required_permission') continue; // Уже обработано выше
+    if (k === 'feed_filter_ids' || k === 'seoHtml') continue; // не колонки admin_pages_simple
     
     // Обрабатываем show_in_blog как boolean
     if (k === 'show_in_blog') {
@@ -1567,7 +1600,39 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   // Pre-render SEO HTML синхронно до ответа Publish (или cleanup)
   const seo = await ensureSeoForPage(updated);
 
-  res.json({ ...updated, seoHtml: seo });
+  let feed_filter_ids;
+  let feed_filter_error;
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'feed_filter_ids')) {
+    try {
+      const blogFeedService = require('../services/blogFeedService');
+      let rawIds = req.body.feed_filter_ids;
+      if (typeof rawIds === 'string') {
+        try {
+          rawIds = JSON.parse(rawIds);
+        } catch {
+          rawIds = rawIds.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      feed_filter_ids = await blogFeedService.setPageFilterIds(updated.id, rawIds);
+    } catch (filterErr) {
+      console.warn('[pages] PATCH: sync feed filters:', filterErr.message);
+      feed_filter_ids = [];
+      feed_filter_error = filterErr.message;
+    }
+  } else {
+    try {
+      const blogFeedService = require('../services/blogFeedService');
+      feed_filter_ids = await blogFeedService.getPageFilterIds(updated.id);
+    } catch {
+      feed_filter_ids = [];
+    }
+  }
+
+  const updateResponse = { ...updated, seoHtml: seo, feed_filter_ids };
+  if (feed_filter_error) {
+    updateResponse.feed_filter_error = feed_filter_error;
+  }
+  res.json(updateResponse);
   } catch (error) {
     console.error('[pages] PATCH /:id: Ошибка при обновлении страницы:', error);
     console.error('[pages] PATCH /:id: Стек ошибки:', error.stack);
@@ -1883,7 +1948,11 @@ router.get('/blog/all', async (req, res) => {
         typeof filterSlug === 'string' ? filterSlug : null
       );
       const pinnedMap = await blogFeedService.getPinnedMap();
-      sorted = blogFeedService.sortFeedPages(withPreviews, {
+      const curatedIds = activeFilter?.id
+        ? await blogFeedService.getFilterPageIds(activeFilter.id)
+        : null;
+      const restricted = blogFeedService.applyFilterPageRestriction(withPreviews, curatedIds);
+      sorted = blogFeedService.sortFeedPages(restricted, {
         sortBy: activeFilter?.sort_by || 'new',
         pinnedMap,
       }).map((page) => ({
@@ -1898,7 +1967,9 @@ router.get('/blog/all', async (req, res) => {
     res.json(sorted);
   } catch (error) {
     console.error('Ошибка получения страниц блога:', error);
-    res.status(500).json([]);
+    res.status(500).json({
+      error: error.message || 'Ошибка получения страниц блога',
+    });
   }
 });
 

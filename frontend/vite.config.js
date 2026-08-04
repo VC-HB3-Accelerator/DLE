@@ -7,6 +7,10 @@ import path, { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Host `yarn dev`: имя dapp-backend не резолвится. По умолчанию — nginx :9000 (compose).
+// Прямо в backend: VITE_API_PROXY=http://172.x.x.x:8000 или http://dapp-backend:8000 (из сети Docker).
+const apiProxyTarget = process.env.VITE_API_PROXY || 'http://127.0.0.1:9000';
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -51,7 +55,7 @@ export default defineConfig({
     force: true,
     proxy: {
       '/api': {
-        target: 'http://dapp-backend:8000',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
         credentials: true,
@@ -59,14 +63,14 @@ export default defineConfig({
         ws: true,
       },
       '/compile-contracts': {
-        target: 'http://dapp-backend:8000',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
         credentials: true,
         rewrite: (path) => path,
       },
       '/ws': {
-        target: 'http://dapp-backend:8000',
+        target: apiProxyTarget,
         ws: true,
         changeOrigin: true,
         secure: false,

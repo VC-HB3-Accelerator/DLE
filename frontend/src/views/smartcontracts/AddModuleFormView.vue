@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="add-module-page">
+    <div class="add-module-page page-with-close">
+      <PageCloseButton :on-navigate="goBackToProposals" />
       <!-- Информация для неавторизованных пользователей -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
@@ -30,11 +31,10 @@
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ t('common.loading') }}
         </div>
-        <button class="close-btn" @click="goBackToProposals">×</button>
       </div>
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
-          <i class="fas fa-info-circle"></i>
+          <span class="ui-fa-fallback" aria-hidden="true">ℹ</span>
           <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
           <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
@@ -46,7 +46,7 @@
           <!-- Тип модуля -->
           <div class="form-group">
             <label for="moduleType" class="form-label">
-              <i class="fas fa-cube"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">◻</span>
               {{ t('smartcontracts.addModule.moduleTypeLabel') }}
             </label>
             <select 
@@ -67,15 +67,15 @@
               </option>
             </select>
             <div v-if="availableModules.length === 0 && !isLoadingModules" class="no-modules-warning">
-              <i class="fas fa-exclamation-triangle"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">⚠</span>
               {{ t('smartcontracts.addModule.noModulesWarning', { count: availableModules.length }) }}
               <button type="button" @click="loadAvailableModules" class="btn-reload-modules">
-                <i class="fas fa-sync-alt"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">↻</span>
                 {{ t('common.reload') }}
               </button>
             </div>
             <div v-if="isLoadingModules" class="loading-indicator">
-              <i class="fas fa-spinner fa-spin"></i>
+              <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true">⟳</span>
               {{ t('smartcontracts.addModule.loadingModules') }}
             </div>
           </div>
@@ -83,7 +83,7 @@
           <!-- Адреса модуля (автоматически выбранные) -->
           <div class="form-group" v-if="formData.moduleType && selectedModuleAddresses.length > 0">
             <label class="form-label">
-              <i class="fas fa-map-marker-alt"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">📍</span>
               {{ t('smartcontracts.addModule.addressesLabel') }}
             </label>
             <div class="module-addresses">
@@ -111,7 +111,7 @@
           <!-- Сеть для голосования -->
           <div class="form-group">
             <label for="votingChain" class="form-label">
-              <i class="fas fa-network-wired"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">⛓</span>
               {{ t('smartcontracts.addModule.votingChainLabel') }}
             </label>
             <select 
@@ -137,7 +137,7 @@
           <!-- Длительность голосования -->
           <div class="form-group">
             <label for="votingDuration" class="form-label">
-              <i class="fas fa-clock"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">◷</span>
               {{ t('smartcontracts.addModule.votingDurationLabel') }}
             </label>
             <input 
@@ -156,7 +156,7 @@
           <!-- Описание предложения -->
           <div class="form-group">
             <label for="description" class="form-label">
-              <i class="fas fa-file-text"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">📄</span>
               {{ t('smartcontracts.addModule.descriptionLabel') }}
             </label>
             <textarea 
@@ -218,7 +218,7 @@
               class="btn btn-secondary"
               :disabled="!isFormValid"
             >
-              <i class="fas fa-eye"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">◉</span>
               {{ showPreview ? t('common.hide') : t('common.showPreview') }}
             </button>
             
@@ -227,8 +227,8 @@
               class="btn btn-primary"
               :disabled="!isFormValid || isSubmitting"
             >
-              <i v-if="isSubmitting" class="fas fa-spinner fa-spin"></i>
-              <i v-else class="fas fa-plus"></i>
+              <span v-if="isSubmitting" class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true">⟳</span>
+              <span class="ui-fa-fallback" aria-hidden="true" v-else>+</span>
               {{ isSubmitting ? t('smartcontracts.addModule.creating') : t('smartcontracts.transferTokens.createProposal') }}
             </button>
           </div>
@@ -241,7 +241,7 @@
         <div class="success-modal" @click.stop>
           <div class="success-header">
             <div class="success-icon">
-              <i class="fas fa-check-circle"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">✓</span>
             </div>
             <h2>{{ t('smartcontracts.addModule.successTitle') }}</h2>
           </div>
@@ -249,13 +249,13 @@
           <div class="success-content">
             <div class="success-details">
               <div class="detail-item">
-                <i class="fas fa-hashtag"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">#</span>
                 <span class="label">{{ t('smartcontracts.addModule.proposalIdLabel') }}</span>
                 <span class="value">{{ formatProposalId(successData.proposalId) }}</span>
               </div>
               
               <div class="detail-item">
-                <i class="fas fa-link"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">🔗</span>
                 <span class="label">{{ t('smartcontracts.addModule.txHashLabel') }}</span>
                 <div class="value">
                   <span class="transaction-hash">{{ successData.transactionHash }}</span>
@@ -265,43 +265,43 @@
                     class="etherscan-link"
                     :title="t('smartcontracts.addModule.openInExplorer')"
                   >
-                    <i class="fas fa-external-link-alt"></i>
+                    <span class="ui-fa-fallback" aria-hidden="true">↗</span>
                   </a>
                 </div>
               </div>
               
               <div class="detail-item">
-                <i class="fas fa-gas-pump"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">⛽</span>
                 <span class="label">{{ t('smartcontracts.addModule.gasUsedLabel') }}</span>
                 <span class="value">{{ formatUnknownValue(successData.gasUsed) }}</span>
               </div>
 
               <div class="detail-item">
-                <i class="fas fa-network-wired"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">⛓</span>
                 <span class="label">{{ t('smartcontracts.addModule.votingNetworkLabel') }}</span>
                 <span class="value">{{ successData.votingNetwork }}</span>
               </div>
 
               <div class="detail-item">
-                <i class="fas fa-clock"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">◷</span>
                 <span class="label">{{ t('smartcontracts.addModule.durationLabel') }}</span>
                 <span class="value">{{ t('common.daysUnit', { count: successData.duration }) }}</span>
               </div>
 
               <div class="detail-item">
-                <i class="fas fa-cube"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">◻</span>
                 <span class="label">{{ t('smartcontracts.addModule.moduleTypeDetailLabel') }}</span>
                 <span class="value">{{ successData.moduleType }}</span>
               </div>
 
               <div class="detail-item">
-                <i class="fas fa-building"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">🏢</span>
                 <span class="label">{{ t('smartcontracts.addModule.dleAddressLabel') }}</span>
                 <span class="value dle-address">{{ successData.dleAddress }}</span>
               </div>
 
               <div class="detail-item">
-                <i class="fas fa-map-marker-alt"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">📍</span>
                 <span class="label">{{ t('smartcontracts.addModule.moduleAddressesLabel') }}</span>
                 <div class="value module-addresses-list">
                   <div v-for="addr in successData.moduleAddresses" :key="`${addr.chainId}-${addr.address}`" class="module-address-item">
@@ -311,7 +311,7 @@
               </div>
 
               <div class="detail-item">
-                <i class="fas fa-file-alt"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">📄</span>
                 <span class="label">{{ t('smartcontracts.addModule.descriptionDetailLabel') }}</span>
                 <span class="value description-text">{{ successData.description }}</span>
               </div>
@@ -322,7 +322,7 @@
               <p>{{ t('smartcontracts.addModule.multichainInitMessage', { count: successData.networksCount }) }}</p>
               <ul class="networks-list">
                 <li v-for="network in successData.networks" :key="network.chainId">
-                  <i class="fas fa-link"></i>
+                  <span class="ui-fa-fallback" aria-hidden="true">🔗</span>
                   {{ network.name }} ({{ network.chainId }})
                 </li>
               </ul>
@@ -331,11 +331,11 @@
           
           <div class="success-actions">
             <button @click="closeSuccessModal" class="btn btn-secondary">
-              <i class="fas fa-times"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">×</span>
               {{ t('common.close') }}
             </button>
             <button @click="openProposals" class="btn btn-primary">
-              <i class="fas fa-external-link-alt"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">↗</span>
               {{ t('smartcontracts.addModule.openProposals') }}
             </button>
           </div>
@@ -349,6 +349,7 @@ import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { getAllModules, getDeploymentId } from '../../services/modulesService.js';
 import { createAddModuleProposal } from '../../utils/dle-contract.js';
 import api from '../../api/axios';
@@ -1385,5 +1386,20 @@ onMounted(async () => {
     align-items: flex-start;
     gap: 0.25rem;
   }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
+}
+
+.add-module-container.page-with-close {
+  position: relative;
 }
 </style>

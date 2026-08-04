@@ -31,7 +31,7 @@
               :placeholder="t('content.publicPages.searchPlaceholder')"
               class="search-input"
             >
-            <i class="fas fa-search search-icon"></i>
+            <UiGlyph name="search" class="search-icon" />
           </div>
         </div>
 
@@ -46,7 +46,7 @@
             <div class="page-card-header">
               <h3>{{ page.title }}</h3>
               <div class="page-status published">
-                <i class="fas fa-circle"></i>
+                <UiGlyph name="circle" filled :size="8" />
                 {{ t('common.status.published') }}
               </div>
             </div>
@@ -54,11 +54,11 @@
               <p class="page-summary">{{ page.summary || t('common.noDescription') }}</p>
               <div class="page-meta">
                 <span class="page-date">
-                  <i class="fas fa-calendar"></i>
+                  <UiGlyph name="calendar" :size="14" />
                   {{ formatDate(page.created_at) }}
                 </span>
                 <span class="page-author" v-if="page.author_address">
-                  <i class="fas fa-user"></i>
+                  <UiGlyph name="user" :size="14" />
                   {{ formatAddress(page.author_address) }}
                 </span>
               </div>
@@ -69,7 +69,7 @@
         <!-- Пустое состояние -->
         <div v-else-if="!isLoading" class="empty-state">
           <div class="empty-icon">
-            <i class="fas fa-file-alt"></i>
+            <UiGlyph name="file" :size="40" />
           </div>
           <h3>{{ t('content.publicPages.emptyTitle') }}</h3>
           <p>{{ t('content.publicPages.emptyDescription') }}</p>
@@ -91,6 +91,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 // Props
 const props = defineProps({
@@ -393,6 +394,17 @@ onMounted(() => {
   
   .pages-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* TZ package D stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

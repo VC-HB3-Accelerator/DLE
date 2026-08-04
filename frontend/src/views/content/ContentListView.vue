@@ -114,11 +114,6 @@ function goToCreate() {
   router.push({ name: 'content-create' });
 }
 
-
-function goBack() {
-  router.go(-1);
-}
-
 function goToTemplates() {
   router.push({ name: 'content-templates' });
 }
@@ -516,27 +511,6 @@ async function deletePage(id) {
   gap: 10px;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--color-grey-dark);
-  padding: 5px;
-  border-radius: var(--radius-sm);
-  transition: background 0.2s;
-  min-width: 32px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: var(--color-primary);
-}
-
 @media (max-width: 768px) {
   .content-management-page {
     padding: 16px;
@@ -559,12 +533,6 @@ async function deletePage(id) {
   
   .header-actions {
     align-self: flex-start;
-  }
-  
-  .close-btn {
-    font-size: 1.3rem;
-    min-width: 28px;
-    min-height: 28px;
   }
   
   .content-block {
@@ -642,6 +610,17 @@ async function deletePage(id) {
   
   .management-block p {
     font-size: 0.85rem;
+  }
+}
+
+
+/* TZ package D stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

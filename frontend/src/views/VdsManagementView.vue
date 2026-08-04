@@ -284,22 +284,22 @@
             </div>
             <div class="container-actions-item">
               <button v-if="isEditor" @click="startContainer(container.name)" :disabled="isLoading || container.status.includes('Up')" class="action-btn-small start" :title="t('vds.start')">
-                ▶️
+                <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M4 2l10 6-10 6V2z"/></svg>
               </button>
               <button v-if="isEditor" @click="stopContainer(container.name)" :disabled="isLoading || !container.status.includes('Up')" class="action-btn-small stop" :title="t('vds.stop')">
-                ⏹️
+                <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
               </button>
               <button v-if="isEditor" @click="restartContainer(container.name)" :disabled="isLoading" class="action-btn-small restart" :title="t('vds.restart')">
-                🔄
+                <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3v3H10"/><path d="M3 13V10h3"/><path d="M12.5 6A5 5 0 1 0 10 3.5"/></svg>
               </button>
               <button @click="viewContainerLogs(container.name)" :disabled="isLoading" class="action-btn-small logs" :title="t('vds.logs')">
-                📋
+                <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="2" width="10" height="12" rx="1"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
               </button>
               <button v-if="isEditor" @click="rebuildContainer(container.name)" :disabled="isLoading" class="action-btn-small rebuild" :title="t('vds.rebuild')">
-                🔨
+                <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12l3-3 2 2 5-5"/><path d="M10 4h4v4"/></svg>
               </button>
               <button v-if="isEditor" @click="deleteContainer(container.name)" :disabled="isLoading" class="action-btn-small delete" :title="t('common.delete')">
-                🗑️
+                <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4"/></svg>
               </button>
             </div>
           </div>
@@ -358,13 +358,13 @@
               </div>
               <div class="user-actions">
                 <button @click="viewUserSshKeys(user.username)" :disabled="isLoading" class="action-btn-small ssh-keys" :title="t('vds.sshKeys')">
-                  🔑
+                  <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="10.5" r="3.5"/><path d="M8.5 8l5-5M12 2l2 2M11 3l1 1"/></svg>
                 </button>
                 <button @click="changeUserPassword(user.username)" :disabled="isLoading" class="action-btn-small password" :title="t('vds.changePassword')">
-                  🔒
+                  <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>
                 </button>
                 <button @click="deleteUser(user.username)" :disabled="isLoading" class="action-btn-small delete" :title="t('common.delete')">
-                  🗑️
+                  <svg class="toolbar-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4"/></svg>
                 </button>
               </div>
             </div>
@@ -1882,6 +1882,15 @@ onUnmounted(() => {
 .action-btn-small {
   padding: 6px 12px;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar-icon {
+  width: 1em;
+  height: 1em;
+  display: block;
 }
 
 .action-btn.restart-all, .action-btn-small.restart {
@@ -2372,6 +2381,17 @@ onUnmounted(() => {
 
 .access-denied-message p {
   margin: 0;
+}
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>
 

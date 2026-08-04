@@ -9,6 +9,7 @@
   Website: https://hb3-accelerator.com
   GitHub: https://github.com/VC-HB3-Accelerator
 -->
+<!-- Contacts: Element Plus native + theme bridge (element-plus-bridge.css); no full EP→btn migration here. -->
 
 <template>
   <el-dialog v-model="visible" :title="t('contacts.importModal.title')" width="800px" @close="$emit('close')">
@@ -21,7 +22,7 @@
         @change="handleFileChange"
         style="width:100%"
       >
-        <i class="el-icon-upload"></i>
+        <el-icon class="el-icon--upload"><Upload /></el-icon>
         <div class="el-upload__text">{{ t('contacts.importModal.dragDrop') }} <em>{{ t('contacts.importModal.clickToSelect') }}</em></div>
         <div class="el-upload__tip">{{ t('contacts.importModal.formats') }}</div>
       </el-upload>
@@ -41,7 +42,9 @@
         </el-table-column>
         <el-table-column :label="t('contacts.importModal.remove')" width="80">
           <template #default="scope">
-            <el-button type="danger" icon="el-icon-delete" size="small" @click="removeRow(scope.$index)" circle />
+            <el-button type="danger" size="small" circle @click="removeRow(scope.$index)">
+              <el-icon><Delete /></el-icon>
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -66,6 +69,7 @@ import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Papa from 'papaparse';
 import { ElMessage } from 'element-plus';
+import { Upload, Delete } from '@element-plus/icons-vue';
 
 const { t } = useI18n();
 const emit = defineEmits(['close', 'imported']);
@@ -193,5 +197,18 @@ function findFirstArray(obj) {
 .el-upload {
   width: 100%;
   margin-bottom: 1em;
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .modal, .import-modal, .modal-content {
+    max-width: 100%;
+    width: 100%;
+    min-width: 0 !important;
+    box-sizing: border-box;
+    padding: var(--block-padding-mobile);
+  }
+  .actions, .footer { flex-direction: column; }
+  button { width: 100%; }
 }
 </style>

@@ -75,6 +75,12 @@ export default {
     
     const url = `/pages/blog/all${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const res = await api.get(url);
+    if (!Array.isArray(res.data)) {
+      const errMsg = res.data?.error || 'Invalid blog pages response';
+      const err = new Error(errMsg);
+      err.response = res;
+      throw err;
+    }
     return res.data;
   },
   async getBlogPageBySlug(slug) {

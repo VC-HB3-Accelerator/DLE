@@ -12,62 +12,77 @@
 
 <template>
   <div class="auth-tokens-settings">
-    <h4>{{ $t('settings.authTokens.title') }}</h4>
-    
-    <!-- Отображение текущего уровня доступа -->
     <div v-if="userAccessLevel && userAccessLevel.hasAccess" class="access-level-info">
       <div class="access-level-badge" :class="getLevelClass(userAccessLevel.level)">
-        <i class="fas fa-shield-alt"></i>
-        <span>{{ getLevelDescription(userAccessLevel.level) }}</span>
+        <UiGlyph name="shield" />
+        <span class="access-level-text">{{ getLevelDescription(userAccessLevel.level) }}</span>
         <span class="token-count">{{ $t('settings.authTokens.tokenCount', userAccessLevel.tokenCount) }}</span>
       </div>
       <div class="access-level-description">
         {{ getAccessLevelDescription(userAccessLevel.level) }}
       </div>
     </div>
+
     <div v-if="authTokens.length > 0" class="tokens-list">
-      <div v-for="(token, index) in authTokens" :key="token.address + token.network" class="token-entry">
-        <span><strong>{{ $t('settings.authTokens.name') }}</strong> {{ token.name }}</span>
-        <span><strong>{{ $t('settings.authTokens.address') }}</strong> {{ token.address }}</span>
-        <span><strong>{{ $t('settings.authTokens.network') }}</strong> {{ getNetworkLabel(token.network) }}</span>
-        <span><strong>{{ $t('settings.authTokens.minBalance') }}</strong> {{ token.minBalance }}</span>
-        <span><strong>{{ $t('settings.authTokens.readOnly') }}</strong> {{ token.readonlyThreshold || 1 }} {{ getTokenSuffix(token.readonlyThreshold || 1) }}</span>
-        <span><strong>{{ $t('settings.authTokens.editor') }}</strong> {{ token.editorThreshold || 2 }} {{ getTokenSuffix(token.editorThreshold || 2) }}</span>
-        <button 
-          class="btn btn-sm" 
-          :class="canManageSettings ? 'btn-danger' : 'btn-secondary'" 
-          @click="canManageSettings ? removeToken(index) : null"
-          :disabled="!canManageSettings"
-        >
-          {{ $t('common.delete') }}
-        </button>
+      <div class="tokens-list-head" aria-hidden="true">
+        <span>{{ $t('settings.authTokens.name') }}</span>
+        <span>{{ $t('settings.authTokens.address') }}</span>
+        <span>{{ $t('settings.authTokens.network') }}</span>
+        <span>{{ $t('settings.authTokens.minBalance') }}</span>
+        <span>{{ $t('settings.authTokens.readOnly') }}</span>
+        <span>{{ $t('settings.authTokens.editor') }}</span>
+        <span></span>
+      </div>
+      <div
+        v-for="(token, index) in authTokens"
+        :key="token.address + token.network"
+        class="token-entry"
+      >
+        <span class="token-cell" :title="token.name">{{ token.name }}</span>
+        <span class="token-cell token-cell--mono" :title="token.address">{{ shortAddress(token.address) }}</span>
+        <span class="token-cell" :title="getNetworkLabel(token.network)">{{ getNetworkLabel(token.network) }}</span>
+        <span class="token-cell token-cell--num" :title="String(token.minBalance)">{{ formatMinBalance(token.minBalance) }}</span>
+        <span class="token-cell token-cell--num">{{ token.readonlyThreshold ?? 1 }}</span>
+        <span class="token-cell token-cell--num">{{ token.editorThreshold ?? 1 }}</span>
+        <div class="token-actions">
+          <button
+            type="button"
+            class="btn btn-sm"
+            :class="canManageSettings ? 'btn-danger' : 'btn-outline'"
+            @click="canManageSettings ? removeToken(index) : null"
+            :disabled="!canManageSettings"
+          >
+            {{ $t('common.delete') }}
+          </button>
+        </div>
       </div>
     </div>
-    <p v-else>{{ $t('settings.authTokens.empty') }}</p>
+    <p v-else class="empty-hint">{{ $t('settings.authTokens.empty') }}</p>
+
     <div class="add-token-form">
       <h5>{{ $t('settings.authTokens.addTitle') }}</h5>
       <div class="form-group">
-        <label>{{ $t('settings.authTokens.name') }}</label>
-        <input 
-          type="text" 
-          v-model="newToken.name" 
-          class="form-control" 
+        <label class="form-label">{{ $t('settings.authTokens.name') }}</label>
+        <input
+          type="text"
+          v-model="newToken.name"
+          class="form-control"
           placeholder="test2"
           :disabled="!canManageSettings"
         >
       </div>
       <div class="form-group">
-        <label>{{ $t('settings.authTokens.address') }}</label>
-        <input 
-          type="text" 
-          v-model="newToken.address" 
-          class="form-control" 
+        <label class="form-label">{{ $t('settings.authTokens.address') }}</label>
+        <input
+          type="text"
+          v-model="newToken.address"
+          class="form-control"
           placeholder="0x..."
           :disabled="!canManageSettings"
         >
       </div>
       <div class="form-group">
-        <label>{{ $t('settings.authTokens.network') }}</label>
+        <label class="form-label">{{ $t('settings.authTokens.network') }}</label>
         <select v-model="newToken.network" class="form-control" :disabled="!canManageSettings">
           <option value="">{{ $t('settings.authTokens.selectNetwork') }}</option>
           <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
@@ -78,11 +93,11 @@
         </select>
       </div>
       <div class="form-group">
-        <label>{{ $t('settings.authTokens.minBalance') }}</label>
-        <input 
-          type="number" 
-          v-model.number="newToken.minBalance" 
-          class="form-control" 
+        <label class="form-label">{{ $t('settings.authTokens.minBalance') }}</label>
+        <input
+          type="number"
+          v-model.number="newToken.minBalance"
+          class="form-control"
           placeholder="0"
           min="0"
           step="0.01"
@@ -90,38 +105,40 @@
         >
         <small class="form-text">{{ $t('settings.authTokens.minBalanceHelp') }}</small>
       </div>
-      
-      <!-- Настройки прав доступа -->
+
       <div class="access-settings">
         <h6>{{ $t('settings.authTokens.accessSettings') }}</h6>
-        <div class="form-group">
-          <label>{{ $t('settings.authTokens.readonlyThreshold') }}</label>
-          <input 
-            type="number" 
-            v-model="newToken.readonlyThreshold" 
-            class="form-control" 
-            placeholder="1"
-            min="1"
-            :disabled="!canManageSettings"
-          >
-          <small class="form-text">{{ $t('settings.authTokens.readonlyThresholdHelp') }}</small>
-        </div>
-        <div class="form-group">
-          <label>{{ $t('settings.authTokens.editorThreshold') }}</label>
-          <input 
-            type="number" 
-            v-model="newToken.editorThreshold" 
-            class="form-control" 
-            placeholder="2"
-            min="2"
-            :disabled="!canManageSettings"
-          >
-          <small class="form-text">{{ $t('settings.authTokens.editorThresholdHelp') }}</small>
+        <div class="thresholds-row">
+          <div class="form-group">
+            <label class="form-label">{{ $t('settings.authTokens.readonlyThreshold') }}</label>
+            <input
+              type="number"
+              v-model="newToken.readonlyThreshold"
+              class="form-control"
+              placeholder="1"
+              min="1"
+              :disabled="!canManageSettings"
+            >
+            <small class="form-text">{{ $t('settings.authTokens.readonlyThresholdHelp') }}</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ $t('settings.authTokens.editorThreshold') }}</label>
+            <input
+              type="number"
+              v-model="newToken.editorThreshold"
+              class="form-control"
+              placeholder="2"
+              min="2"
+              :disabled="!canManageSettings"
+            >
+            <small class="form-text">{{ $t('settings.authTokens.editorThresholdHelp') }}</small>
+          </div>
         </div>
       </div>
-      <button 
-        class="btn" 
-        :class="canManageSettings ? 'btn-primary' : 'btn-secondary'" 
+      <button
+        type="button"
+        class="btn"
+        :class="canManageSettings ? 'btn-primary' : 'btn-outline'"
         @click="canManageSettings ? addToken() : null"
         :disabled="!canManageSettings"
       >
@@ -133,21 +150,23 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
-import { reactive, computed, onMounted } from 'vue';
+import { reactive, onMounted, onUnmounted } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import eventBus from '@/utils/eventBus';
+import UiGlyph from '@/components/UiGlyph.vue';
+
+const { t } = useI18n();
 const props = defineProps({
   authTokens: { type: Array, required: true }
 });
 const emit = defineEmits(['update']);
-const newToken = reactive({ 
-  name: '', 
-  address: '', 
-  network: '', 
+const newToken = reactive({
+  name: '',
+  address: '',
+  network: '',
   minBalance: 0,
   readonlyThreshold: 1,
   editorThreshold: 2
@@ -157,41 +176,40 @@ const { networkGroups, networks } = useBlockchainNetworks();
 const { checkTokenBalances, address, checkAuth, userAccessLevel, checkUserAccessLevel } = useAuthContext();
 const { canManageSettings, getLevelClass, getLevelDescription } = usePermissions();
 
-// Подписываемся на централизованные события очистки и обновления данных
+function handleClear() {
+  newToken.name = '';
+  newToken.address = '';
+  newToken.network = '';
+  newToken.minBalance = 0;
+  newToken.readonlyThreshold = 1;
+  newToken.editorThreshold = 2;
+}
+
+function handleRefresh() {
+  emit('update');
+}
+
 onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[AuthTokensSettings] Clearing tokens data');
-    // Очищаем данные при выходе из системы
-    tokens.value = [];
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[AuthTokensSettings] Refreshing tokens data');
-    loadTokens(); // Обновляем данные при входе в систему
-  });
+  window.addEventListener('clear-application-data', handleClear);
+  window.addEventListener('refresh-application-data', handleRefresh);
 });
 
-function getTokenSuffix(count) {
-  const n = Math.abs(Number(count));
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return t('settings.authTokens.tokenSuffixOne');
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return t('settings.authTokens.tokenSuffixFew');
-  return t('settings.authTokens.tokenSuffixMany');
-}
+onUnmounted(() => {
+  window.removeEventListener('clear-application-data', handleClear);
+  window.removeEventListener('refresh-application-data', handleRefresh);
+});
 
 async function addToken() {
   if (!newToken.name || !newToken.address || !newToken.network) {
     alert(t('settings.authTokens.allFieldsRequired'));
     return;
   }
-  
-  // Валидация порогов доступа
+
   if (newToken.readonlyThreshold >= newToken.editorThreshold) {
     alert(t('settings.authTokens.thresholdInvalid'));
     return;
   }
-  
+
   const tokenData = {
     name: newToken.name,
     address: newToken.address,
@@ -200,45 +218,26 @@ async function addToken() {
     readonlyThreshold: newToken.readonlyThreshold !== null && newToken.readonlyThreshold !== undefined && newToken.readonlyThreshold !== '' ? Number(newToken.readonlyThreshold) : 1,
     editorThreshold: newToken.editorThreshold !== null && newToken.editorThreshold !== undefined && newToken.editorThreshold !== '' ? Number(newToken.editorThreshold) : 2
   };
-  
-  console.log('[AuthTokensSettings] Отправляем данные токена:', tokenData);
-  console.log('[AuthTokensSettings] newToken объект:', newToken);
-  console.log('[AuthTokensSettings] newToken.readonlyThreshold:', newToken.readonlyThreshold, 'тип:', typeof newToken.readonlyThreshold);
-  console.log('[AuthTokensSettings] newToken.editorThreshold:', newToken.editorThreshold, 'тип:', typeof newToken.editorThreshold);
-  
+
   try {
     await api.post('/settings/auth-token', tokenData);
-    
-    // После добавления токена перепроверяем баланс пользователя и обновляем состояние аутентификации
+
     try {
       if (address.value) {
         await checkTokenBalances(address.value);
         await checkUserAccessLevel(address.value);
-        console.log('[AuthTokensSettings] Баланс токенов и уровень доступа перепроверены после добавления');
       }
-      
-      // Обновляем состояние аутентификации чтобы отразить изменения роли
       await checkAuth();
-      console.log('[AuthTokensSettings] Состояние аутентификации обновлено после добавления токена');
-      
-      // Уведомляем App.vue об изменении настроек аутентификации
       eventBus.emit('auth-settings-saved');
-      console.log('[AuthTokensSettings] Событие auth-settings-saved отправлено');
     } catch (balanceError) {
       console.error('[AuthTokensSettings] Ошибка при перепроверке баланса:', balanceError);
     }
-    
-    // Небольшая задержка для синхронизации с backend
+
     setTimeout(() => {
       emit('update');
     }, 100);
-    
-    newToken.name = '';
-    newToken.address = '';
-    newToken.network = '';
-    newToken.minBalance = 0;
-    newToken.readonlyThreshold = 1;
-    newToken.editorThreshold = 2;
+
+    handleClear();
   } catch (e) {
     alert(t('settings.authTokens.addError', { error: e.response?.data?.error || e.message }));
   }
@@ -248,40 +247,26 @@ async function removeToken(index) {
   const token = props.authTokens[index];
   if (!token) return;
   if (!confirm(t('settings.authTokens.confirmDelete', { name: token.name, address: token.address }))) return;
-  
-  console.log('[AuthTokensSettings] Удаление токена:', token);
-  console.log('[AuthTokensSettings] URL:', `/settings/auth-token/${token.address}/${token.network}`);
-  
+
   try {
-    const response = await api.delete(`/settings/auth-token/${token.address}/${token.network}`);
-    console.log('[AuthTokensSettings] Успешное удаление:', response.data);
-    
-    // После удаления токена перепроверяем баланс пользователя и обновляем состояние аутентификации
+    await api.delete(`/settings/auth-token/${token.address}/${token.network}`);
+
     try {
       if (address.value) {
         await checkTokenBalances(address.value);
         await checkUserAccessLevel(address.value);
-        console.log('[AuthTokensSettings] Баланс токенов и уровень доступа перепроверены после удаления');
       }
-      
-      // Обновляем состояние аутентификации чтобы отразить изменения роли
       await checkAuth();
-      console.log('[AuthTokensSettings] Состояние аутентификации обновлено после удаления токена');
-      
-      // Уведомляем App.vue об изменении настроек аутентификации
       eventBus.emit('auth-settings-saved');
-      console.log('[AuthTokensSettings] Событие auth-settings-saved отправлено');
     } catch (balanceError) {
       console.error('[AuthTokensSettings] Ошибка при перепроверке баланса:', balanceError);
     }
-    
-    // Небольшая задержка для синхронизации с backend
+
     setTimeout(() => {
       emit('update');
     }, 100);
   } catch (e) {
     console.error('[AuthTokensSettings] Ошибка при удалении токена:', e);
-    console.error('[AuthTokensSettings] Response:', e.response);
     alert(t('settings.authTokens.deleteError', { error: e.response?.data?.error || e.message }));
   }
 }
@@ -291,6 +276,20 @@ function getNetworkLabel(networkId) {
   return found ? found.label : networkId;
 }
 
+/** numeric(36,18) с бэка → «1», не «1.000000000000000000» */
+function formatMinBalance(value) {
+  if (value == null || value === '') return '0';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  const trimmed = n.toFixed(18).replace(/\.?0+$/, '');
+  return trimmed === '-0' ? '0' : trimmed;
+}
+
+function shortAddress(address) {
+  const a = String(address || '');
+  if (a.length < 14) return a;
+  return `${a.slice(0, 8)}…${a.slice(-6)}`;
+}
 
 function getAccessLevelDescription(level) {
   switch (level) {
@@ -306,89 +305,170 @@ function getAccessLevelDescription(level) {
 </script>
 
 <style scoped>
-.tokens-list { margin-bottom: 1rem; }
-.token-entry { 
-  display: flex; 
-  gap: 1rem; 
-  align-items: center; 
-  margin-bottom: 0.5rem; 
-  flex-wrap: wrap;
-  padding: 0.75rem;
-  background-color: #f8f9fa;
-  border-radius: 6px;
-  border: 1px solid #e9ecef;
+.auth-tokens-settings {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
 }
 
-.token-entry span {
-  font-size: 0.875rem;
+.tokens-list {
+  margin-bottom: var(--spacing-lg, 20px);
+  min-width: 720px;
+}
+
+.tokens-list-head,
+.token-entry {
+  display: grid;
+  grid-template-columns:
+    minmax(72px, 0.55fr)
+    minmax(148px, 1.3fr)
+    minmax(88px, 0.7fr)
+    minmax(64px, 0.4fr)
+    minmax(72px, 0.4fr)
+    minmax(64px, 0.35fr)
+    96px;
+  gap: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  align-items: center;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+}
+
+.tokens-list-head {
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--theme-text-muted, #666);
+  border-bottom: 1px solid var(--theme-border, #e9ecef);
   white-space: nowrap;
 }
-.add-token-form { margin-top: 1rem; }
 
-/* Стили для секции настроек прав доступа */
+.token-entry {
+  border-bottom: 1px solid var(--theme-border, #e9ecef);
+}
+
+.token-cell {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.token-cell--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.token-cell--num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.token-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  justify-self: stretch;
+  justify-content: flex-end;
+}
+
+.token-actions .btn {
+  white-space: nowrap;
+}
+
+.empty-hint {
+  margin: 0 0 var(--spacing-lg, 20px);
+  color: var(--theme-text-muted, #666);
+}
+
+.add-token-form {
+  margin-top: var(--spacing-lg, 20px);
+  max-width: 720px;
+}
+
+.add-token-form h5 {
+  margin: 0 0 var(--spacing-md, 12px);
+  white-space: nowrap;
+}
+
+.form-group {
+  margin-bottom: var(--spacing-md, 15px);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs, 6px);
+  white-space: nowrap;
+}
+
 .access-settings {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
+  margin: var(--spacing-lg, 20px) 0;
+  padding: var(--spacing-md, 15px);
+  background: var(--theme-surface, #f8f9fa);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--theme-border, #e9ecef);
 }
 
 .access-settings h6 {
-  margin-bottom: 1rem;
-  color: #495057;
-  font-weight: 600;
-  border-bottom: 1px solid #dee2e6;
-  padding-bottom: 0.5rem;
+  margin: 0 0 var(--spacing-md, 12px);
+  white-space: nowrap;
+}
+
+.thresholds-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md, 15px);
 }
 
 .form-text {
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
-  color: #6c757d;
+  margin-top: var(--spacing-xs, 6px);
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--theme-text-muted, #6c757d);
 }
 
-/* Стили для отображения уровня доступа */
 .access-level-info {
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #007bff;
+  margin-bottom: var(--spacing-lg, 20px);
+  padding: var(--spacing-md, 15px);
+  background-color: var(--color-light, #f8f9fa);
+  border-radius: var(--radius-lg, 8px);
+  border-left: 3px solid var(--color-secondary, #2196f3);
 }
 
 .access-level-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
+  flex-wrap: nowrap;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  border-radius: var(--radius-md, 6px);
   font-weight: 600;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
+  font-size: var(--font-size-sm, 0.875rem);
+  margin-bottom: var(--spacing-sm, 8px);
+  border: 1px solid var(--color-border, #dee2e6);
+  white-space: nowrap;
+  max-width: 100%;
 }
 
-.access-level-badge i {
-  font-size: 1rem;
+.access-level-text,
+.token-count {
+  white-space: nowrap;
 }
 
 .access-readonly {
-  background-color: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeaa7;
+  background-color: color-mix(in srgb, var(--color-warning, #ffc107) 14%, white);
+  color: var(--theme-text, #222);
+  border-color: color-mix(in srgb, var(--color-warning, #ffc107) 35%, white);
 }
 
 .access-editor {
-  background-color: #d1ecf1;
-  color: #0c5460;
-  border: 1px solid #bee5eb;
+  background-color: color-mix(in srgb, var(--color-secondary, #2196f3) 12%, white);
+  color: var(--theme-text, #222);
+  border-color: color-mix(in srgb, var(--color-secondary, #2196f3) 30%, white);
 }
 
 .access-user {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: color-mix(in srgb, var(--color-danger, #dc3545) 10%, white);
+  color: var(--theme-text, #222);
+  border-color: color-mix(in srgb, var(--color-danger, #dc3545) 30%, white);
 }
 
 .token-count {
@@ -397,50 +477,13 @@ function getAccessLevelDescription(level) {
 }
 
 .access-level-description {
-  font-size: 0.85rem;
-  color: #6c757d;
-  margin-top: 0.25rem;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-text-light, #666);
+  margin-top: var(--spacing-xs, 6px);
 }
 
-/* Стили для неактивных кнопок */
-.btn[disabled], .btn:disabled {
-  background: #e0e0e0 !important;
-  color: #aaa !important;
-  border-color: #ccc !important;
-  cursor: not-allowed !important;
-  opacity: 1 !important;
-}
-
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #c82333;
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #5a6268;
-}
-
-/* Стили для неактивных полей формы */
-.form-control[disabled], .form-control:disabled {
+.form-control[disabled],
+.form-control:disabled {
   background-color: #f8f9fa !important;
   color: #6c757d !important;
   border-color: #dee2e6 !important;
@@ -448,11 +491,9 @@ function getAccessLevelDescription(level) {
   opacity: 1 !important;
 }
 
-.form-control {
-  padding: 8px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+@media (max-width: 768px) {
+  .thresholds-row {
+    grid-template-columns: 1fr;
+  }
 }
-</style> 
+</style>

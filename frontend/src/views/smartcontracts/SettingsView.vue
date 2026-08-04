@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="settings-container">
+    <div class="settings-container page-with-close">
+      <PageCloseButton :on-navigate="goBackToBlocks" />
       <!-- Основной контент -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="dleInfo?.address" style="color: var(--color-grey-dark); font-size: 0.9rem;">
@@ -30,7 +31,6 @@
         <div v-else-if="isLoading" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ t('common.loading') }}
         </div>
-        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div v-if="dleInfo" class="main-content">
         <!-- Отображение в футере -->
@@ -41,11 +41,11 @@
           <div class="footer-content">
             <p>{{ t('smartcontracts.settings.footerDescription') }}</p>
             <div v-if="isSelectedForFooter" class="selected-info">
-              <i class="fas fa-check-circle"></i>
+              <UiGlyph name="check-circle" />
               <span>{{ t('smartcontracts.settings.selectedForFooter') }}</span>
             </div>
             <div v-else-if="hasFooterDle" class="other-selected-info">
-              <i class="fas fa-info-circle"></i>
+              <UiGlyph name="info" />
               <span>{{ t('smartcontracts.settings.otherSelectedForFooter', { name: footerDle.value?.name, symbol: footerDle.value?.symbol }) }}</span>
             </div>
             <div class="footer-actions">
@@ -55,7 +55,7 @@
                 class="btn-primary" 
                 :disabled="isLoading"
               >
-                <i class="fas fa-eye"></i>
+                <UiGlyph name="eye" />
                 {{ t('smartcontracts.settings.showInFooter') }}
               </button>
               <button 
@@ -64,7 +64,7 @@
                 class="btn-danger" 
                 :disabled="isLoading"
               >
-                <i class="fas fa-trash"></i>
+                <UiGlyph name="trash" />
                 {{ t('smartcontracts.settings.removeFromFooter') }}
               </button>
               <button 
@@ -73,7 +73,7 @@
                 class="btn-danger btn-sm" 
                 :disabled="isLoading"
               >
-                <i class="fas fa-trash"></i>
+                <UiGlyph name="trash" />
                 {{ t('smartcontracts.settings.removeFromFooter') }}
               </button>
             </div>
@@ -107,9 +107,7 @@
       <div v-if="!address" class="no-dle-card">
         <h3>{{ t('smartcontracts.settings.noDleSelected') }}</h3>
         <p>{{ t('smartcontracts.settings.noDleSelectedDesc') }}</p>
-        <button @click="goBackToBlocks" class="btn-primary">
-          {{ t('smartcontracts.settings.backToList') }}
-        </button>
+
       </div>
     </div>
   </BaseLayout>
@@ -124,9 +122,11 @@ import { useFooterDle } from '../../composables/useFooterDle';
 import { usePermissions } from '../../composables/usePermissions';
 import { ROLES } from '../../composables/permissions';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { deactivateDLE } from '../../utils/dle-contract.js';
 import api from '../../api/axios';
 import { errorMessageMatches } from '../../utils/i18nErrorMatch';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 const { t } = useI18n();
 
@@ -363,6 +363,7 @@ onMounted(() => {
 
 <style scoped>
 .settings-container {
+  position: relative;
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
@@ -602,5 +603,20 @@ onMounted(() => {
   margin-bottom: 5px;
   font-size: 0.9rem;
   line-height: 1.4;
+}
+
+
+/* TZ package G/SC */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, .modal, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="form"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style> 

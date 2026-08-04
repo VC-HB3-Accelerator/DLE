@@ -14,7 +14,7 @@
         :aria-haspopup="true"
         @click="toggleMenu"
       >
-        <i class="fas fa-filter" aria-hidden="true" />
+        <BlogGlyph name="filter" />
         <span class="blog-feed-toolbar__btn-label">{{ currentFilterLabel }}</span>
         <span class="blog-feed-toolbar__chevron" aria-hidden="true">▾</span>
       </button>
@@ -50,7 +50,7 @@
       :aria-label="t('blog.feedSettings.open')"
       @click="$emit('open-settings')"
     >
-      <i class="fas fa-cog" aria-hidden="true" />
+      <BlogGlyph name="settings" />
     </button>
   </div>
 </template>
@@ -58,6 +58,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import BlogGlyph from './BlogGlyph.vue';
 
 const props = defineProps({
   filters: { type: Array, default: () => [] },
@@ -209,7 +210,7 @@ onBeforeUnmount(() => {
 }
 
 .blog-feed-toolbar__menu-item--active {
-  background: rgba(64, 158, 255, 0.08);
+  background: var(--color-light);
   color: var(--color-primary);
   font-weight: 600;
 }
@@ -221,16 +222,32 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-grey-light);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: var(--color-light);
+  background: var(--color-white);
   color: var(--color-dark);
   cursor: pointer;
-  transition: background var(--transition-normal), color var(--transition-normal);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .blog-feed-toolbar__settings:hover {
-  background: var(--color-grey-light);
+  background: var(--color-light);
+  border-color: var(--color-grey);
   color: var(--color-primary);
+}
+
+
+/* TZ package D */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>

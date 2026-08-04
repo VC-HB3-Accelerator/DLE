@@ -11,7 +11,7 @@
 -->
 
 <template>
-  <div class="delete-confirm-page">
+  <div class="delete-confirm-page panel">
     <h2>{{ t('contacts.deleteConfirm.title') }}</h2>
     <div v-if="isLoading">{{ t('common.loading') }}</div>
     <div v-else-if="!contact">{{ t('contacts.contactNotFound') }}</div>
@@ -21,12 +21,12 @@
       <p><strong>{{ t('contacts.telegram') }}:</strong> {{ contact.telegram || '-' }}</p>
       <p><strong>{{ t('contacts.wallet') }}:</strong> {{ contact.wallet || '-' }}</p>
       <p><strong>{{ t('contacts.createdAt') }}:</strong> {{ formatDate(contact.created_at) }}</p>
-      <div class="confirm-actions">
-        <button v-if="canDeleteData" class="delete-btn" @click="deleteContact" :disabled="isDeleting">{{ t('common.delete') }}</button>
-        <button class="cancel-btn" @click="cancelDelete" :disabled="isDeleting">{{ t('common.cancel') }}</button>
+      <div class="confirm-actions form-actions">
+        <button v-if="canDeleteData" class="btn btn-danger" @click="deleteContact" :disabled="isDeleting">{{ t('common.delete') }}</button>
+        <button class="btn btn-outline" @click="cancelDelete" :disabled="isDeleting">{{ t('common.cancel') }}</button>
       </div>
       <div v-if="!canDeleteData" class="empty-table-placeholder">{{ t('contacts.deleteConfirm.noPermission') }}</div>
-      <div v-if="error" class="error">{{ error }}</div>
+      <div v-if="error" class="form-error">{{ error }}</div>
     </div>
   </div>
 </template>
@@ -109,58 +109,37 @@ onMounted(loadContact);
 .delete-confirm-page {
   max-width: 500px;
   margin: 60px auto;
-  padding: 32px 24px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
 }
+
 .contact-info {
-  margin-top: 18px;
-  font-size: 1.08rem;
+  margin-top: var(--spacing-md);
+  font-size: var(--font-size-lg);
   line-height: 1.7;
+  color: var(--color-text);
 }
+
 .confirm-actions {
-  margin-top: 24px;
-  display: flex;
-  gap: 18px;
+  margin-top: var(--spacing-lg);
 }
-.delete-btn {
-  background: #dc3545;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 22px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
+
+.empty-table-placeholder {
+  margin-top: var(--spacing-md);
+  color: var(--color-text-light);
 }
-.delete-btn:disabled {
-  background: #e6a6ad;
-  cursor: not-allowed;
-}
-.delete-btn:hover:not(:disabled) {
-  background: #b52a37;
-}
-.cancel-btn {
-  background: #f5f5f5;
-  color: #333;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 8px 22px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
-}
-.cancel-btn:disabled {
-  background: #eee;
-  color: #aaa;
-  cursor: not-allowed;
-}
-.cancel-btn:hover:not(:disabled) {
-  background: #e0e0e0;
-}
-.error {
-  color: #dc3545;
-  margin-top: 18px;
+
+@media (max-width: 768px) {
+  .delete-confirm-page {
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .confirm-actions {
+    flex-direction: column;
+  }
+
+  .confirm-actions .btn {
+    width: 100%;
+  }
 }
 </style>

@@ -254,8 +254,8 @@ onMounted(load);
 .participants-block {
   margin: 12px 0 16px;
   padding: 12px;
-  border: 1px solid var(--color-border, #dcdfe6);
-  border-radius: var(--block-radius, 8px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
 }
 
 .participants-block h3 {
@@ -264,8 +264,8 @@ onMounted(load);
 
 .list-hint {
   margin: 0 0 10px;
-  color: var(--color-grey, #606266);
-  font-size: 0.9rem;
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
 }
 
 .participants-list {
@@ -279,7 +279,7 @@ onMounted(load);
   justify-content: space-between;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--color-border, #ebeef5);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .participant-main {
@@ -291,7 +291,7 @@ onMounted(load);
 .participant-meta,
 .participant-email {
   font-size: 0.85rem;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
 }
 
 .form-actions {
@@ -304,9 +304,25 @@ onMounted(load);
   margin-bottom: 12px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

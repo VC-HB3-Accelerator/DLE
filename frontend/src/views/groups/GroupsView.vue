@@ -216,4 +216,15 @@ const goToPrivateGroups = () => {
     padding: 15px;
   }
 }
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
+}
 </style>

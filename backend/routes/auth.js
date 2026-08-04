@@ -600,16 +600,17 @@ router.post('/email/verify-code', async (req, res) => {
     const previousGuestId = req.session.previousGuestId;
 
     // 1. Проверяем сам код верификации
+    // verificationService.verifyCode → { valid, message } (не success/error)
     const codeVerificationResult = await verificationService.verifyCode(
       code,
       'email',
       req.session.pendingEmail
     );
 
-    if (!codeVerificationResult.success) {
+    if (!codeVerificationResult.valid) {
       return res.status(400).json({
         success: false,
-        error: codeVerificationResult.error || 'Неверный код подтверждения',
+        error: codeVerificationResult.message || 'Неверный код подтверждения',
       });
     }
 
@@ -717,38 +718,38 @@ router.post('/email/verify-code', async (req, res) => {
   }
 });
 
-// Инициализация Telegram аутентификации
+// Инициализация Telegram аутентификации (deep-link + Start)
 router.post('/telegram/init', async (req, res) => {
   try {
-    // Инициализируем процесс аутентификации через Telegram, передавая сессию
-    // и получаем результат (код и ссылку на бота)
-    const result = await initTelegramAuth(req.session);
+    const telegramLoginService = require('../services/telegramLoginService');
+    const privacyAccepted = Boolean(req.body?.privacyAccepted);
 
+    if (!req.session.guestId && !req.session.authenticated) {
+      const crypto = require('crypto');
+      req.session.guestId = crypto.randomBytes(16).toString('hex');
+    }
 
-
-    // Сохраняем сессию, чтобы guestId точно записался в базу данных
     await sessionService.saveSession(req.session);
 
-    // Возвращаем код и ссылку на бота на фронтенд
+    const sessionId = req.sessionID || req.session?.id;
+    const result = await telegramLoginService.createPending({
+      session: req.session,
+      sessionId,
+      privacyAccepted,
+    });
+
     res.json({
       success: true,
-      message: 'Проверьте вашего Telegram бота',
-      verificationCode: result.verificationCode,
+      message: 'Откройте бота и нажмите Start',
       botLink: result.botLink,
+      expiresIn: result.expiresIn,
     });
   } catch (error) {
     logger.error('Error initializing Telegram auth:', error);
-
-    if (error.message === 'Telegram уже привязан к этому аккаунту') {
-      return res.status(400).json({
-        success: false,
-        error: error.message,
-      });
-    }
-
-    res.status(500).json({
+    const status = error.status || (error.message === 'Telegram уже привязан к этому аккаунту' ? 400 : 500);
+    return res.status(status).json({
       success: false,
-      error: 'Failed to initialize Telegram auth',
+      error: error.message || 'Failed to initialize Telegram auth',
     });
   }
 });

@@ -16,9 +16,9 @@
       <span v-if="selectedMultiNames.length">{{ selectedMultiNames.join(', ') }}</span>
       <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
-          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
-          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+          <circle cx="9" cy="9" r="8" fill="var(--theme-surface)" stroke="currentColor"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="currentColor"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="currentColor"/>
         </svg>
       </span>
     </div>
@@ -32,10 +32,10 @@
       </div>
       <div class="add-multiselect-option">
         <input v-model="newMultiOption" @keyup.enter="addMultiOption" :placeholder="t('tables.common.newValue')" />
-        <button class="add-btn" @click="addMultiOption">+</button>
+        <button type="button" class="btn btn-primary btn-sm" @click="addMultiOption">+</button>
       </div>
-      <button class="save-btn" @click="saveMulti">{{ t('tables.common.save') }}</button>
-      <button class="cancel-btn" @click="cancelMulti">{{ t('tables.common.cancel') }}</button>
+      <button type="button" class="btn btn-primary btn-sm" @click="saveMulti">{{ t('tables.common.save') }}</button>
+      <button type="button" class="btn btn-outline btn-sm" @click="cancelMulti">{{ t('tables.common.cancel') }}</button>
     </div>
   </template>
   <template v-else-if="column.type === 'relation'">
@@ -43,9 +43,9 @@
       <span v-if="selectedRelationName">{{ selectedRelationName }}</span>
       <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
-          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
-          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+          <circle cx="9" cy="9" r="8" fill="var(--theme-surface)" stroke="currentColor"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="currentColor"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="currentColor"/>
         </svg>
       </span>
     </div>
@@ -53,8 +53,8 @@
       <select v-model="editRelationValue" class="notion-input">
         <option v-for="opt in relationOptions" :key="opt.id" :value="opt.id">{{ opt.display }}</option>
       </select>
-      <button class="save-btn" @click="saveRelation">{{ t('tables.common.save') }}</button>
-      <button class="cancel-btn" @click="cancelRelation">{{ t('tables.common.cancel') }}</button>
+      <button type="button" class="btn btn-primary btn-sm" @click="saveRelation">{{ t('tables.common.save') }}</button>
+      <button type="button" class="btn btn-outline btn-sm" @click="cancelRelation">{{ t('tables.common.cancel') }}</button>
     </div>
   </template>
   <template v-else-if="column.type === 'lookup'">
@@ -68,9 +68,9 @@
       <span v-if="selectedMultiRelationNames.length">{{ selectedMultiRelationNames.join(', ') }}</span>
       <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
-          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
-          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+          <circle cx="9" cy="9" r="8" fill="var(--theme-surface)" stroke="currentColor"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="currentColor"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="currentColor"/>
         </svg>
       </span>
     </div>
@@ -83,16 +83,16 @@
         </div>
       </div>
       <div class="add-tag-block">
-        <button v-if="!showAddTagInput" class="add-tag-btn" @click="showAddTagInput = true">{{ t('tables.common.newTag') }}</button>
+        <button v-if="!showAddTagInput" type="button" class="btn btn-ghost btn-sm" @click="showAddTagInput = true">{{ t('tables.common.newTag') }}</button>
         <div v-else class="add-tag-form">
           <input v-model="newTagName" @keyup.enter="addTag" :placeholder="t('tables.common.tagName')" />
-          <button class="add-tag-confirm" @click="addTag">{{ t('tables.common.add') }}</button>
-          <button class="add-tag-cancel" @click="showAddTagInput = false; newTagName = ''">×</button>
+          <button type="button" class="btn btn-primary btn-sm" @click="addTag">{{ t('tables.common.add') }}</button>
+          <button type="button" class="btn btn-ghost btn-sm" @click="showAddTagInput = false; newTagName = ''">×</button>
         </div>
       </div>
       <div class="action-buttons">
-        <button class="save-btn" @click="saveMultiRelation">{{ t('tables.common.save') }}</button>
-        <button class="cancel-btn" @click="cancelMultiRelation">{{ t('tables.common.cancel') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" @click="saveMultiRelation">{{ t('tables.common.save') }}</button>
+        <button type="button" class="btn btn-outline btn-sm" @click="cancelMultiRelation">{{ t('tables.common.cancel') }}</button>
       </div>
     </div>
   </template>
@@ -102,9 +102,9 @@
       <span v-else-if="localValue">{{ localValue }}</span>
       <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
-          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
-          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+          <circle cx="9" cy="9" r="8" fill="var(--theme-surface)" stroke="currentColor"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="currentColor"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="currentColor"/>
         </svg>
       </span>
     </div>
@@ -825,7 +825,7 @@ function prettyDisplay(val, optionsArr) {
   overflow: hidden;
 }
 .cell-input:focus {
-  border: 1.5px solid #2ecc40;
+  border: 1.5px solid var(--color-primary);
   outline: none;
 }
 .tags-cell-view, .tags-cell-edit, .lookup-cell-view, .tag-option, .multi-relation-option, .add-multiselect-option, .add-tag-form, .multi-relation-options, .multi-relation-edit, .multi-relation-actions, .action-buttons {
@@ -843,8 +843,8 @@ function prettyDisplay(val, optionsArr) {
   padding: 0.2em 0.1em;
 }
 .tags-cell-edit {
-  background: #f8f8f8;
-  border-radius: 6px;
+  background: var(--theme-surface);
+  border-radius: var(--radius-md);
   padding: 0.3em 0.2em 0.5em 0.2em;
 }
 .tags-multiselect {
@@ -858,33 +858,6 @@ function prettyDisplay(val, optionsArr) {
   align-items: center;
   gap: 0.3em;
 }
-.save-btn {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.3em 1em;
-  font-weight: 600;
-  cursor: pointer;
-  margin-right: 0.7em;
-  transition: background 0.2s;
-}
-.save-btn:hover {
-  background: #27ae38;
-}
-.cancel-btn {
-  background: #eaeaea;
-  color: #333;
-  border: none;
-  border-radius: 8px;
-  padding: 0.3em 1em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.cancel-btn:hover {
-  background: #d5d5d5;
-}
 .add-multiselect-option {
   display: flex;
   align-items: center;
@@ -894,25 +867,12 @@ function prettyDisplay(val, optionsArr) {
 .add-multiselect-option input {
   flex: 1;
   padding: 0.2em 0.5em;
-  border: 1px solid #e0e0e0;
-  border-radius: 5px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
   font-size: 1em;
 }
-.add-btn {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.3em 1em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.add-btn:hover {
-  background: #27ae38;
-}
 .remove-option {
-  color: #e74c3c;
+  color: var(--color-danger);
   font-size: 1.1em;
   margin-left: 0.4em;
   cursor: pointer;
@@ -920,12 +880,12 @@ function prettyDisplay(val, optionsArr) {
   transition: color 0.2s;
 }
 .remove-option:hover {
-  color: #c0392b;
+  color: var(--color-danger-hover);
 }
 .lookup-cell-view {
   min-height: 1.7em;
   padding: 0.2em 0.1em;
-  color: #222;
+  color: var(--theme-text);
 }
 .multi-relation-edit {
   padding: 8px 0;
@@ -945,7 +905,7 @@ function prettyDisplay(val, optionsArr) {
 .delete-tag-btn {
   background: none;
   border: none;
-  color: #e53e3e;
+  color: var(--color-danger);
   font-size: 1.1em;
   cursor: pointer;
   padding: 0 4px;
@@ -955,32 +915,8 @@ function prettyDisplay(val, optionsArr) {
   gap: 8px;
   margin-bottom: 8px;
 }
-.save-btn {
-  background: #4f8cff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 12px;
-  cursor: pointer;
-}
-.cancel-btn {
-  background: #f3f4f6;
-  color: #333;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 12px;
-  cursor: pointer;
-}
 .add-tag-block {
   margin-top: 8px;
-}
-.add-tag-btn {
-  background: #f3f4f6;
-  color: #4f8cff;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 10px;
-  cursor: pointer;
 }
 .add-tag-form {
   display: flex;
@@ -989,26 +925,9 @@ function prettyDisplay(val, optionsArr) {
 }
 .add-tag-form input {
   padding: 3px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
 }
-.add-tag-confirm {
-  background: #4f8cff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 3px 10px;
-  cursor: pointer;
-}
-.add-tag-cancel {
-  background: none;
-  border: none;
-  color: #e53e3e;
-  font-size: 1.1em;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
 .action-buttons {
   display: flex;
   gap: 0.5em;
@@ -1016,16 +935,7 @@ function prettyDisplay(val, optionsArr) {
 }
 
 .delete-tag-btn:hover {
-  color: #c0392b;
-}
-
-.add-tag-btn:hover {
-  background: #e2e8f0;
-  color: #3182ce;
-}
-
-.add-tag-confirm:hover {
-  background: #3182ce;
+  color: var(--color-danger-hover);
 }
 
 .add-tag-block {
@@ -1055,6 +965,15 @@ function prettyDisplay(val, optionsArr) {
   vertical-align: middle;
 }
 .cell-plus-icon:hover {
-  color: #4f8cff;
+  color: var(--color-primary);
+}
+
+/* TZ package T */
+.cell-input {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.tags-cell-view, .tags-cell-edit, .lookup-cell-view {
+  max-width: 100%;
 }
 </style> 

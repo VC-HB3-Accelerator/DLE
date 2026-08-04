@@ -12,24 +12,37 @@
 
 <template>
   <div class="rpc-providers-settings">
-    <h4>{{ $t('settings.rpc.title') }}</h4>
     <div v-if="Array.isArray(rpcConfigs) && rpcConfigs.length > 0" class="rpc-list">
+      <div class="rpc-list-head" aria-hidden="true">
+        <span>{{ $t('settings.rpc.networkId') }}</span>
+        <span>{{ $t('settings.rpc.url') }}</span>
+        <span>{{ $t('settings.rpc.chainId') }}</span>
+        <span></span>
+      </div>
       <div v-for="(rpc, index) in rpcConfigs" :key="rpc.networkId" class="rpc-entry">
-        <span><strong>{{ $t('settings.rpc.networkId') }}</strong> {{ rpc.networkId }}</span>
-        <span><strong>{{ $t('settings.rpc.url') }}</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
-        <span v-if="rpc.chainId"><strong>{{ $t('settings.rpc.chainId') }}</strong> {{ rpc.chainId }}</span>
-        <button class="btn btn-info btn-sm" @click="testRpc(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
-          <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
-          {{ testingRpc && testingRpcId === rpc.networkId ? t('settings.rpc.testing') : t('settings.rpc.test') }}
-        </button>
-        <button class="btn btn-danger btn-sm" @click="removeRpc(index)">{{ $t('common.delete') }}</button>
+        <span class="rpc-cell" :title="String(rpc.networkId)">{{ rpc.networkId }}</span>
+        <span class="rpc-cell rpc-cell--url" :title="rpc.rpcUrlDisplay || rpc.rpcUrl">{{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
+        <span class="rpc-cell">{{ rpc.chainId || '—' }}</span>
+        <div class="rpc-actions">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            @click="testRpc(rpc)"
+            :disabled="testingRpc && testingRpcId === rpc.networkId"
+          >
+            {{ testingRpc && testingRpcId === rpc.networkId ? t('settings.rpc.testing') : t('settings.rpc.test') }}
+          </button>
+          <button type="button" class="btn btn-danger btn-sm" @click="removeRpc(index)">
+            {{ $t('common.delete') }}
+          </button>
+        </div>
       </div>
     </div>
-    <p v-else>{{ $t('settings.rpc.empty') }}</p>
+    <p v-else class="empty-hint">{{ $t('settings.rpc.empty') }}</p>
     <div class="add-rpc-form">
       <h5>{{ $t('settings.rpc.addTitle') }}</h5>
       <div class="form-group">
-        <label>{{ $t('settings.rpc.networkId') }}</label>
+        <label class="form-label">{{ $t('settings.rpc.networkId') }}</label>
         <select v-model="networkEntry.networkId" class="form-control">
           <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
             <option v-for="option in group.options" :key="option.value" :value="option.value">
@@ -38,28 +51,28 @@
           </optgroup>
         </select>
         <div v-if="networkEntry.networkId === 'custom'" class="mt-2">
-          <label>{{ $t('settings.rpc.customId') }}</label>
+          <label class="form-label">{{ $t('settings.rpc.customId') }}</label>
           <input type="text" v-model="networkEntry.customNetworkId" class="form-control" :placeholder="$t('settings.rpc.customIdPlaceholder')">
-          <label class="mt-2">{{ $t('settings.rpc.chainIdLabel') }}</label>
+          <label class="form-label mt-2">{{ $t('settings.rpc.chainIdLabel') }}</label>
           <input type="number" v-model.number="networkEntry.customChainId" class="form-control" :placeholder="$t('settings.rpc.chainIdPlaceholder')">
-          <small>{{ $t('settings.rpc.chainIdHelp') }}</small>
+          <small class="form-help">{{ $t('settings.rpc.chainIdHelp') }}</small>
         </div>
       </div>
       <div class="form-group">
-        <label>{{ $t('settings.rpc.rpcUrlLabel') }}</label>
+        <label class="form-label">{{ $t('settings.rpc.rpcUrlLabel') }}</label>
         <input type="text" v-model="networkEntry.rpcUrl" class="form-control" placeholder="https://...">
       </div>
-      <button class="btn btn-secondary" @click="addRpc">{{ $t('settings.rpc.addButton') }}</button>
+      <button type="button" class="btn btn-secondary" @click="addRpc">{{ $t('settings.rpc.addButton') }}</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
-import { ref, toRefs } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
+
+const { t } = useI18n();
 const props = defineProps({
   rpcConfigs: { type: Array, required: true, default: () => [] }
 });
@@ -122,31 +135,90 @@ async function testRpc(rpc) {
 </script>
 
 <style scoped>
-.rpc-list { margin-bottom: 1rem; }
-.rpc-entry { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.5rem; }
-.add-rpc-form { margin-top: 1rem; }
-.suggestion {
-  background-color: rgba(76, 175, 80, 0.1);
-  border-left: 3px solid var(--color-primary, #4caf50);
-  padding: 6px 10px;
-  margin-top: 8px;
-  border-radius: 0 4px 4px 0;
-  display: flex;
-  justify-content: space-between;
+.rpc-providers-settings {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+.rpc-list {
+  margin-bottom: var(--spacing-lg, 20px);
+  min-width: 720px;
+}
+
+.rpc-list-head,
+.rpc-entry {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(180px, 2fr) minmax(70px, 0.45fr) auto;
+  gap: var(--spacing-md, 12px);
   align-items: center;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
 }
-.btn-link {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--color-primary, #4caf50);
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: 0.875rem;
+
+.rpc-list-head {
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--theme-text-muted, #666);
+  border-bottom: 1px solid var(--theme-border, #e9ecef);
+  white-space: nowrap;
 }
-.btn-link:hover {
-  color: var(--color-primary-dark, #388e3c);
-  text-decoration: none;
+
+.rpc-entry {
+  border-bottom: 1px solid var(--theme-border, #e9ecef);
 }
-.mt-2 { margin-top: 10px; }
-</style> 
+
+.rpc-cell {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.rpc-cell--url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.rpc-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: var(--spacing-sm, 8px);
+  justify-self: end;
+}
+
+.empty-hint {
+  margin: 0 0 var(--spacing-lg, 20px);
+  color: var(--theme-text-muted, #666);
+}
+
+.add-rpc-form {
+  margin-top: var(--spacing-lg, 20px);
+  max-width: 640px;
+}
+
+.add-rpc-form h5 {
+  margin: 0 0 var(--spacing-md, 12px);
+  white-space: nowrap;
+}
+
+.form-group {
+  margin-bottom: var(--spacing-md, 15px);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs, 6px);
+  white-space: nowrap;
+}
+
+.form-help {
+  display: block;
+  margin-top: var(--spacing-xs, 6px);
+  color: var(--theme-text-muted, #666);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.mt-2 {
+  margin-top: var(--spacing-sm, 10px);
+}
+</style>

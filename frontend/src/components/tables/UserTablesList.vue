@@ -13,16 +13,11 @@
 <template>
   <div class="tables-container">
     <header class="tables-header">
-      <button class="create-btn" @click="createTable">{{ t('tables.common.createTable') }}</button>
+      <button type="button" class="btn btn-primary" @click="createTable">{{ t('tables.common.createTable') }}</button>
     </header>
     <ul class="tables-list-simple">
-      <!-- Системная таблица tags -->
-      <li>
-        <!-- <button class="table-link" @click="goToTagsTable">Теги (tags)</button> -->
-      </li>
-      <!-- Пользовательские таблицы -->
       <li v-for="table in tables" :key="table.id">
-        <button class="table-link" @click="selectTable(table)">{{ table.name }}</button>
+        <button type="button" class="table-link" @click="selectTable(table)">{{ table.name }}</button>
       </li>
       <li v-if="!tables.length" class="empty-state">
         <span>{{ t('tables.list.empty') }}</span>
@@ -57,70 +52,69 @@ function createTable() {
 
 <style scoped>
 .tables-container {
-  /* max-width: 600px; */
-  /* margin: 2rem auto; */
-  margin-top: 2rem;
-  margin-left: 0;
-  padding: 2rem 1.5rem 2rem 1.5rem;
-  /* background: #fff; */
-  /* border-radius: 18px; */
-  /* box-shadow: 0 2px 16px rgba(0,0,0,0.07); */
+  margin-top: var(--spacing-lg);
+  max-width: 100%;
+  box-sizing: border-box;
 }
+
 .tables-header {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--spacing-lg);
 }
-.create-btn {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.create-btn:hover {
-  background: #27ae38;
-}
+
 .tables-list-simple {
   list-style: none;
   padding: 0;
   margin: 0;
 }
+
 .tables-list-simple li {
-  margin-bottom: 0.5em;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 0.5em;
+  margin-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--theme-border);
+  padding-bottom: var(--spacing-sm);
 }
+
 .tables-list-simple li:last-child {
   border-bottom: none;
 }
+
 .table-link {
   background: none;
   border: none;
-  color: #2ecc40;
-  font-size: 1.1em;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
   font-weight: 600;
   cursor: pointer;
   text-align: left;
-  padding: 0.2em 0;
-  transition: color 0.2s, background 0.2s;
+  padding: var(--spacing-xs) 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
   width: 100%;
   display: block;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
+
 .table-link:hover {
-  color: #138496;
-  background: #f5f7fa;
+  color: var(--color-primary-dark);
+  background: var(--theme-surface);
   text-decoration: none;
 }
+
 .empty-state {
   text-align: center;
-  color: #aaa;
-  margin: 2em 0;
-  font-size: 1.1em;
+  color: var(--theme-text-muted);
+  margin: var(--spacing-xl) 0;
+  font-size: var(--font-size-lg);
+}
+
+@media (max-width: 768px) {
+  .tables-header {
+    justify-content: stretch;
+  }
+
+  .tables-header .btn {
+    width: 100%;
+  }
 }
 </style>

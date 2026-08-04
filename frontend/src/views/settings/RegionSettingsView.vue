@@ -26,7 +26,7 @@
           <button
             v-if="!row.isPrimary"
             type="button"
-            class="region-settings__remove"
+            class="btn btn-ghost btn-sm region-settings__remove"
             :disabled="isSaving"
             @click="removeRow(index)"
           >
@@ -35,30 +35,30 @@
         </div>
 
         <label class="region-settings__field">
-          <span class="region-settings__label">{{ t('settings.regions.buttonLabel') }}</span>
+          <span class="form-label">{{ t('settings.regions.buttonLabel') }}</span>
           <input
             v-model="row.label"
             type="text"
-            class="region-settings__input"
+            class="form-control"
             :placeholder="row.isPrimary ? t('settings.regions.primaryLabelPlaceholder') : t('settings.regions.buttonLabelPlaceholder')"
             :disabled="isSaving"
           />
-          <span class="region-settings__hint">
+          <span class="form-hint">
             {{ row.isPrimary ? t('settings.regions.primaryLabelHint') : t('settings.regions.buttonLabelHint') }}
           </span>
         </label>
 
         <label class="region-settings__field">
-          <span class="region-settings__label">{{ t('settings.regions.serverUrl') }}</span>
+          <span class="form-label">{{ t('settings.regions.serverUrl') }}</span>
           <input
             v-model="row.url"
             type="url"
-            class="region-settings__input"
+            class="form-control"
             :placeholder="t('settings.regions.urlPlaceholder')"
             :disabled="isSaving || row.isPrimary"
             :readonly="row.isPrimary"
           />
-          <span class="region-settings__hint">
+          <span class="form-hint">
             {{ row.isPrimary ? t('settings.regions.primaryUrlHint') : t('settings.regions.urlHint') }}
           </span>
         </label>
@@ -66,20 +66,20 @@
 
       <button
         type="button"
-        class="region-settings__add"
+        class="btn btn-outline-primary region-settings__add"
         :disabled="isSaving"
         @click="addRow"
       >
         {{ t('settings.regions.add') }}
       </button>
 
-      <p v-if="saveError" class="region-settings__error">{{ saveError }}</p>
-      <p v-if="saveSuccess" class="region-settings__success">{{ saveSuccess }}</p>
+      <p v-if="saveError" class="alert alert-danger">{{ saveError }}</p>
+      <p v-if="saveSuccess" class="alert alert-success">{{ saveSuccess }}</p>
 
-      <div class="region-settings__actions">
+      <div class="form-actions">
         <button
           type="submit"
-          class="region-settings__save"
+          class="btn btn-primary"
           :disabled="isSaving"
         >
           {{ isSaving ? t('common.saving') : t('common.save') }}
@@ -212,8 +212,8 @@ onMounted(initPage);
 }
 
 .region-settings__intro {
-  margin: 0 0 1.5rem;
-  color: #6c757d;
+  margin: 0 0 var(--spacing-xl);
+  color: var(--color-text-light);
   line-height: 1.5;
   max-width: 720px;
 }
@@ -221,30 +221,30 @@ onMounted(initPage);
 .region-settings__form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--spacing-lg);
   max-width: 720px;
 }
 
 .region-settings__row {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid #e4e7ed;
-  border-radius: 10px;
-  background: #fff;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
 }
 
 .region-settings__row--primary {
-  border-color: var(--color-primary, #409eff);
-  background: #f8fbff;
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, white);
 }
 
 .region-settings__row-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
 }
 
 .region-settings__row-title {
@@ -255,88 +255,25 @@ onMounted(initPage);
 .region-settings__field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-}
-
-.region-settings__label {
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.region-settings__input {
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  padding: 0.65rem 0.85rem;
-  font-size: 0.95rem;
-}
-
-.region-settings__input:disabled {
-  background: #f5f7fa;
-  cursor: not-allowed;
-}
-
-.region-settings__hint {
-  font-size: 0.85rem;
-  color: #909399;
+  gap: var(--spacing-xs);
 }
 
 .region-settings__add {
   align-self: flex-start;
-  background: transparent;
-  color: var(--color-primary);
-  border: 1px dashed var(--color-primary);
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.region-settings__add:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .region-settings__remove {
-  background: transparent;
-  color: #c0392b;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
+  color: var(--color-danger);
   padding: 0;
+  height: auto;
+  min-height: 0;
 }
 
-.region-settings__remove:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.region-settings__error {
-  color: #c0392b;
-  margin: 0;
-}
-
-.region-settings__success {
-  color: #27ae60;
-  margin: 0;
-}
-
-.region-settings__actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.region-settings__save {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.625rem 1.25rem;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.region-settings__save:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+@media (max-width: 768px) {
+  .region-settings,
+  .settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style>

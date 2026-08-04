@@ -4,8 +4,8 @@
 -->
 
 <template>
-  <div class="sidebar-notice-settings settings-panel">
-    <button class="close-btn" type="button" @click="router.push('/settings')">×</button>
+  <div class="sidebar-notice-settings settings-panel page-with-close">
+    <PageCloseButton fallback="/settings" />
     <h2>{{ t('settings.sidebarNotice.pageTitle') }}</h2>
     <p class="sidebar-notice-settings__intro">{{ t('settings.sidebarNotice.intro') }}</p>
 
@@ -50,14 +50,13 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { fetchSidebarNotice, saveSidebarNotice } from '@/services/sidebarNoticeService';
 import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const { t } = useI18n();
-const router = useRouter();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 
 const body = ref('');
@@ -215,23 +214,15 @@ onMounted(initPage);
   cursor: not-allowed;
 }
 
-.close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  color: #6c757d;
-}
-
-.close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #343a40;
+/* TZ package S */
+@media (max-width: 768px) {
+  .sidebar-notice-settings.settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  textarea, input {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style>

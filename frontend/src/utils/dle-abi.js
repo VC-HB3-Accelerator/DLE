@@ -3,7 +3,7 @@
  * АВТОМАТИЧЕСКИ СГЕНЕРИРОВАНО - НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ
  * Для обновления запустите: node backend/scripts/generate-abi.js
  * 
- * Последнее обновление: 2026-08-03T10:35:25.100Z
+ * Последнее обновление: 2026-08-04T11:24:40.444Z
  */
 
 export const DLE_ABI = [
@@ -34,7 +34,6 @@ export const DLE_ABI = [
   "function getModuleAddress(bytes32 _moduleId) returns (address)",
   "function getMultichainAddresses() returns (uint256[], address[])",
   "function getMultichainInfo() returns (uint256[], uint256)",
-  "function getMultichainMetadata() returns (string)",
   "function getPastTotalSupply(uint256 timepoint) returns (uint256)",
   "function getPastVotes(address account, uint256 timepoint) returns (uint256)",
   "function getProposalState(uint256 _proposalId) returns (uint8)",
@@ -49,7 +48,6 @@ export const DLE_ABI = [
   "function isChainSupported(uint256 _chainId) returns (bool)",
   "function isModuleActive(bytes32 _moduleId) returns (bool)",
   "function isModuleContract(address) returns (bool)",
-  "function logo() returns (string)",
   "function logoURI() returns (string)",
   "function maxVotingDuration() returns (uint256)",
   "function minVotingDuration() returns (uint256)",
@@ -72,8 +70,6 @@ export const DLE_ABI = [
   "function transferFrom(address, address, uint256) returns (bool)",
   "function vote(uint256 _proposalId, bool _support)",
   "event Approval(address owner, address spender, uint256 value)",
-  "event ChainAdded(uint256 chainId)",
-  "event ChainRemoved(uint256 chainId)",
   "event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp)",
   "event DLEInitialized(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, address tokenAddress, uint256[] supportedChainIds)",
   "event DelegateChanged(address delegator, address fromDelegate, address toDelegate)",

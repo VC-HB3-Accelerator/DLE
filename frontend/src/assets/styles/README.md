@@ -18,11 +18,16 @@
 
 ## Файлы стилей
 
-- **variables.css** - CSS-переменные (цвета, размеры, отступы)
-- **base.css** - Базовые стили для всего приложения и сброс стилей
-- **layout.css** - Стили для основной структуры макета приложения
-- **global.css** - Общие утилитарные классы, доступные во всем приложении
-- **home.css.bak** - Устаревший файл, переименован в .bak. Стили перенесены в scoped стили компонентов
+- **variables.css** — токены: A тема (`--theme-*` + алиасы `--color-*`), B каркас (`--bp-*`, spacing, heights), C статусы, D фичи
+- **element-plus-bridge.css** — мост `--el-*` → тема; импорт в `main.js` **после** `element-plus/dist/index.css` (иначе EP сбрасывает primary на `#409eff`)
+- **base.css** — сброс, типографика, безопасный viewport (`width: 100%`, без `100vw`)
+- **layout.css** — legacy/fallback оболочки; живой shell — `BaseLayout` + Header/Sidebar
+- **global.css** — примитивы UI: `.page-container`, `.btn*`, `.form-*`, `.card`/`.panel`, `.alert*`, `.table-scroll`, утилиты
+- Контракт и обход страниц: `docs.ru/back-docs/TZ_UI_STYLE_FOUNDATION.md`
+- FIXED ≠ единый визуал: `docs.ru/back-docs/NOTE_STYLE_FIXED_VS_VISUAL.ru.md`
+- Унификация кнопок/форм/блоков: классы из `global.css` + токены; scoped — только layout, не свои `#007bff` / Bootstrap grey
+
+В `@media` — только литералы из контракта (`768px`, `480px`, …), не `var(--bp-*)`.
 
 ## Приоритеты использования стилей
 
@@ -45,7 +50,10 @@
 
 2. Используйте глобальные классы для общих элементов:
    ```html
-   <button class="btn btn-primary">Сохранить</button>
+   <button type="button" class="btn btn-primary">Сохранить</button>
+   <button type="button" class="btn btn-outline">Отмена</button>
+   <input class="form-control" />
+   <div class="card">…</div>
    ```
 
 3. Используйте CSS-переменные вместо жестко закодированных значений:
@@ -59,25 +67,29 @@
 ### Для существующих компонентов:
 
 1. При обновлении компонента постепенно переносите стили из home.css в scoped стили компонента
-2. Не удаляйте стили из home.css до полного тестирования всех зависящих компонентов
+2. Не удаляйте стили из home.css до полного тестирования всех зависящихся компонентов
+3. Удаляйте scoped-переопределения `.btn` / `.btn-primary` / `.form-control`, если они дублируют `global.css`
 
 ## Глобальные CSS-классы
 
 ### Контейнеры
-- `.page-container` - Основной контейнер страницы
-- `.card` - Контейнер для блока информации
+- `.page-container` — основной контейнер страницы
+- `.card` / `.panel` — блок информации (panel — с border, без тени)
+- `.alert`, `.alert-info|success|warning|danger` — статусные блоки
 
 ### Кнопки
-- `.btn` - Базовый класс для всех кнопок
-- `.btn-primary` - Основная (зеленая) кнопка
-- `.btn-secondary` - Дополнительная (синяя) кнопка
-- `.btn-accent` - Акцентная (фиолетовая) кнопка
-- `.btn-danger` - Кнопка опасного действия (красная)
+- `.btn` — база
+- `.btn-primary` — основная (зелёная)
+- `.btn-secondary` — дополнительная (синяя заливка)
+- `.btn-accent` — акцент
+- `.btn-danger` — опасное действие
+- `.btn-outline` / `.btn-outline-primary` — контур (отмена / вторичное)
+- `.btn-ghost` — светлая заливка (nav, dismiss)
+- `.btn-sm` / `.btn-block` / `.btn-icon` / `.btn-row` — размер, ширина, иконка, ряд
 
 ### Формы
-- `.form-control` - Элемент формы (input, select, textarea)
-- `.form-group` - Группа элементов формы
-- `.form-label` - Метка для элемента формы
+- `.form-control` — input, select, textarea
+- `.form-group` / `.form-label` / `.form-hint` / `.form-error` / `.form-actions`
 
 ### Утилиты
 - `.text-center` - Выравнивание текста по центру

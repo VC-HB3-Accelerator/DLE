@@ -12,8 +12,8 @@
 
 <template>
   <BaseLayout>
-    <div class="ollama-settings-block">
-      <button class="close-btn" @click="goBack">×</button>
+    <div class="ollama-settings-block panel page-with-close">
+      <PageCloseButton fallback="/settings/ai" />
       <h2>{{ $t('settings.ai.ollama.pageTitle') }}</h2>
       <AIProviderSettings
         provider="ollama"
@@ -35,41 +35,26 @@ const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import AIProviderSettings from '@/views/settings/AIProviderSettings.vue';
 import OllamaModelManager from '@/components/OllamaModelManager.vue';
-import { useRouter } from 'vue-router';
-
-const router = useRouter();
-const goBack = () => router.push('/settings/ai');
+import PageCloseButton from '@/components/PageCloseButton.vue';
 </script>
 
 <style scoped>
 .ollama-settings-block {
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
   width: 100%;
   position: relative;
   overflow-x: auto;
 }
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+
+.page-with-close {
+  position: relative;
 }
-.close-btn:hover {
-  color: #333;
-}
+
 h2 {
   margin-bottom: 0;
 }
+
 .ai-provider-settings.settings-panel {
   background: none !important;
   box-shadow: none !important;
@@ -77,5 +62,13 @@ h2 {
   margin-top: 0 !important;
   max-width: 100% !important;
   padding: 0 !important;
+  border: none !important;
 }
-</style> 
+
+@media (max-width: 768px) {
+  .ai-provider-settings.settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+</style>

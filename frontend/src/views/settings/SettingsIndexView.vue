@@ -7,54 +7,54 @@
   <div class="settings-management">
     <div class="management-blocks">
       <div class="blocks-column">
-        <div class="management-block">
+        <div class="management-block panel">
           <h3>{{ t('settings.index.ai.title') }}</h3>
           <p>{{ t('settings.index.ai.description') }}</p>
-          <button class="details-btn" @click="$router.push('/settings/ai')">
+          <button type="button" class="btn btn-primary" @click="$router.push('/settings/ai')">
             {{ t('common.details') }}
           </button>
         </div>
 
-        <div class="management-block">
+        <div class="management-block panel">
           <h3>{{ t('settings.index.blockchain.title') }}</h3>
           <p>{{ t('settings.index.blockchain.description') }}</p>
-          <button class="details-btn" @click="$router.push('/settings/dle-v2-deploy')">
+          <button type="button" class="btn btn-primary" @click="$router.push('/settings/dle-v2-deploy')">
             {{ t('common.details') }}
           </button>
         </div>
       </div>
 
       <div class="blocks-column">
-        <div class="management-block">
+        <div class="management-block panel">
           <h3>{{ t('settings.index.security.title') }}</h3>
           <p>{{ t('settings.index.security.description') }}</p>
-          <button class="details-btn" @click="$router.push('/settings/security')">
+          <button type="button" class="btn btn-primary" @click="$router.push('/settings/security')">
             {{ t('common.details') }}
           </button>
         </div>
 
-        <div class="management-block">
+        <div class="management-block panel">
           <h3>{{ t('settings.index.server.title') }}</h3>
           <p>{{ t('settings.index.server.description') }}</p>
-          <button class="details-btn" @click="$router.push('/settings/interface')">
+          <button type="button" class="btn btn-primary" @click="$router.push('/settings/interface')">
             {{ t('common.details') }}
           </button>
         </div>
       </div>
 
       <div class="blocks-column">
-        <div class="management-block">
+        <div class="management-block panel">
           <h3>{{ t('settings.index.sidebar.title') }}</h3>
           <p>{{ t('settings.index.sidebar.description') }}</p>
-          <button class="details-btn" @click="goToSidebar">
+          <button type="button" class="btn btn-primary" @click="goToSidebar">
             {{ t('common.details') }}
           </button>
         </div>
 
-        <div class="management-block">
+        <div class="management-block panel">
           <h3>{{ t('settings.index.updates.title') }}</h3>
           <p>{{ t('settings.index.updates.description') }}</p>
-          <button class="details-btn" @click="goToUpdates">
+          <button type="button" class="btn btn-primary" @click="goToUpdates">
             {{ t('common.details') }}
           </button>
         </div>
@@ -121,7 +121,7 @@ async function goToUpdates() {
 
 .management-blocks {
   display: flex;
-  gap: 2rem;
+  gap: var(--spacing-xl);
   flex-wrap: wrap;
 }
 
@@ -130,51 +130,31 @@ async function goToUpdates() {
   min-width: 280px;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--spacing-lg);
 }
 
 .management-block {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e9ecef;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-bottom: 0;
+  box-shadow: none;
+  transition: border-color var(--transition-fast);
 }
 
 .management-block:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-color: var(--color-grey);
 }
 
 .management-block h3 {
-  margin: 0 0 0.75rem 0;
-  color: var(--color-primary);
-  font-size: 1.25rem;
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--color-dark);
+  font-size: var(--font-size-xl);
   font-weight: 600;
 }
 
 .management-block p {
-  margin: 0 0 1.25rem 0;
-  color: #6c757d;
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--color-text-light);
   line-height: 1.5;
-  font-size: 0.95rem;
-}
-
-.details-btn {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease;
-}
-
-.details-btn:hover {
-  background: var(--color-primary-dark, #0056b3);
+  font-size: var(--font-size-md);
 }
 
 @media (max-width: 768px) {

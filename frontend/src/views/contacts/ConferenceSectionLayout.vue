@@ -33,7 +33,15 @@ const isLive = computed(() => route.name === 'contact-conference-live');
 
 .conference-1to1-hint {
   margin: 0;
-  color: var(--color-grey, #606266);
-  font-size: 0.95rem;
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .conference-section-layout, .section-layout {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style>

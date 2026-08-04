@@ -12,7 +12,8 @@
 
 <template>
   <BaseLayout>
-    <div class="contact-details-page">
+    <div class="contact-details-page page-with-close">
+      <PageCloseButton :on-navigate="handlePageClose" :fallback="{ name: 'contacts-list' }" />
       <div v-if="isLoading" class="page-state">{{ t('common.loading') }}</div>
       <div v-else-if="!contact && !isCreateMode" class="page-state">{{ t('contacts.contactNotFound') }}</div>
       <div v-else class="contact-details-content">
@@ -22,7 +23,6 @@
               <h1>{{ contactTitle }}</h1>
               <p v-if="contact.name?.trim()" class="header-subtitle">{{ t('contacts.details.userId') }} {{ contact.id }}</p>
             </div>
-            <el-button class="back-btn" @click="goBack">{{ t('contacts.details.backToList') }}</el-button>
           </div>
           <ContactDetailsNav v-if="!isCreateMode" />
         </header>
@@ -34,10 +34,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '@/components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import ContactDetailsNav from './ContactDetailsNav.vue';
 import { provideContactDetails } from '@/composables/useContactDetails';
 import { usePermissions } from '@/composables/usePermissions';
@@ -54,6 +55,30 @@ const { websocketService } = websocketServiceModule;
 const userId = computed(() => route.params.id);
 const { contact, isLoading, isCreateMode, reloadContact } = provideContactDetails(userId);
 
+const pageCloseHandler = ref(null);
+provide('registerPageCloseHandler', (fn) => {
+  pageCloseHandler.value = fn;
+});
+provide('unregisterPageCloseHandler', () => {
+  pageCloseHandler.value = null;
+});
+
+function handlePageClose() {
+  if (typeof pageCloseHandler.value === 'function') {
+    pageCloseHandler.value();
+    return;
+  }
+  try {
+    if (window.history.state?.back != null || window.history.length > 1) {
+      router.back();
+      return;
+    }
+  } catch {
+    /* ignore */
+  }
+  router.push({ name: 'contacts-list' });
+}
+
 const contactTitle = computed(() => {
   if (isCreateMode.value) return t('contacts.create.title');
   const name = contact.value?.name?.trim();
@@ -63,14 +88,6 @@ const contactTitle = computed(() => {
 
 async function handleContactsUpdate() {
   await reloadContact();
-}
-
-function goBack() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: 'contacts-list' });
-  }
 }
 
 function handleClearApplicationData() {
@@ -97,6 +114,7 @@ onUnmounted(() => {
 <style scoped>
 .contact-details-page {
   width: 100%;
+  position: relative;
 }
 
 .page-state {
@@ -139,10 +157,6 @@ onUnmounted(() => {
   color: var(--color-grey);
 }
 
-.back-btn {
-  flex-shrink: 0;
-}
-
 @media (max-width: 768px) {
   .contact-details-page {
     display: flex;
@@ -173,9 +187,13 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
   }
+}
 
-  .back-btn {
-    align-self: flex-start;
+/* TZ package C safe */
+@media (max-width: 768px) {
+  .page, .layout, .panel, .settings-panel, [class*="container"], [class*="layout"], [class*="panel"] {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 </style>

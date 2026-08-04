@@ -1,80 +1,89 @@
 /*
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
- * 
+ *
  * This software is proprietary and confidential.
  * Unauthorized copying, modification, or distribution is prohibited.
- * 
+ *
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
-/* frontend/src/assets/styles/base.css */
+/* frontend/src/assets/styles/base.css — сброс, типографика, безопасный viewport */
 
-/* Общие стили для всех элементов */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--theme-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * Безопасный viewport: 100% вместо 100vw (100vw включает полосу прокрутки
+ * и даёт горизонтальный скролл всей страницы — TZ §0.2 / риск C1).
+ */
+html,
 body {
-  background-color: var(--color-white);
-  color: var(--color-dark);
-  font-size: var(--font-size-md); /* Добавим базовый размер шрифта */
-  line-height: 1.5; /* Добавим базовую высоту строки */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-/* Стили для монопространственных шрифтов (код, верификация) */
-code, .verification-code code, .address {
+body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+  font-size: var(--theme-font-size-base);
+  line-height: 1.5;
+}
+
+code,
+.verification-code code,
+.address {
   font-family: 'Courier New', Courier, monospace;
 }
 
-/* Унификация размеров шрифтов */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 500;
-  line-height: 1.3; /* Сделаем заголовки чуть плотнее */
-  margin-bottom: var(--spacing-md); /* Добавим отступ снизу по умолчанию */
+  line-height: 1.3;
+  margin-bottom: var(--spacing-md);
 }
 
 h1 { font-size: var(--font-size-xxl); }
 h2 { font-size: var(--font-size-xl); }
 h3 { font-size: var(--font-size-lg); }
-/* h3 из home.css имел margin-bottom, убрали здесь, чтобы не дублировать */
 
 p {
-  /* font-size и line-height уже заданы для body */
-  margin-bottom: var(--spacing-md); /* Добавим отступ снизу */
+  margin-bottom: var(--spacing-md);
 }
 
-input, textarea, button {
-  font-family: inherit; /* Наследуем шрифт */
-  font-size: inherit; /* Наследуем размер шрифта */
+input,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
 }
 
 button {
-    cursor: pointer; /* Указатель для всех кнопок */
+  cursor: pointer;
 }
 
 a {
-    color: var(--color-primary); /* Базовый цвет ссылок */
-    text-decoration: none; /* Убираем подчеркивание по умолчанию */
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
 a:hover {
-    text-decoration: underline; /* Подчеркивание при наведении */
-} 
-
-html, body {
-  width: 100vw !important;
-  max-width: 100vw !important;
-  min-width: 0 !important;
-  overflow-x: hidden !important;
-  box-sizing: border-box !important;
-  margin: 0 !important;
-  padding: 0 !important;
-} 
+  text-decoration: underline;
+}

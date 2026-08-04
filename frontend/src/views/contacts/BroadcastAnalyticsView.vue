@@ -165,7 +165,7 @@ onMounted(loadAnalytics);
 
 .broadcast-section-header p {
   margin: 0 0 20px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .analytics-toolbar {
@@ -182,31 +182,31 @@ onMounted(loadAnalytics);
 }
 
 .stat-card {
-  border-radius: 16px;
+  border-radius: var(--block-radius);
   text-align: center;
 }
 
 .stat-value {
   font-size: 1.8rem;
   font-weight: 700;
-  color: #303133;
+  color: var(--color-text);
 }
 
 .stat-value.success {
-  color: #67c23a;
+  color: var(--color-primary);
 }
 
 .stat-value.danger {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .stat-value.warning {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .stat-label {
   margin-top: 6px;
-  color: #909399;
+  color: var(--color-text-light);
 }
 
 .analytics-panels {
@@ -218,12 +218,12 @@ onMounted(loadAnalytics);
 
 .panel-card,
 .recent-card {
-  border-radius: 16px;
+  border-radius: var(--block-radius);
 }
 
 .empty-state {
   margin: 0;
-  color: #909399;
+  color: var(--color-text-light);
   text-align: center;
   padding: 12px 0;
 }
@@ -239,7 +239,7 @@ onMounted(loadAnalytics);
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border);
   font-size: 0.95rem;
 }
 
@@ -247,7 +247,7 @@ onMounted(loadAnalytics);
   border-bottom: 0;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .analytics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -257,7 +257,7 @@ onMounted(loadAnalytics);
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .analytics-grid {
     grid-template-columns: 1fr;
   }
@@ -265,6 +265,22 @@ onMounted(loadAnalytics);
   .daily-list li {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

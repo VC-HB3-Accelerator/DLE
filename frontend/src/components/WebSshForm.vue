@@ -110,7 +110,7 @@
             {{ t('webssh.clearLogs') }}
           </button>
           <span class="connection-status" :class="{ connected: isConnected }">
-            {{ isConnected ? '🟢 ' + t('common.online') : '🔴 ' + t('common.offline') }}
+            {{ isConnected ? t('common.online') : t('common.offline') }}
           </span>
         </div>
       </div>
@@ -646,16 +646,19 @@ const resetForm = () => {
 }
 
 .connection-status {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  background: #e74c3c;
-  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-danger) 18%, white);
+  color: var(--color-danger);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 35%, white);
 }
 
 .connection-status.connected {
-  background: #27ae60;
+  background: color-mix(in srgb, var(--color-primary) 14%, white);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, white);
 }
 
 .log-container {
@@ -866,5 +869,21 @@ textarea[type="password"]:focus::placeholder {
 
 .security-notice strong {
   color: #1b5e20;
+}
+
+/* TZ package S */
+@media (max-width: 480px) {
+  .webssh-form, .form-container, form {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row {
+    flex-direction: column;
+    grid-template-columns: 1fr !important;
+  }
+  input, select, textarea, button {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style> 

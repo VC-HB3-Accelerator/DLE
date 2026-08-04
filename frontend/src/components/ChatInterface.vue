@@ -935,7 +935,7 @@ async function handleAiReply() {
   justify-content: center;
   cursor: pointer;
   color: #fff;
-  background: var(--color-primary, #4CAF50);
+  background: var(--color-primary);
   transition: background-color 0.18s ease, transform 0.15s ease;
   touch-action: manipulation;
   user-select: none;
@@ -947,7 +947,7 @@ async function handleAiReply() {
 }
 
 .send-button:hover:not(:disabled) {
-  background: var(--color-primary-dark, #45a049);
+  background: var(--color-primary-dark);
 }
 
 .send-button:disabled {
@@ -1078,7 +1078,7 @@ async function handleAiReply() {
 }
 
 .selected-message {
-  background: #e6f7ff;
+  background: var(--color-primary-light);
 }
 .admin-select-checkbox {
   margin-right: 8px;
@@ -1098,5 +1098,16 @@ async function handleAiReply() {
 
 .chat-messages:has(.private-other-user) .message-wrapper {
   justify-content: flex-start;
+}
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
 }
 </style> 

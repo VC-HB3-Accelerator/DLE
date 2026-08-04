@@ -352,4 +352,15 @@ async function deleteSelectedTemplate() {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .dialog, .modal, .templates-dialog {
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0 !important;
+  }
+  .form-row, .actions { flex-direction: column; }
+}
 </style>

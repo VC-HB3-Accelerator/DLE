@@ -48,7 +48,6 @@
     "minFrom": "Minimum version required",
     "unknown": "unknown",
     "noRelease": "No published updates yet",
-    "stubHint": "stub_mode is on in updates settings (database): treasury license-token checks are temporarily skipped. License tokens are defined in Security → auth_tokens.",
     "hubLabel": "Updates hub",
     "applyTitle": "Update here",
     "applyHint": "Downloads the pack from the hub, runs update.sh, and deletes the file. The page may go offline during recreate — refresh in a few minutes.",
@@ -88,8 +87,23 @@
     "tabs": {
       "text": "Text",
       "languages": "Languages",
+      "auth": "Sign-in methods",
       "buttons": "Buttons",
       "regions": "Regions"
+    },
+    "auth": {
+      "intro": "Choose which sign-in methods guests see next to the wallet in the sidebar. Wallet is always available.",
+      "wallet": "Wallet",
+      "walletHint": "Base method — cannot be turned off.",
+      "telegram": "Telegram",
+      "telegramHint": "Deep link: open the bot and press Start.",
+      "email": "Email",
+      "emailHint": "Sign-in / link via email code.",
+      "password": "Password",
+      "passwordHint": "Stub for now — full API not ready.",
+      "saved": "Sign-in methods saved",
+      "saveError": "Could not save sign-in methods",
+      "loadError": "Could not load sign-in methods"
     },
     "languages": {
       "intro": "Choose which UI languages visitors can use. The language switcher in the sidebar appears only when two or more languages are selected.",
@@ -166,7 +180,23 @@
       "description": "Integration with OpenAI (GPT-4, GPT-3.5, etc.).",
       "pageTitle": "OpenAI: integration and settings",
       "label": "OpenAI API Key",
-      "providerDescription": "Enter your OpenAI API Key. To bypass RU geo-IP blocks, enable BlancVPN (subscription URL)."
+      "providerDescription": "Enter your OpenAI API Key. To bypass RU geo-IP blocks, enable BlancVPN under Settings → AI → VPN."
+    },
+    "vpn": {
+      "title": "VPN / BlancVPN",
+      "cardDescription": "Shared outbound SOCKS for OpenAI and the Telegram bot (API blocks bypass).",
+      "pageTitle": "VPN (Blanc): outbound proxy",
+      "description": "Used by OpenAI and the Telegram bot (API + polling). This is not a browser VPN for end users.",
+      "enabled": "Enable BlancVPN / outbound proxy",
+      "hint": "Paste your BlancVPN subscription URL. Backend fetches nodes and runs Xray. Check below which services should use it.",
+      "targetsLabel": "Route through VPN",
+      "targetsHint": "Both off by default — enable the services you need.",
+      "targetOpenai": "OpenAI API",
+      "targetTelegram": "Telegram Bot (API + polling)",
+      "verify": "Verify",
+      "verifying": "Verifying…",
+      "verifyOk": "Proxy / subscription OK",
+      "verifyFail": "Could not verify proxy"
     },
     "ollama": {
       "title": "Ollama",
@@ -380,8 +410,8 @@
       "proxyHint": "Workaround for geo-block: backend calls api.openai.com via your proxy.",
       "proxyUrl": "Manual HTTP/SOCKS URL:",
       "proxyUrlPlaceholder": "http://user:pass{'@'}host:port or socks5://host:port",
-      "blancEnabled": "BlancVPN for OpenAI",
-      "blancHint": "Paste your BlancVPN subscription URL (https://….withblancvpn.online/s/…). Backend fetches nodes, runs Xray, and routes OpenAI via SOCKS.",
+      "blancEnabled": "BlancVPN (moved — see VPN page)",
+      "blancHint": "VPN settings moved to Settings → AI → VPN / BlancVPN. This block is no longer shown on the OpenAI page.",
       "blancUrl": "BlancVPN subscription URL:",
       "blancUrlPlaceholder": "https://….withblancvpn.online/s/…",
       "blancMeta": "Node: {name} (nodes in subscription: {total})",

@@ -15,8 +15,8 @@
     <div class="monitor-header">
       <h3>{{ t('ai.queue.title') }}</h3>
       <div class="refresh-controls">
-        <button @click="refreshStats" :disabled="loading" class="btn-refresh">
-          <i class="fas fa-sync-alt" :class="{ 'fa-spin': loading }"></i>
+        <button @click="refreshStats" :disabled="loading" class="btn btn-primary btn-sm">
+          <UiGlyph name="sync" :spin="loading" />
           {{ t('ai.queue.refresh') }}
         </button>
         <label class="auto-refresh">
@@ -94,16 +94,16 @@
     <div v-if="canManageSettings" class="queue-controls">
       <h4>{{ t('ai.queue.queueControl') }}</h4>
       <div class="control-buttons">
-        <button @click="controlQueue('pause')" class="btn-control btn-pause">
-          <i class="fas fa-pause"></i>
+        <button @click="controlQueue('pause')" class="btn btn-sm btn-pause">
+          <UiGlyph name="pause" />
           {{ t('ai.queue.pause') }}
         </button>
-        <button @click="controlQueue('resume')" class="btn-control btn-resume">
-          <i class="fas fa-play"></i>
+        <button @click="controlQueue('resume')" class="btn btn-success btn-sm">
+          <UiGlyph name="play" />
           {{ t('ai.queue.resume') }}
         </button>
-        <button @click="controlQueue('clear')" class="btn-control btn-clear">
-          <i class="fas fa-trash"></i>
+        <button @click="controlQueue('clear')" class="btn btn-danger btn-sm">
+          <UiGlyph name="trash" />
           {{ t('ai.queue.clear') }}
         </button>
       </div>
@@ -125,6 +125,7 @@ import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 import Chart from 'chart.js/auto'
 import { usePermissions } from '@/composables/usePermissions'
+import UiGlyph from './UiGlyph.vue'
 
 export default {
   name: 'AIQueueMonitor',
@@ -330,27 +331,6 @@ export default {
   gap: 15px;
 }
 
-.btn-refresh {
-  padding: 8px 16px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.btn-refresh:hover {
-  background: #0056b3;
-}
-
-.btn-refresh:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-}
-
 .auto-refresh {
   display: flex;
   align-items: center;
@@ -386,11 +366,11 @@ export default {
 }
 
 .status-active {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .status-waiting {
-  color: #ffc107;
+  color: var(--color-warning);
 }
 
 .status-idle {
@@ -398,19 +378,19 @@ export default {
 }
 
 .status-error {
-  color: #dc3545;
+  color: var(--color-danger);
 }
 
 .success {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .warning {
-  color: #ffc107;
+  color: var(--color-warning);
 }
 
 .error {
-  color: #dc3545;
+  color: var(--color-danger);
 }
 
 .detailed-stats {
@@ -464,42 +444,15 @@ export default {
   gap: 10px;
 }
 
-.btn-control {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-}
-
 .btn-pause {
-  background: #ffc107;
-  color: #333;
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-dark);
 }
 
-.btn-pause:hover {
-  background: #e0a800;
-}
-
-.btn-resume {
-  background: #28a745;
-  color: white;
-}
-
-.btn-resume:hover {
-  background: #218838;
-}
-
-.btn-clear {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-clear:hover {
-  background: #c82333;
+.btn-pause:hover:not(:disabled):not(.is-disabled) {
+  background: color-mix(in srgb, var(--color-warning) 85%, black);
+  border-color: color-mix(in srgb, var(--color-warning) 85%, black);
 }
 
 .performance-chart {
@@ -532,6 +485,17 @@ export default {
   
   .control-buttons {
     flex-direction: column;
+  }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

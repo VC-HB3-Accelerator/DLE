@@ -119,8 +119,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     event ModuleAdded(bytes32 moduleId, address moduleAddress);
     event ModuleRemoved(bytes32 moduleId);
     event ProposalExecutionApprovedInChain(uint256 proposalId, uint256 chainId);
-    event ChainAdded(uint256 chainId);
-    event ChainRemoved(uint256 chainId);
     event PeerContractSet(uint256 indexed chainId, address peer);
     event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
@@ -169,9 +167,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     error ErrBadJurisdiction();
     error ErrBadKPP();
     error ErrBadQuorum();
-    error ErrChainAlreadySupported();
     error ErrChainNotSupported();
-    error ErrCannotRemoveCurrentChain();
     error ErrTransfersDisabled();
     error ErrApprovalsDisabled();
     error ErrProposalCanceled();
@@ -490,39 +486,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     }
 
     /**
-     * @dev Добавить поддерживаемую цепочку (только для владельцев токенов)
-     * @param _chainId ID цепочки
-     */
-    // Управление списком сетей теперь выполняется только через предложения
-    function _addSupportedChain(uint256 _chainId) internal {
-        if (supportedChains[_chainId]) revert ErrChainAlreadySupported();
-        if (_chainId == block.chainid) revert ErrBadChain();
-        supportedChains[_chainId] = true;
-        supportedChainIds.push(_chainId);
-        emit ChainAdded(_chainId);
-    }
-
-    /**
-     * @dev Удалить поддерживаемую цепочку (только для владельцев токенов)
-     * @param _chainId ID цепочки
-     */
-    function _removeSupportedChain(uint256 _chainId) internal {
-        if (!supportedChains[_chainId]) revert ErrChainNotSupported();
-        if (_chainId == block.chainid) revert ErrCannotRemoveCurrentChain();
-        supportedChains[_chainId] = false;
-        // Удаляем из массива
-        for (uint256 i = 0; i < supportedChainIds.length; i++) {
-            if (supportedChainIds[i] == _chainId) {
-                supportedChainIds[i] = supportedChainIds[supportedChainIds.length - 1];
-                supportedChainIds.pop();
-                break;
-            }
-        }
-        emit ChainRemoved(_chainId);
-    }
-
-
-    /**
      * @dev Исполнить операцию
      * @param _proposalId ID предложения
      * @param _operation Операция для исполнения
@@ -560,12 +523,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             // Операция удаления модуля
             (bytes32 moduleId) = abi.decode(data, (bytes32));
             _removeModule(moduleId);
-        } else if (selector == bytes4(keccak256("_addSupportedChain(uint256)"))) {
-            (uint256 chainIdToAdd) = abi.decode(data, (uint256));
-            _addSupportedChain(chainIdToAdd);
-        } else if (selector == bytes4(keccak256("_removeSupportedChain(uint256)"))) {
-            (uint256 chainIdToRemove) = abi.decode(data, (uint256));
-            _removeSupportedChain(chainIdToRemove);
         } else if (selector == bytes4(keccak256("_transferTokens(address,address,uint256)"))) {
             // Операция перевода токенов через governance от инициатора
             (address sender, address recipient, uint256 amount) = abi.decode(data, (address, address, uint256));

@@ -19,7 +19,7 @@
           @click="showCreateCategoryModal = true"
           :title="$t('content.docsSidebar.createSectionTitle')"
         >
-          <i class="fas fa-plus"></i>
+          <UiGlyph name="plus" />
           <span>{{ $t('content.docsSidebar.createSection') }}</span>
         </button>
         <button
@@ -27,7 +27,7 @@
           @click="showEditCategoryModal = true"
           :title="$t('content.docsSidebar.editSectionTitle')"
         >
-          <i class="fas fa-edit"></i>
+          <UiGlyph name="edit" />
           <span>{{ $t('content.docsSidebar.editSection') }}</span>
         </button>
         <button
@@ -35,7 +35,7 @@
           @click="openDeleteCategoryModal"
           :title="$t('content.docsSidebar.deleteSectionTitle')"
         >
-          <i class="fas fa-trash"></i>
+          <UiGlyph name="trash" />
           <span>{{ $t('content.docsSidebar.deleteSection') }}</span>
         </button>
       </div>
@@ -61,13 +61,11 @@
             class="category-header"
             @click="toggleCategory(category.name)"
           >
-            <i
-              :class="[
-                'fas',
-                expandedCategories[category.name] ? 'fa-chevron-down' : 'fa-chevron-right',
-                'category-icon'
-              ]"
-            ></i>
+            <UiGlyph
+              :name="expandedCategories[category.name] ? 'chevron-down' : 'chevron-right'"
+              class="category-icon"
+              :size="12"
+            />
             <span class="category-name">{{ formatCategoryName(category.name) }}</span>
             <span class="category-count">({{ getCategoryPageCount(category) }})</span>
             <div
@@ -80,7 +78,7 @@
                 @click="editCategory(category.name)"
                 :title="$t('content.docsSidebar.editSectionTitle')"
               >
-                <i class="fas fa-edit"></i>
+                <UiGlyph name="edit" />
               </button>
             </div>
           </div>
@@ -106,7 +104,7 @@
                     @click.stop="editPageStructure(page)"
                     :title="$t('content.publishedList.editStructure')"
                   >
-                    <i class="fas fa-cog"></i>
+                    <UiGlyph name="settings" :size="14" />
                   </button>
                 </div>
 
@@ -350,6 +348,7 @@ import pagesService from '../../services/pagesService';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 import api from '../../api/axios';
+import UiGlyph from '../UiGlyph.vue';
 
 const props = defineProps({
   currentPageId: {
@@ -1030,9 +1029,8 @@ onBeforeUnmount(() => {
 
 .category-icon {
   margin-right: 8px;
-  font-size: 0.75rem;
   color: #6c757d;
-  transition: transform 0.2s;
+  flex-shrink: 0;
 }
 
 .category-name {
@@ -1189,7 +1187,10 @@ onBeforeUnmount(() => {
 
 .create-category-btn i,
 .edit-category-btn i,
-.delete-category-btn i {
+.delete-category-btn i,
+.create-category-btn .ui-glyph,
+.edit-category-btn .ui-glyph,
+.delete-category-btn .ui-glyph {
   font-size: 0.85rem;
 }
 
@@ -1405,5 +1406,7 @@ onBeforeUnmount(() => {
     margin: 10px;
   }
 }
+
+/* TZ package D: reviewed */
 </style>
 

@@ -12,9 +12,9 @@
 
 <template>
   <BaseLayout>
-    <div class="admin-chat-header">
+    <div class="admin-chat-header page-with-close">
+      <PageCloseButton :fallback="{ name: 'personal-messages' }" />
       <span>{{ t('chat.privateChat') }}</span>
-      <button class="close-btn" @click="goBack">×</button>
     </div>
 
     <div v-if="conferenceId" class="conference-invite">
@@ -57,6 +57,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import BaseLayout from '../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import ChatInterface from '../components/ChatInterface.vue';
 import { getPrivateMessages, sendPrivateMessage, getPrivateConversations, markPrivateMessagesAsRead } from '../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
@@ -154,14 +155,6 @@ async function handleSendMessage({ message }) {
   }
 }
 
-function goBack() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: 'personal-messages' });
-  }
-}
-
 onMounted(async () => {
   await loadInviteForHost();
   loadMessages();
@@ -170,10 +163,11 @@ onMounted(async () => {
 
 <style scoped>
 .admin-chat-header {
+  position: relative;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 1rem;
+  padding-right: calc(var(--spacing-md) + 2rem);
   background: #f5f5f5;
   border-bottom: 1px solid #ddd;
   font-size: 1.2rem;
@@ -187,7 +181,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--color-primary-light, #ecf5ff);
+  background: var(--color-primary-light);
   border-bottom: 1px solid var(--color-border, #dcdfe6);
 }
 
@@ -201,20 +195,6 @@ onMounted(async () => {
 .conference-invite-text span {
   color: var(--color-grey, #606266);
   font-size: 0.9rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.close-btn:hover {
-  background-color: #e0e0e0;
 }
 
 .loading-container {

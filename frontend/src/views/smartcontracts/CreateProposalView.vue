@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="create-proposal-page">
+    <div class="create-proposal-page page-with-close">
+      <PageCloseButton :on-navigate="goBackToBlocks" />
       <!-- Информация для неавторизованных пользователей -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
@@ -30,11 +31,10 @@
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ t('common.loading') }}
         </div>
-        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
-          <i class="fas fa-info-circle"></i>
+          <UiGlyph name="info" />
           <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
           <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
@@ -95,20 +95,6 @@
                 </button>
               </div>
               <div class="operation-block">
-                <h6>{{ t('smartcontracts.createProposal.operations.addChain.title') }}</h6>
-                <p>{{ t('smartcontracts.createProposal.operations.addChain.description') }}</p>
-                <button class="create-btn" @click="openAddChainForm" :disabled="!props.isAuthenticated">
-                  {{ t('common.create') }}
-                </button>
-              </div>
-              <div class="operation-block">
-                <h6>{{ t('smartcontracts.createProposal.operations.removeChain.title') }}</h6>
-                <p>{{ t('smartcontracts.createProposal.operations.removeChain.description') }}</p>
-                <button class="create-btn" @click="openRemoveChainForm" :disabled="!props.isAuthenticated">
-                  {{ t('common.create') }}
-                </button>
-              </div>
-              <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.setLogoUri.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.setLogoUri.description') }}</p>
                 <button class="create-btn" @click="openSetLogoURIForm" :disabled="!props.isAuthenticated">
@@ -161,6 +147,8 @@ import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
+import UiGlyph from '../../components/UiGlyph.vue';
 import { getDLEInfo } from '../../services/dleV2Service.js';
 import { createProposal as createProposalAPI } from '../../services/proposalsService.js';
 import { getModuleOperations } from '../../services/moduleOperationsService.js';
@@ -244,15 +232,6 @@ function openAddModuleForm() {
 function openRemoveModuleForm() {
   alert(t('smartcontracts.createProposal.comingSoon.removeModule'));
 }
-
-function openAddChainForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.addChain'));
-}
-
-function openRemoveChainForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.removeChain'));
-}
-
 
 function openUpdateDLEInfoForm() {
   alert(t('smartcontracts.createProposal.comingSoon.updateDleInfo'));
@@ -574,7 +553,7 @@ function getChainName(chainId) {
 
 .operation-blocks {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 1.5rem;
 }
 
@@ -699,5 +678,20 @@ function getChainName(chainId) {
   .operation-category h5 {
     font-size: 1.1rem;
   }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
+}
+
+.create-proposal-container.page-with-close {
+  position: relative;
 }
 </style>

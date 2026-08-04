@@ -22,18 +22,17 @@
 
 <template>
   <div v-if="showNotification" class="network-notification">
-    <div class="notification-content">
-      <div class="notification-icon">⚠️</div>
+      <div class="notification-content">
       <div class="notification-text">
         <h4>{{ t('network.switchRequired') }}</h4>
         <p>{{ t('network.switchForVote', { network: targetNetworkName }) }}</p>
         <p>{{ t('network.currentNetwork', { network: currentNetworkName }) }}</p>
       </div>
       <div class="notification-actions">
-        <button @click="switchNetwork" class="btn btn-primary" :disabled="isSwitching">
+        <button type="button" @click="switchNetwork" class="btn btn-primary" :disabled="isSwitching">
           {{ isSwitching ? t('network.switching') : t('network.switchNetwork') }}
         </button>
-        <button @click="dismiss" class="btn btn-secondary">{{ t('network.later') }}</button>
+        <button type="button" @click="dismiss" class="btn btn-outline">{{ t('network.later') }}</button>
       </div>
     </div>
   </div>
@@ -125,11 +124,12 @@ export default {
   right: 20px;
   z-index: 1000;
   max-width: 400px;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  border: 1px solid #ddd;
+  background: var(--color-white);
+  border-radius: var(--block-radius);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
   animation: slideIn 0.3s ease-out;
+  box-sizing: border-box;
 }
 
 @keyframes slideIn {
@@ -144,84 +144,49 @@ export default {
 }
 
 .notification-content {
-  padding: 20px;
+  padding: var(--block-padding);
   display: flex;
   flex-direction: column;
-  gap: 15px;
-}
-
-.notification-icon {
-  font-size: 24px;
-  text-align: center;
+  gap: var(--spacing-md);
 }
 
 .notification-text h4 {
-  margin: 0 0 10px 0;
-  color: #333;
-  font-size: 16px;
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--color-dark);
+  font-size: var(--font-size-lg);
   font-weight: bold;
 }
 
 .notification-text p {
-  margin: 0 0 8px 0;
-  color: #666;
-  font-size: 14px;
+  margin: 0 0 var(--spacing-xs) 0;
+  color: var(--color-text-light);
+  font-size: var(--font-size-md);
   line-height: 1.4;
 }
 
 .notification-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: var(--button-gap);
   justify-content: flex-end;
-}
-
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 5px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #007bff;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #545b62;
 }
 
 @media (max-width: 768px) {
   .network-notification {
-    top: 10px;
-    right: 10px;
-    left: 10px;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    left: var(--spacing-sm);
     max-width: none;
   }
-  
+
   .notification-actions {
     flex-direction: column;
   }
-  
-  .btn {
+
+  .notification-actions .btn {
     width: 100%;
   }
 }
+
+/* TZ package G/SC: reviewed */
 </style>

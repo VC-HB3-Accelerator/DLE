@@ -19,8 +19,8 @@
     :token-balances="tokenBalances"
     :is-loading-tokens="isLoadingTokens"
   />
-  <div class="webssh-settings-block">
-    <button class="close-btn" @click="goBack">×</button>
+  <div class="webssh-settings-block page-with-close">
+    <PageCloseButton fallback="/settings/interface" />
     <h2>{{ $t('settings.interface.vds.setupTitle') }}</h2>
     <WebSshForm />
   </div>
@@ -30,8 +30,8 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import WebSshForm from '@/components/WebSshForm.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import Header from '@/components/Header.vue';
 import Sidebar from '@/components/Sidebar.vue';
 import { useAuthContext } from '@/composables/useAuth';
@@ -48,8 +48,6 @@ defineProps({
 // Определяем события, которые мы эмитим
 defineEmits(['authActionCompleted']);
 
-const router = useRouter();
-const goBack = () => router.push('/settings/interface');
 const showSidebar = ref(false);
 const toggleSidebar = () => {
   showSidebar.value = !showSidebar.value;
@@ -88,28 +86,8 @@ const isLoadingTokens = false;
   overflow-x: auto;
 }
 
-.close-btn {
-  position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0.5rem;
-  border-radius: 50%;
-  transition: all 0.2s;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
+.page-with-close {
+  position: relative;
 }
 
 h2 {
@@ -142,5 +120,11 @@ h2 {
   .desc {
     font-size: 1rem;
   }
+}
+
+/* TZ package S */
+.webssh-settings-block {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 </style> 

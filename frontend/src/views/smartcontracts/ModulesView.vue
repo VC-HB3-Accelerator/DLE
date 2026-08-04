@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="modules-management">
+    <div class="modules-management page-with-close">
+      <PageCloseButton :on-navigate="goBackToBlocks" />
       <!-- Модальное окно деплоя -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 20px;">
@@ -29,11 +30,10 @@
             {{ t('common.loading') }}
           </div>
           <div class="websocket-status" :class="{ connected: isWSConnected }" :title="t('smartcontracts.modules.websocket.title')">
-            <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
+            <span class="ui-fa-fallback" aria-hidden="true">{{ isWSConnected ? '●' : '○' }}</span>
             <span>{{ isWSConnected ? t('smartcontracts.modules.websocket.connected') : t('smartcontracts.modules.websocket.disconnected') }}</span>
           </div>
         </div>
-        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div v-if="showDeploymentModal" class="modal-overlay" @click="moduleDeploymentStatus === 'error' || !isDeploying ? closeDeploymentModal() : null">
         <div class="modal-content" @click.stop>
@@ -41,7 +41,7 @@
             <div class="header-content">
               <h3>{{ t('smartcontracts.modules.deploy.modalTitle', { module: currentDeployingModule }) }}</h3>
               <div class="websocket-status" :class="{ connected: isWSConnected }">
-                <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
+                <span class="ui-fa-fallback" aria-hidden="true">{{ isWSConnected ? '●' : '○' }}</span>
                 <span>{{ isWSConnected ? t('smartcontracts.modules.websocket.connected') : t('smartcontracts.modules.websocket.disconnected') }}</span>
             </div>
             </div>
@@ -50,7 +50,7 @@
               @click="closeDeploymentModal" 
               v-if="moduleDeploymentStatus === 'error' || !isDeploying"
             >
-              <i class="fas fa-times"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">×</span>
             </button>
             </div>
           
@@ -58,10 +58,10 @@
             <!-- Статус деплоя -->
             <div class="deployment-status-card">
               <div class="status-icon" :class="moduleDeploymentStatus">
-                <i class="fas fa-spinner fa-spin" v-if="moduleDeploymentStatus === 'starting'"></i>
-                <i class="fas fa-check-circle" v-else-if="moduleDeploymentStatus === 'success'"></i>
-                <i class="fas fa-exclamation-circle" v-else-if="moduleDeploymentStatus === 'error'"></i>
-                <i class="fas fa-rocket" v-else></i>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-if="moduleDeploymentStatus === 'starting'">⟳</span>
+                <span class="ui-fa-fallback" aria-hidden="true" v-else-if="moduleDeploymentStatus === 'success'">✓</span>
+                <span class="ui-fa-fallback" aria-hidden="true" v-else-if="moduleDeploymentStatus === 'error'">!</span>
+                <span class="ui-fa-fallback" aria-hidden="true" v-else>↑</span>
             </div>
               <div class="status-content">
                 <h4>{{ getStatusTitle() }}</h4>
@@ -81,9 +81,9 @@
             <div class="deployment-details">
               <div class="detail-step" :class="{ active: deploymentStep >= 1, completed: deploymentStep > 1 }">
                 <div class="step-icon">
-                  <i class="fas fa-cog" v-if="deploymentStep < 1"></i>
-                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 1"></i>
-                  <i class="fas fa-check" v-else></i>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-if="deploymentStep < 1">⚙</span>
+                  <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else-if="deploymentStep === 1">⟳</span>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-else>✓</span>
                 </div>
                 <div class="step-content">
                   <h5>{{ t('smartcontracts.modules.steps.init.title') }}</h5>
@@ -93,9 +93,9 @@
 
               <div class="detail-step" :class="{ active: deploymentStep >= 2, completed: deploymentStep > 2 }">
                 <div class="step-icon">
-                  <i class="fas fa-cog" v-if="deploymentStep < 2"></i>
-                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 2"></i>
-                  <i class="fas fa-check" v-else></i>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-if="deploymentStep < 2">⚙</span>
+                  <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else-if="deploymentStep === 2">⟳</span>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-else>✓</span>
                 </div>
                 <div class="step-content">
                   <h5>{{ t('smartcontracts.modules.steps.compile.title') }}</h5>
@@ -105,9 +105,9 @@
 
               <div class="detail-step" :class="{ active: deploymentStep >= 3, completed: deploymentStep > 3 }">
                 <div class="step-icon">
-                  <i class="fas fa-cog" v-if="deploymentStep < 3"></i>
-                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 3"></i>
-                  <i class="fas fa-check" v-else></i>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-if="deploymentStep < 3">⚙</span>
+                  <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else-if="deploymentStep === 3">⟳</span>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-else>✓</span>
                 </div>
                 <div class="step-content">
                   <h5>{{ t('smartcontracts.modules.steps.deployNetworks.title') }}</h5>
@@ -117,9 +117,9 @@
 
               <div class="detail-step" :class="{ active: deploymentStep >= 4, completed: deploymentStep > 4 }">
                 <div class="step-icon">
-                  <i class="fas fa-cog" v-if="deploymentStep < 4"></i>
-                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 4"></i>
-                  <i class="fas fa-check" v-else></i>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-if="deploymentStep < 4">⚙</span>
+                  <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else-if="deploymentStep === 4">⟳</span>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-else>✓</span>
                 </div>
                 <div class="step-content">
                   <h5>{{ t('smartcontracts.modules.steps.verification.title') }}</h5>
@@ -129,9 +129,9 @@
 
               <div class="detail-step" :class="{ active: deploymentStep >= 5, completed: deploymentStep > 5 }">
                 <div class="step-icon">
-                  <i class="fas fa-cog" v-if="deploymentStep < 5"></i>
-                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 5"></i>
-                  <i class="fas fa-check" v-else></i>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-if="deploymentStep < 5">⚙</span>
+                  <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else-if="deploymentStep === 5">⟳</span>
+                  <span class="ui-fa-fallback" aria-hidden="true" v-else>✓</span>
                 </div>
                 <div class="step-content">
                   <h5>{{ t('smartcontracts.modules.steps.completion.title') }}</h5>
@@ -159,7 +159,7 @@
 
           <div class="modal-footer" v-if="moduleDeploymentStatus === 'success'">
             <div class="success-message">
-              <i class="fas fa-check-circle"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">✓</span>
               <span>{{ t('smartcontracts.modules.deploy.successAutoClose') }}</span>
             </div>
           </div>
@@ -187,8 +187,8 @@
                 @click="deployModule('treasury')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -211,8 +211,8 @@
                 @click="deployModule('timelock')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -236,8 +236,8 @@
                 @click="deployModule('reader')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -260,8 +260,8 @@
                 @click="deployModule('communication')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -284,8 +284,8 @@
                 @click="deployModule('application')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -308,8 +308,8 @@
                 @click="deployModule('mint')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -332,8 +332,8 @@
                 @click="deployModule('burn')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -357,8 +357,8 @@
                 @click="deployModule('oracle')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -382,8 +382,8 @@
                 @click="deployModule('inheritance')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -407,8 +407,8 @@
                 @click="deployModule('vesting')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -432,8 +432,8 @@
                 @click="deployModule('staking')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -457,8 +457,8 @@
                 @click="deployModule('insurance')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -482,8 +482,8 @@
                 @click="deployModule('compliance')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -507,8 +507,8 @@
                 @click="deployModule('supplychain')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -532,8 +532,8 @@
                 @click="deployModule('event')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -557,8 +557,8 @@
                 @click="deployModule('hierarchicalVoting')"
                 :disabled="isDeploying || !canDeployModules"
               >
-                <i class="fas fa-rocket" v-if="!isDeploying"></i>
-                <i class="fas fa-spinner fa-spin" v-else></i>
+                <span class="ui-fa-fallback" aria-hidden="true" v-if="!isDeploying">↑</span>
+                <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true" v-else>⟳</span>
                 {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
@@ -572,14 +572,14 @@
         <div class="list-header">
           <h3>{{ t('smartcontracts.modules.listTitle') }}</h3>
           <button class="btn btn-sm btn-outline-secondary" @click="loadModules" :disabled="isLoadingModules || isLoadingDeploymentStatus">
-            <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingModules || isLoadingDeploymentStatus }"></i> {{ t('common.refresh') }}
+            <span class="ui-fa-fallback" :class="{ 'ui-fa-fallback--spin': isLoadingModules || isLoadingDeploymentStatus }" aria-hidden="true">↻</span> {{ t('common.refresh') }}
           </button>
         </div>
 
         <!-- Статус деплоя -->
         <div v-if="isLoadingDeploymentStatus" class="deployment-status">
           <div class="status-loading">
-            <i class="fas fa-spinner fa-spin"></i>
+            <span class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true">⟳</span>
             <span>{{ t('smartcontracts.modules.deploymentStatus.checking') }}</span>
           </div>
         </div>
@@ -587,11 +587,11 @@
         <div v-else-if="!canShowModules" class="deployment-status">
           <div class="status-message" :class="deploymentStatus">
             <div class="status-icon">
-              <i v-if="deploymentStatus === 'completed'" class="fas fa-check-circle"></i>
-              <i v-else-if="deploymentStatus === 'in_progress'" class="fas fa-spinner fa-spin"></i>
-              <i v-else-if="deploymentStatus === 'failed'" class="fas fa-exclamation-triangle"></i>
-              <i v-else-if="deploymentStatus === 'not_started'" class="fas fa-play-circle"></i>
-              <i v-else class="fas fa-question-circle"></i>
+              <span class="ui-fa-fallback" aria-hidden="true" v-if="deploymentStatus === 'completed'">✓</span>
+              <span v-else-if="deploymentStatus === 'in_progress'" class="ui-fa-fallback ui-fa-fallback--spin" aria-hidden="true">⟳</span>
+              <span class="ui-fa-fallback" aria-hidden="true" v-else-if="deploymentStatus === 'failed'">⚠</span>
+              <span class="ui-fa-fallback" aria-hidden="true" v-else-if="deploymentStatus === 'not_started'">▶</span>
+              <span class="ui-fa-fallback" aria-hidden="true" v-else>?</span>
             </div>
             <div class="status-content">
               <h4>{{ deploymentStatusMessage }}</h4>
@@ -653,12 +653,12 @@
                       class="address-link"
                     >
                       {{ shortenAddress(addr.address) }}
-                      <i class="fas fa-external-link-alt"></i>
+                      <span class="ui-fa-fallback" aria-hidden="true">↗</span>
                     </a>
                     <span class="verification-status" :class="addr.verificationStatus">
-                      <i class="fas fa-check-circle" v-if="addr.verificationStatus === 'success'"></i>
-                      <i class="fas fa-times-circle" v-else-if="addr.verificationStatus === 'failed'"></i>
-                      <i class="fas fa-clock" v-else></i>
+                      <span class="ui-fa-fallback" aria-hidden="true" v-if="addr.verificationStatus === 'success'">✓</span>
+                      <span class="ui-fa-fallback" aria-hidden="true" v-else-if="addr.verificationStatus === 'failed'">✕</span>
+                      <span class="ui-fa-fallback" aria-hidden="true" v-else>◷</span>
                     </span>
                     <div v-if="addr.bridgeAddress" class="bridge-row">
                       <span class="network-badge">Bridge</span>
@@ -668,7 +668,7 @@
                         class="address-link"
                       >
                         {{ shortenAddress(addr.bridgeAddress) }}
-                        <i class="fas fa-external-link-alt"></i>
+                        <span class="ui-fa-fallback" aria-hidden="true">↗</span>
                       </a>
                     </div>
                   </div>
@@ -720,7 +720,7 @@
                 @click="activateModule(module.moduleId)"
                 :disabled="isActivating === module.moduleId"
               >
-                <i class="fas fa-check"></i> 
+                <span class="ui-fa-fallback" aria-hidden="true">✓</span> 
                 {{ isActivating === module.moduleId ? t('smartcontracts.modules.list.activating') : t('smartcontracts.modules.list.activate') }}
                 </button>
             </div>
@@ -739,6 +739,7 @@ import { useI18n } from 'vue-i18n';
 import { usePermissions } from '../../composables/usePermissions';
 import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { 
   isModuleActive,
   getModuleAddress,
@@ -1407,7 +1408,9 @@ onUnmounted(() => {
 
 .module-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 8px;
 }
 
 .btn-deploy {
@@ -1523,7 +1526,7 @@ onUnmounted(() => {
 }
 
 .status-loading i {
-  color: #007bff;
+  color: var(--color-primary);
   font-size: 1.2rem;
 }
 
@@ -1543,12 +1546,12 @@ onUnmounted(() => {
 
 .status-message.completed {
   background-color: #e8f5e8;
-  border-color: #28a745;
+  border-color: var(--color-success);
 }
 
 .status-message.in_progress {
   background-color: #e3f2fd;
-  border-color: #007bff;
+  border-color: var(--color-primary);
 }
 
 .status-message.failed {
@@ -1572,11 +1575,11 @@ onUnmounted(() => {
 }
 
 .status-message.completed .status-icon {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .status-message.in_progress .status-icon {
-  color: #007bff;
+  color: var(--color-primary);
 }
 
 .status-message.failed .status-icon {
@@ -1624,8 +1627,10 @@ onUnmounted(() => {
 
 .modules-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .module-card {
@@ -1633,6 +1638,9 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   padding: 15px;
   transition: all 0.2s;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .module-card:hover {
@@ -1640,7 +1648,7 @@ onUnmounted(() => {
 }
 
 .module-card.active {
-  border-color: #28a745;
+  border-color: var(--color-success);
   background: #f8fff9;
 }
 
@@ -1653,6 +1661,8 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
@@ -1661,6 +1671,9 @@ onUnmounted(() => {
   font-size: 14px;
   font-family: monospace;
   word-break: break-all;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .module-status {
@@ -1668,6 +1681,7 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .module-status.active {
@@ -1697,6 +1711,9 @@ onUnmounted(() => {
   color: var(--color-primary);
   text-decoration: none;
   font-family: monospace;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  max-width: 100%;
 }
 
 .address-link:hover {
@@ -1738,6 +1755,7 @@ onUnmounted(() => {
 
 .module-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -1768,24 +1786,6 @@ onUnmounted(() => {
   background: var(--color-primary-dark);
 }
 
-.btn-success {
-  background: #28a745;
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #218838;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #c82333;
-}
-
 .btn-outline-secondary {
   background: transparent;
   color: #6c757d;
@@ -1795,11 +1795,6 @@ onUnmounted(() => {
 .btn-outline-secondary:hover:not(:disabled) {
   background: #6c757d;
   color: white;
-}
-
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 12px;
 }
 
 /* Модальное окно деплоя */
@@ -1877,7 +1872,7 @@ onUnmounted(() => {
 }
 
 .websocket-status.connected {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .websocket-status i {
@@ -1938,7 +1933,7 @@ onUnmounted(() => {
 }
 
 .status-icon.success {
-  color: #28a745;
+  color: var(--color-success);
   background: #d4edda;
 }
 
@@ -2009,7 +2004,7 @@ onUnmounted(() => {
 
 .detail-step.completed {
   background: #e8f5e8;
-  border-color: #28a745;
+  border-color: var(--color-success);
 }
 
 .step-icon {
@@ -2030,7 +2025,7 @@ onUnmounted(() => {
 }
 
 .detail-step.completed .step-icon {
-  background: #28a745;
+  background: var(--color-success);
   color: white;
 }
 
@@ -2094,7 +2089,7 @@ onUnmounted(() => {
 }
 
 .log-entry.success .log-message {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .log-entry.error .log-message {
@@ -2114,7 +2109,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #28a745;
+  color: var(--color-success);
   font-weight: 500;
   font-size: 14px;
 }
@@ -2130,11 +2125,20 @@ onUnmounted(() => {
   }
   
   .modules-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   
   .info-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .module-actions {
+    flex-wrap: wrap;
+  }
+
+  .module-actions .btn,
+  .module-actions :deep(.btn) {
+    max-width: 100%;
   }
 }
 
@@ -2152,5 +2156,20 @@ onUnmounted(() => {
     width: 100%;
     justify-content: center;
   }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
+}
+
+.modules-container.page-with-close {
+  position: relative;
 }
 </style>

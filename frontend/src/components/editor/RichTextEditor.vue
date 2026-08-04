@@ -651,5 +651,20 @@ defineExpose({
     transform: rotate(360deg);
   }
 }
+
+
+/* TZ package D */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style>
 

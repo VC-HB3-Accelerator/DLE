@@ -37,164 +37,198 @@
           <!-- Классификаторы видов деятельности -->
       <div v-if="dleSettings.jurisdiction">
         <div v-if="isLoadingRussianClassifiers" class="loading-section">
-          <p><i class="fas fa-spinner fa-spin"></i> {{ $t('deploy.form.загрузка_российских_классификаторов') }}</p>
+          <p>{{ $t('deploy.form.загрузка_российских_классификаторов') }}</p>
         </div>
         
         <div v-else>
 
 
-              <!-- Форма ручного заполнения адреса -->
-              <div class="address-form-section">
+              <!-- Форма юридического адреса (нейтральные поля, без привязки к стране) -->
+              <div class="address-form-section deploy-form-block">
                 <h4>{{ $t('deploy.form.юридический_адрес') }}</h4>
-                <p class="form-help">{{ $t('deploy.form.инструкция_заполнения_адреса') }}</p>
-                
+
                 <div class="address-fields">
-                  <!-- Поиск по почтовому индексу -->
-                  <div class="postal-search-section">
-                    <div class="form-row">
-                      <div class="form-group flex-grow">
-                        <label class="form-label" for="postalCode">{{ $t('deploy.form.почтовый_индекс') }}</label>
-                        <input 
-                          type="text" 
-                          id="postalCode" 
-                          v-model="postalCodeInput" 
-                          class="form-control" 
-                          placeholder="101000"
-                          @keyup.enter="searchByPostalCode"
-                        >
-                      </div>
-                      <div class="form-group">
-                        <label class="form-label">&nbsp;</label>
-                        <button 
-                          type="button" 
-                          @click="searchByPostalCode" 
-                          class="btn btn-primary"
-                          :disabled="!postalCodeInput || postalCodeInput.length < 5"
-                        >{{ $t('deploy.form.поиск') }}</button>
-                      </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label" for="postalCode">{{ $t('deploy.form.почтовый_индекс') }}</label>
+                      <input
+                        type="text"
+                        id="postalCode"
+                        v-model="dleSettings.addressData.postalCode"
+                        class="form-control"
+                        :placeholder="$t('deploy.form.ph_postal')"
+                        autocomplete="postal-code"
+                      >
                     </div>
-
-                    <!-- Индикатор поиска -->
-                    <div v-if="isSearchingAddress" class="searching-indicator">
-                      <i class="fas fa-spinner fa-spin"></i> {{ $t('deploy.form.поиск_данных_по_индексу') }}
-                    </div>
-
-                    <!-- Результаты поиска -->
-                    <div v-if="searchResults.length > 0 && !isSearchingAddress" class="search-results">
-                      <h5>{{ $t('deploy.form.найденные_данные_первый_автоматически_вы') }}</h5>
-                      <div class="results-list">
-                        <div 
-                          v-for="(result, index) in searchResults" 
-                          :key="index"
-                          @click="fillFromSearchResult(result)"
-                          :class="['search-result-item', { 'selected': index === 0 }]"
-                        >
-                          <div class="result-address">
-                            <span v-if="index === 0" class="auto-selected">{{ $t('deploy.form.выбрано') }}</span>
-                            {{ result.fullAddress }}
-                          </div>
-                          <div class="result-details">
-                            <span v-if="result.region">{{ result.region }}</span>
-                            <span v-if="result.city">{{ result.city }}</span>
-                            <span v-if="result.street">{{ result.street }}</span>
-                          </div>
-                        </div>
-                      </div>
+                    <div class="form-group flex-grow">
+                      <label class="form-label" for="region">{{ $t('deploy.form.регион_область') }}</label>
+                      <input
+                        type="text"
+                        id="region"
+                        v-model="dleSettings.addressData.region"
+                        class="form-control"
+                        :placeholder="$t('deploy.form.ph_region')"
+                        autocomplete="address-level1"
+                      >
                     </div>
                   </div>
 
-                  <!-- Ручное дозаполнение полей -->
-                  <div class="manual-fields-section">
-                    <h5>{{ $t('deploy.form.дозаполните_данные_для_точного_юридическ') }}</h5>
-                    
-                    <!-- Регион и город -->
-                    <div class="form-row">
-                      <div class="form-group flex-grow">
-                        <label class="form-label" for="region">{{ $t('deploy.form.регион_область') }}</label>
-                        <input 
-                          type="text" 
-                          id="region" 
-                          v-model="dleSettings.addressData.region" 
-                          class="form-control" 
-                          :placeholder="$t('deploy.form.московская_область')"
-                        >
-                      </div>
-                      <div class="form-group flex-grow">
-                        <label class="form-label" for="city">{{ $t('deploy.form.город_населенный_пункт') }}</label>
-                        <input 
-                          type="text" 
-                          id="city" 
-                          v-model="dleSettings.addressData.city" 
-                          class="form-control" 
-                          :placeholder="$t('deploy.form.москва')"
-                        >
-                      </div>
-                    </div>
-
-                    <!-- Улица и дом -->
                   <div class="form-row">
                     <div class="form-group flex-grow">
-                      <label class="form-label" for="street">{{ $t('deploy.form.улица') }}</label>
-                      <input 
-                        type="text" 
-                        id="street" 
-                        v-model="dleSettings.addressData.street" 
-                        class="form-control" 
-                        :placeholder="$t('deploy.form.тверская_улица')"
+                      <label class="form-label" for="city">{{ $t('deploy.form.город_населенный_пункт') }}</label>
+                      <input
+                        type="text"
+                        id="city"
+                        v-model="dleSettings.addressData.city"
+                        class="form-control"
+                        :placeholder="$t('deploy.form.ph_city')"
+                        autocomplete="address-level2"
                       >
                     </div>
+                    <div class="form-group flex-grow">
+                      <label class="form-label" for="street">{{ $t('deploy.form.улица') }}</label>
+                      <input
+                        type="text"
+                        id="street"
+                        v-model="dleSettings.addressData.street"
+                        class="form-control"
+                        :placeholder="$t('deploy.form.ph_street')"
+                        autocomplete="street-address"
+                      >
+                    </div>
+                  </div>
+
+                  <div class="form-row">
                     <div class="form-group">
                       <label class="form-label" for="building">{{ $t('deploy.form.дом') }}</label>
-                      <input 
-                        type="text" 
-                        id="building" 
-                        v-model="dleSettings.addressData.building" 
-                        class="form-control" 
-                        placeholder="1"
+                      <input
+                        type="text"
+                        id="building"
+                        v-model="dleSettings.addressData.building"
+                        class="form-control"
+                        :placeholder="$t('deploy.form.ph_building')"
                       >
                     </div>
                     <div class="form-group">
                       <label class="form-label" for="apartment">{{ $t('deploy.form.кв_офис') }}</label>
-                      <input 
-                        type="text" 
-                        id="apartment" 
-                        v-model="dleSettings.addressData.apartment" 
-                        class="form-control" 
-                        placeholder="101"
+                      <input
+                        type="text"
+                        id="apartment"
+                        v-model="dleSettings.addressData.apartment"
+                        class="form-control"
+                        :placeholder="$t('deploy.form.ph_unit')"
                       >
                     </div>
                   </div>
 
-                  <!-- Поиск подсказок (если есть) -->
-                  <div v-if="isSearchingAddress" class="searching-indicator">
-                    <i class="fas fa-spinner fa-spin"></i> {{ $t('deploy.form.поиск_подсказок_адреса') }}
+                  <div v-if="isVerifyingAddress" class="searching-indicator">
+                    {{ $t('deploy.form.проверяем_адрес') }}
                   </div>
-                  
 
+                  <div v-if="addressVerifyError" class="address-verify-error">
+                    {{ addressVerifyError }}
+                  </div>
 
-                  <!-- Кнопка проверки -->
+                  <div
+                    v-if="dleSettings.addressData.isVerified && dleSettings.addressData.fullAddress"
+                    class="address-verify-ok"
+                  >
+                    <p><strong>{{ $t('deploy.form.проверенный_адрес') }}</strong> {{ dleSettings.addressData.fullAddress }}</p>
+                    <p v-if="dleSettings.coordinates">
+                      <strong>{{ $t('deploy.form.координаты') }}</strong> {{ dleSettings.coordinates }}
+                    </p>
+                  </div>
+
                   <div class="address-actions">
-                    <button 
-                      type="button" 
-                      @click="verifyAddress" 
+                    <button
+                      type="button"
                       class="btn btn-primary"
-                      :disabled="!canVerifyAddress"
+                      :disabled="!canVerifyAddress || isVerifyingAddress"
+                      @click="verifyAddress"
                     >{{ $t('deploy.form.проверить_адрес') }}</button>
-                    <button 
-                      v-if="dleSettings.addressData.isVerified" 
-                      type="button" 
-                      @click="clearAddress" 
-                      class="btn btn-secondary"
+                    <button
+                      v-if="hasAddressData"
+                      type="button"
+                      class="btn btn-outline"
+                      @click="clearAddress"
                     >{{ $t('deploy.form.очистить') }}</button>
                   </div>
                 </div>
               </div>
 
-              <!-- Виды экономической деятельности -->
-              <div class="form-group okved-section">
-                <label class="form-label okved-title">
-                  {{ dleSettings.jurisdiction === '643' ? $t('deploy.form.оквэд_виды_экономической_деятельности') : $t('deploy.form.isic_виды_экономической_деятельности') }}:
-                </label>
+              <!-- Название и токен -->
+              <div class="deploy-form-block">
+                <h4>{{ $t('deploy.form.block_name_token') }}</h4>
+
+                <div class="form-group">
+                  <label class="form-label" for="dleName">{{ $t('deploy.form.имя_dle_digital_legal_entity') }}</label>
+                  <input
+                    type="text"
+                    id="dleName"
+                    v-model="dleSettings.name"
+                    class="form-control"
+                    :placeholder="$t('deploy.form.например_my_digital_company')"
+                    maxlength="100"
+                  >
+                  <small class="form-help">{{ $t('deploy.form.название_вашего_цифрового_юридического_л') }}</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="tokenSymbol">{{ $t('deploy.form.символ_токена_управления') }}</label>
+                  <input
+                    type="text"
+                    id="tokenSymbol"
+                    v-model="dleSettings.tokenSymbol"
+                    class="form-control"
+                    :placeholder="$t('deploy.form.например_mdgt')"
+                    maxlength="10"
+                    style="text-transform: uppercase;"
+                    @input="formatTokenSymbol"
+                  >
+                  <small class="form-help">{{ $t('deploy.form.3_10_символов_для_токена') }}</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="tokenLogo">{{ $t('deploy.form.логотип_токена_изображение') }}</label>
+                  <input
+                    id="tokenLogo"
+                    type="file"
+                    accept="image/*"
+                    class="form-control"
+                    @change="onLogoSelected"
+                  >
+                  <small class="form-help">{{ $t('deploy.form.поддерживаются_png_jpg_gif_webp') }}</small>
+                  <div v-if="logoPreviewUrl" class="logo-preview">
+                    <img :src="logoPreviewUrl" alt="logo preview" class="logo-preview-img" />
+                    <span class="address">{{ logoFile?.name || $t('deploy.form.предпросмотр') }}</span>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="ensDomain">{{ $t('deploy.form.ens_домен_для_логотипа_опционально') }}</label>
+                  <input
+                    id="ensDomain"
+                    type="text"
+                    v-model="ensDomain"
+                    :placeholder="$t('deploy.form.например_vc_hb3_accelerator_eth')"
+                    class="form-control"
+                    @blur="resolveEnsAvatar"
+                  >
+                  <small class="form-help">{{ $t('deploy.form.если_указан_попытаемся_получить_аватар') }}</small>
+                  <div v-if="ensResolvedUrl" class="logo-preview logo-preview--ens">
+                    <img :src="ensResolvedUrl" alt="ens avatar" class="logo-preview-img logo-preview-img--sm" />
+                    <span class="address">{{ ensResolvedUrl }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Виды деятельности (+ КПП для РФ) -->
+              <div class="deploy-form-block">
+                <h4>
+                  {{ dleSettings.jurisdiction === '643' ? $t('deploy.form.оквэд_виды_экономической_деятельности') : $t('deploy.form.isic_виды_экономической_деятельности') }}
+                </h4>
+
+                <div class="okved-section">
                 
                 <!-- Форма для России (ОКВЭД) -->
                 <div v-if="dleSettings.jurisdiction === '643'" class="okved-cascade">
@@ -252,56 +286,56 @@
                     </select>
                   </div>
 
-             <!-- Уровень 2: Группа (01, 02, 03...) -->
-             <div class="form-group" v-if="selectedIsicLevel1">
-               <label class="form-label-small">{{ $t('deploy.form.выберите_группу_деятельности') }}</label>
-               <select v-model="selectedIsicLevel2" class="form-control" :disabled="isLoadingIsicLevel2">
-                 <option value="">-- {{ isLoadingIsicLevel2 ? $t('deploy.form.загрузка_групп') : $t('deploy.form.выберите_группу') }} --</option>
-                 <option 
-                   v-for="option in isicLevel2Options" 
-                   :key="option.value" 
-                   :value="option.value"
-                 >
-                   {{ option.text }}
-                 </option>
-               </select>
-             </div>
+                  <!-- Уровень 2: Группа (01, 02, 03...) -->
+                  <div class="form-group" v-if="selectedIsicLevel1">
+                    <label class="form-label-small">{{ $t('deploy.form.выберите_группу_деятельности') }}</label>
+                    <select v-model="selectedIsicLevel2" class="form-control" :disabled="isLoadingIsicLevel2">
+                      <option value="">-- {{ isLoadingIsicLevel2 ? $t('deploy.form.загрузка_групп') : $t('deploy.form.выберите_группу') }} --</option>
+                      <option 
+                        v-for="option in isicLevel2Options" 
+                        :key="option.value" 
+                        :value="option.value"
+                      >
+                        {{ option.text }}
+                      </option>
+                    </select>
+                  </div>
 
-             <!-- Уровень 3: Класс (011, 012, 013...) -->
-             <div class="form-group" v-if="selectedIsicLevel2">
-               <label class="form-label-small">{{ $t('deploy.form.выберите_класс_деятельности') }}</label>
-               <select v-model="selectedIsicLevel3" class="form-control" :disabled="isLoadingIsicLevel3">
-                 <option value="">-- {{ isLoadingIsicLevel3 ? $t('deploy.form.загрузка_классов') : $t('deploy.form.выберите_класс') }} --</option>
-                 <option 
-                   v-for="option in isicLevel3Options" 
-                   :key="option.value" 
-                   :value="option.value"
-                 >
-                   {{ option.text }}
-                 </option>
-               </select>
-             </div>
+                  <!-- Уровень 3: Класс (011, 012, 013...) -->
+                  <div class="form-group" v-if="selectedIsicLevel2">
+                    <label class="form-label-small">{{ $t('deploy.form.выберите_класс_деятельности') }}</label>
+                    <select v-model="selectedIsicLevel3" class="form-control" :disabled="isLoadingIsicLevel3">
+                      <option value="">-- {{ isLoadingIsicLevel3 ? $t('deploy.form.загрузка_классов') : $t('deploy.form.выберите_класс') }} --</option>
+                      <option 
+                        v-for="option in isicLevel3Options" 
+                        :key="option.value" 
+                        :value="option.value"
+                      >
+                        {{ option.text }}
+                      </option>
+                    </select>
+                  </div>
 
-             <!-- Уровень 4: Подкласс (0111, 0112, 0113...) -->
-             <div class="form-group" v-if="selectedIsicLevel3">
-               <label class="form-label-small">{{ $t('deploy.form.выберите_подкласс_деятельности') }}</label>
-               <select v-model="selectedIsicLevel4" class="form-control" :disabled="isLoadingIsicLevel4">
-                 <option value="">-- {{ isLoadingIsicLevel4 ? $t('deploy.form.загрузка_подклассов') : $t('deploy.form.выберите_подкласс') }} --</option>
-                 <option 
-                   v-for="option in isicLevel4Options" 
-                   :key="option.value" 
-                   :value="option.value"
-                 >
-                   {{ option.text }}
-                 </option>
-               </select>
-             </div>
+                  <!-- Уровень 4: Подкласс (0111, 0112, 0113...) -->
+                  <div class="form-group" v-if="selectedIsicLevel3">
+                    <label class="form-label-small">{{ $t('deploy.form.выберите_подкласс_деятельности') }}</label>
+                    <select v-model="selectedIsicLevel4" class="form-control" :disabled="isLoadingIsicLevel4">
+                      <option value="">-- {{ isLoadingIsicLevel4 ? $t('deploy.form.загрузка_подклассов') : $t('deploy.form.выберите_подкласс') }} --</option>
+                      <option 
+                        v-for="option in isicLevel4Options" 
+                        :key="option.value" 
+                        :value="option.value"
+                      >
+                        {{ option.text }}
+                      </option>
+                    </select>
+                  </div>
 
-             <!-- Выбранный код ISIC -->
-             <div v-if="currentSelectedIsicText" class="current-isic-selection">
-               <p><strong>{{ $t('deploy.form.выбранный_код') }}</strong> {{ currentSelectedIsicText }}</p>
-               <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">{{ $t('deploy.form.добавить_код_деятельности') }}</button>
-             </div>
+                  <!-- Выбранный код ISIC -->
+                  <div v-if="currentSelectedIsicText" class="current-isic-selection">
+                    <p><strong>{{ $t('deploy.form.выбранный_код') }}</strong> {{ currentSelectedIsicText }}</p>
+                    <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">{{ $t('deploy.form.добавить_код_деятельности') }}</button>
+                  </div>
                 </div>
 
                 <!-- Основной код ОКВЭД (оставляем для совместимости) -->
@@ -320,10 +354,14 @@
 
                 <!-- Список добавленных кодов ОКВЭД -->
                 <div v-if="dleSettings.selectedOkved.length" class="selected-okved-codes">
-                  <h5>{{ $t('deploy.form.добавленные_коды_оквэд') }}</h5>
+                  <h5>
+                    {{ dleSettings.jurisdiction === '643'
+                      ? $t('deploy.form.добавленные_коды_оквэд')
+                      : $t('deploy.form.добавленные_коды_isic') }}
+                  </h5>
                   <ul class="codes-list">
                     <li v-for="(code, index) in dleSettings.selectedOkved" :key="index" class="code-item">
-                                              <span>{{ code }}</span>
+                      <span>{{ code }}</span>
                       <button 
                         type="button" 
                         class="btn btn-danger btn-sm" 
@@ -332,101 +370,36 @@
                     </li>
                   </ul>
                 </div>
-              </div>
+                </div>
 
-              <!-- КПП - Код причины постановки на учет -->
-              <div class="form-group kpp-section">
-                <label class="form-label">{{ $t('deploy.form.кпп_код_причины_постановки_на') }}</label>
-                <select 
-                  v-model="dleSettings.kppCode" 
-                  class="form-control" 
-                  :disabled="isLoadingKppCodes"
+                <!-- КПП — только для РФ (ISO numeric 643) -->
+                <div
+                  v-if="dleSettings.jurisdiction === '643'"
+                  class="form-group kpp-section"
                 >
-                  <option value="">-- {{ isLoadingKppCodes ? $t('deploy.form.загрузка_кпп_кодов') : $t('deploy.form.выберите_кпп_код') }} --</option>
-                  <option 
-                    v-for="kpp in kppCodes" 
-                    :key="kpp.code" 
-                    :value="kpp.code"
+                  <label class="form-label">{{ $t('deploy.form.кпп_код_причины_постановки_на') }}</label>
+                  <select
+                    v-model="dleSettings.kppCode"
+                    class="form-control"
+                    :disabled="isLoadingKppCodes"
                   >
-                    {{ kpp.code }} - {{ kpp.title }}
-                  </option>
-                </select>
-                <div v-if="selectedKppInfo" class="selected-kpp-info">
-                  <p><strong>{{ $t('deploy.form.выбранный_кпп') }}</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}</p>
-            </div>
-          </div>
-
-              <!-- Имя DLE -->
-              <div class="form-group">
-                <label class="form-label" for="dleName">{{ $t('deploy.form.имя_dle_digital_legal_entity') }}</label>
-                <input 
-                  type="text" 
-                  id="dleName" 
-                  v-model="dleSettings.name" 
-                  class="form-control" 
-                  :placeholder="$t('deploy.form.например_my_digital_company')"
-                  maxlength="100"
-                >
-                <small class="form-help">{{ $t('deploy.form.название_вашего_цифрового_юридического_л') }}</small>
-              </div>
-
-              <!-- Символ токена -->
-              <div class="form-group">
-                <label class="form-label" for="tokenSymbol">{{ $t('deploy.form.символ_токена_управления') }}</label>
-                <input 
-                  type="text" 
-                  id="tokenSymbol" 
-                  v-model="dleSettings.tokenSymbol" 
-                  class="form-control" 
-                  :placeholder="$t('deploy.form.например_mdgt')"
-                  maxlength="10"
-                  style="text-transform: uppercase;"
-                  @input="formatTokenSymbol"
-                >
-                <small class="form-help">{{ $t('deploy.form.3_10_символов_для_токена') }}</small>
-              </div>
-
-              <!-- Логотип токена -->
-              <div class="form-group">
-                <label class="form-label" for="tokenLogo">{{ $t('deploy.form.логотип_токена_изображение') }}</label>
-                <input
-                  id="tokenLogo"
-                  type="file"
-                  accept="image/*"
-                  class="form-control"
-                  @change="onLogoSelected"
-                >
-                <small class="form-help">{{ $t('deploy.form.поддерживаются_png_jpg_gif_webp') }}</small>
-                <div v-if="logoPreviewUrl" class="logo-preview" style="margin-top:8px;display:flex;gap:10px;align-items:center;">
-                  <img :src="logoPreviewUrl" alt="logo preview" style="width:48px;height:48px;border-radius:6px;object-fit:contain;border:1px solid #e9ecef;" />
-                  <span class="address">{{ logoFile?.name || $t('deploy.form.предпросмотр') }}</span>
+                    <option value="">-- {{ isLoadingKppCodes ? $t('deploy.form.загрузка_кпп_кодов') : $t('deploy.form.выберите_кпп_код') }} --</option>
+                    <option
+                      v-for="kpp in kppCodes"
+                      :key="kpp.code"
+                      :value="kpp.code"
+                    >
+                      {{ kpp.code }} - {{ kpp.title }}
+                    </option>
+                  </select>
+                  <div v-if="selectedKppInfo" class="selected-kpp-info">
+                    <p><strong>{{ $t('deploy.form.выбранный_кпп') }}</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}</p>
+                  </div>
                 </div>
               </div>
-
-              <!-- ENS домен для логотипа -->
-              <div class="form-group">
-                <label class="form-label" for="ensDomain">{{ $t('deploy.form.ens_домен_для_логотипа_опционально') }}</label>
-                <input
-                  id="ensDomain"
-                  type="text"
-                  v-model="ensDomain"
-                  :placeholder="$t('deploy.form.например_vc_hb3_accelerator_eth')"
-                  class="form-control"
-                  @blur="resolveEnsAvatar"
-                >
-                <small class="form-help">{{ $t('deploy.form.если_указан_попытаемся_получить_аватар') }}</small>
-                <div v-if="ensResolvedUrl" style="margin-top:8px;display:flex;gap:10px;align-items:center;">
-                  <img :src="ensResolvedUrl" alt="ens avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #e9ecef;" />
-                  <span class="address">{{ ensResolvedUrl }}</span>
-                </div>
-              </div>
-
-
-
-
 
               <!-- Партнеры и распределение токенов -->
-              <div class="partners-section">
+              <div class="partners-section deploy-form-block">
                 <h4>{{ $t('deploy.form.партнеры_и_распределение_токенов') }}</h4>
                 
                 <div v-for="(partner, index) in dleSettings.partners" :key="index" class="partner-entry">
@@ -453,15 +426,6 @@
                           placeholder="0x..."
                           @input="validateEthereumAddress(partner, index)"
                         >
-                        <button 
-                          v-if="index === 0 && address" 
-                          @click="useMyWalletAddress" 
-                          type="button" 
-                          class="btn btn-outline-primary btn-sm"
-                          :title="$t('deploy.form.использовать_мой_адрес_кошелька')"
-                        >
-                          <i class="fas fa-wallet"></i> {{ $t('deploy.form.мой_кошелек') }}
-                        </button>
                       </div>
                     </div>
                     <div class="form-group">
@@ -483,7 +447,7 @@
                     type="button" 
                     class="btn btn-secondary"
                   >
-                    <i class="fas fa-plus"></i> {{ $t('deploy.form.добавить_партнера') }}
+                    {{ $t('deploy.form.добавить_партнера') }}
                   </button>
                   
                   <div class="total-tokens">
@@ -518,7 +482,6 @@
                 <!-- Индикатор загрузки -->
                 <div v-if="isLoadingNetworks" class="networks-loading">
                   <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
                     <p>{{ $t('deploy.form.загрузка_доступных_сетей') }}</p>
                   </div>
                 </div>
@@ -550,7 +513,7 @@
                         </div>
                         <div v-if="network.isLimited" class="network-limited">
                           <small class="text-muted">
-                            <i class="fas fa-eye-slash"></i> {{ $t('deploy.form.rpc_url_скрыт') }}
+                            {{ $t('deploy.form.rpc_url_скрыт') }}
                           </small>
                         </div>
                       </div>
@@ -561,11 +524,10 @@
                 <!-- Сообщение об отсутствии сетей -->
                 <div v-else-if="!isLoadingNetworks && availableNetworks.length === 0" class="no-networks-message">
                   <div class="empty-state">
-                    <i class="fas fa-network-wired"></i>
                     <h5>{{ $t('deploy.form.нет_доступных_сетей') }}</h5>
                     <p>{{ $t('deploy.form.добавьте_rpc_провайдеры_в_настройках') }}</p>
                     <button @click="openRpcSettings" class="btn btn-primary">
-                      <i class="fas fa-plus"></i> {{ $t('deploy.form.добавить_rpc_провайдера') }}
+                      {{ $t('deploy.form.добавить_rpc_провайдера') }}
                     </button>
                   </div>
                 </div>
@@ -578,7 +540,7 @@
                     type="button" 
                     class="btn btn-secondary btn-sm"
                   >
-                    <i class="fas fa-plus"></i> {{ $t('deploy.form.добавить_rpc_провайдера') }}
+                    {{ $t('deploy.form.добавить_rpc_провайдера') }}
                   </button>
                   
                   <button 
@@ -587,7 +549,6 @@
                     class="btn btn-outline-primary btn-sm"
                     :disabled="isLoadingNetworks"
                   >
-                    <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingNetworks }"></i> 
                     {{ isLoadingNetworks ? $t('deploy.form.обновление') : $t('deploy.form.обновить_список') }}
                   </button>
                 </div>
@@ -603,9 +564,6 @@
                 <!-- Предупреждение если сети не выбраны -->
                 <div v-if="selectedNetworks.length === 0" class="networks-warning">
                   <div class="warning-card">
-                    <div class="warning-icon">
-                      <i class="fas fa-exclamation-triangle"></i>
-                    </div>
                     <div class="warning-content">
                       <h5>{{ $t('deploy.form.сначала_выберите_сети') }}</h5>
                       <p>{{ $t('deploy.form.для_деплоя_dle_необходимо_выбрать') }}</p>
@@ -629,9 +587,13 @@
                         @keyup="validatePrivateKey('unified')"
                         @change="validatePrivateKey('unified')"
                       >
-                      <span class="input-icon" @click="showUnifiedKey = !showUnifiedKey">
-                        <i :class="showUnifiedKey ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-                      </span>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm input-icon"
+                        @click="showUnifiedKey = !showUnifiedKey"
+                      >
+                        {{ showUnifiedKey ? $t('common.hide') : $t('common.show') }}
+                      </button>
                     </div>
 
                   </div>
@@ -639,11 +601,9 @@
                   <!-- Валидация ключа -->
                   <div v-if="keyValidation.unified" class="key-validation">
                     <div v-if="keyValidation.unified.isValid" class="validation-success">
-                      <i class="fas fa-check-circle"></i>
                       <span>{{ $t('deploy.form.адрес_кошелька_с_адресом', { address: keyValidation.unified.address }) }}</span>
                     </div>
                     <div v-else class="validation-error">
-                      <i class="fas fa-exclamation-circle"></i>
                       <span>{{ keyValidation.unified.error }}</span>
                     </div>
                   </div>
@@ -695,8 +655,7 @@
                 <div v-if="selectedNetworks.length > 0" class="security-recommendations">
                   <div class="security-card">
                     <div class="security-icon">
-                      <i class="fas fa-shield-alt"></i>
-                    </div>
+                      </div>
                     <div class="security-content">
                       <h5>{{ $t('deploy.form.рекомендации_по_безопасности') }}</h5>
                       <ul>
@@ -832,28 +791,33 @@
           </div>
         </div>
 
-        <!-- Данные для смарт-контракта -->
-        <div v-if="dleSettings.jurisdiction === '643'" class="preview-section">
+        <!-- Адрес и координаты — для любой страны -->
+        <div v-if="hasAddressData || dleSettings.coordinates" class="preview-section">
           <h4>{{ $t('deploy.form.данные_адреса') }}</h4>
-          
-          <!-- Данные адреса (компактно) -->
           <div v-if="hasAddressData" class="preview-item">
             <div class="compact-address">
-              <div class="address-line">{{ compactAddressString }}</div>
-              <div v-if="lastApiResult && lastApiResult.coordinates && dleSettings.addressData.isVerified" class="coordinates-line">
-                {{ lastApiResult.coordinates.lat }} {{ lastApiResult.coordinates.lon }}
+              <div class="address-line">
+                {{ dleSettings.addressData.fullAddress || compactAddressString }}
+              </div>
+              <div
+                v-if="dleSettings.coordinates && dleSettings.addressData.isVerified"
+                class="coordinates-line"
+              >
+                {{ dleSettings.coordinates }}
               </div>
             </div>
           </div>
+          <div v-else-if="dleSettings.coordinates" class="preview-item">
+            <strong>{{ $t('deploy.form.координаты') }}</strong> {{ dleSettings.coordinates }}
+          </div>
+        </div>
 
-
-          
-          <!-- Основной ОКВЭД -->
+        <!-- ОКВЭД / КПП — только РФ -->
+        <div v-if="dleSettings.jurisdiction === '643'" class="preview-section">
+          <h4>{{ $t('deploy.form.оквэд_виды_экономической_деятельности') }}</h4>
           <div v-if="selectedMainOkvedInfo" class="preview-item">
             <strong>{{ $t('deploy.form.основной_оквэд') }}</strong> {{ selectedMainOkvedInfo.code }} - {{ selectedMainOkvedInfo.title }}
           </div>
-          
-          <!-- Дополнительные ОКВЭД -->
           <div v-if="dleSettings.selectedOkved.length > 0" class="preview-item">
             <strong>{{ $t('deploy.form.дополнительные_оквэд') }}</strong>
             <ul class="okved-list">
@@ -862,38 +826,42 @@
               </li>
             </ul>
           </div>
-
-          <!-- КПП код -->
           <div v-if="selectedKppInfo" class="preview-item">
             <strong>{{ $t('deploy.form.кпп') }}</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}
           </div>
-          
-          <!-- Координаты -->
-          <div v-if="dleSettings.coordinates" class="preview-item">
-            <strong>{{ $t('deploy.form.координаты') }}</strong> {{ dleSettings.coordinates }}
+        </div>
+
+        <!-- ISIC — не РФ -->
+        <div
+          v-if="dleSettings.jurisdiction && dleSettings.jurisdiction !== '643' && dleSettings.selectedOkved.length > 0"
+          class="preview-section"
+        >
+          <h4>{{ $t('deploy.form.isic_виды_экономической_деятельности') }}</h4>
+          <div class="preview-item">
+            <ul class="okved-list">
+              <li v-for="code in dleSettings.selectedOkved" :key="code">
+                {{ code }}
+              </li>
+            </ul>
           </div>
-          
-          <!-- Кнопка деплоя смарт-контрактов -->
-          <div class="deploy-section">
-            <!-- Информация о поэтапном деплое -->
+        </div>
+
+        <!-- Кнопка деплоя — для любой страны -->
+        <div class="deploy-section">
             <div class="deployment-info">
               <h4>{{ $t('deploy.form.поэтапный_деплой_dle') }}</h4>
               <p class="deployment-description">{{ $t('deploy.form.автоматический_деплой_dle_контракта_и') }}</p>
               <div class="deployment-features">
                 <div class="feature-item">
-                  <i class="fas fa-check-circle"></i>
                   <span>{{ $t('deploy.form.деплой_dle_контракта_во_всех') }}</span>
                 </div>
                 <div class="feature-item">
-                  <i class="fas fa-check-circle"></i>
                   <span>{{ $t('deploy.form.автоматическая_верификация_контрактов') }}</span>
                 </div>
                 <div class="feature-item">
-                  <i class="fas fa-check-circle"></i>
                   <span>{{ $t('deploy.form.деплой_и_инициализация_всех_модулей') }}</span>
                 </div>
                 <div class="feature-item">
-                  <i class="fas fa-check-circle"></i>
                   <span>{{ $t('deploy.form.повторы_при_ошибках_сети') }}</span>
                 </div>
               </div>
@@ -907,7 +875,6 @@
                 :disabled="!isFormValid || !canManageSettings || adminTokenCheck.isLoading"
                 :title="`isFormValid: ${isFormValid}, canManageSettings: ${canManageSettings}, isLoading: ${adminTokenCheck.isLoading}`"
               >
-                <i class="fas fa-cogs"></i> 
                 {{ $t('deploy.form.поэтапный_деплой_dle_btn') }}
               </button>
               <button 
@@ -918,10 +885,7 @@
                 :disabled="false"
               >{{ $t('deploy.form.удалить_все') }}</button>
             </div>
-
-
           </div>
-        </div>
 
         <!-- Заглушка если ничего не выбрано -->
         <div v-if="!selectedCountryInfo" class="preview-empty">
@@ -944,12 +908,11 @@
         />
       </div>
     </div>
-  </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
+const { t, locale } = useI18n();
 import { reactive, ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
@@ -1060,9 +1023,11 @@ const russianClassifiers = reactive({
 const isLoadingRussianClassifiers = ref(false);
 
 // Состояние для поиска адресов
-const postalCodeInput = ref('');     // Поле ввода индекса
-const searchResults = ref([]);       // Результаты поиска по индексу
+const postalCodeInput = ref('');     // legacy localStorage
+const searchResults = ref([]);       // legacy
 const isSearchingAddress = ref(false);
+const isVerifyingAddress = ref(false);
+const addressVerifyError = ref('');
 const lastApiResult = ref(null);     // Последний результат от API
 let searchTimeout = null;
 
@@ -1527,10 +1492,17 @@ const hasAddressData = computed(() => {
   return addr.postalCode || addr.region || addr.city || addr.street || addr.building || addr.apartment || addr.fullAddress;
 });
 
-// Проверка можно ли проверять адрес
+// Можно проверять, если заполнено хотя бы одно поле адреса (все заполненные идут вместе)
 const canVerifyAddress = computed(() => {
   const addr = dleSettings.addressData;
-  return addr.postalCode && addr.city && addr.street && addr.building;
+  return Boolean(
+    (addr.postalCode && String(addr.postalCode).trim())
+    || (addr.region && String(addr.region).trim())
+    || (addr.city && String(addr.city).trim())
+    || (addr.street && String(addr.street).trim())
+    || (addr.building && String(addr.building).trim())
+    || (addr.apartment && String(addr.apartment).trim())
+  );
 });
 
 // Форматированный черновик адреса
@@ -1883,165 +1855,139 @@ onUnmounted(() => {
 
 // (Старые функции ОКВЭД удалены - заменены каскадной системой)
 
-// Поиск по почтовому индексу (по кнопке)
-const searchByPostalCode = async () => {
-  if (!postalCodeInput.value || postalCodeInput.value.length < 5) {
-    return;
-  }
+// Поиск только по индексу убран из UI — единый поток «Проверить адрес»
+const searchByPostalCode = async () => {};
 
-  isSearchingAddress.value = true;
-  searchResults.value = [];
-
-  try {
-    // Поиск через Nominatim API
-    const params = new URLSearchParams();
-    params.append('postalcode', postalCodeInput.value.trim());
-    params.append('format', 'jsonv2');
-    params.append('addressdetails', '1');
-    params.append('limit', '10');
-
-    // Если в юрисдикции выбрана Россия, добавляем countrycodes=RU
-    if (dleSettings.jurisdiction === '643') {
-      params.append('countrycodes', 'RU');
-    }
-
-    // console.log(`[SearchByPostalCode] Querying Nominatim: ${params.toString()}`);
-    const response = await api.get(`/geocoding/nominatim-search?${params.toString()}`);
-    
-    if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-      // Преобразуем результаты Nominatim для отображения
-      searchResults.value = response.data.map(result => ({
-        fullAddress: result.display_name,
-        country: result.address?.country || '',
-        region: result.address?.state || result.address?.region || '',
-        city: result.address?.city || result.address?.town || result.address?.village || '',
-        street: result.address?.road || '',
-        building: result.address?.house_number || '',
-        postcode: result.address?.postcode || postalCodeInput.value,
-        coordinates: {
-          lat: parseFloat(result.lat),
-          lon: parseFloat(result.lon)
-        },
-        rawData: result.address  // Сохраняем все сырые данные для анализа
-      }));
-      
-      // console.log(`[SearchByPostalCode] Found ${searchResults.value.length} results`);
-      
-      // Автоматически заполняем поля первым результатом
-      if (searchResults.value.length > 0) {
-        fillFromSearchResult(searchResults.value[0]);
-        // console.log('[SearchByPostalCode] Auto-filled with first result');
-      }
-    } else {
-      // console.log('[SearchByPostalCode] No results found');
-    }
-  } catch (error) {
-    // console.error('Ошибка при поиске по индексу:', error);
-  } finally {
-    isSearchingAddress.value = false;
-  }
-};
-
-// Заполнение полей из результата поиска
+// Заполнение полей из результата поиска (legacy helper)
 const fillFromSearchResult = (result) => {
   console.log('[FillFromSearchResult] Called with result:', result);
   
-  dleSettings.addressData.postalCode = result.postcode;
-  dleSettings.addressData.region = result.region;
-  dleSettings.addressData.city = result.city;
-  dleSettings.addressData.street = result.street;
-  dleSettings.addressData.building = result.building;
-  dleSettings.addressData.apartment = '';  // Квартиру пользователь введет сам
-  dleSettings.addressData.isVerified = false;  // Требует проверки после дозаполнения
+  dleSettings.addressData.postalCode = result.postcode || dleSettings.addressData.postalCode;
+  dleSettings.addressData.region = result.region || dleSettings.addressData.region;
+  dleSettings.addressData.city = result.city || dleSettings.addressData.city;
+  dleSettings.addressData.street = result.street || dleSettings.addressData.street;
+  dleSettings.addressData.building = result.building || dleSettings.addressData.building;
+  dleSettings.addressData.isVerified = false;
   
-  // Сохраняем координаты в dleSettings
   if (result.coordinates && result.coordinates.lat && result.coordinates.lon) {
     dleSettings.coordinates = `${result.coordinates.lat},${result.coordinates.lon}`;
-    console.log(`[FillFromSearchResult] Saved coordinates from coordinates object: ${dleSettings.coordinates}`);
-    // Сохраняем в localStorage
     saveFormData();
   } else if (result.lat && result.lon) {
-    // Альтернативный формат координат
     dleSettings.coordinates = `${result.lat},${result.lon}`;
-    console.log(`[FillFromSearchResult] Saved coordinates from lat/lon: ${dleSettings.coordinates}`);
-    // Сохраняем в localStorage
     saveFormData();
-  } else {
-    console.log('[FillFromSearchResult] No coordinates found in result');
   }
   
-  // Сохраняем результат API для отображения в превью
   lastApiResult.value = result;
-  
-  // console.log('[FillFromSearchResult] Filled address data:', dleSettings.addressData);
-  // console.log('[FillFromSearchResult] Saved API result:', result);
 };
 
-// Проверка адреса (повторный запрос для валидации)
+// Проверка адреса: поля + фильтр по ISO страны выбранной юрисдикции
 const verifyAddress = async () => {
   const addr = dleSettings.addressData;
-  
-  try {
-    // Формируем полный адрес для проверки
-    const fullAddressQuery = [
-      addr.postalCode,
-      addr.region,
-      addr.city,
-      addr.street,
-      addr.building,
-      addr.apartment
-    ].filter(Boolean).join(', ');
+  addressVerifyError.value = '';
+  addr.isVerified = false;
 
-    console.log('[VerifyAddress] Checking address:', fullAddressQuery);
+  const country = selectedCountryInfo.value;
+  const countryIso = String(country?.code || '').trim().toLowerCase();
+  if (!countryIso) {
+    addressVerifyError.value = t('deploy.form.address_need_country');
+    return;
+  }
+
+  const fullAddressQuery = [
+    addr.postalCode,
+    addr.region,
+    addr.city,
+    addr.street,
+    addr.building,
+    addr.apartment
+  ].filter((p) => p && String(p).trim()).join(', ');
+
+  if (!fullAddressQuery) {
+    addressVerifyError.value = t('deploy.form.address_need_fields');
+    return;
+  }
+
+  // Имя страны в запросе усиливает локализацию; countrycodes жёстко режет выдачу
+  const searchQuery = country?.title
+    ? `${fullAddressQuery}, ${country.title}`
+    : fullAddressQuery;
+
+  isVerifyingAddress.value = true;
+  try {
+    console.log('[VerifyAddress] Checking address:', searchQuery, 'countrycodes=', countryIso);
 
     const params = new URLSearchParams();
-    params.append('q', fullAddressQuery);
+    params.append('q', searchQuery);
     params.append('format', 'jsonv2');
     params.append('addressdetails', '1');
     params.append('limit', '1');
-
-    if (dleSettings.jurisdiction === '643') {
-      params.append('countrycodes', 'RU');
-    }
+    params.append('countrycodes', countryIso);
+    // Язык ответа Nominatim = язык UI (сайдбар / languages)
+    const lang = String(locale.value || 'en').slice(0, 2);
+    params.append('accept-language', lang);
 
     const response = await api.get(`/geocoding/nominatim-search?${params.toString()}`);
     
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
       const verificationResult = response.data[0];
-      
-      // Формируем итоговый проверенный адрес
+      const a = verificationResult.address || {};
+      const resultCc = String(a.country_code || '').trim().toLowerCase();
+
+      // Страховка, если Nominatim всё же вернул чужую страну
+      if (resultCc && resultCc !== countryIso) {
+        addr.fullAddress = '';
+        addr.isVerified = false;
+        dleSettings.coordinates = '';
+        addressVerifyError.value = t('deploy.form.address_country_mismatch', {
+          country: country.title || countryIso.toUpperCase()
+        });
+        return;
+      }
+
       addr.fullAddress = verificationResult.display_name;
       addr.isVerified = true;
-      
-      // Сохраняем координаты из результата проверки
+      // Подтянуть распознанные части, не затирая то, что пользователь ввёл точнее
+      if (!addr.postalCode && a.postcode) addr.postalCode = a.postcode;
+      if (!addr.region && (a.state || a.region)) addr.region = a.state || a.region;
+      if (!addr.city && (a.city || a.town || a.village)) addr.city = a.city || a.town || a.village;
+      if (!addr.street && a.road) addr.street = a.road;
+      if (!addr.building && a.house_number) addr.building = a.house_number;
+
       if (verificationResult.lat && verificationResult.lon) {
         dleSettings.coordinates = `${verificationResult.lat},${verificationResult.lon}`;
-        console.log(`[VerifyAddress] Saved coordinates: ${dleSettings.coordinates}`);
-        // Сохраняем в localStorage
         saveFormData();
       }
-      
+
+      lastApiResult.value = {
+        fullAddress: verificationResult.display_name,
+        region: addr.region,
+        city: addr.city,
+        street: addr.street,
+        building: addr.building,
+        postcode: addr.postalCode,
+        coordinates: {
+          lat: parseFloat(verificationResult.lat),
+          lon: parseFloat(verificationResult.lon)
+        },
+        rawData: a
+      };
+
       console.log('[VerifyAddress] Address verified successfully:', addr.fullAddress);
     } else {
-      // Если не найден - все равно считаем валидным (пользователь может знать лучше)
-      addr.fullAddress = fullAddressQuery;
-      addr.isVerified = true;
-      
-      console.log('[VerifyAddress] Address not found in API, but marking as verified:', addr.fullAddress);
+      addr.fullAddress = '';
+      addr.isVerified = false;
+      dleSettings.coordinates = '';
+      addressVerifyError.value = t('deploy.form.address_not_found_in_country', {
+        country: country.title || countryIso.toUpperCase()
+      });
     }
   } catch (error) {
     console.error('Ошибка при проверке адреса:', error);
-    // В случае ошибки все равно позволяем пользователю продолжить
-    const addr = dleSettings.addressData;
-    addr.fullAddress = [
-      addr.postalCode,
-      addr.region,
-      addr.city,
-      addr.street,
-      addr.building,
-      addr.apartment
-    ].filter(Boolean).join(', ');
-    addr.isVerified = true;
+    addr.isVerified = false;
+    addressVerifyError.value =
+      error?.response?.data?.message || error?.message || t('deploy.form.address_verify_error');
+  } finally {
+    isVerifyingAddress.value = false;
   }
 };
 
@@ -2057,11 +2003,12 @@ const clearAddress = () => {
     fullAddress: '',
     isVerified: false
   };
-  // Очищаем координаты
   dleSettings.coordinates = '';
   postalCodeInput.value = '';
   searchResults.value = [];
   lastApiResult.value = null;
+  addressVerifyError.value = '';
+  isVerifyingAddress.value = false;
 };
 
 // Форматирование символа токена
@@ -2271,9 +2218,9 @@ const loadAvailableNetworks = async () => {
   }
 };
 
-// Функция открытия страницы настроек RPC в новой вкладке
+// Переход на страницу настроек RPC (security) в текущем SPA
 const openRpcSettings = () => {
-  window.open('http://localhost:5173/settings/security', '_blank');
+  router.push('/settings/security');
 };
 
 // Функция обновления списка сетей (вызывается после добавления RPC провайдера)
@@ -2500,24 +2447,35 @@ const togglePrivateKey = () => {
 // Наблюдатель за изменением юрисдикции
 watch(() => dleSettings.jurisdiction, (newJurisdiction, oldJurisdiction) => {
   console.log('Юрисдикция изменена:', oldJurisdiction, '->', newJurisdiction);
-  
-  // Сбрасываем российские классификаторы и поиск адреса при смене юрисдикции
-  if (oldJurisdiction === '643') {
+
+  const isRf = newJurisdiction === '643';
+
+  // Коды деятельности и КПП зависят от страны — сбрасываем при смене
+  dleSettings.mainOkvedCode = '';
+  dleSettings.selectedOkved = [];
+  selectedOkvedLevel1.value = '';
+  selectedOkvedLevel2.value = '';
+  selectedIsicLevel1.value = '';
+  selectedIsicLevel2.value = '';
+  selectedIsicLevel3.value = '';
+  selectedIsicLevel4.value = '';
+
+  // КПП существует только для РФ
+  if (!isRf) {
     dleSettings.kppCode = '';
-    dleSettings.mainOkvedCode = '';
-    dleSettings.selectedOkved = [];
+    kppCodes.value = [];
   }
-  
-  // Сбрасываем поиск адреса при любой смене юрисдикции
-  dleSettings.addressData.postalCode = '';
-  searchResults.value = [];
-  lastApiResult.value = null;
-  
+
+  // При реальной смене страны сбрасываем юр. адрес (он привязан к юрисдикции)
+  if (oldJurisdiction && oldJurisdiction !== newJurisdiction) {
+    clearAddress();
+  }
+
   // Загружаем классификаторы в зависимости от выбранной страны
   if (newJurisdiction) {
     loadClassifiers();
   }
-  
+
   // Автосохранение
   saveFormData();
 });
@@ -2735,14 +2693,6 @@ const validateEthereumAddress = (partner, index) => {
 };
 
 // Функция для подставления адреса кошелька в первого партнера
-const useMyWalletAddress = () => {
-  if (address.value && dleSettings.partners[0]) {
-    dleSettings.partners[0].address = address.value;
-    console.log('Подставлен адрес кошелька:', address.value);
-  } else {
-    alert(t('deploy.alerts.walletNotConnected'));
-  }
-};
 
 // Маскированный приватный ключ для превью (устаревшее)
 const maskedPrivateKey = computed(() => {
@@ -2880,30 +2830,41 @@ const handleDeploymentCompleted = (result) => {
 };
 
 // Валидация формы
-    const isFormValid = computed(() => {
+const isFormValid = computed(() => {
+  const isRf = dleSettings.jurisdiction === '643';
+  const coordsOk = Boolean(
+    dleSettings.coordinates && validateCoordinates(dleSettings.coordinates)
+  );
+  const addressOk = Boolean(
+    dleSettings.addressData?.isVerified
+    && String(dleSettings.addressData?.fullAddress || '').trim()
+    && coordsOk
+  );
   const validation = {
     jurisdiction: !!dleSettings.jurisdiction,
-    name: !!dleSettings.name,
-    tokenSymbol: !!dleSettings.tokenSymbol,
+    // Юр. адрес обязателен: «Проверить адрес» + координаты
+    address: addressOk,
+    // Вид деятельности: минимум 1 код ОКВЭД (РФ) или ISIC (остальные)
+    activityCodes: Array.isArray(dleSettings.selectedOkved) && dleSettings.selectedOkved.length > 0,
+    // КПП обязателен только для РФ
+    kpp: !isRf || !!dleSettings.kppCode,
+    name: !!dleSettings.name?.trim(),
+    tokenSymbol: !!dleSettings.tokenSymbol?.trim(),
     partners: dleSettings.partners.length > 0,
-    partnersValid: dleSettings.partners.every(partner => partner.address && partner.amount > 0),
+    partnersValid: dleSettings.partners.every(
+      (partner) => partner.address && String(partner.address).trim() && Number(partner.amount) > 0
+    ),
     quorum: dleSettings.governanceQuorum > 0 && dleSettings.governanceQuorum <= 100,
     networks: selectedNetworks.value.length > 0,
     privateKey: !!unifiedPrivateKey.value,
     keyValid: !!keyValidation.unified?.isValid,
-    coordinates: validateCoordinates(dleSettings.coordinates)
   };
-  
-  console.log('🔍 Валидация формы:', validation);
-  console.log('🔍 selectedNetworks.value:', selectedNetworks.value);
-  console.log('🔍 adminTokenCheck:', adminTokenCheck.value);
-  console.log('🔍 unifiedPrivateKey.value:', unifiedPrivateKey.value);
-  console.log('🔍 keyValidation.unified:', keyValidation.unified);
-  console.log('🔍 dleSettings.coordinates:', dleSettings.coordinates);
-  console.log('🔍 Кнопка должна быть активна:', !(!validation.jurisdiction || !validation.name || !validation.tokenSymbol || !validation.partners || !validation.partnersValid || !validation.quorum || !validation.networks || !validation.privateKey || !validation.keyValid || !validation.coordinates) && adminTokenCheck.value.canManageSettings && !adminTokenCheck.value.isLoading);
-  
+
   return Boolean(
     validation.jurisdiction &&
+    validation.address &&
+    validation.activityCodes &&
+    validation.kpp &&
     validation.name &&
     validation.tokenSymbol &&
     validation.partners &&
@@ -2911,16 +2872,15 @@ const handleDeploymentCompleted = (result) => {
     validation.quorum &&
     validation.networks &&
     validation.privateKey &&
-    validation.keyValid &&
-    validation.coordinates
+    validation.keyValid
   );
 });
 
-// Функция валидации координат
+// Формат координат (после проверки адреса обязательно непустые)
 const validateCoordinates = (coordinates) => {
-  if (!coordinates) return true; // Координаты не обязательны
-  const coordRegex = /^-?\d+\.\d+,-?\d+\.\d+$/;
-  return coordRegex.test(coordinates);
+  if (!coordinates) return false;
+  const coordRegex = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
+  return coordRegex.test(String(coordinates).trim());
 };
 
 const logoFile = ref(null);
@@ -3073,18 +3033,23 @@ async function submitDeploy() {
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 8px);
+  margin-bottom: var(--spacing-lg, 20px);
 }
 
 .form-row {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: var(--spacing-md, 15px);
+  margin-bottom: var(--spacing-lg, 20px);
 }
 
 .form-row .form-group {
   flex: 1;
   margin-bottom: 0;
+  min-width: min(100%, 180px);
 }
 
 .flex-grow {
@@ -3093,9 +3058,9 @@ async function submitDeploy() {
 
 .form-label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
   font-weight: 500;
-  color: #333;
+  color: var(--theme-text, #333);
 }
 
 .form-control {
@@ -3194,62 +3159,17 @@ async function submitDeploy() {
 
 .form-actions {
   display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #eee;
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px; /* Согласуем с основными кнопками */
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600; /* Добавляем жирность */
-  transition: all 0.2s;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-primary {
-  background: var(--color-primary);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px); /* Добавляем эффект hover */
-}
-
-.btn-primary:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  transform: none; /* Убираем эффект hover для отключенных кнопок */
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover {
-  background: #c82333;
+  gap: var(--button-gap);
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-xl);
+  border-top: 1px solid var(--color-border);
 }
 
 .btn-link {
   background: none;
+  border: none;
+  height: auto;
+  min-height: 0;
   color: var(--color-primary);
   padding: 0.25rem 0.5rem;
   font-size: 0.9rem;
@@ -3537,19 +3457,66 @@ async function submitDeploy() {
   margin-top: 0.25rem;
 }
 
-/* Стили для формы адреса */
+/* Стили для формы адреса и блоков деплоя */
+.deploy-form-block,
 .address-form-section {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-top: 1rem;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #e9ecef);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--block-padding, 1.25rem);
+  margin: 0 0 var(--spacing-xl, 24px);
+  box-sizing: border-box;
+}
+
+.deploy-form-block > h4,
+.address-form-section > h4,
+.partners-section > h4 {
+  margin: 0 0 var(--spacing-lg, 20px);
+  color: var(--theme-text, #333);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.address-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 10px);
+}
+
+.address-fields > .form-row {
+  margin-bottom: 0;
+}
+
+.address-verify-ok {
+  margin: var(--spacing-md, 15px) 0 0;
+  padding: var(--spacing-md, 15px);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, white);
+  color: var(--theme-text);
+}
+
+.address-verify-ok p {
+  margin: 0 0 var(--spacing-sm, 10px);
+}
+
+.address-verify-ok p:last-child {
+  margin-bottom: 0;
+}
+
+.address-verify-error {
+  margin: var(--spacing-md, 15px) 0 0;
+  padding: var(--spacing-md, 15px);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, white);
+  color: var(--color-danger);
 }
 
 .postal-search-section {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .manual-fields-section h5 {
@@ -3588,24 +3555,24 @@ async function submitDeploy() {
 
 .search-result-item:hover {
   background: #f8f9fa;
-  border-color: #007bff;
+  border-color: var(--color-primary);
 }
 
 .search-result-item.selected {
   background: #e8f5e8;
-  border-color: #28a745;
+  border-color: var(--color-success);
   border-width: 2px;
 }
 
 .auto-selected {
-  color: #28a745;
+  color: var(--color-success);
   font-weight: 600;
   margin-right: 0.5rem;
 }
 
 /* Стили для автовыбранных полей */
 .auto-selected-label {
-  color: #28a745;
+  color: var(--color-success);
   font-size: 0.85rem;
   font-weight: 500;
   margin-left: 0.5rem;
@@ -3613,13 +3580,13 @@ async function submitDeploy() {
 }
 
 .auto-selected-field {
-  border-color: #28a745 !important;
+  border-color: var(--color-success) !important;
   background-color: #f8fff8 !important;
-  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.15) !important;
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-success) 15%, transparent) !important;
 }
 
 .auto-selected-badge {
-  background: #28a745;
+  background: var(--color-success);
   color: white;
   font-size: 0.75rem;
   padding: 0.2rem 0.5rem;
@@ -3644,16 +3611,41 @@ async function submitDeploy() {
 }
 
 .address-actions {
-  margin-top: 1.5rem;
+  margin-top: var(--spacing-lg, 20px);
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: var(--spacing-md, 15px);
 }
 
 .form-help {
-  color: #6c757d;
+  display: block;
+  color: var(--theme-text-muted, #6c757d);
   font-size: 0.9rem;
-  margin-bottom: 1rem;
+  margin: 0;
   font-style: italic;
+  line-height: 1.35;
+}
+
+.logo-preview {
+  display: flex;
+  gap: var(--spacing-sm, 10px);
+  align-items: center;
+  margin-top: var(--spacing-xs, 8px);
+}
+
+.logo-preview-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: contain;
+  border: 1px solid var(--theme-border, #e9ecef);
+}
+
+.logo-preview-img--sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 /* Стили для детального отображения данных */
@@ -3735,22 +3727,26 @@ async function submitDeploy() {
   margin-bottom: 0.25rem;
 }
 
-/* Стили для секции ОКВЭД */
+/* Стили для секции ОКВЭД / ISIC */
 .okved-section {
-  margin-top: 2rem; /* Отступ от кнопок */
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 15px);
 }
 
 .okved-title {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   font-weight: 600;
   color: #495057;
 }
 
-/* Стили для секции КПП */
+/* Стили для секции КПП — тот же ритм, что у .form-group */
 .kpp-section {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e9ecef;
+  margin-top: var(--spacing-md, 15px);
+  margin-bottom: 0;
+  padding-top: var(--spacing-md, 15px);
+  border-top: 1px solid var(--theme-border, #eee);
 }
 
 .selected-kpp-info {
@@ -3768,15 +3764,16 @@ async function submitDeploy() {
 }
 
 /* Каскадная система ОКВЭД */
-.okved-cascade {
-  margin-bottom: 1rem;
+.okved-cascade,
+.isic-cascade {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 15px);
+  margin-bottom: 0;
 }
 
-.okved-cascade .form-group {
-  margin-bottom: 0.75rem;
-}
-
-.okved-cascade .form-group:last-child {
+.okved-cascade .form-group,
+.isic-cascade .form-group {
   margin-bottom: 0;
 }
 
@@ -3913,14 +3910,14 @@ async function submitDeploy() {
 }
 
 /* Стили для партнеров */
-.partners-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #e9ecef;
+.partners-section.deploy-form-block {
+  margin-top: 0;
+  padding-top: var(--block-padding, 1.25rem);
+  border-top: 1px solid var(--theme-border, #e9ecef);
 }
 
 .partners-section h4 {
-  color: var(--color-primary);
+  color: var(--theme-text, #333);
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
@@ -4272,7 +4269,7 @@ async function submitDeploy() {
   }
 
   .copy-btn {
-    background: #007bff;
+    background: var(--color-primary);
     color: white;
     border: none;
     padding: 0.5rem;
@@ -4282,7 +4279,7 @@ async function submitDeploy() {
   }
 
   .copy-btn:hover {
-    background: #0056b3;
+    background: var(--color-primary-dark);
   }
 
   .total-cost-section {
@@ -4341,7 +4338,7 @@ async function submitDeploy() {
   .loading-spinner i {
     font-size: 2rem;
     margin-bottom: 1rem;
-    color: #007bff;
+    color: var(--color-primary);
   }
 
   .loading-spinner p {
@@ -4411,7 +4408,7 @@ async function submitDeploy() {
   .info-icon {
     width: 50px;
     height: 50px;
-    background: linear-gradient(135deg, #007bff, #0056b3);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -4656,8 +4653,9 @@ async function submitDeploy() {
   }
 
   .use-cases-list li:before {
-    content: "✅";
+    content: "·";
     margin-right: 0.5rem;
+    color: var(--color-text-light);
 }
 
   /* Стили для секции кворума */
@@ -4910,4 +4908,28 @@ async function submitDeploy() {
   }
 
   .logo-preview img { box-shadow: 0 1px 4px rgba(0,0,0,0.06); background:#fff; }
+
+/* TZ package S: C1/C2/C3 — mobile; hex вне зоны не трогали */
+@media (max-width: 768px) {
+  .settings-panel,
+  .dle-deploy-form,
+  .deploy-form,
+  .dle-layout {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .operations-grid,
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+  .explorer-keys-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .form-actions,
+  .toolbar,
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
 </style> 

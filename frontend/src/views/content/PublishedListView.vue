@@ -11,10 +11,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="published-page">
-      <div class="published-page__toolbar">
-        <button class="published-page__close" type="button" :title="t('common.close')" @click="goBack">×</button>
-      </div>
+    <div class="published-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
 
       <!-- Просмотр одного документа -->
       <div v-if="currentPageId" class="published-page__reader">
@@ -31,7 +29,7 @@
         </div>
 
         <div v-else-if="filteredPages.length === 0" class="published-page__state">
-          <div class="published-page__empty-icon"><i class="fas fa-file-alt" /></div>
+          <div class="published-page__empty-icon"><UiGlyph name="file" :size="40" /></div>
           <h3>{{ t('content.publishedList.emptyTitle') }}</h3>
         </div>
 
@@ -61,7 +59,7 @@
                 :title="t('content.publishedList.editDocument')"
                 @click="editPage(page.id)"
               >
-                <i class="fas fa-edit" />
+                <UiGlyph name="edit" />
               </button>
               <button
                 type="button"
@@ -69,7 +67,7 @@
                 :title="t('content.publishedList.editStructure')"
                 @click="editPageStructure(page)"
               >
-                <i class="fas fa-cog" />
+                <UiGlyph name="settings" />
               </button>
               <button
                 type="button"
@@ -77,7 +75,7 @@
                 :title="t('content.publishedList.deleteDocument')"
                 @click="confirmDeletePage(page)"
               >
-                <i class="fas fa-trash" />
+                <UiGlyph name="trash" />
               </button>
             </div>
           </li>
@@ -163,8 +161,10 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import DocsContent from '../../components/docs/DocsContent.vue';
 import BlogFeedToolbar from '../../components/blog/BlogFeedToolbar.vue';
+import UiGlyph from '../../components/UiGlyph.vue';
 import pagesService from '../../services/pagesService';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
@@ -319,10 +319,6 @@ watch(activeFilter, (slug) => {
   syncSectionToRoute(slug);
 });
 
-function goBack() {
-  router.push({ name: 'content-list' });
-}
-
 function openPublic(id) {
   const query = { page: id };
   if (activeFilter.value && activeFilter.value !== ALL_FILTER) {
@@ -463,6 +459,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .published-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 40px);
@@ -475,21 +472,7 @@ onBeforeUnmount(() => {
   padding: 12px 16px 0;
 }
 
-.published-page__close {
-  border: none;
-  background: transparent;
-  color: #888;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
 
-.published-page__close:hover {
-  background: #f0f0f0;
-  color: #333;
-}
 
 .published-page__list-wrap {
   padding: 8px 24px 32px;
@@ -740,4 +723,6 @@ onBeforeUnmount(() => {
     justify-content: flex-end;
   }
 }
+
+/* TZ package D: reviewed */
 </style>

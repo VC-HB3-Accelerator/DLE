@@ -576,7 +576,7 @@ onMounted(loadSettings);
 
 .broadcast-section-header p {
   margin: 0;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .agent-alert {
@@ -590,8 +590,8 @@ onMounted(loadSettings);
 
 .field-hint {
   margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
   line-height: 1.35;
 }
 
@@ -621,7 +621,7 @@ onMounted(loadSettings);
 
 .preview-hint {
   margin: 0 0 16px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .preview-alert {
@@ -631,9 +631,9 @@ onMounted(loadSettings);
 .preview-result {
   margin-top: 20px;
   padding: 16px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #fafafa;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
+  background: var(--color-light);
 }
 
 .preview-result h3 {
@@ -643,8 +643,8 @@ onMounted(loadSettings);
 
 .preview-meta {
   margin: 0 0 12px;
-  color: #909399;
-  font-size: 0.9rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .preview-block {
@@ -662,12 +662,23 @@ onMounted(loadSettings);
 .history-link {
   display: inline-block;
   margin-top: 8px;
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: var(--font-size-sm);
 }
 
 .history-link:hover {
   text-decoration: underline;
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .broadcast-agent, .agent-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>

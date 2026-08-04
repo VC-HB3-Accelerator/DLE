@@ -140,9 +140,9 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--color-border, #dcdfe6);
-  border-radius: var(--block-radius, 8px);
-  background: var(--color-white, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
+  background: var(--color-white);
   cursor: pointer;
 }
 
@@ -154,8 +154,8 @@ onMounted(async () => {
 .session-id {
   margin-left: 6px;
   font-weight: 400;
-  color: var(--color-grey, #606266);
-  font-size: 0.85rem;
+  color: var(--color-grey);
+  font-size: var(--font-size-xs);
 }
 
 .session-meta {
@@ -163,7 +163,19 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  color: var(--color-grey, #606266);
-  font-size: 0.85rem;
+  color: var(--color-grey);
+  font-size: var(--font-size-xs);
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .hub-home, .conference-hub-home, .page {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .cards, .grid, .row {
+    grid-template-columns: 1fr !important;
+    flex-direction: column;
+  }
 }
 </style>

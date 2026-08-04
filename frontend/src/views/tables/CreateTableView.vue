@@ -12,26 +12,31 @@
 
 <template>
   <BaseLayout>
-    <div class="create-table-container">
+    <div class="panel create-table-container page-with-close">
+      <PageCloseButton :fallback="{ name: 'tables-list' }" />
       <h2>{{ t('tables.create.title') }}</h2>
       <form v-if="canEditData" @submit.prevent="handleCreateTable" class="create-table-form">
-        <label>{{ t('tables.create.tableNameLabel') }}</label>
-        <input v-model="newTableName" required :placeholder="t('tables.create.namePlaceholder')" />
-        <label>{{ t('tables.common.description') }}</label>
-        <textarea v-model="newTableDescription" :placeholder="t('tables.create.descriptionPlaceholder')" />
-        <label>{{ t('tables.common.aiSource') }}</label>
-        <select v-model="newTableIsRagSourceId" required>
-          <option :value="1">{{ t('common.yes') }}</option>
-          <option :value="2">{{ t('common.no') }}</option>
-        </select>
-        <div class="form-actions">
-          <button type="submit">{{ t('tables.common.create') }}</button>
-          <button type="button" @click="goBack">{{ t('tables.common.cancel') }}</button>
+        <div class="form-group">
+          <label class="form-label">{{ t('tables.create.tableNameLabel') }}</label>
+          <input class="form-control" v-model="newTableName" required :placeholder="t('tables.create.namePlaceholder')" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('tables.common.description') }}</label>
+          <textarea class="form-control" v-model="newTableDescription" :placeholder="t('tables.create.descriptionPlaceholder')" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('tables.common.aiSource') }}</label>
+          <select class="form-control" v-model="newTableIsRagSourceId" required>
+            <option :value="1">{{ t('common.yes') }}</option>
+            <option :value="2">{{ t('common.no') }}</option>
+          </select>
+        </div>
+        <div class="btn-row form-actions">
+          <button type="submit" class="btn btn-primary">{{ t('tables.common.create') }}</button>
         </div>
       </form>
       <div v-else class="empty-table-placeholder">
         <p>{{ t('tables.create.noPermission') }}</p>
-        <button type="button" @click="goBack" class="btn btn-primary">{{ t('tables.common.back') }}</button>
       </div>
     </div>
   </BaseLayout>
@@ -42,8 +47,8 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import tablesService from '../../services/tablesService';
-import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 
 const router = useRouter();
@@ -53,15 +58,11 @@ const newTableDescription = ref('');
 const newTableIsRagSourceId = ref(2);
 const { canEditData } = usePermissions();
 
-// Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    // Очищаем данные формы при выходе из системы
-    form.value = { name: '', description: '' };
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    // CreateTableView не нуждается в обновлении данных
+    newTableName.value = '';
+    newTableDescription.value = '';
+    newTableIsRagSourceId.value = 2;
   });
 });
 
@@ -74,102 +75,53 @@ async function handleCreateTable() {
   });
   router.push({ name: 'tables-list' });
 }
-function goBack() {
-  router.back();
-}
 </script>
 
 <style scoped>
 .create-table-container {
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
   width: 100%;
-  position: relative;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
   overflow-x: auto;
-  margin-left: 0;
-  margin-right: 0;
+  position: relative;
 }
+
+.create-table-container h2 {
+  padding-right: calc(var(--button-height) + var(--spacing-sm));
+}
+
 .create-table-form {
   display: flex;
   flex-direction: column;
-  gap: 1.1em;
 }
-.create-table-form label {
-  font-weight: 500;
-  margin-bottom: 0.2em;
-}
-.create-table-form input,
-.create-table-form textarea,
-.create-table-form select {
-  border: 1px solid #ececec;
-  border-radius: 7px;
-  padding: 0.5em 0.8em;
-  font-size: 1em;
-  background: #fafbfc;
-}
-.create-table-form textarea {
-  min-height: 60px;
-  resize: vertical;
-}
+
 .form-actions {
-  display: flex;
-  gap: 1em;
-  margin-top: 1.2em;
-}
-.form-actions button[type="submit"] {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.form-actions button[type="submit"]:hover {
-  background: #27ae38;
-}
-.form-actions button[type="button"] {
-  background: #eaeaea;
-  color: #333;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.form-actions button[type="button"]:hover {
-  background: #d5d5d5;
+  margin-top: var(--spacing-md);
 }
 
 .empty-table-placeholder {
   text-align: center;
-  padding: 2em;
-  color: #666;
+  padding: var(--spacing-xl);
+  color: var(--theme-text-muted);
 }
 
 .empty-table-placeholder p {
-  margin-bottom: 1.5em;
-  font-size: 1.1em;
+  margin-bottom: var(--spacing-lg);
 }
 
-.empty-table-placeholder .btn {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
+@media (max-width: 768px) {
+  .create-table-container {
+    overflow-x: hidden;
+  }
 
-.empty-table-placeholder .btn:hover {
-  background: #27ae38;
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
 }
-</style> 
+</style>

@@ -74,6 +74,16 @@ const routes = [
         component: () => import('../views/settings/DleDeployFormView.vue'),
       },
       {
+        path: 'security/rpc',
+        name: 'settings-security-rpc',
+        component: () => import('../views/settings/RpcProvidersSettingsView.vue'),
+      },
+      {
+        path: 'security/auth',
+        name: 'settings-security-auth',
+        component: () => import('../views/settings/AuthTokensSettingsView.vue'),
+      },
+      {
         path: 'security',
         name: 'settings-security',
         component: SettingsSecurityView,
@@ -132,6 +142,12 @@ const routes = [
             meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
           },
           {
+            path: 'auth',
+            name: 'settings-sidebar-auth',
+            component: () => import('@/views/settings/SidebarAuthMethodsSettingsTab.vue'),
+            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+          },
+          {
             path: 'buttons',
             name: 'settings-sidebar-buttons',
             component: () => import('@/views/settings/SidebarButtonsSettingsTab.vue'),
@@ -159,6 +175,12 @@ const routes = [
     path: '/settings/ai/openai',
     name: 'openai-settings',
     component: () => import('@/views/settings/AI/OpenAISettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
+  },
+  {
+    path: '/settings/ai/vpn',
+    name: 'vpn-settings',
+    component: () => import('@/views/settings/AI/VpnSettingsView.vue'),
     meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {

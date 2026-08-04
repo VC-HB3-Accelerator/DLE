@@ -4,28 +4,28 @@
 -->
 
 <template>
-  <div class="blog-reactions" role="group" :aria-label="t('blog.reactions.title')">
+  <div class="blog-reactions" role="group" :aria-label="t('blog.likes.action')">
     <button
-      v-for="item in BLOG_REACTIONS"
-      :key="item.type"
       type="button"
       class="blog-reactions__btn"
-      :class="{ 'blog-reactions__btn--active': myReaction === item.type }"
-      :title="t(item.labelKey)"
-      :aria-pressed="myReaction === item.type"
-      @click.stop="$emit('select', item.type)"
+      :class="{ 'blog-reactions__btn--active': isActive }"
+      :title="t('blog.likes.action')"
+      :aria-pressed="isActive"
+      @click.stop="$emit('select', 'heart')"
     >
-      <span class="blog-reactions__emoji" aria-hidden="true">{{ item.emoji }}</span>
-      <span v-if="counts[item.type]" class="blog-reactions__count">{{ counts[item.type] }}</span>
+      <BlogGlyph name="heart" :filled="isActive" />
+      <span v-if="likesCount" class="blog-reactions__count">{{ likesCount }}</span>
     </button>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BLOG_REACTIONS, emptyReactionCounts } from '../../constants/blogReactions';
+import { emptyReactionCounts } from '../../constants/blogReactions';
+import BlogGlyph from './BlogGlyph.vue';
 
-defineProps({
+const props = defineProps({
   counts: {
     type: Object,
     default: () => emptyReactionCounts(),
@@ -39,51 +39,61 @@ defineProps({
 defineEmits(['select']);
 
 const { t } = useI18n();
+
+const isActive = computed(() => props.myReaction === 'heart');
+
+/** Счётчик лайков: heart (+ устаревшие likes через migration в feed) */
+const likesCount = computed(() => {
+  const c = props.counts || {};
+  return Number(c.heart || 0);
+});
 </script>
 
 <style scoped>
 .blog-reactions {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 2px;
 }
 
 .blog-reactions__btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   height: 36px;
   padding: 0 8px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   background: transparent;
   cursor: pointer;
-  color: #262626;
-  font-size: 13px;
+  color: var(--color-dark);
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
 }
 
 .blog-reactions__btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.blog-reactions__btn:active {
-  transform: scale(0.94);
+  background: var(--color-light);
+  color: var(--color-primary);
 }
 
 .blog-reactions__btn--active {
-  background: rgba(76, 175, 80, 0.12);
-}
-
-.blog-reactions__emoji {
-  font-size: 18px;
-  line-height: 1;
+  color: var(--color-primary);
 }
 
 .blog-reactions__count {
   font-variant-numeric: tabular-nums;
   min-width: 0.7em;
+  color: inherit;
+}
+
+@media (max-width: 480px) {
+  .blog-reactions__btn {
+    height: 34px;
+    padding: 0 4px;
+    gap: 3px;
+    font-size: var(--font-size-xs);
+  }
 }
 </style>

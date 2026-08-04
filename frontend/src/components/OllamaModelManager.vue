@@ -673,4 +673,22 @@ h4 {
 h5 {
   font-size: 1em;
 }
+
+/* TZ package S */
+@media (max-width: 768px) {
+  .ollama-model-manager,
+  .model-manager {
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  .row, .model-row, .actions, .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  button {
+    width: 100%;
+    height: var(--button-height-mobile);
+  }
+}
 </style>

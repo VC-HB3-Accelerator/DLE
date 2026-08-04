@@ -453,6 +453,10 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   border: 1px solid #e9ecef;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Заголовок */
@@ -506,8 +510,9 @@ onMounted(() => {
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 15px;
+  min-width: 0;
 }
 
 .info-item {
@@ -548,8 +553,9 @@ onMounted(() => {
 
 .actions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   gap: 10px;
+  min-width: 0;
 }
 
 .action-btn {
@@ -632,7 +638,9 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
+  min-width: 0;
 }
 
 .proposal-id {
@@ -679,6 +687,8 @@ onMounted(() => {
 .proposal-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .btn-sign, .btn-execute {
@@ -688,6 +698,8 @@ onMounted(() => {
   font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-sign {
@@ -872,20 +884,32 @@ onMounted(() => {
   }
   
   .actions-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   
   .proposal-meta {
     flex-direction: column;
     gap: 5px;
   }
-  
+
   .proposal-actions {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

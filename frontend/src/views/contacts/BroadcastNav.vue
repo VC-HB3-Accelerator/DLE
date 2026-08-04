@@ -67,23 +67,32 @@ function getNavTarget(routeName) {
   display: inline-flex;
   align-items: center;
   padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid #dcdfe6;
-  background: #fff;
-  color: #606266;
+  border-radius: var(--block-radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-grey);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .broadcast-nav-link:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .broadcast-nav-link.is-active {
-  background: #409eff;
-  border-color: #409eff;
-  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .broadcast-nav, nav {
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+  }
 }
 </style>

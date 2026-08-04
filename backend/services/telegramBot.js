@@ -14,6 +14,8 @@ const { Telegraf } = require('telegraf');
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
 const universalMediaProcessor = require('./UniversalMediaProcessor');
+const aiProviderSettingsService = require('./aiProviderSettingsService');
+const openaiProxy = require('./openaiProxy');
 
 /**
  * TelegramBot - обработчик Telegram сообщений
@@ -27,6 +29,30 @@ class TelegramBot {
     this.settings = null;
     this.isInitialized = false;
     this.status = 'inactive';
+    this.telegrafOptions = {};
+  }
+
+  /**
+   * Исходящий SOCKS (Blanc) из настроек openai / VPN-страницы.
+   */
+  async refreshOutboundProxy() {
+    try {
+      const openaiSettings = await aiProviderSettingsService.getProviderSettings('openai');
+      const outbound = openaiProxy.resolveTelegrafOutbound(openaiSettings);
+      this.telegrafOptions = outbound.telegram ? { telegram: outbound.telegram } : {};
+      if (outbound.mode === 'direct') {
+        logger.warn('[TelegramBot] outbound=direct (Blanc/SOCKS выключен)');
+      } else {
+        logger.warn(`[TelegramBot] outbound via ${outbound.mode} socks host=${outbound.proxyHost}`);
+      }
+    } catch (error) {
+      this.telegrafOptions = {};
+      logger.warn('[TelegramBot] Не удалось загрузить outbound proxy, direct:', error.message);
+    }
+  }
+
+  createTelegraf() {
+    return new Telegraf(this.settings.bot_token, this.telegrafOptions);
   }
 
   /**
@@ -58,8 +84,9 @@ class TelegramBot {
 
       // Проверяем токен через Telegram API
       try {
+        await this.refreshOutboundProxy();
         logger.info('[TelegramBot] Проверяем токен через Telegram API...');
-        const testBot = new Telegraf(this.settings.bot_token);
+        const testBot = this.createTelegraf();
         const me = await testBot.telegram.getMe();
         logger.info('[TelegramBot] ✅ Токен валиден, бот:', me.username);
         // Не вызываем stop() - может вызвать ошибку
@@ -74,7 +101,7 @@ class TelegramBot {
       }
 
       // Создаем экземпляр бота
-      this.bot = new Telegraf(this.settings.bot_token);
+      this.bot = this.createTelegraf();
       
       // Настраиваем обработчики
       this.setupHandlers();
@@ -83,23 +110,18 @@ class TelegramBot {
       this.isInitialized = true;
       this.status = 'active';
       
-      // Запускаем бота асинхронно (может долго подключаться)
-      this.launch()
-        .then(() => {
-          logger.info('[TelegramBot] ✅ Бот успешно подключен к Telegram');
-          this.status = 'active';
-        })
-        .catch(error => {
-          logger.error('[TelegramBot] Ошибка подключения к Telegram:', {
-            message: error.message,
-            code: error.code,
-            response: error.response?.data,
-            stack: error.stack
-          });
-          this.status = 'error';
+      // Polling в фоне; при 409 — повтор без блокировки initialize()
+      this.launchWithRetry().catch((error) => {
+        logger.error('[TelegramBot] Ошибка подключения к Telegram:', {
+          message: error.message,
+          code: error.code,
+          response: error.response?.data,
+          stack: error.stack
         });
-      
-      logger.info('[TelegramBot] ✅ Telegram Bot инициализирован (подключение в фоне)');
+        this.status = 'error';
+      });
+
+      logger.warn('[TelegramBot] ✅ Telegram Bot инициализирован (polling в фоне)');
       return { success: true };
       
     } catch (error) {
@@ -134,10 +156,36 @@ class TelegramBot {
    * Настройка обработчиков команд и сообщений
    */
   setupHandlers() {
-    // Обработчик команды /start
-    this.bot.command('start', (ctx) => {
-      logger.info('[TelegramBot] 📨 Получена команда /start (без онбординг-текста)');
-      // По запросу: не отправляем онбординг-текст пользователю
+    // Обработчик команды /start — deep-link login (TZ_TELEGRAM_DEEPLINK_AUTH)
+    this.bot.command('start', async (ctx) => {
+      try {
+        const fromText = String(ctx.message?.text || '')
+          .replace(/^\/start(?:@\w+)?\s*/i, '')
+          .trim();
+        const payload = (ctx.startPayload || fromText || '').trim();
+        const telegramId = ctx.from?.id != null ? String(ctx.from.id) : null;
+        // warn: LOG_LEVEL по умолчанию warn — иначе /start не видно в docker logs
+        logger.warn(`[TelegramBot] /start payload=${payload ? `${payload.slice(0, 6)}…` : '(empty)'} text=${String(ctx.message?.text || '').slice(0, 40)}`);
+
+        if (!payload) {
+          await ctx.reply(
+            'Чтобы войти, откройте бота именно ссылкой с сайта (кнопка «Открыть бота»), а не через уже открытый чат.'
+          );
+          return;
+        }
+
+        const telegramLoginService = require('./telegramLoginService');
+        const result = await telegramLoginService.completeFromStart(payload, telegramId);
+        logger.warn(`[TelegramBot] /start login ok=${!!result.ok}`);
+        await ctx.reply(result.message || (result.ok ? 'Готово. Можно вернуться на сайт.' : 'Ошибка входа.'));
+      } catch (error) {
+        logger.error('[TelegramBot] /start error:', error);
+        try {
+          await ctx.reply('Произошла ошибка при входе. Попробуйте снова с сайта.');
+        } catch (_) {
+          /* ignore */
+        }
+      }
     });
 
     // Обработчик команды /connect - подключение кошелька
@@ -406,28 +454,99 @@ class TelegramBot {
   }
 
   /**
-   * Запуск бота (без timeout и retry - Telegraf сам управляет подключением)
+   * Запуск polling с повтором при 409.
+   * Telegraf.launch() резолвится только при остановке — поэтому не await'им «успешное» соединение.
+   */
+  async launchWithRetry({ maxAttempts = 8, delayMs = 2500 } = {}) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (!this.bot) {
+          await this.refreshOutboundProxy();
+          this.bot = this.createTelegraf();
+          this.setupHandlers();
+        }
+        await this.startPollingOrThrow();
+        return;
+      } catch (error) {
+        lastError = error;
+        const isConflict = error?.code === 409 || /409|Conflict/i.test(error?.message || '');
+        if (!isConflict || attempt === maxAttempts) {
+          throw error;
+        }
+        logger.warn(`[TelegramBot] 409 Conflict, повтор ${attempt}/${maxAttempts} через ${delayMs}ms`);
+        try {
+          if (this.bot) {
+            await this.bot.stop('409-retry').catch(() => {});
+          }
+        } catch (_) {
+          /* ignore */
+        }
+        this.bot = null;
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    throw lastError;
+  }
+
+  /**
+   * Стартует polling; резолвит после короткого окна без ошибки,
+   * реджектит при быстрой ошибке (в т.ч. 409).
+   */
+  startPollingOrThrow({ warmupMs = 4000 } = {}) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      logger.warn('[TelegramBot] Запуск polling...');
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.status = 'active';
+        logger.warn('[TelegramBot] ✅ Polling активен');
+        resolve();
+      }, warmupMs);
+
+      this.bot
+        .launch({
+          dropPendingUpdates: true,
+          allowedUpdates: ['message', 'callback_query']
+        })
+        .then(() => {
+          // штатная остановка
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve();
+          }
+          this.status = 'inactive';
+          logger.warn('[TelegramBot] Polling остановлен');
+        })
+        .catch((error) => {
+          if (settled) {
+            logger.error('[TelegramBot] ❌ Polling упал после старта:', {
+              message: error.message,
+              code: error.code
+            });
+            this.status = 'error';
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          logger.error('[TelegramBot] ❌ Ошибка запуска:', {
+            message: error.message,
+            code: error.code,
+            response: error.response?.data,
+            stack: error.stack
+          });
+          reject(error);
+        });
+    });
+  }
+
+  /**
+   * @deprecated use startPollingOrThrow / launchWithRetry
    */
   async launch() {
-    try {
-      logger.info('[TelegramBot] Запуск polling...');
-      
-      // Запускаем бота без таймаута - пусть Telegraf сам управляет подключением
-      await this.bot.launch({ 
-        dropPendingUpdates: true,
-        allowedUpdates: ['message', 'callback_query']
-      });
-      
-      logger.info('[TelegramBot] ✅ Бот запущен успешно');
-    } catch (error) {
-      logger.error('[TelegramBot] ❌ Ошибка запуска:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        stack: error.stack
-      });
-      throw error;
-    }
+    return this.startPollingOrThrow();
   }
 
 

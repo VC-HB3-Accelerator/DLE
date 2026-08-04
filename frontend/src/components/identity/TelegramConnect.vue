@@ -15,125 +15,192 @@
     <div class="tg-header">
       <div>
         <div class="tg-title">{{ t('identity.telegram.title') }}</div>
-        <div class="tg-step">{{ t('identity.telegram.step1of2') }}</div>
+        <div class="tg-step">{{ t('identity.telegram.deeplinkStep') }}</div>
       </div>
     </div>
-    <ol class="tg-steps">
-      <li>
-        {{ t('identity.telegram.openBot') }}<br>
-        <a :href="botLink" target="_blank" class="tg-link">{{ botLink }}</a>
-        <div class="tg-hint">{{ t('identity.telegram.linkHint') }}</div>
-      </li>
-      <li>
-        {{ t('identity.telegram.enterCode') }}
-        <span class="tg-code">{{ verificationCode }}</span>
-        <span class="tg-hint">{{ t('identity.telegram.codeHint') }}</span>
-      </li>
-    </ol>
+
+    <p class="tg-hint-main">{{ t('identity.telegram.deeplinkHint') }}</p>
+
+    <label class="tg-consent">
+      <input v-model="privacyAccepted" type="checkbox" :disabled="isLoading" />
+      <span>
+        {{ t('auth.consent.prefix') }}
+        <a
+          :href="privacyDocsUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click.stop
+        >{{ t('auth.consent.link') }}</a>
+      </span>
+    </label>
+    <p v-if="consentError" class="tg-error">{{ consentError }}</p>
+
+    <button
+      type="button"
+      class="tg-open-btn"
+      :disabled="!privacyAccepted || isLoading"
+      @click="onOpenBot"
+    >
+      {{ isLoading ? t('common.loading') : t('identity.telegram.openBotButton') }}
+    </button>
+
+    <p v-if="botLink && waiting" class="tg-waiting">{{ t('identity.telegram.waitingStart') }}</p>
+    <a
+      v-if="botLink"
+      class="tg-fallback-link"
+      :href="botLink"
+      target="_blank"
+      rel="noopener noreferrer"
+    >{{ botLink }}</a>
     <p v-if="error" class="tg-error">{{ error }}</p>
-    <button type="button" class="tg-cancel-btn" @click="$emit('cancel')">{{ t('common.cancel') }}</button>
+
+    <button type="button" class="tg-cancel-btn" :disabled="isLoading" @click="$emit('cancel')">
+      {{ t('common.cancel') }}
+    </button>
   </form>
 </template>
 
 <script setup>
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
+
+const props = defineProps({
+  botLink: { type: String, default: '' },
+  error: { type: String, default: '' },
+  isLoading: { type: Boolean, default: false },
+});
+
+const emit = defineEmits(['cancel', 'request-link']);
 
 const { t } = useI18n();
+const privacyDocsUrl = getPrivacyDocsUrl();
+const privacyAccepted = ref(false);
+const consentError = ref('');
+const waiting = ref(false);
+const awaitingLink = ref(false);
+/** Окно, открытое в том же клике (иначе popup-blocker после async init). */
+let pendingPopup = null;
 
-defineProps({
-  botLink: String,
-  verificationCode: String,
-  error: String
-});
-defineEmits(['cancel']);
+function applyBotLink(link) {
+  if (!link) return;
+  waiting.value = true;
+  awaitingLink.value = false;
+  if (pendingPopup && !pendingPopup.closed) {
+    try {
+      pendingPopup.location.href = link;
+      pendingPopup = null;
+      return;
+    } catch (_) {
+      /* fall through */
+    }
+  }
+  pendingPopup = null;
+  window.open(link, '_blank', 'noopener,noreferrer');
+}
+
+watch(
+  () => props.botLink,
+  (link) => {
+    if (link && awaitingLink.value) {
+      applyBotLink(link);
+    }
+  }
+);
+
+async function onOpenBot() {
+  if (!privacyAccepted.value) {
+    consentError.value = t('auth.consent.required');
+    return;
+  }
+  consentError.value = '';
+
+  // Синхронно в gesture пользователя — иначе t.me откроется без ?start=…
+  pendingPopup = window.open('about:blank', 'dle_tg_auth');
+  if (!pendingPopup) {
+    consentError.value = t('identity.telegram.popupBlocked');
+  }
+
+  awaitingLink.value = true;
+  waiting.value = false;
+  // Всегда новый pending (не переиспользуем старый botLink без payload-контекста)
+  emit('request-link');
+}
 </script>
 
 <style scoped>
 .tg-form-panel {
-  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 1.2rem;
-  margin: 0;
-  background: none;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 0;
+  gap: 0.75rem;
+  width: 100%;
 }
-.tg-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+
+.tg-fallback-link {
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--el-color-primary, #409eff);
 }
+
 .tg-title {
-  font-size: 1.2rem;
   font-weight: 600;
-  color: var(--color-primary, #2e7d32);
+  font-size: 1rem;
 }
+
 .tg-step {
-  font-size: 0.98rem;
-  color: var(--color-grey, #888);
+  font-size: 0.8rem;
+  color: var(--color-text-light, #6c757d);
+  margin-top: 0.15rem;
 }
-.tg-steps {
-  padding-left: 1.2rem;
-  margin-bottom: 0.7rem;
-  color: var(--color-dark, #222);
-  font-size: 1rem;
-  word-break: break-all;
+
+.tg-hint-main {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.tg-consent {
   display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  line-height: 1.35;
 }
-.tg-link {
-  color: var(--color-primary, #2e7d32);
-  word-break: break-all;
-  text-decoration: underline;
-  font-size: 1.05rem;
-  font-weight: 500;
-}
-.tg-hint {
-  font-size: 0.95rem;
-  color: var(--color-grey, #888);
-  margin-top: 0.2rem;
-}
-.tg-code {
-  display: inline-block;
-  background: var(--color-grey-light, #e0e0e0);
-  color: #222;
-  border-radius: 4px;
-  padding: 0.2rem 0.7rem;
-  font-weight: bold;
-  font-size: 1.1rem;
-  letter-spacing: 1px;
-  margin-left: 0.5rem;
-  height: 44px;
-  line-height: 44px;
-}
-.tg-error {
-  color: #d32f2f;
-  font-size: 1.05rem;
-  margin-top: 0.2rem;
-  margin-bottom: 0.2rem;
-  text-align: left;
-  font-weight: 500;
-}
-.tg-cancel-btn {
-  width: 100%;
-  height: 44px;
-  background: var(--color-grey-light, #e0e0e0);
-  color: var(--color-dark, #222);
+
+.tg-open-btn {
   border: none;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-weight: 400;
-  margin-bottom: 0;
-  margin-top: 0.2rem;
-  box-shadow: none;
-  transition: none;
+  cursor: pointer;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-primary, #0d6efd);
+  color: #fff;
+  font-weight: 500;
 }
-.tg-cancel-btn:hover {
-  background: var(--color-grey, #bdbdbd);
+
+.tg-open-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tg-waiting {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-light, #6c757d);
+  font-style: italic;
+}
+
+.tg-error {
+  margin: 0;
+  color: var(--color-danger, #dc3545);
+  font-size: 0.85rem;
+}
+
+.tg-cancel-btn {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--color-grey, #adb5bd);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
 }
 </style>

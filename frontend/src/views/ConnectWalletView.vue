@@ -21,7 +21,6 @@
 
       <!-- Токен валиден -->
       <div v-else-if="tokenValid && !connected" class="connect-state">
-        <div class="icon">🔗</div>
         <h1>{{ t('wallet.title') }}</h1>
         
         <div class="info-block">
@@ -48,13 +47,12 @@
         </div>
 
         <div class="expires-info">
-          ⏱ {{ t('wallet.linkExpires', { date: expiresAt }) }}
+          {{ t('wallet.linkExpires', { date: expiresAt }) }}
         </div>
       </div>
 
       <!-- Токен истек или недействителен -->
       <div v-else-if="!tokenValid" class="expired-state">
-        <div class="icon">⏰</div>
         <h1>{{ t('wallet.linkExpiredTitle') }}</h1>
         <p>{{ t('wallet.linkExpiredText') }}</p>
         <p class="hint">
@@ -66,7 +64,6 @@
 
       <!-- Успешно подключено -->
       <div v-else-if="connected" class="success-state">
-        <div class="icon">✅</div>
         <h1>{{ t('wallet.walletConnected') }}</h1>
         <p>{{ t('wallet.historyMigrated') }}</p>
         <p class="stats" v-if="migrationStats">
@@ -128,7 +125,7 @@ export default {
   methods: {
     async checkToken(token) {
       try {
-        const response = await fetch(`/api/identity/link-status/${token}`);
+        const response = await fetch(`/api/identities/link-status/${token}`);
         const data = await response.json();
 
         this.tokenValid = data.valid;
@@ -254,58 +251,54 @@ export default {
   text-align: center;
 }
 
-.icon {
-  font-size: 64px;
-  margin-bottom: 20px;
-}
-
 h1 {
-  font-size: 28px;
+  font-size: var(--font-size-xxl);
   font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 16px;
+  color: var(--color-dark);
+  margin-bottom: var(--spacing-md);
 }
 
 .info-block {
-  margin: 24px 0;
+  margin: var(--spacing-xl) 0;
 }
 
 .provider-info {
-  font-size: 16px;
-  color: #666;
-  margin-bottom: 12px;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-sm);
 }
 
 .provider-info strong {
-  color: #667eea;
+  color: var(--color-dark);
   font-weight: 600;
 }
 
 .description {
-  font-size: 14px;
-  color: #888;
+  font-size: var(--font-size-md);
+  color: var(--color-text-light);
   line-height: 1.6;
 }
 
 .connect-button,
 .go-chat-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 14px 32px;
-  font-size: 16px;
-  font-weight: 600;
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--button-radius);
+  height: var(--button-height);
+  padding: 0 var(--spacing-xl);
+  font-size: var(--font-size-md);
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color var(--transition-fast);
   width: 100%;
-  margin-top: 24px;
+  margin-top: var(--spacing-xl);
 }
 
 .connect-button:hover:not(:disabled),
 .go-chat-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
 }
 
 .connect-button:disabled {
@@ -314,18 +307,19 @@ h1 {
 }
 
 .error-message {
-  background: #fee;
-  color: #c33;
-  padding: 12px;
-  border-radius: 8px;
-  margin-top: 16px;
-  font-size: 14px;
+  background: color-mix(in srgb, var(--color-danger) 12%, white);
+  color: var(--color-danger);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 30%, white);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  margin-top: var(--spacing-md);
+  font-size: var(--font-size-md);
 }
 
 .expires-info {
-  margin-top: 20px;
-  font-size: 13px;
-  color: #999;
+  margin-top: var(--spacing-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
 }
 
 .loading-state {

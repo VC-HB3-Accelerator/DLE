@@ -14,14 +14,20 @@
   <div class="notification-container">
     <transition name="fade">
       <div v-if="notifications.showSuccess" class="notification success">
-        <span class="icon">✅</span>
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
         <span class="message">{{ notifications.successMessage }}</span>
         <!-- <button @click="hideSuccess" class="close-btn">&times;</button> -->
       </div>
     </transition>
     <transition name="fade">
       <div v-if="notifications.showError" class="notification error">
-        <span class="icon">❌</span>
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
         <span class="message">{{ notifications.errorMessage }}</span>
         <!-- <button @click="hideError" class="close-btn">&times;</button> -->
       </div>
@@ -87,8 +93,10 @@ const props = defineProps({
 }
 
 .icon {
+  flex-shrink: 0;
+  width: 1.2em;
+  height: 1.2em;
   margin-right: 10px;
-  font-size: 1.2em;
 }
 
 .message {
@@ -122,4 +130,19 @@ const props = defineProps({
   opacity: 1;
 }
 */
+
+
+/* TZ package G/SC */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, .modal, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="form"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style> 

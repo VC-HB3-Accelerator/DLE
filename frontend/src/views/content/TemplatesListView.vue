@@ -4,10 +4,8 @@
 -->
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
-    <div class="list-page">
-      <div class="header-actions" style="margin-bottom: 20px;">
-        <button class="close-btn" @click="goBack">×</button>
-      </div>
+    <div class="list-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
 
       <div class="content-block">
         <div class="section-header">
@@ -23,7 +21,7 @@
             </div>
             <div class="search-box">
               <input v-model="search" type="text" :placeholder="t('content.templates.searchPlaceholder')" class="search-input" />
-              <i class="fas fa-search search-icon"></i>
+              <UiGlyph name="search" class="search-icon" />
             </div>
           </div>
         </div>
@@ -36,16 +34,16 @@
             <div class="page-card-content">
               <p class="page-summary">{{ p.summary || t('common.noDescription') }}</p>
               <div class="page-meta">
-                <span class="page-status draft"><i class="fas fa-circle"></i>{{ t('common.status.draft') }}</span>
-                <span class="page-status"><i class="fas fa-cube"></i>{{ t('content.templates.templateBadge') }}</span>
-                <span class="page-status" :class="p.visibility"><i class="fas fa-eye"></i>{{ p.visibility === 'internal' ? t('content.templates.visibilityInternalBadge') : t('content.templates.visibilityPublicBadge') }}</span>
+                <span class="page-status draft"><UiGlyph name="circle" filled :size="8" />{{ t('common.status.draft') }}</span>
+                <span class="page-status"><UiGlyph name="cube" :size="14" />{{ t('content.templates.templateBadge') }}</span>
+                <span class="page-status" :class="p.visibility"><UiGlyph name="eye" :size="14" />{{ p.visibility === 'internal' ? t('content.templates.visibilityInternalBadge') : t('content.templates.visibilityPublicBadge') }}</span>
               </div>
             </div>
           </div>
         </div>
 
         <div v-else class="empty-state">
-          <div class="empty-icon"><i class="fas fa-file-alt"></i></div>
+          <div class="empty-icon"><UiGlyph name="file" :size="40" /></div>
           <h3>{{ t('content.templates.emptyTitle') }}</h3>
           <p v-if="!canEditData || !address">{{ t('content.templates.emptyPermissionHint') }}</p>
         </div>
@@ -60,6 +58,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
+import UiGlyph from '../../components/UiGlyph.vue';
 import pagesService from '../../services/pagesService';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
@@ -79,7 +79,6 @@ const pages = ref([]);
 const { address } = useAuthContext();
 const { canEditData } = usePermissions();
 
-function goBack() { router.push({ name: 'content-list' }); }
 function open(id) { 
   if (canEditData.value && address.value) {
     router.push({ name: 'page-view', params: { id } });
@@ -119,7 +118,7 @@ onMounted(async () => {
 .page-header { display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; }
 .header-content h1 { color: var(--color-primary); font-size: 2.2rem; margin: 0 0 8px 0; }
 .header-content p { color: var(--color-grey-dark); margin: 0; }
-.close-btn { background:none; border:none; font-size: 1.5rem; cursor:pointer; color:#888; }
+.list-page.page-with-close { position: relative; }
 
 /* Переиспользуем стили из ContentListView */
 .content-block { background: #f8f9fa; border-radius: var(--radius-lg); padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -142,6 +141,21 @@ onMounted(async () => {
 .page-status.draft i { color: #ff9800; }
 .empty-state { text-align:center; padding: 60px 20px; }
 .empty-icon { font-size: 3rem; color: var(--color-grey-dark); margin-bottom: 10px; }
+
+
+/* TZ package D */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style>
 
 

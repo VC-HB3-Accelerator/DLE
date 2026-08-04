@@ -357,7 +357,7 @@ onBeforeUnmount(stopPoll);
 
 .section-hint {
   margin: 0 0 12px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .status-alert {
@@ -371,16 +371,16 @@ onBeforeUnmount(stopPoll);
   gap: 16px;
   align-items: flex-start;
   padding: 14px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
   margin-bottom: 10px;
-  background: #fff;
+  background: var(--color-white);
 }
 
 .catalog-item.active,
 .installed-item.active {
-  border-color: #67c23a;
-  background: #f0f9eb;
+  border-color: color-mix(in srgb, var(--color-primary) 50%, white);
+  background: color-mix(in srgb, var(--color-primary) 10%, white);
 }
 
 .catalog-name,
@@ -393,21 +393,21 @@ onBeforeUnmount(stopPoll);
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  color: #909399;
-  font-size: 0.9rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
   margin-bottom: 6px;
 }
 
 .catalog-desc {
   margin: 0 0 8px;
-  color: #606266;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .catalog-link {
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: var(--font-size-sm);
 }
 
 .catalog-link:hover {
@@ -434,11 +434,11 @@ onBeforeUnmount(stopPoll);
 
 .installed-size,
 .empty {
-  color: #909399;
-  font-size: 0.9rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .catalog-item,
   .installed-item {
     flex-direction: column;
@@ -446,6 +446,16 @@ onBeforeUnmount(stopPoll);
 
   .catalog-actions {
     width: 100%;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C safe */
+@media (max-width: 768px) {
+  .page, .layout, .panel, .settings-panel, [class*="container"], [class*="layout"], [class*="panel"] {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 </style>

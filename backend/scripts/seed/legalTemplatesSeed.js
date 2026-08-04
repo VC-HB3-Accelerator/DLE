@@ -1,30 +1,38 @@
 /**
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
- * 
+ *
  * This software is proprietary and confidential.
  * Unauthorized copying, modification, or distribution is prohibited.
- * 
+ *
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
 /**
- * Seed системных юридических шаблонов (РКН-2025) в admin_pages_simple
- * - Добавляет недостающие колонки (visibility, format и пр.)
- * - Создает шаблоны с is_system_template = true и author_address = NULL
- * - Повторный запуск — идемпотентен (по title + is_system_template)
+ * Seed системных юридических шаблонов + published-документов раздела
+ * «политика и согласия» в admin_pages_simple.
+ *
+ * - /content/templates ← is_system_template = true (draft)
+ * - /content/published?section=политика%20и%20согласия ← копии public-доков
+ *   (status=published, visibility=public, category=политика и согласия,
+ *    show_in_blog=true, is_system_template=false) + фильтр ленты /blog
+ * - Идемпотентно: повторный запуск обновляет тело/summary, не плодит дубли
+ * - Вызывается из scripts/run-migrations.js после SQL-миграций (установка ОС / update)
  */
 
 const db = require('../../db');
+
+/** Совпадает с frontend/src/constants/publishedDocs.js PRIVACY_SECTION_SLUG */
+const PRIVACY_SECTION = 'политика и согласия';
 
 async function getExistingColumns(tableName) {
   const res = await db.getQuery()(
     `SELECT column_name FROM information_schema.columns WHERE table_name = $1`,
     [tableName]
   );
-  return res.rows.map(r => r.column_name);
+  return res.rows.map((r) => r.column_name);
 }
 
 async function ensureTable(tableName) {
@@ -51,6 +59,10 @@ async function ensureTable(tableName) {
         size_bytes BIGINT,
         checksum TEXT,
         is_system_template BOOLEAN DEFAULT FALSE,
+        show_in_blog BOOLEAN DEFAULT FALSE,
+        slug TEXT,
+        category TEXT,
+        order_index INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
@@ -75,8 +87,12 @@ async function ensureColumns(tableName) {
     size_bytes: 'BIGINT',
     checksum: 'TEXT',
     is_system_template: 'BOOLEAN DEFAULT FALSE',
+    show_in_blog: 'BOOLEAN DEFAULT FALSE',
+    slug: 'TEXT',
+    category: 'TEXT',
+    order_index: 'INTEGER DEFAULT 0',
     created_at: 'TIMESTAMP DEFAULT NOW()',
-    updated_at: 'TIMESTAMP DEFAULT NOW()'
+    updated_at: 'TIMESTAMP DEFAULT NOW()',
   };
 
   const existing = await getExistingColumns(tableName);
@@ -84,6 +100,14 @@ async function ensureColumns(tableName) {
     if (!existing.includes(col)) {
       await db.getQuery()(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${type}`);
     }
+  }
+
+  try {
+    await db.getQuery()(
+      `CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_slug_unique ON ${tableName}(slug) WHERE slug IS NOT NULL`
+    );
+  } catch (e) {
+    // индекс может уже быть
   }
 }
 
@@ -95,7 +119,6 @@ function htmlEscape(str) {
 }
 
 function tpl(content) {
-  // Лаконичный, «человеческий» текст с минимальными inline‑плейсхолдерами
   return `
 <h1>${htmlEscape(content.title)}</h1>
 <p>
@@ -121,6 +144,28 @@ ${content.body || ''}
 `;
 }
 
+function generateSlug(text, maxLength = 100) {
+  if (!text) return '';
+  const map = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo',
+    ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm',
+    н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u',
+    ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch',
+    ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  };
+  return String(text)
+    .normalize('NFKC')
+    .replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[а-яё]/g, (ch) => map[ch] || ch)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, maxLength)
+    .replace(/-+$/, '');
+}
+
 function doc(title, summary, visibility = 'public', requiredPermission = null) {
   return {
     title,
@@ -133,7 +178,7 @@ function doc(title, summary, visibility = 'public', requiredPermission = null) {
     format: 'html',
     mime_type: 'text/html',
     storage_type: 'embedded',
-    is_system_template: true
+    is_system_template: true,
   };
 }
 
@@ -143,7 +188,6 @@ async function upsertTemplate(tableName, template) {
     [template.title]
   );
   if (exists.rows.length > 0) {
-    // Обновляем основные поля, не трогая author_address
     const sql = `UPDATE ${tableName}
       SET summary = $2, content = $3, seo = $4, status = $5, visibility = $6,
           required_permission = $7, format = $8, mime_type = $9, storage_type = $10,
@@ -159,7 +203,7 @@ async function upsertTemplate(tableName, template) {
       template.required_permission,
       template.format,
       template.mime_type,
-      template.storage_type
+      template.storage_type,
     ]);
     return { updated: 1, inserted: 0 };
   }
@@ -177,16 +221,98 @@ async function upsertTemplate(tableName, template) {
     template.required_permission,
     template.format,
     template.mime_type,
-    template.storage_type
+    template.storage_type,
   ]);
   return { updated: 0, inserted: 1 };
 }
 
-async function main() {
-  const tableName = 'admin_pages_simple';
-  await ensureTable(tableName);
-  await ensureColumns(tableName);
+async function uniqueSlug(tableName, baseSlug, excludeId = null) {
+  let slug = baseSlug || `doc-${Date.now()}`;
+  let n = 0;
+  for (;;) {
+    const candidate = n === 0 ? slug : `${slug}-${n}`;
+    const params = excludeId != null ? [candidate, excludeId] : [candidate];
+    const sql = excludeId != null
+      ? `SELECT id FROM ${tableName} WHERE slug = $1 AND id <> $2 LIMIT 1`
+      : `SELECT id FROM ${tableName} WHERE slug = $1 LIMIT 1`;
+    const hit = await db.getQuery()(sql, params);
+    if (hit.rows.length === 0) return candidate;
+    n += 1;
+    if (n > 50) return `${slug}-${Date.now()}`;
+  }
+}
 
+/**
+ * Публичная копия шаблона для хаба /content/published (раздел политика и согласия).
+ * Не трогает строку is_system_template — отдельная запись.
+ */
+async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
+  const category = PRIVACY_SECTION;
+  const exists = await db.getQuery()(
+    `SELECT id, slug FROM ${tableName}
+     WHERE title = $1
+       AND LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM($2))
+       AND COALESCE(is_system_template, FALSE) = FALSE
+       AND visibility = 'public'
+     LIMIT 1`,
+    [template.title, category]
+  );
+
+  const baseSlug = generateSlug(template.title);
+  if (exists.rows.length > 0) {
+    const id = exists.rows[0].id;
+    const slug = exists.rows[0].slug && String(exists.rows[0].slug).trim()
+      ? exists.rows[0].slug
+      : await uniqueSlug(tableName, baseSlug, id);
+    await db.getQuery()(
+      `UPDATE ${tableName}
+       SET summary = $2, content = $3, seo = $4,
+           status = 'published', visibility = 'public',
+           required_permission = NULL, format = $5, mime_type = $6, storage_type = $7,
+           is_system_template = FALSE, show_in_blog = TRUE,
+           category = $8, slug = $9, order_index = $10,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [
+        id,
+        template.summary,
+        template.content,
+        JSON.stringify(template.seo || {}),
+        template.format,
+        template.mime_type,
+        template.storage_type,
+        category,
+        slug,
+        orderIndex,
+      ]
+    );
+    return { updated: 1, inserted: 0 };
+  }
+
+  const slug = await uniqueSlug(tableName, baseSlug);
+  await db.getQuery()(
+    `INSERT INTO ${tableName}
+      (author_address, title, summary, content, seo, status, visibility, required_permission,
+       format, mime_type, storage_type, is_system_template, show_in_blog, category, slug, order_index)
+     VALUES (NULL, $1, $2, $3, $4, 'published', 'public', NULL,
+             $5, $6, $7, FALSE, TRUE, $8, $9, $10)`,
+    [
+      template.title,
+      template.summary,
+      template.content,
+      JSON.stringify(template.seo || {}),
+      template.format,
+      template.mime_type,
+      template.storage_type,
+      category,
+      slug,
+      orderIndex,
+    ]
+  );
+  return { updated: 0, inserted: 1 };
+}
+
+function buildDocSets() {
   const publicDocs = [
     doc('Политика в отношении обработки персональных данных', 'Публичная политика обработки ПДн для пользователей.', 'public'),
     doc('Политика конфиденциальности', 'Публичная политика конфиденциальности сервиса.', 'public'),
@@ -194,7 +320,7 @@ async function main() {
     doc('Согласие на использование файлов cookie', 'Шаблон согласия на использование cookie по категориям.', 'public'),
     doc('Согласие на трансграничную передачу ПДн', 'Шаблон согласия на трансграничную передачу ПДн.', 'public'),
     doc('Согласие на обработку биометрических ПДн', 'Шаблон согласия на обработку биометрических ПДн.', 'public'),
-    doc('Права субъектов ПДн и отзыв согласия', 'Информация о правах субъектов ПДн и форма отзыва согласия.', 'public')
+    doc('Права субъектов ПДн и отзыв согласия', 'Информация о правах субъектов ПДн и форма отзыва согласия.', 'public'),
   ];
 
   const internalPermView = 'view_legal_docs';
@@ -218,22 +344,74 @@ async function main() {
     doc('Уведомление РКН об обработке ПДн (шаблон)', 'Шаблон уведомления РКН об обработке ПДн.', 'internal', internalPermView),
     doc('Процедуры трансграничной передачи ПДн', 'Порядок и уведомления для трансграничной передачи.', 'internal', internalPermView),
     doc('Согласие ребенка/законного представителя', 'Шаблон согласия для несовершеннолетних.', 'internal', internalPermView),
-    doc('Политика работы с cookie и сторонними сервисами', 'Регламент для cookie/аналитики/рекламы.', 'internal', internalPermView)
+    doc('Политика работы с cookie и сторонними сервисами', 'Регламент для cookie/аналитики/рекламы.', 'internal', internalPermView),
   ];
 
-  let inserted = 0, updated = 0;
+  return { publicDocs, internalDocs };
+}
+
+/**
+ * Идемпотентный seed. Возвращает статистику.
+ */
+async function seedLegalTemplates() {
+  const tableName = 'admin_pages_simple';
+  await ensureTable(tableName);
+  await ensureColumns(tableName);
+
+  const { publicDocs, internalDocs } = buildDocSets();
+
+  let inserted = 0;
+  let updated = 0;
   for (const t of [...publicDocs, ...internalDocs]) {
     const res = await upsertTemplate(tableName, t);
     inserted += res.inserted;
     updated += res.updated;
   }
 
-  console.log(`[seed:legal] completed. inserted=${inserted}, updated=${updated}`);
+  let publishedInserted = 0;
+  let publishedUpdated = 0;
+  for (let i = 0; i < publicDocs.length; i += 1) {
+    const res = await upsertPublishedPrivacyDoc(tableName, publicDocs[i], i);
+    publishedInserted += res.inserted;
+    publishedUpdated += res.updated;
+  }
+
+  let blogFilter = null;
+  try {
+    const blogFeedService = require('../../services/blogFeedService');
+    blogFilter = await blogFeedService.ensurePrivacyBlogFilter();
+  } catch (err) {
+    console.warn('[seed:legal] ensurePrivacyBlogFilter:', err.message);
+  }
+
+  return {
+    templatesInserted: inserted,
+    templatesUpdated: updated,
+    publishedInserted,
+    publishedUpdated,
+    privacySection: PRIVACY_SECTION,
+    blogFilter,
+  };
 }
 
-main().then(() => process.exit(0)).catch(err => {
-  console.error('[seed:legal] error:', err);
-  process.exit(1);
-});
+async function main() {
+  const stats = await seedLegalTemplates();
+  console.log(
+    `[seed:legal] completed. templates +${stats.templatesInserted}/~${stats.templatesUpdated}; ` +
+      `published(${stats.privacySection}) +${stats.publishedInserted}/~${stats.publishedUpdated}`
+  );
+}
 
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('[seed:legal] error:', err);
+      process.exit(1);
+    });
+}
 
+module.exports = {
+  seedLegalTemplates,
+  PRIVACY_SECTION,
+};

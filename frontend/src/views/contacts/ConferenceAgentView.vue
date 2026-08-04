@@ -298,7 +298,7 @@ onMounted(() => {
 
 .conference-section-header p {
   margin: 0 0 16px;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
 }
 
 .agent-alert {
@@ -321,9 +321,25 @@ onMounted(() => {
   gap: 8px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

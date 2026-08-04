@@ -88,8 +88,6 @@ function getOperationType(selector) {
   const selectors = {
     '0x12345678': '_addModule', // Пример селектора
     '0x87654321': '_removeModule', // Пример селектора
-    '0xabcdef12': '_addSupportedChain', // Пример селектора
-    '0x21fedcba': '_removeSupportedChain', // Пример селектора
     '0x1234abcd': '_transferTokens', // Пример селектора
     '0xabcd1234': '_updateVotingDurations', // Пример селектора
     '0x5678efgh': '_setLogoURI', // Пример селектора
@@ -99,6 +97,7 @@ function getOperationType(selector) {
   };
 
   // Вычисляем реальные селекторы
+  // Legacy: _addSupportedChain / _removeSupportedChain — только для истории старых DLE
   const realSelectors = {
     [ethers.id('_addModule(bytes32,address)').slice(0, 10)]: '_addModule',
     [ethers.id('_removeModule(bytes32)').slice(0, 10)]: '_removeModule',

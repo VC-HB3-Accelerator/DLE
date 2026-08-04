@@ -1,0 +1,29 @@
+/*
+ * Copyright (c) 2024-2026 Тарабанов Александр Викторович
+ * All rights reserved.
+ *
+ * Element Plus загружает свой :root после variables.css и сбрасывает
+ * --el-color-primary на #409eff. Этот файл импортируется в main.js
+ * ПОСЛЕ element-plus/dist/index.css, чтобы вернуть мост к теме.
+ */
+:root {
+  --el-color-primary: var(--theme-primary);
+  --el-color-primary-light-3: color-mix(in srgb, var(--theme-primary) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--theme-primary) 50%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--theme-primary) 30%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--theme-primary) 20%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--theme-primary) 10%, white);
+  --el-color-primary-dark-2: var(--theme-primary-hover);
+  --el-color-danger: var(--color-danger);
+  --el-color-warning: var(--color-warning);
+  --el-color-error: var(--color-error);
+  --el-font-family: var(--theme-font-family);
+  --el-font-size-base: var(--theme-font-size-base);
+  --el-border-color: var(--theme-border);
+  --el-text-color-primary: var(--theme-text);
+  --el-text-color-regular: var(--theme-text);
+  --el-text-color-secondary: var(--theme-text-muted);
+  --el-bg-color: var(--theme-bg);
+  --el-bg-color-page: var(--theme-surface);
+  --el-fill-color-blank: var(--theme-bg);
+}

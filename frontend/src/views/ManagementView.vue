@@ -91,7 +91,7 @@
                       @click.stop
                     >
                       {{ shortenAddress(net.address) }}
-                      <i class="fas fa-external-link-alt"></i>
+                      <UiGlyph name="external-link" :size="12" />
                     </a>
                     <span v-else class="address-missing">—</span>
                   </li>
@@ -113,7 +113,7 @@
                       @click.stop
                     >
                       {{ shortenAddress(dle.dleAddress) }}
-                      <i class="fas fa-external-link-alt"></i>
+                      <UiGlyph name="external-link" :size="12" />
                     </a>
                   </div>
                 </div>
@@ -171,6 +171,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import api from '@/api/axios';
+import UiGlyph from '../components/UiGlyph.vue';
 
 const { t } = useI18n();
 
@@ -408,12 +409,17 @@ onMounted(() => {
 
 <style scoped>
 .management-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   margin-top: 20px;
   margin-bottom: 20px;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .management-top-nav {
@@ -427,24 +433,24 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   padding: 8px 16px;
-  border-radius: var(--block-radius, 8px);
-  border: 1px solid var(--color-border, #dcdfe6);
-  background: var(--color-white, #fff);
-  color: var(--color-grey, #606266);
+  border-radius: var(--block-radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-grey);
   text-decoration: none;
-  font-size: var(--font-size-md, 0.95rem);
+  font-size: var(--font-size-md);
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .management-top-nav__link:hover {
-  border-color: var(--color-primary, #409eff);
-  color: var(--color-primary, #409eff);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .management-top-nav__link.is-active {
-  background: var(--color-primary, #409eff);
-  border-color: var(--color-primary, #409eff);
-  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
 }
 
 .management-header {
@@ -460,27 +466,6 @@ onMounted(() => {
   color: var(--color-primary);
   font-size: 2.5rem;
   margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
 }
 
 
@@ -508,20 +493,60 @@ onMounted(() => {
 
 .dles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
   gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Мобильная адаптивность для сетки */
 @media (max-width: 768px) {
+  .management-container {
+    padding: 12px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
   .dles-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }
   
   .dle-card {
     padding: 1rem;
     margin: 0;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dle-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .dle-header h3 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .network-item {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .chain-name {
+    min-width: 0;
+  }
+
+  .address-link {
+    overflow-wrap: anywhere;
+    word-break: break-all;
+    max-width: 100%;
+  }
+
+  .dle-actions {
+    flex-wrap: wrap;
   }
 }
 
@@ -532,6 +557,9 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid #e9ecef;
   transition: all 0.3s ease;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .dle-card:hover {
@@ -550,6 +578,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
@@ -557,6 +587,8 @@ onMounted(() => {
   margin: 0;
   color: var(--color-primary);
   font-size: 1.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dle-version {
@@ -601,6 +633,10 @@ onMounted(() => {
   align-items: center;
   gap: 0.25rem;
   transition: all 0.2s;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .address-link:hover {
@@ -634,8 +670,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   padding: 0.25rem 0;
   border-bottom: 1px solid #f0f0f0;
+  min-width: 0;
 }
 
 .network-item:last-child {
@@ -645,7 +683,8 @@ onMounted(() => {
 .chain-name {
   font-weight: 600;
   color: #333;
-  min-width: 120px;
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .status {
@@ -662,26 +701,13 @@ onMounted(() => {
 
 .dle-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .btn-sm {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+  /* размер — global .btn-sm */
 }
-
-.btn-info {
-  background: #17a2b8;
-  color: white;
-}
-
-.btn-info:hover {
-  background: #138496;
-}
-
-
-
-
 
 .management-block h3 {
   color: var(--color-primary);
@@ -691,37 +717,18 @@ onMounted(() => {
 }
 
 .management-block p {
-  color: var(--color-grey-dark);
+  color: var(--theme-text-muted);
   margin: 0 0 1.5rem 0;
   line-height: 1.5;
   flex-grow: 1;
 }
-
-.details-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: background 0.2s;
-  margin: 0;
-  min-width: 120px;
-}
-
-.details-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
 
 /* Стили для отображения логотипа */
 .dle-title-section {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .dle-logo {
@@ -737,7 +744,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--color-primary), #0056b3);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: white;
   display: flex;
   align-items: center;
@@ -776,7 +783,7 @@ onMounted(() => {
 }
 
 .logo-info {
-  color: #28a745;
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -828,4 +835,15 @@ onMounted(() => {
 
 
 
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
+}
 </style> 

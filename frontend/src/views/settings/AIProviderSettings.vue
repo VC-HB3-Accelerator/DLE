@@ -15,61 +15,63 @@
     <h2 v-if="showHeading">{{ label }}</h2>
     <p v-if="description" class="desc">{{ description }}</p>
     <form class="provider-form" @submit.prevent="onSave">
-      <div v-if="showApiKey" class="field">
-        <label>{{ $t('settings.ai.providerSettings.apiKey') }}</label>
+      <div v-if="showApiKey" class="form-group">
+        <label class="form-label">{{ $t('settings.ai.providerSettings.apiKey') }}</label>
         <div class="api-key-row">
-          <input type="password" v-model="apiKey" :placeholder="apiKeyPlaceholder" autocomplete="off" />
-          <button type="button" class="verify-btn" @click="onVerify" :disabled="verifying">
+          <input type="password" v-model="apiKey" class="form-control" :placeholder="apiKeyPlaceholder" autocomplete="off" />
+          <button type="button" class="btn btn-primary btn-sm verify-btn" @click="onVerify" :disabled="verifying">
             {{ $t('settings.ai.providerSettings.verify') }}
           </button>
         </div>
-        <span v-if="verifyStatus === true" class="ok">✔️</span>
-        <span v-if="verifyStatus === false" class="error">
+        <span v-if="verifyStatus === true" class="alert alert-success verify-status">{{ $t('settings.ai.providerSettings.saved') }}</span>
+        <span v-if="verifyStatus === false" class="alert alert-danger verify-status">
           {{ $t('settings.ai.providerSettings.errorPrefix') }} {{ verifyError }}
         </span>
       </div>
-      <div v-if="showBaseUrl" class="field">
-        <label>{{ $t('settings.ai.providerSettings.baseUrl') }}</label>
-        <input type="text" v-model="baseUrl" :placeholder="baseUrlPlaceholder" />
+      <div v-if="showBaseUrl" class="form-group">
+        <label class="form-label">{{ $t('settings.ai.providerSettings.baseUrl') }}</label>
+        <input type="text" v-model="baseUrl" class="form-control" :placeholder="baseUrlPlaceholder" />
       </div>
-      <div v-if="showProxy" class="proxy-block field">
+      <div v-if="showProxy" class="proxy-block form-group">
         <label class="proxy-toggle">
           <input type="checkbox" v-model="proxyEnabled" />
           <span>{{ $t('settings.ai.providerSettings.blancEnabled') }}</span>
         </label>
-        <p class="proxy-hint">{{ $t('settings.ai.providerSettings.blancHint') }}</p>
-        <label>{{ $t('settings.ai.providerSettings.blancUrl') }}</label>
+        <p class="form-hint">{{ $t('settings.ai.providerSettings.blancHint') }}</p>
+        <label class="form-label">{{ $t('settings.ai.providerSettings.blancUrl') }}</label>
         <input
           type="text"
           v-model="blancSubscriptionUrl"
+          class="form-control"
           :disabled="!proxyEnabled"
           :placeholder="$t('settings.ai.providerSettings.blancUrlPlaceholder')"
           autocomplete="off"
         />
-        <p v-if="blancMetaText" class="proxy-meta">{{ blancMetaText }}</p>
+        <p v-if="blancMetaText" class="form-hint proxy-meta">{{ blancMetaText }}</p>
         <details class="proxy-advanced">
           <summary>{{ $t('settings.ai.providerSettings.manualProxySummary') }}</summary>
-          <label>{{ $t('settings.ai.providerSettings.proxyUrl') }}</label>
+          <label class="form-label">{{ $t('settings.ai.providerSettings.proxyUrl') }}</label>
           <input
             type="text"
             v-model="proxyUrl"
+            class="form-control"
             :disabled="!proxyEnabled"
             :placeholder="$t('settings.ai.providerSettings.proxyUrlPlaceholder')"
             autocomplete="off"
           />
         </details>
       </div>
-      <div v-if="models.length" class="field">
-        <label>{{ $t('settings.ai.providerSettings.llmModel') }}</label>
-        <select v-model="selectedModel">
+      <div v-if="models.length" class="form-group">
+        <label class="form-label">{{ $t('settings.ai.providerSettings.llmModel') }}</label>
+        <select v-model="selectedModel" class="form-control">
           <option v-for="model in models" :key="model.id || model.name || model" :value="model.id || model.name || model">
             {{ model.id || model.name || model }}
           </option>
         </select>
       </div>
-      <div v-if="embeddingModels.length" class="field">
-        <label>{{ $t('settings.ai.providerSettings.embeddingModel') }}</label>
-        <select v-model="selectedEmbeddingModel">
+      <div v-if="embeddingModels.length" class="form-group">
+        <label class="form-label">{{ $t('settings.ai.providerSettings.embeddingModel') }}</label>
+        <select v-model="selectedEmbeddingModel" class="form-control">
           <option
             v-for="model in embeddingModels"
             :key="model.id || model.name || model"
@@ -79,15 +81,15 @@
           </option>
         </select>
       </div>
-      <div class="actions">
-        <button type="submit" :disabled="saving">{{ $t('common.save') }}</button>
-        <button type="button" v-if="hasSettings" @click="onDelete">
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" :disabled="saving">{{ $t('common.save') }}</button>
+        <button type="button" class="btn btn-danger" v-if="hasSettings" @click="onDelete">
           {{ $t('settings.ai.providerSettings.deleteKey') }}
         </button>
-        <button type="button" @click="$emit('cancel')">{{ $t('common.close') }}</button>
+        <button type="button" class="btn btn-ghost" @click="$emit('cancel')">{{ $t('common.close') }}</button>
       </div>
-      <div v-if="saveStatus === true" class="ok">{{ $t('settings.ai.providerSettings.saved') }}</div>
-      <div v-if="saveStatus === false" class="error">
+      <div v-if="saveStatus === true" class="alert alert-success">{{ $t('settings.ai.providerSettings.saved') }}</div>
+      <div v-if="saveStatus === false" class="alert alert-danger">
         {{ $t('settings.ai.providerSettings.errorPrefix') }} {{ saveError }}
       </div>
     </form>
@@ -243,13 +245,16 @@ async function onVerify() {
       const response = await axios.get('/ollama/status');
       data = { success: response.data.connected };
     } else {
-      const response = await axios.post(`/settings/ai-settings/${props.provider}/verify`, {
+      const body = {
         api_key: apiKey.value,
         base_url: baseUrl.value,
-        proxy_url: proxyUrl.value,
-        proxy_enabled: proxyEnabled.value,
-        blanc_subscription_url: blancSubscriptionUrl.value,
-      });
+      };
+      if (props.showProxy) {
+        body.proxy_url = proxyUrl.value;
+        body.proxy_enabled = proxyEnabled.value;
+        body.blanc_subscription_url = blancSubscriptionUrl.value;
+      }
+      const response = await axios.post(`/settings/ai-settings/${props.provider}/verify`, body);
       data = response.data;
       if (data.blanc) blancMeta.value = data.blanc;
     }
@@ -272,15 +277,19 @@ async function onSave() {
   saveStatus.value = null;
   saveError.value = '';
   try {
-    const { data } = await axios.put(`/settings/ai-settings/${props.provider}`, {
+    const body = {
       api_key: apiKey.value,
       base_url: baseUrl.value,
       selected_model: selectedModel.value,
       embedding_model: selectedEmbeddingModel.value,
-      proxy_url: proxyUrl.value,
-      proxy_enabled: proxyEnabled.value,
-      blanc_subscription_url: blancSubscriptionUrl.value,
-    });
+    };
+    // Не затирать VPN-поля, если блок прокси на этой странице скрыт
+    if (props.showProxy) {
+      body.proxy_url = proxyUrl.value;
+      body.proxy_enabled = proxyEnabled.value;
+      body.blanc_subscription_url = blancSubscriptionUrl.value;
+    }
+    const { data } = await axios.put(`/settings/ai-settings/${props.provider}`, body);
     saveStatus.value = true;
     hasSettings.value = true;
     if (data?.blanc) blancMeta.value = data.blanc;
@@ -293,18 +302,33 @@ async function onSave() {
 }
 
 async function onDelete() {
-  await axios.delete(`/settings/ai-settings/${props.provider}`);
+  // Удаляем только ключ/модели провайдера, VPN (Blanc) оставляем
+  const body = {
+    api_key: '',
+    base_url: baseUrl.value,
+    selected_model: '',
+    embedding_model: '',
+  };
+  if (props.showProxy) {
+    body.proxy_url = '';
+    body.proxy_enabled = false;
+    body.blanc_subscription_url = '';
+    body.proxy_openai = false;
+    body.proxy_telegram = false;
+  }
+  await axios.put(`/settings/ai-settings/${props.provider}`, body);
   apiKey.value = '';
-  baseUrl.value = '';
-  proxyUrl.value = '';
-  blancSubscriptionUrl.value = '';
-  blancMeta.value = null;
-  proxyEnabled.value = false;
   selectedModel.value = '';
   selectedEmbeddingModel.value = '';
   models.value = [];
   embeddingModels.value = [];
-  hasSettings.value = false;
+  if (props.showProxy) {
+    proxyUrl.value = '';
+    blancSubscriptionUrl.value = '';
+    blancMeta.value = null;
+    proxyEnabled.value = false;
+  }
+  hasSettings.value = Boolean(baseUrl.value) || props.provider === 'ollama';
 }
 
 onMounted(loadSettings);
@@ -318,69 +342,48 @@ watch([apiKey, baseUrl, proxyUrl, proxyEnabled, blancSubscriptionUrl], () => {
 
 <style scoped>
 .ai-provider-settings.settings-panel {
-  padding: var(--block-padding, 1rem);
-  margin-top: var(--spacing-lg, 1rem);
+  padding: var(--block-padding);
+  margin-top: var(--spacing-lg);
   max-width: 640px;
-  color: #222;
+  color: var(--color-text);
 }
 
 .desc {
-  color: #555;
-  margin: 0 0 1rem;
+  color: var(--color-text-light);
+  margin: 0 0 var(--spacing-lg);
   line-height: 1.4;
-}
-
-.field {
-  margin-bottom: 1rem;
-}
-
-label {
-  display: block;
-  margin-bottom: 0.35rem;
-  font-weight: 500;
-  color: #222;
 }
 
 .api-key-row {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
   align-items: center;
 }
 
-.api-key-row input {
+.api-key-row .form-control {
   flex: 1;
 }
 
-input[type='password'],
-input[type='text'],
-select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-size: 1rem;
-  color: #222;
-  background: #fff;
-  margin-bottom: 0;
+.verify-btn {
+  flex-shrink: 0;
 }
 
-input:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.verify-status {
+  display: block;
+  margin-top: var(--spacing-sm);
 }
 
 .proxy-block {
-  padding-top: 0.75rem;
-  border-top: 1px solid #eee;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .proxy-toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
   font-weight: 500;
-  margin-bottom: 0.4rem;
+  margin-bottom: var(--spacing-xs);
 }
 
 .proxy-toggle input[type='checkbox'] {
@@ -388,76 +391,30 @@ input:disabled {
   margin: 0;
 }
 
-.proxy-hint {
-  margin: 0 0 0.75rem;
-  font-size: 0.85rem;
-  color: #666;
-  line-height: 1.35;
-}
-
 .proxy-meta {
-  margin: 0.35rem 0 0.75rem;
-  font-size: 0.85rem;
-  color: #2cae4f;
+  color: var(--color-primary);
 }
 
 .proxy-advanced {
-  margin: 0.5rem 0 0;
-  font-size: 0.9rem;
+  margin: var(--spacing-sm) 0 0;
+  font-size: var(--font-size-sm);
 }
 
 .proxy-advanced summary {
   cursor: pointer;
-  color: #666;
-  margin-bottom: 0.5rem;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-sm);
 }
 
-.verify-btn {
-  flex-shrink: 0;
-  background: var(--color-primary, #2cae4f);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.45rem 1rem;
-  cursor: pointer;
-  font-size: 0.95rem;
-}
+@media (max-width: 768px) {
+  .ai-provider-settings.settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 
-.verify-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-
-.actions button {
-  padding: 0.45rem 1rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  background: #f7f7f7;
-  cursor: pointer;
-  color: #222;
-}
-
-.actions button[type='submit'] {
-  background: var(--color-primary, #2cae4f);
-  border-color: var(--color-primary, #2cae4f);
-  color: #fff;
-}
-
-.ok {
-  color: #2cae4f;
-  margin-top: 0.5rem;
-}
-
-.error {
-  color: #d32f2f;
-  margin-top: 0.5rem;
-  display: inline-block;
+  .api-key-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

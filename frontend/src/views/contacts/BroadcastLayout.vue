@@ -12,10 +12,10 @@
 
 <template>
   <BaseLayout>
-    <div class="broadcast-page">
+    <div class="broadcast-page page-with-close">
+      <PageCloseButton :on-navigate="goBack" />
       <div class="broadcast-topbar">
         <BroadcastNav />
-        <el-button @click="goBack">{{ t('contacts.broadcast.backToContacts') }}</el-button>
       </div>
 
       <router-view />
@@ -28,6 +28,7 @@ import { watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '@/components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import BroadcastNav from './BroadcastNav.vue';
 
 const BROADCAST_IDS_STORAGE_KEY = 'broadcastRecipientIds';
@@ -58,6 +59,7 @@ function goBack() {
   max-width: 960px;
   margin: 0 auto;
   padding: 24px;
+  position: relative;
 }
 
 .broadcast-topbar {
@@ -68,7 +70,7 @@ function goBack() {
   margin-bottom: 20px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .broadcast-page {
     padding: 12px;
   }
@@ -78,4 +80,6 @@ function goBack() {
     align-items: stretch;
   }
 }
+
+/* TZ package C: bp normalized */
 </style>

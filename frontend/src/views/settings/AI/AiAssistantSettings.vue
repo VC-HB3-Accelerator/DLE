@@ -12,10 +12,10 @@
 
 <template>
   <BaseLayout>
-    <div class="ai-assistant-settings-block">
-      <button class="close-btn" @click="goBack">×</button>
+    <div class="ai-assistant-settings-block panel page-with-close">
+      <PageCloseButton fallback="/settings/ai" />
       <h2>{{ $t('settings.ai.assistant.pageTitle') }}</h2>
-      <div class="assistant-status">
+      <div class="assistant-status panel">
         <h3>{{ $t('settings.ai.assistant.channelManagement') }}</h3>
         <div class="status-list">
           <div class="status-item" v-for="channel in assistantChannels" :key="channel.key">
@@ -28,10 +28,10 @@
                 {{ settings.enabled_channels?.[channel.key] ? $t('settings.ai.assistant.enabled') : $t('settings.ai.assistant.disabled') }}
               </div>
             </div>
-            <div class="status-actions">
+            <div class="status-actions btn-row">
               <button
                 type="button"
-                class="status-button enable"
+                class="btn btn-primary btn-sm"
                 :disabled="channelStatusLoading[channel.key] || settings.enabled_channels?.[channel.key]"
                 @click="setChannelStatus(channel.key, true)"
               >
@@ -39,7 +39,7 @@
               </button>
               <button
                 type="button"
-                class="status-button disable"
+                class="btn btn-ghost btn-sm status-disable"
                 :disabled="channelStatusLoading[channel.key] || !settings.enabled_channels?.[channel.key]"
                 @click="setChannelStatus(channel.key, false)"
               >
@@ -51,7 +51,7 @@
       </div>
       <div class="ai-assistant-settings settings-panel">
         <form @submit.prevent="saveSettings">
-          <label>{{ $t('settings.ai.assistant.systemPrompt') }}</label>
+          <label class="form-label">{{ $t('settings.ai.assistant.systemPrompt') }}</label>
           <div class="prompt-actions">
             <button type="button" class="linkish" @click="applyRecommendedPrompt">
               {{ $t('settings.ai.assistant.applyRecommendedPrompt') }}
@@ -59,10 +59,11 @@
           </div>
           <textarea
             v-model="settings.system_prompt"
+            class="form-control"
             rows="12"
             :placeholder="$t('settings.ai.assistant.systemPromptPlaceholder')"
           />
-          <small class="field-hint">{{ $t('settings.ai.assistant.systemPromptHelp') }}</small>
+          <small class="form-hint">{{ $t('settings.ai.assistant.systemPromptHelp') }}</small>
           <!-- Блок плейсхолдеров -->
           <div class="placeholders-block">
             <h4>{{ $t('settings.ai.assistant.placeholdersTitle') }}</h4>
@@ -81,100 +82,100 @@
                   <td><code>{ {{ ph.placeholder }} }</code></td>
                   <td>{{ ph.column_name }}</td>
                   <td>{{ ph.table_name }}</td>
-                  <td><button type="button" @click="openEditPlaceholder(ph)">{{ $t('common.edit') }}</button></td>
+                  <td><button type="button" class="btn btn-outline btn-sm" @click="openEditPlaceholder(ph)">{{ $t('common.edit') }}</button></td>
                 </tr>
               </tbody>
             </table>
           </div>
           <!-- Модалка редактирования плейсхолдера -->
           <div v-if="editingPlaceholder" class="modal-bg">
-            <div class="modal">
+            <div class="modal panel">
               <h4>{{ $t('settings.ai.assistant.editPlaceholder') }}</h4>
               <div><b>{{ $t('settings.ai.assistant.tableLabel') }}</b> {{ editingPlaceholder.table_name }}</div>
               <div><b>{{ $t('settings.ai.assistant.columnLabel') }}</b> {{ editingPlaceholder.column_name }}</div>
-              <label>{{ $t('settings.ai.assistant.placeholderCol') }}</label>
-              <input v-model="editingPlaceholderValue" />
-              <div class="actions">
-                <button type="button" @click="savePlaceholderEdit">{{ $t('common.save') }}</button>
-                <button type="button" @click="closeEditPlaceholder">{{ $t('common.cancel') }}</button>
+              <label class="form-label">{{ $t('settings.ai.assistant.placeholderCol') }}</label>
+              <input v-model="editingPlaceholderValue" class="form-control" />
+              <div class="form-actions">
+                <button type="button" class="btn btn-primary" @click="savePlaceholderEdit">{{ $t('common.save') }}</button>
+                <button type="button" class="btn btn-ghost" @click="closeEditPlaceholder">{{ $t('common.cancel') }}</button>
               </div>
             </div>
           </div>
           <!-- Настройки Ollama (инфраструктура) -->
-          <div class="ollama-settings">
+          <div class="ollama-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.ollamaInfra') }}</h3>
             <p class="section-description">{{ $t('settings.ai.assistant.ollamaInfraDesc') }}</p>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.ollamaBaseUrl') }}</label>
-              <input type="text" v-model="ollamaConfig.baseUrl" placeholder="http://ollama:11434" />
-              <small>{{ $t('settings.ai.assistant.ollamaBaseUrlHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.ollamaBaseUrl') }}</label>
+              <input type="text" v-model="ollamaConfig.baseUrl" class="form-control" placeholder="http://ollama:11434" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.ollamaBaseUrlHelp') }}</small>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.llmModelDefault') }}</label>
-                <input type="text" v-model="ollamaConfig.llmModel" placeholder="qwen2.5:1.5b" />
-                <small>{{ $t('settings.ai.assistant.llmModelDefaultHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.llmModelDefault') }}</label>
+                <input type="text" v-model="ollamaConfig.llmModel" class="form-control" placeholder="qwen2.5:1.5b" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.llmModelDefaultHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.embeddingModelDefault') }}</label>
-                <input type="text" v-model="ollamaConfig.embeddingModel" placeholder="mxbai-embed-large:latest" />
-                <small>{{ $t('settings.ai.assistant.embeddingModelDefaultHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.embeddingModelDefault') }}</label>
+                <input type="text" v-model="ollamaConfig.embeddingModel" class="form-control" placeholder="mxbai-embed-large:latest" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.embeddingModelDefaultHelp') }}</small>
               </div>
             </div>
           </div>
 
           <!-- Настройки Vector Search -->
-          <div class="vector-search-settings">
+          <div class="vector-search-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.vectorSearchTitle') }}</h3>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.vectorSearchUrl') }}</label>
-              <input type="text" v-model="vectorSearchConfig.url" placeholder="http://vector-search:8001" />
-              <small>{{ $t('settings.ai.assistant.vectorSearchUrlHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.vectorSearchUrl') }}</label>
+              <input type="text" v-model="vectorSearchConfig.url" class="form-control" placeholder="http://vector-search:8001" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.vectorSearchUrlHelp') }}</small>
             </div>
           </div>
 
           <!-- Выбор модели для AI ассистента -->
-          <div class="model-selection-settings">
+          <div class="model-selection-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.modelSelectionTitle') }}</h3>
             <p class="section-description">{{ $t('settings.ai.assistant.modelSelectionDesc') }}</p>
             
-            <label>{{ $t('settings.ai.assistant.llmForAssistant') }}</label>
-          <select v-if="llmModels.length" v-model="settings.model">
+            <label class="form-label">{{ $t('settings.ai.assistant.llmForAssistant') }}</label>
+          <select v-if="llmModels.length" v-model="settings.model" class="form-control">
               <option value="">{{ $t('settings.ai.assistant.useDefaultOllama') }}</option>
             <option v-for="m in llmModels" :key="m.id" :value="m.id">{{ m.id }} ({{ m.provider }})</option>
           </select>
-          <input v-else v-model="settings.model" placeholder="qwen2.5" />
-            <small v-if="!settings.model">{{ $t('settings.ai.assistant.willUseLlm', { model: ollamaConfig.llmModel }) }}</small>
+          <input v-else v-model="settings.model" class="form-control" placeholder="qwen2.5" />
+            <small v-if="!settings.model" class="form-hint">{{ $t('settings.ai.assistant.willUseLlm', { model: ollamaConfig.llmModel }) }}</small>
             
-            <label>{{ $t('settings.ai.assistant.embeddingForAssistant') }}</label>
-          <select v-if="filteredEmbeddingModels.length" v-model="settings.embedding_model">
+            <label class="form-label">{{ $t('settings.ai.assistant.embeddingForAssistant') }}</label>
+          <select v-if="filteredEmbeddingModels.length" v-model="settings.embedding_model" class="form-control">
               <option value="">{{ $t('settings.ai.assistant.useDefaultOllama') }}</option>
             <option v-for="m in filteredEmbeddingModels" :key="m.id" :value="m.id">{{ m.id }} ({{ m.provider }})</option>
           </select>
-          <input v-else v-model="settings.embedding_model" placeholder="bge-base-zh" />
-            <small v-if="!settings.embedding_model">{{ $t('settings.ai.assistant.willUseEmbedding', { model: ollamaConfig.embeddingModel }) }}</small>
+          <input v-else v-model="settings.embedding_model" class="form-control" placeholder="bge-base-zh" />
+            <small v-if="!settings.embedding_model" class="form-hint">{{ $t('settings.ai.assistant.willUseEmbedding', { model: ollamaConfig.embeddingModel }) }}</small>
           </div>
-          <label>{{ $t('settings.ai.assistant.ragTables') }}</label>
-          <select v-model="settings.selected_rag_tables" :multiple="false">
+          <label class="form-label">{{ $t('settings.ai.assistant.ragTables') }}</label>
+          <select v-model="settings.selected_rag_tables" class="form-control" :multiple="false">
             <option value="">{{ $t('settings.ai.assistant.selectTable') }}</option>
             <option v-for="table in ragTables" :key="table.id" :value="table.id">
               {{ getTableDisplayName(table) }}
             </option>
           </select>
-          <label>{{ $t('settings.ai.assistant.rulesSet') }}</label>
-          <div class="rules-row">
-            <select v-model="settings.rules_id">
+          <label class="form-label">{{ $t('settings.ai.assistant.rulesSet') }}</label>
+          <div class="rules-row btn-row">
+            <select v-model="settings.rules_id" class="form-control">
               <option value="">{{ $t('settings.ai.assistant.selectRules') }}</option>
               <option v-for="rule in rulesList" :key="rule.id" :value="rule.id">
                 {{ getRuleDisplayName(rule) }}
               </option>
             </select>
-            <button type="button" @click="openRuleEditor()">{{ $t('common.create') }}</button>
-            <button type="button" :disabled="!settings.rules_id" @click="openRuleEditor(settings.rules_id)">{{ $t('common.edit') }}</button>
-            <button type="button" :disabled="!settings.rules_id" @click="deleteRule(settings.rules_id)">{{ $t('common.delete') }}</button>
+            <button type="button" class="btn btn-primary btn-sm" @click="openRuleEditor()">{{ $t('common.create') }}</button>
+            <button type="button" class="btn btn-outline btn-sm" :disabled="!settings.rules_id" @click="openRuleEditor(settings.rules_id)">{{ $t('common.edit') }}</button>
+            <button type="button" class="btn btn-danger btn-sm" :disabled="!settings.rules_id" @click="deleteRule(settings.rules_id)">{{ $t('common.delete') }}</button>
           </div>
           <div v-if="selectedRule">
             <p><b>{{ $t('settings.ai.assistant.descriptionLabel') }}</b> {{ selectedRule.description }}</p>
@@ -183,42 +184,42 @@
             </p>
             <pre class="rules-json">{{ JSON.stringify(selectedRule.rules, null, 2) }}</pre>
           </div>
-          <label>{{ $t('settings.ai.assistant.telegramBot') }}</label>
-          <select v-model="settings.telegram_settings_id">
+          <label class="form-label">{{ $t('settings.ai.assistant.telegramBot') }}</label>
+          <select v-model="settings.telegram_settings_id" class="form-control">
             <option v-for="tg in telegramBots" :key="tg.id" :value="tg.id">
               {{ tg.bot_username }}
             </option>
           </select>
-          <label>{{ $t('settings.ai.assistant.contactEmail') }}</label>
-          <select v-model="settings.email_settings_id">
+          <label class="form-label">{{ $t('settings.ai.assistant.contactEmail') }}</label>
+          <select v-model="settings.email_settings_id" class="form-control">
             <option v-for="em in emailList" :key="em.id" :value="em.id">
               {{ em.from_email }}
             </option>
           </select>
           
           <!-- Настройки RAG поиска -->
-          <div class="rag-search-settings">
+          <div class="rag-search-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.ragSearchTitle') }}</h3>
             
             <!-- Порог расстояния (threshold) -->
-            <label>{{ $t('settings.ai.assistant.ragThreshold') }}</label>
-            <input type="number" v-model.number="ragSettings.threshold" min="0" max="1000" step="10" />
-            <small>{{ $t('settings.ai.assistant.ragThresholdHelp') }}</small>
+            <label class="form-label">{{ $t('settings.ai.assistant.ragThreshold') }}</label>
+            <input type="number" v-model.number="ragSettings.threshold" class="form-control form-control--narrow" min="0" max="1000" step="10" />
+            <small class="form-hint">{{ $t('settings.ai.assistant.ragThresholdHelp') }}</small>
             
             <!-- Метод поиска -->
-            <label>{{ $t('settings.ai.assistant.searchMethod') }}</label>
-            <select v-model="ragSettings.searchMethod">
+            <label class="form-label">{{ $t('settings.ai.assistant.searchMethod') }}</label>
+            <select v-model="ragSettings.searchMethod" class="form-control">
               <option value="semantic">{{ $t('settings.ai.assistant.searchSemantic') }}</option>
               <option value="keyword">{{ $t('settings.ai.assistant.searchKeyword') }}</option>
               <option value="hybrid">{{ $t('settings.ai.assistant.searchHybrid') }}</option>
             </select>
             
             <!-- Количество результатов -->
-            <label>{{ $t('settings.ai.assistant.maxResults') }}</label>
-            <input type="number" v-model.number="ragSettings.maxResults" min="1" max="20" />
+            <label class="form-label">{{ $t('settings.ai.assistant.maxResults') }}</label>
+            <input type="number" v-model.number="ragSettings.maxResults" class="form-control form-control--narrow" min="1" max="20" />
             
             <!-- Порог релевантности -->
-            <label>{{ $t('settings.ai.assistant.relevanceThreshold', { value: ragSettings.relevanceThreshold }) }}</label>
+            <label class="form-label">{{ $t('settings.ai.assistant.relevanceThreshold', { value: ragSettings.relevanceThreshold }) }}</label>
             <input type="range" v-model.number="ragSettings.relevanceThreshold" 
                    min="0.01" max="1.0" step="0.01" />
             
@@ -230,12 +231,12 @@
                 {{ $t('settings.ai.assistant.enableKeywordExtraction') }}
               </label>
               
-              <label>{{ $t('settings.ai.assistant.minWordLength') }}</label>
-              <input type="number" v-model="ragSettings.keywordExtraction.minWordLength" 
+              <label class="form-label">{{ $t('settings.ai.assistant.minWordLength') }}</label>
+              <input type="number" v-model="ragSettings.keywordExtraction.minWordLength" class="form-control form-control--narrow"
                      min="2" max="10" />
               
-              <label>{{ $t('settings.ai.assistant.maxKeywords') }}</label>
-              <input type="number" v-model="ragSettings.keywordExtraction.maxKeywords" 
+              <label class="form-label">{{ $t('settings.ai.assistant.maxKeywords') }}</label>
+              <input type="number" v-model="ragSettings.keywordExtraction.maxKeywords" class="form-control form-control--narrow"
                      min="5" max="20" />
               
               <label class="checkbox-label">
@@ -247,11 +248,11 @@
             <!-- Веса для гибридного поиска -->
             <div v-if="ragSettings.searchMethod === 'hybrid'" class="search-weights">
               <h4>{{ $t('settings.ai.assistant.searchWeights') }}</h4>
-              <label>{{ $t('settings.ai.assistant.semanticWeight', { value: ragSettings.searchWeights.semantic }) }}</label>
+              <label class="form-label">{{ $t('settings.ai.assistant.semanticWeight', { value: ragSettings.searchWeights.semantic }) }}</label>
               <input type="range" v-model="ragSettings.searchWeights.semantic" 
                      min="0" max="100" />
               
-              <label>{{ $t('settings.ai.assistant.keywordWeight', { value: ragSettings.searchWeights.keyword }) }}</label>
+              <label class="form-label">{{ $t('settings.ai.assistant.keywordWeight', { value: ragSettings.searchWeights.keyword }) }}</label>
               <input type="range" v-model="ragSettings.searchWeights.keyword" 
                      min="0" max="100" />
             </div>
@@ -275,77 +276,77 @@
           </div>
 
           <!-- Настройки LLM параметров -->
-          <div class="llm-parameters-settings">
+          <div class="llm-parameters-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.llmParamsTitle') }}</h3>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.temperature') }}</label>
-                <input type="number" v-model.number="llmParameters.temperature" min="0" max="2" step="0.1" />
-                <small>{{ $t('settings.ai.assistant.temperatureHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.temperature') }}</label>
+                <input type="number" v-model.number="llmParameters.temperature" class="form-control form-control--narrow" min="0" max="2" step="0.1" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.temperatureHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.maxTokens') }}</label>
-                <input type="number" v-model.number="llmParameters.maxTokens" min="1" max="4000" />
-                <small>{{ $t('settings.ai.assistant.maxTokensHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.maxTokens') }}</label>
+                <input type="number" v-model.number="llmParameters.maxTokens" class="form-control form-control--narrow" min="1" max="4000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.maxTokensHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.topP') }}</label>
-                <input type="number" v-model.number="llmParameters.top_p" min="0" max="1" step="0.01" />
-                <small>{{ $t('settings.ai.assistant.topPHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.topP') }}</label>
+                <input type="number" v-model.number="llmParameters.top_p" class="form-control form-control--narrow" min="0" max="1" step="0.01" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.topPHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.topK') }}</label>
-                <input type="number" v-model.number="llmParameters.top_k" min="1" max="100" />
-                <small>{{ $t('settings.ai.assistant.topKHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.topK') }}</label>
+                <input type="number" v-model.number="llmParameters.top_k" class="form-control form-control--narrow" min="1" max="100" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.topKHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.repeatPenalty') }}</label>
-              <input type="number" v-model.number="llmParameters.repeat_penalty" min="1.0" max="2.0" step="0.1" />
-              <small>{{ $t('settings.ai.assistant.repeatPenaltyHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.repeatPenalty') }}</label>
+              <input type="number" v-model.number="llmParameters.repeat_penalty" class="form-control form-control--narrow" min="1.0" max="2.0" step="0.1" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.repeatPenaltyHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки Qwen -->
-          <div class="qwen-parameters-settings">
+          <div class="qwen-parameters-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.qwenParamsTitle') }}</h3>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.format') }}</label>
-              <select v-model="qwenParameters.format">
+              <label class="form-label">{{ $t('settings.ai.assistant.format') }}</label>
+              <select v-model="qwenParameters.format" class="form-control">
                 <option :value="null">{{ $t('settings.ai.assistant.formatAuto') }}</option>
                 <option value="json">{{ $t('settings.ai.assistant.formatJson') }}</option>
               </select>
-              <small>{{ $t('settings.ai.assistant.formatHelp') }}</small>
+              <small class="form-hint">{{ $t('settings.ai.assistant.formatHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки Embedding -->
-          <div class="embedding-parameters-settings">
+          <div class="embedding-parameters-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.embeddingParamsTitle') }}</h3>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.batchSize') }}</label>
-                <input type="number" v-model.number="embeddingParameters.batch_size" min="1" max="128" />
-                <small>{{ $t('settings.ai.assistant.batchSizeHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.batchSize') }}</label>
+                <input type="number" v-model.number="embeddingParameters.batch_size" class="form-control form-control--narrow" min="1" max="128" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.batchSizeHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.dimension') }}</label>
-                <input type="number" v-model.number="embeddingParameters.dimension" min="0" :placeholder="$t('settings.ai.assistant.dimensionPlaceholder')" />
-                <small>{{ $t('settings.ai.assistant.dimensionHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.dimension') }}</label>
+                <input type="number" v-model.number="embeddingParameters.dimension" class="form-control form-control--narrow" min="0" :placeholder="$t('settings.ai.assistant.dimensionPlaceholder')" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.dimensionHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.pooling') }}</label>
-                <select v-model="embeddingParameters.pooling">
+                <label class="form-label">{{ $t('settings.ai.assistant.pooling') }}</label>
+                <select v-model="embeddingParameters.pooling" class="form-control">
                   <option value="mean">{{ $t('settings.ai.assistant.poolingMean') }}</option>
                   <option value="max">{{ $t('settings.ai.assistant.poolingMax') }}</option>
                   <option value="cls">{{ $t('settings.ai.assistant.poolingCls') }}</option>
@@ -361,7 +362,7 @@
           </div>
 
           <!-- Настройки кэша -->
-          <div class="cache-settings">
+          <div class="cache-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.cacheTitle') }}</h3>
             
             <label class="checkbox-label">
@@ -371,26 +372,26 @@
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.llmTtl') }}</label>
-                <input type="number" v-model.number="cacheSettings.llmTTL" min="0" step="1000" />
-                <small>{{ $t('settings.ai.assistant.llmTtlHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.llmTtl') }}</label>
+                <input type="number" v-model.number="cacheSettings.llmTTL" class="form-control form-control--narrow" min="0" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.llmTtlHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.ragTtl') }}</label>
-                <input type="number" v-model.number="cacheSettings.ragTTL" min="0" step="1000" />
-                <small>{{ $t('settings.ai.assistant.ragTtlHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.ragTtl') }}</label>
+                <input type="number" v-model.number="cacheSettings.ragTTL" class="form-control form-control--narrow" min="0" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.ragTtlHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.cacheMaxSize') }}</label>
-              <input type="number" v-model.number="cacheSettings.maxSize" min="1" max="10000" />
-              <small>{{ $t('settings.ai.assistant.cacheMaxSizeHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.cacheMaxSize') }}</label>
+              <input type="number" v-model.number="cacheSettings.maxSize" class="form-control form-control--narrow" min="1" max="10000" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.cacheMaxSizeHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки очереди -->
-          <div class="queue-settings">
+          <div class="queue-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.queueTitle') }}</h3>
             
             <label class="checkbox-label">
@@ -400,26 +401,26 @@
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.queueTimeout') }}</label>
-                <input type="number" v-model.number="queueSettings.timeout" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.queueTimeoutHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.queueTimeout') }}</label>
+                <input type="number" v-model.number="queueSettings.timeout" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.queueTimeoutHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.queueMaxSize') }}</label>
-                <input type="number" v-model.number="queueSettings.maxSize" min="1" max="1000" />
-                <small>{{ $t('settings.ai.assistant.queueMaxSizeHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.queueMaxSize') }}</label>
+                <input type="number" v-model.number="queueSettings.maxSize" class="form-control form-control--narrow" min="1" max="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.queueMaxSizeHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.queueInterval') }}</label>
-              <input type="number" v-model.number="queueSettings.interval" min="10" step="10" />
-              <small>{{ $t('settings.ai.assistant.queueIntervalHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.queueInterval') }}</label>
+              <input type="number" v-model.number="queueSettings.interval" class="form-control form-control--narrow" min="10" step="10" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.queueIntervalHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки дедупликации -->
-          <div class="deduplication-settings">
+          <div class="deduplication-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.dedupTitle') }}</h3>
             
             <label class="checkbox-label">
@@ -428,14 +429,14 @@
             </label>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.dedupTtl') }}</label>
-              <input type="number" v-model.number="deduplicationSettings.ttl" min="1000" step="1000" />
-              <small>{{ $t('settings.ai.assistant.dedupTtlHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.dedupTtl') }}</label>
+              <input type="number" v-model.number="deduplicationSettings.ttl" class="form-control form-control--narrow" min="1000" step="1000" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.dedupTtlHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки RAG поведения -->
-          <div class="rag-behavior-settings">
+          <div class="rag-behavior-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.ragBehaviorTitle') }}</h3>
             
             <label class="checkbox-label">
@@ -450,58 +451,57 @@
           </div>
 
           <!-- Настройки таймаутов -->
-          <div class="timeouts-settings">
+          <div class="timeouts-settings settings-section panel">
             <h3>{{ $t('settings.ai.assistant.timeoutsTitle') }}</h3>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.timeoutOllamaChat') }}</label>
-                <input type="number" v-model.number="timeouts.ollamaChat" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.timeoutOllamaChatHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaChat') }}</label>
+                <input type="number" v-model.number="timeouts.ollamaChat" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaChatHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.timeoutOllamaEmbedding') }}</label>
-                <input type="number" v-model.number="timeouts.ollamaEmbedding" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.timeoutOllamaEmbeddingHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.timeoutVectorSearch') }}</label>
-                <input type="number" v-model.number="timeouts.vectorSearch" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.timeoutVectorSearchHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.timeoutVectorUpsert') }}</label>
-                <input type="number" v-model.number="timeouts.vectorUpsert" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.timeoutVectorUpsertHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaEmbedding') }}</label>
+                <input type="number" v-model.number="timeouts.ollamaEmbedding" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaEmbeddingHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.timeoutVectorHealth') }}</label>
-                <input type="number" v-model.number="timeouts.vectorHealth" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.timeoutVectorHealthHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorSearch') }}</label>
+                <input type="number" v-model.number="timeouts.vectorSearch" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutVectorSearchHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>{{ $t('settings.ai.assistant.timeoutOllamaHealth') }}</label>
-                <input type="number" v-model.number="timeouts.ollamaHealth" min="1000" step="1000" />
-                <small>{{ $t('settings.ai.assistant.timeoutOllamaHealthHelp') }}</small>
+                <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorUpsert') }}</label>
+                <input type="number" v-model.number="timeouts.vectorUpsert" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutVectorUpsertHelp') }}</small>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorHealth') }}</label>
+                <input type="number" v-model.number="timeouts.vectorHealth" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutVectorHealthHelp') }}</small>
+              </div>
+              <div class="form-group">
+                <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaHealth') }}</label>
+                <input type="number" v-model.number="timeouts.ollamaHealth" class="form-control form-control--narrow" min="1000" step="1000" />
+                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaHealthHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>{{ $t('settings.ai.assistant.timeoutOllamaTags') }}</label>
-              <input type="number" v-model.number="timeouts.ollamaTags" min="1000" step="1000" />
-              <small>{{ $t('settings.ai.assistant.timeoutOllamaTagsHelp') }}</small>
+              <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaTags') }}</label>
+              <input type="number" v-model.number="timeouts.ollamaTags" class="form-control form-control--narrow" min="1000" step="1000" />
+              <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaTagsHelp') }}</small>
             </div>
           </div>
           
-          <div class="actions">
-            <button type="submit">{{ $t('common.save') }}</button>
-            <button type="button" @click="goBack">{{ $t('common.cancel') }}</button>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{{ $t('common.save') }}</button>
           </div>
         </form>
         <RuleEditor v-if="showRuleEditor" :rule="editingRule" @close="onRuleEditorClose" />
@@ -521,8 +521,11 @@ import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import RuleEditor from '@/components/ai-assistant/RuleEditor.vue';
 import SystemMonitoring from '@/components/ai-assistant/SystemMonitoring.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 const router = useRouter();
-const goBack = () => router.push('/settings/ai');
+function goBack() {
+  router.push('/settings/ai');
+}
 const defaultEnabledChannels = { web: true, telegram: true, email: true };
 const settings = ref({
   system_prompt: '',
@@ -1060,33 +1063,23 @@ function getRuleDisplayName(rule) {
 
 <style scoped>
 .ai-assistant-settings-block {
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   position: relative;
   overflow-x: auto;
 }
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+
+.page-with-close {
+  position: relative;
 }
-.close-btn:hover {
-  color: #333;
-}
+
 h2 {
   margin-bottom: 0;
 }
+
 .ai-assistant-settings.settings-panel {
   background: none !important;
   box-shadow: none !important;
@@ -1094,335 +1087,203 @@ h2 {
   margin-top: 0 !important;
   max-width: 100% !important;
   padding: 0 !important;
+  border: none !important;
 }
+
 .assistant-status {
-  margin: 1.5rem 0;
-  padding: 1.5rem;
-  background: #f4f8ff;
-  border: 1px solid #d9e8ff;
-  border-radius: 8px;
+  margin: var(--spacing-xl) 0;
+  background: color-mix(in srgb, var(--color-secondary) 8%, white);
+  border-color: color-mix(in srgb, var(--color-secondary) 25%, white);
 }
+
 .assistant-status h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-  color: #2c3e50;
+  margin: 0 0 var(--spacing-md);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
 }
+
 .assistant-status .status-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-md);
 }
+
 .assistant-status .status-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: var(--spacing-lg);
   flex-wrap: wrap;
-  background: #fff;
-  border: 1px solid #e3ecff;
-  border-radius: 8px;
-  padding: 0.9rem 1.1rem;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
 }
+
 .assistant-status .status-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--spacing-xs);
 }
+
 .assistant-status .status-name {
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text);
 }
+
 .assistant-status .status-value {
   font-weight: 500;
 }
+
 .assistant-status .status-enabled {
-  color: #2ecc40;
+  color: var(--color-primary);
 }
+
 .assistant-status .status-disabled {
-  color: #e74c3c;
+  color: var(--color-danger);
 }
-.assistant-status .status-actions {
-  display: flex;
-  gap: 0.75rem;
+
+.status-disable {
+  color: var(--color-danger);
 }
-.assistant-status .status-button {
-  min-width: 130px;
-  border-radius: 6px;
-  padding: 0.45rem 1rem;
-  font-size: 0.95rem;
-  transition: opacity 0.2s, transform 0.1s;
-}
-.assistant-status .status-button.enable {
-  background: var(--color-primary);
-  color: #fff;
-}
-.assistant-status .status-button.disable {
-  background: #ffeded;
-  color: #c0392b;
-}
-.assistant-status .status-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-}
-.assistant-status .status-button:not(:disabled):active {
-  transform: scale(0.98);
-}
-label {
-  display: block;
-  margin-top: 1rem;
-  font-weight: 500;
-}
-textarea, input, select {
-  width: 100%;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  font-size: 1rem;
-}
-select[multiple] {
-  min-height: 80px;
-}
+
 .rules-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--spacing-sm);
 }
+
+.rules-row .form-control {
+  flex: 1;
+  min-width: 200px;
+}
+
 .prompt-actions {
-  margin: 0.25rem 0 0.5rem;
+  margin: var(--spacing-xs) 0 var(--spacing-sm);
 }
+
 .prompt-actions .linkish {
   background: transparent;
   border: none;
-  color: var(--color-primary, #007bff);
+  color: var(--color-primary);
   padding: 0;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   text-decoration: underline;
 }
-.field-hint {
-  display: block;
-  margin-top: 0.35rem;
-  color: #666;
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
+
 .rules-json {
-  background: #f7f7f7;
-  border-radius: 6px;
-  padding: 0.5rem;
-  font-size: 0.95em;
-  margin-top: 0.5rem;
+  background: var(--color-light);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-sm);
   white-space: pre-wrap;
 }
-.actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-button[type="submit"], .actions button {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-}
-button[type="button"] {
-  background: #eee;
-  color: #333;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-}
+
 .modal-bg {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.25);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(31, 41, 55, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 }
+
 .modal {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.12);
-  padding: 2rem;
   min-width: 320px;
   max-width: 420px;
 }
-.error {
-  color: #c00;
-  margin-top: 0.5rem;
-}
-.rag-table-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1em 0;
-}
-.rag-table-link {
-  color: #2ecc40;
-  text-decoration: underline;
-  cursor: pointer;
-  font-weight: 500;
-}
-.rag-table-link:hover {
-  color: #27ae38;
-}
+
 .placeholders-block {
-  margin: 1.5em 0 2em 0;
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 1em 1.5em;
+  margin: var(--spacing-xl) 0;
+  background: var(--color-light);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
 }
+
 .placeholders-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.5em;
-  background: #fff;
+  margin-top: var(--spacing-sm);
+  background: var(--color-white);
 }
-.placeholders-table th, .placeholders-table td {
-  border: 1px solid #ececec;
-  padding: 0.5em 0.7em;
-  font-size: 1em;
+
+.placeholders-table th,
+.placeholders-table td {
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-md);
 }
+
 .placeholders-table th {
-  background: #f7f7f7;
+  background: var(--color-light);
   font-weight: 600;
 }
+
 .empty-placeholder {
-  color: #888;
-  font-size: 1em;
-  margin: 0.7em 0;
+  color: var(--color-text-light);
+  font-size: var(--font-size-md);
+  margin: var(--spacing-md) 0;
 }
 
-/* Стили для описаний секций */
 .section-description {
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  background: #f0f0f0;
-  border-radius: 4px;
-  border-left: 3px solid #4a90e2;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-light);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-secondary);
 }
 
-/* Блок выбора модели */
-.model-selection-settings {
-  margin: 2rem 0;
-  padding: 1.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: #fafafa;
+.settings-section {
+  margin: var(--spacing-xl) 0;
 }
 
-.model-selection-settings h3 {
+.settings-section h3 {
   margin-top: 0;
-  margin-bottom: 1rem;
-  color: #333;
-  font-size: 1.2rem;
-  border-bottom: 2px solid #ddd;
-  padding-bottom: 0.5rem;
+  margin-bottom: var(--spacing-lg);
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-sm);
 }
 
-.model-selection-settings label {
-  display: block;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
+.keyword-settings,
+.search-weights,
+.advanced-settings {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-lg);
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
 }
 
-.model-selection-settings small {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
-  color: #666;
-  font-style: italic;
-}
-
-/* Общие стили для секций настроек */
-.ollama-settings,
-.vector-search-settings,
-.rag-search-settings,
-.llm-parameters-settings,
-.qwen-parameters-settings,
-.embedding-parameters-settings,
-.cache-settings,
-.queue-settings,
-.deduplication-settings,
-.rag-behavior-settings,
-.timeouts-settings {
-  margin: 2rem 0;
-  padding: 1.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: #fafafa;
-}
-
-.ollama-settings h3,
-.vector-search-settings h3,
-.rag-search-settings h3,
-.llm-parameters-settings h3,
-.qwen-parameters-settings h3,
-.embedding-parameters-settings h3,
-.cache-settings h3,
-.queue-settings h3,
-.deduplication-settings h3,
-.rag-behavior-settings h3,
-.timeouts-settings h3 {
+.keyword-settings h4,
+.search-weights h4,
+.advanced-settings h4 {
   margin-top: 0;
-  margin-bottom: 1.5rem;
-  color: #333;
-  font-size: 1.2rem;
-  border-bottom: 2px solid #ddd;
-  padding-bottom: 0.5rem;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text);
+  font-size: var(--font-size-md);
 }
 
-/* Стили для настроек RAG поиска */
-.rag-search-settings {
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
-
-.rag-search-settings h3 {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  color: #333;
-  font-size: 1.2rem;
-}
-
-.keyword-settings, .search-weights, .advanced-settings {
-  margin: 1rem 0;
-  padding: 1rem;
-  background: #fff;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
-}
-
-.keyword-settings h4, .search-weights h4, .advanced-settings h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #555;
-  font-size: 1rem;
-}
-
-.search-weights input[type="range"] {
+.search-weights input[type="range"],
+.rag-search-settings input[type="range"] {
   width: 100%;
-  margin: 0.5rem 0;
+  margin: var(--spacing-sm) 0;
 }
 
 .checkbox-label {
   display: flex !important;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0.5rem 0;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-sm) 0;
   font-weight: normal;
 }
 
@@ -1431,22 +1292,11 @@ button[type="button"] {
   margin: 0;
 }
 
-.rag-search-settings input[type="range"] {
-  width: 100%;
-  margin: 0.5rem 0;
-}
-
-.rag-search-settings input[type="number"] {
-  width: 100px;
-  margin-right: 1rem;
-}
-
-/* Стили для form-row и form-group */
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin: 1rem 0;
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
 }
 
 .form-group {
@@ -1454,49 +1304,27 @@ button[type="button"] {
   flex-direction: column;
 }
 
-.form-group label {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-}
-
-.form-group small {
-  font-size: 0.85rem;
-  color: #666;
-  margin-top: 0.25rem;
-  font-style: italic;
-}
-
-/* Улучшенные стили для всех секций */
-.keyword-settings, .search-weights, .advanced-settings {
-  margin: 1rem 0;
-  padding: 1rem;
-  background: #fff;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
-}
-
-.keyword-settings h4, .search-weights h4, .advanced-settings h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #555;
-  font-size: 1rem;
-}
-
-/* Стили для input и select в секциях настроек */
-.llm-parameters-settings input[type="number"],
-.qwen-parameters-settings input[type="number"],
-.embedding-parameters-settings input[type="number"],
-.cache-settings input[type="number"],
-.queue-settings input[type="number"],
-.deduplication-settings input[type="number"] {
-  width: 100%;
+.form-control--narrow {
   max-width: 200px;
 }
 
-.llm-parameters-settings select,
-.qwen-parameters-settings select,
-.embedding-parameters-settings select {
-  width: 100%;
-  max-width: 300px;
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-status .status-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .assistant-status .status-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .form-control--narrow {
+    max-width: 100%;
+  }
 }
 </style> 

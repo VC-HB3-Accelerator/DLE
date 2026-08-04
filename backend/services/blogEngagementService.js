@@ -10,44 +10,8 @@ const encryptionUtils = require('../utils/encryptionUtils');
 
 const encryptionKey = encryptionUtils.getEncryptionKey();
 
-function maskIdentity(provider, value) {
-  if (!value) return 'Пользователь';
-  if (provider === 'wallet' && value.length > 10) {
-    return `${value.slice(0, 6)}...${value.slice(-4)}`;
-  }
-  if (provider === 'email' && value.includes('@')) {
-    const [local, domain] = value.split('@');
-    const masked = local.length > 2 ? `${local.slice(0, 2)}***` : `${local}***`;
-    return `${masked}@${domain}`;
-  }
-  if (provider === 'telegram') {
-    return value.startsWith('@') ? value : `@${value}`;
-  }
-  return String(value).slice(0, 20);
-}
-
-async function getUserDisplayName(userId) {
-  const { rows } = await db.getQuery()(
-    `SELECT
-      (SELECT decrypt_text(provider_id_encrypted, $2)
-       FROM user_identities
-       WHERE user_id = $1 AND provider_encrypted = encrypt_text('telegram', $2)
-       LIMIT 1) AS telegram,
-      (SELECT decrypt_text(provider_id_encrypted, $2)
-       FROM user_identities
-       WHERE user_id = $1 AND provider_encrypted = encrypt_text('email', $2)
-       LIMIT 1) AS email,
-      (SELECT decrypt_text(provider_id_encrypted, $2)
-       FROM user_identities
-       WHERE user_id = $1 AND provider_encrypted = encrypt_text('wallet', $2)
-       LIMIT 1) AS wallet`,
-    [userId, encryptionKey]
-  );
-
-  const row = rows[0] || {};
-  if (row.telegram) return maskIdentity('telegram', row.telegram);
-  if (row.email) return maskIdentity('email', row.email);
-  if (row.wallet) return maskIdentity('wallet', row.wallet);
+/** Публичный автор комментария: только id, без email/telegram/wallet. */
+function getUserDisplayName(userId) {
   return `User #${userId}`;
 }
 

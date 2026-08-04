@@ -525,7 +525,7 @@ const updateConnectionDisplay = (isConnected, authType, authData = {}) => {
  * @returns {Promise<Object>} - Результат операции
  */
 const linkIdentity = async (type, value) => {
-  const response = await axios.post('/link', {
+  const response = await axios.post('/identities/link', {
     type,
     value,
   });
@@ -539,7 +539,9 @@ const linkIdentity = async (type, value) => {
  * @returns {Promise<Object>} - Результат операции
  */
 const deleteIdentity = async (provider, providerId) => {
-  const response = await axios.delete(`/${provider}/${encodeURIComponent(providerId)}`);
+  const response = await axios.delete(
+    `/identities/${encodeURIComponent(provider)}/${encodeURIComponent(providerId)}`
+  );
   return response.data;
 };
 

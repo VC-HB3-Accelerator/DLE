@@ -4,14 +4,14 @@
 -->
 
 <template>
-  <div class="updates-settings settings-panel">
-    <button class="close-btn" type="button" @click="router.push('/settings')">×</button>
+  <div class="updates-settings settings-panel panel page-with-close">
+    <PageCloseButton fallback="/settings" />
     <h2>{{ t('settings.updates.pageTitle') }}</h2>
     <p class="updates-settings__intro">{{ t('settings.updates.intro') }}</p>
 
-    <div v-if="loadError" class="updates-settings__error">{{ loadError }}</div>
+    <div v-if="loadError" class="alert alert-danger">{{ loadError }}</div>
 
-    <section class="updates-settings__card">
+    <section class="updates-settings__card panel">
       <h3>{{ t('settings.updates.versionsTitle') }}</h3>
       <dl class="updates-settings__meta">
         <div>
@@ -28,36 +28,33 @@
         </div>
       </dl>
       <p v-if="latest?.changelog" class="updates-settings__changelog">{{ latest.changelog }}</p>
-      <p v-if="status.stubMode" class="updates-settings__hint">
-        {{ t('settings.updates.stubHint') }}
-      </p>
-      <p v-if="status.hubUrl" class="updates-settings__hint">
+      <p v-if="status.hubUrl" class="form-hint">
         {{ t('settings.updates.hubLabel') }}: {{ status.hubUrl }}
       </p>
     </section>
 
-    <section class="updates-settings__card">
+    <section class="updates-settings__card panel">
       <h3>{{ t('settings.updates.applyTitle') }}</h3>
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.dleContract') }}</span>
+        <span class="form-label">{{ t('settings.updates.dleContract') }}</span>
         <input
           v-model="dleContract"
           type="text"
-          class="updates-settings__input"
+          class="form-control"
           :placeholder="t('settings.updates.dleContractPlaceholder')"
           :disabled="isApplying"
         />
       </label>
-      <p class="updates-settings__hint">{{ t('settings.updates.dleContractHint') }}</p>
-      <p class="updates-settings__hint">{{ t('settings.updates.applyHint') }}</p>
-      <p v-if="!status.appRootReady" class="updates-settings__error">
+      <p class="form-hint">{{ t('settings.updates.dleContractHint') }}</p>
+      <p class="form-hint">{{ t('settings.updates.applyHint') }}</p>
+      <p v-if="!status.appRootReady" class="alert alert-warning">
         {{ t('settings.updates.appRootMissing') }}
       </p>
-      <p v-if="applyError" class="updates-settings__error">{{ applyError }}</p>
-      <p v-if="applySuccess" class="updates-settings__success">{{ applySuccess }}</p>
+      <p v-if="applyError" class="alert alert-danger">{{ applyError }}</p>
+      <p v-if="applySuccess" class="alert alert-success">{{ applySuccess }}</p>
       <button
         type="button"
-        class="updates-settings__btn"
+        class="btn btn-primary"
         :disabled="isApplying || !latest || !status.appRootReady"
         @click="handleApplyHere"
       >
@@ -66,13 +63,13 @@
     </section>
 
     <!-- Только раздающий hub (hub_url=self в БД). У клиентов блок скрыт — один код у всех. -->
-    <section v-if="isAdmin && isHubInstance" class="updates-settings__card">
+    <section v-if="isAdmin && isHubInstance" class="updates-settings__card panel">
       <h3>{{ t('settings.updates.hubSettingsTitle') }}</h3>
-      <p class="updates-settings__hint">{{ t('settings.updates.hubSettingsHint') }}</p>
+      <p class="form-hint">{{ t('settings.updates.hubSettingsHint') }}</p>
 
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.hubUrl') }}</span>
-        <input v-model="hubForm.hub_url" type="text" class="updates-settings__input" :disabled="isSavingHub" />
+        <span class="form-label">{{ t('settings.updates.hubUrl') }}</span>
+        <input v-model="hubForm.hub_url" type="text" class="form-control" :disabled="isSavingHub" />
       </label>
       <label class="updates-settings__check">
         <input v-model="hubForm.stub_mode" type="checkbox" :disabled="isSavingHub" />
@@ -80,52 +77,52 @@
       </label>
 
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.hubServiceToken') }}</span>
+        <span class="form-label">{{ t('settings.updates.hubServiceToken') }}</span>
         <input
           v-model="hubForm.hub_service_token"
           type="password"
-          class="updates-settings__input"
+          class="form-control"
           :placeholder="hubMeta.hub_service_token_set ? hubMeta.hub_service_token_hint : t('settings.updates.tokenPlaceholder')"
           :disabled="isSavingHub"
           autocomplete="new-password"
         />
       </label>
-      <p class="updates-settings__hint">{{ t('settings.updates.hubServiceTokenHint') }}</p>
+      <p class="form-hint">{{ t('settings.updates.hubServiceTokenHint') }}</p>
 
-      <p class="updates-settings__hint">{{ t('settings.updates.giteaHubOnlyHint') }}</p>
+      <p class="form-hint">{{ t('settings.updates.giteaHubOnlyHint') }}</p>
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.giteaUrl') }}</span>
-        <input v-model="hubForm.gitea_url" type="text" class="updates-settings__input" :disabled="isSavingHub" />
+        <span class="form-label">{{ t('settings.updates.giteaUrl') }}</span>
+        <input v-model="hubForm.gitea_url" type="text" class="form-control" :disabled="isSavingHub" />
       </label>
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.giteaOrg') }}</span>
-        <input v-model="hubForm.gitea_org" type="text" class="updates-settings__input" :disabled="isSavingHub" />
+        <span class="form-label">{{ t('settings.updates.giteaOrg') }}</span>
+        <input v-model="hubForm.gitea_org" type="text" class="form-control" :disabled="isSavingHub" />
       </label>
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.giteaRepo') }}</span>
-        <input v-model="hubForm.gitea_repo" type="text" class="updates-settings__input" :disabled="isSavingHub" />
+        <span class="form-label">{{ t('settings.updates.giteaRepo') }}</span>
+        <input v-model="hubForm.gitea_repo" type="text" class="form-control" :disabled="isSavingHub" />
       </label>
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.giteaAssetTemplate') }}</span>
-        <input v-model="hubForm.gitea_asset_template" type="text" class="updates-settings__input" :disabled="isSavingHub" />
+        <span class="form-label">{{ t('settings.updates.giteaAssetTemplate') }}</span>
+        <input v-model="hubForm.gitea_asset_template" type="text" class="form-control" :disabled="isSavingHub" />
       </label>
       <label class="updates-settings__field">
-        <span>{{ t('settings.updates.giteaToken') }}</span>
+        <span class="form-label">{{ t('settings.updates.giteaToken') }}</span>
         <input
           v-model="hubForm.gitea_token"
           type="password"
-          class="updates-settings__input"
+          class="form-control"
           :placeholder="hubMeta.gitea_token_set ? hubMeta.gitea_token_hint : t('settings.updates.tokenPlaceholder')"
           :disabled="isSavingHub"
           autocomplete="new-password"
         />
       </label>
 
-      <p v-if="hubError" class="updates-settings__error">{{ hubError }}</p>
-      <p v-if="hubSuccess" class="updates-settings__success">{{ hubSuccess }}</p>
+      <p v-if="hubError" class="alert alert-danger">{{ hubError }}</p>
+      <p v-if="hubSuccess" class="alert alert-success">{{ hubSuccess }}</p>
       <button
         type="button"
-        class="updates-settings__btn"
+        class="btn btn-primary"
         :disabled="isSavingHub"
         @click="handleSaveHubSettings"
       >
@@ -137,8 +134,8 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { getAllDLEs } from '@/services/dleV2Service';
@@ -151,7 +148,6 @@ import {
 } from '@/services/updatesService';
 
 const { t } = useI18n();
-const router = useRouter();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 const { canManageSettings } = usePermissions();
 
@@ -322,134 +318,80 @@ onMounted(loadPage);
 <style scoped>
 .updates-settings {
   position: relative;
-  padding: var(--block-padding, 1.5rem);
-  background-color: var(--color-light, #f8f9fa);
-  border-radius: var(--radius-md, 12px);
-  margin-top: var(--spacing-lg, 1.5rem);
+  margin-top: var(--spacing-lg);
+  background-color: var(--color-light);
 }
 
 .updates-settings__intro {
-  margin: 0 0 1.25rem;
-  color: #6c757d;
+  margin: 0 0 var(--spacing-lg);
+  color: var(--color-text-light);
   line-height: 1.5;
   max-width: 720px;
 }
 
 .updates-settings__card {
-  background: #fff;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
   max-width: 720px;
+  margin-bottom: var(--spacing-md);
 }
 
 .updates-settings__card h3 {
-  margin: 0 0 0.85rem;
+  margin: 0 0 var(--spacing-md);
   color: var(--color-primary);
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .updates-settings__meta {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
   margin: 0;
 }
 
 .updates-settings__meta dt {
-  font-size: 0.8rem;
-  color: #6c757d;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
 }
 
 .updates-settings__meta dd {
-  margin: 0.15rem 0 0;
+  margin: var(--spacing-xs) 0 0;
   font-weight: 600;
-  color: #343a40;
+  color: var(--color-text);
 }
 
 .updates-settings__changelog {
-  margin: 1rem 0 0;
-  color: #495057;
+  margin: var(--spacing-md) 0 0;
+  color: var(--color-text);
   line-height: 1.45;
 }
 
 .updates-settings__field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
-}
-
-.updates-settings__field span {
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.updates-settings__input {
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.95rem;
-}
-
-.updates-settings__hint {
-  margin: 0 0 0.75rem;
-  color: #6c757d;
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.updates-settings__error {
-  margin: 0 0 0.75rem;
-  color: #c0392b;
-}
-
-.updates-settings__success {
-  margin: 0 0 0.75rem;
-  color: var(--color-primary-dark, #2e7d32);
-}
-
-.updates-settings__btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.updates-settings__btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
 }
 
 .updates-settings__check {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.85rem;
-  color: #343a40;
+  gap: var(--spacing-sm);
+  margin: 0 0 var(--spacing-md);
+  color: var(--color-text);
   font-weight: 500;
 }
 
-.close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  color: #6c757d;
+.page-with-close {
+  position: relative;
 }
 
-.close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #343a40;
+@media (max-width: 768px) {
+  .updates-settings,
+  .updates-settings.settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .updates-settings__card {
+    max-width: 100%;
+  }
 }
 </style>

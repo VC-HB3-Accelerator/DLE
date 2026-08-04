@@ -34,7 +34,16 @@ function isProxyEnabled(settings) {
   return hasBlanc(settings) || hasManualProxy(settings);
 }
 
-function resolveOutboundProxyUrl(settings) {
+function targetEnabled(settings, target) {
+  if (target === 'openai') return Boolean(settings?.proxy_openai);
+  if (target === 'telegram') return Boolean(settings?.proxy_telegram);
+  return true;
+}
+
+function resolveOutboundProxyUrl(settings, target = null) {
+  if (target && !targetEnabled(settings, target)) {
+    return null;
+  }
   if (hasBlanc(settings)) {
     return blancVpnService.getSocksUrl();
   }
@@ -85,6 +94,28 @@ function buildSocksAgent(proxyUrl) {
   return new SocksProxyAgent(proxyUrl);
 }
 
+/**
+ * Agent / options for Telegraf (same outbound proxy as OpenAI).
+ * @returns {{ telegram?: { agent: object, attachmentAgent: object }, mode: 'blanc'|'manual'|'direct', proxyHost?: string }}
+ */
+function resolveTelegrafOutbound(settings) {
+  const proxyUrl = resolveOutboundProxyUrl(settings, 'telegram');
+  if (!proxyUrl) {
+    return { mode: 'direct' };
+  }
+  if (!isSocks(proxyUrl)) {
+    // Telegraf v4 path uses node-fetch + http(s).Agent; SOCKS is the Blanc path we support.
+    logger.warn('[openaiProxy] Non-SOCKS proxy ignored for Telegraf; use Blanc SOCKS');
+    return { mode: 'direct' };
+  }
+  const agent = buildSocksAgent(proxyUrl);
+  return {
+    mode: hasBlanc(settings) ? 'blanc' : 'manual',
+    proxyHost: new URL(proxyUrl).host,
+    telegram: { agent, attachmentAgent: agent },
+  };
+}
+
 function applyProxyToOpenAIOpts(opts, proxyUrl) {
   if (isSocks(proxyUrl)) {
     opts.httpAgent = buildSocksAgent(proxyUrl);
@@ -111,7 +142,7 @@ function createOpenAIClient(settings, extra = {}) {
     ...extra
   };
 
-  const proxyUrl = resolveOutboundProxyUrl(settings);
+  const proxyUrl = resolveOutboundProxyUrl(settings, 'openai');
   if (proxyUrl) {
     applyProxyToOpenAIOpts(opts, proxyUrl);
     logger.info('[openaiProxy] OpenAI client via proxy', {
@@ -128,7 +159,7 @@ function createOpenAIClient(settings, extra = {}) {
  * fetch с тем же прокси (Realtime и прочие прямые HTTP-вызовы).
  */
 async function proxiedFetch(url, init, settings) {
-  const proxyUrl = resolveOutboundProxyUrl(settings);
+  const proxyUrl = resolveOutboundProxyUrl(settings, 'openai');
   if (!proxyUrl) {
     return fetch(url, init);
   }
@@ -149,6 +180,7 @@ module.exports = {
   assertProxyUrl: assertManualProxyUrl,
   assertManualProxyUrl,
   resolveOutboundProxyUrl,
+  resolveTelegrafOutbound,
   createOpenAIClient,
   proxiedFetch
 };

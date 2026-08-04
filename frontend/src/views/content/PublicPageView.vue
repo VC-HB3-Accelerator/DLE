@@ -18,23 +18,23 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="public-page-view">
-      <button class="close-btn" @click="goBack">×</button>
+    <div class="public-page-view page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
 
       <!-- Заголовок страницы -->
       <div class="page-header" v-if="page">
         <h1>{{ page.title }}</h1>
         <div class="page-meta">
           <span class="page-date">
-            <i class="fas fa-calendar"></i>
+            <UiGlyph name="calendar" :size="14" />
             {{ formatDate(page.created_at) }}
           </span>
           <span class="page-status published">
-            <i class="fas fa-circle"></i>
+            <UiGlyph name="circle" filled :size="8" />
             {{ t('common.status.published') }}
           </span>
           <span class="page-author" v-if="page.author_address">
-            <i class="fas fa-user"></i>
+            <UiGlyph name="user" :size="14" />
             {{ t('content.publicPage.authorPrefix') }}{{ formatAddress(page.author_address) }}
           </span>
         </div>
@@ -92,14 +92,11 @@
       <!-- Ошибка -->
       <div v-else class="error-state">
         <div class="error-icon">
-          <i class="fas fa-exclamation-triangle"></i>
+          <UiGlyph name="warning" :size="48" />
         </div>
         <h3>{{ t('content.page.notFoundTitle') }}</h3>
         <p>{{ t('content.publicPage.notFoundDescription') }}</p>
-        <button class="btn btn-primary" @click="goBack">
-          <i class="fas fa-arrow-left"></i>
-          {{ t('content.publicPage.backToList') }}
-        </button>
+
       </div>
     </div>
   </BaseLayout>
@@ -110,9 +107,11 @@ import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import pagesService from '../../services/pagesService';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 // Props
 const props = defineProps({
@@ -146,10 +145,6 @@ const page = ref(null);
 const isLoading = ref(false);
 
 // Методы
-function goBack() {
-  router.push({ name: 'content-list' });
-}
-
 function formatDate(date) {
   if (!date) return t('common.dateNotSpecified');
   return new Date(date).toLocaleDateString('ru-RU', {
@@ -405,22 +400,7 @@ onMounted(() => {
   position: relative;
 }
 
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
-  z-index: 10;
-}
 
-.close-btn:hover {
-  color: #333;
-}
 
 .page-header {
   margin-bottom: 30px;
@@ -704,4 +684,6 @@ onMounted(() => {
     padding: 20px;
   }
 }
+
+/* TZ package D: reviewed */
 </style>

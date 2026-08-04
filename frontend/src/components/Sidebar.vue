@@ -16,29 +16,83 @@
       <div class="wallet-sidebar-content">
         <!-- Блок для неавторизованных пользователей -->
         <div v-if="!isAuthenticated">
-          <div class="button-with-close">
+          <div
+            v-if="
+              !telegramAuth?.showVerification &&
+              !emailAuth?.showForm &&
+              !emailAuth?.showVerification &&
+              !passwordAuth?.showStub
+            "
+            class="button-with-close"
+          >
             <button
-              v-if="
-                !telegramAuth?.showVerification &&
-                !emailAuth?.showForm &&
-                !emailAuth?.showVerification
-              "
-              class="auth-btn connect-wallet-btn"
-              @click="handleWalletAuth"
+              type="button"
+              class="btn btn-primary connect-wallet-btn"
+              @click="onGuestConnect"
             >
-              {{ t('auth.connectWallet') }}
+              {{ t('auth.connect') }}
             </button>
-            <button class="close-sidebar-btn" @click="closeSidebar">×</button>
+            <div v-if="showAuthPicker" class="auth-type-picker" ref="authPickerRoot">
+              <button
+                type="button"
+                class="btn btn-outline btn-icon auth-type-picker__trigger"
+                :aria-label="t('auth.authTypePicker')"
+                :title="t('auth.authTypePicker')"
+                @click.stop="authPickerOpen = !authPickerOpen"
+              >
+                <UiGlyph :name="selectedAuthGlyph" :size="18" />
+                <UiGlyph name="chevron-down" :size="12" />
+              </button>
+              <ul v-if="authPickerOpen" class="auth-type-picker__menu" role="listbox">
+                <li
+                  v-for="opt in enabledAuthOptions"
+                  :key="opt.id"
+                  role="option"
+                  :aria-selected="selectedAuthType === opt.id"
+                  :aria-label="opt.label"
+                  :title="opt.label"
+                  :class="{ 'is-active': selectedAuthType === opt.id }"
+                  @click="selectAuthType(opt.id)"
+                >
+                  <UiGlyph :name="opt.glyph" :size="18" />
+                </li>
+              </ul>
+            </div>
+            <button type="button" class="btn btn-outline btn-icon close-sidebar-btn" @click="closeSidebar">×</button>
+          </div>
+          <div v-else class="button-with-close">
+            <button type="button" class="btn btn-outline btn-icon close-sidebar-btn" @click="closeSidebar">×</button>
+          </div>
+
+          <div v-if="telegramAuth?.showVerification" class="auth-modal-panel">
+            <TelegramConnect
+              :bot-link="telegramAuth?.botLink"
+              :error="telegramAuth?.error"
+              :is-loading="telegramAuth?.isLoading"
+              @cancel="$emit('cancel-telegram-auth')"
+              @request-link="$emit('confirm-telegram-deeplink')"
+            />
+          </div>
+          <div v-else-if="emailAuth && (emailAuth.showForm || emailAuth.showVerification)" class="auth-modal-panel">
+            <EmailConnect @success="$emit('cancel-email-auth')">
+              <template #actions>
+                <button type="button" class="btn btn-outline" @click="$emit('cancel-email-auth')">{{ t('auth.cancel') }}</button>
+              </template>
+            </EmailConnect>
+          </div>
+          <div v-else-if="passwordAuth?.showStub" class="auth-modal-panel password-stub-panel">
+            <p>{{ t('auth.passwordComingSoon') }}</p>
+            <button type="button" class="btn btn-outline" @click="$emit('cancel-password-auth')">{{ t('auth.cancel') }}</button>
           </div>
         </div>
 
         <!-- Блок для авторизованных пользователей -->
         <div v-if="isAuthenticated">
           <div class="button-with-close">
-            <button class="auth-btn disconnect-wallet-btn" @click="disconnectWallet">
+            <button type="button" class="btn btn-ghost disconnect-wallet-btn" @click="disconnectWallet">
               {{ t('auth.disconnect') }}
             </button>
-            <button class="close-sidebar-btn" @click="closeSidebar">×</button>
+            <button type="button" class="btn btn-outline btn-icon close-sidebar-btn" @click="closeSidebar">×</button>
           </div>
         </div>
 
@@ -47,13 +101,13 @@
 
         <!-- Навигационные кнопки -->
         <div class="navigation-buttons">
-          <router-link to="/" class="nav-link-btn" active-class="active">
+          <router-link to="/" class="btn btn-ghost btn-block nav-link-btn" active-class="active">
             <span>{{ t('nav.chat') }}</span>
           </router-link>
-          <router-link to="/blog" class="nav-link-btn" active-class="active">
+          <router-link to="/blog" class="btn btn-ghost btn-block nav-link-btn" active-class="active">
             <span>{{ t('nav.blog') }}</span>
           </router-link>
-          <router-link to="/management" class="nav-link-btn" active-class="active">
+          <router-link to="/management" class="btn btn-ghost btn-block nav-link-btn" active-class="active">
             <span>{{ t('nav.management') }}</span>
           </router-link>
           <a
@@ -61,7 +115,7 @@
             :href="giteaUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="nav-link-btn"
+            class="btn btn-ghost btn-block nav-link-btn"
             @click="closeSidebar"
           >
             <span>{{ t('nav.repositories') }}</span>
@@ -87,51 +141,56 @@
           <div v-if="emailAuth && (emailAuth.showForm || emailAuth.showVerification)" class="auth-modal-panel">
             <EmailConnect @success="$emit('cancel-email-auth')">
               <template #actions>
-                <button class="close-btn" @click="$emit('cancel-email-auth')">{{ t('auth.cancel') }}</button>
+                <button type="button" class="btn btn-outline" @click="$emit('cancel-email-auth')">{{ t('auth.cancel') }}</button>
               </template>
             </EmailConnect>
           </div>
           <div v-else-if="telegramAuth && telegramAuth.showVerification" class="auth-modal-panel">
             <TelegramConnect
               :bot-link="telegramAuth?.botLink"
-              :verification-code="telegramAuth?.verificationCode"
               :error="telegramAuth?.error"
+              :is-loading="telegramAuth?.isLoading"
               @cancel="$emit('cancel-telegram-auth')"
+              @request-link="$emit('confirm-telegram-deeplink')"
             />
+          </div>
+          <div v-else-if="passwordAuth?.showStub" class="auth-modal-panel password-stub-panel">
+            <p>{{ t('auth.passwordComingSoon') }}</p>
+            <button type="button" class="btn btn-outline" @click="$emit('cancel-password-auth')">{{ t('auth.cancel') }}</button>
           </div>
           <div v-else class="user-info-section sidebar-section">
             <h3>{{ t('auth.yourIdentifiers') }}</h3>
             <div class="user-info-item">
               <span class="user-info-label">{{ t('auth.wallet') }}</span>
               <span v-if="hasIdentityType('wallet')" class="user-info-value">
-                {{ truncateAddress(getIdentityValue('wallet')) }}
-                <button class="delete-identity-btn" @click="handleDeleteIdentity('wallet', getIdentityValue('wallet'))" :title="t('auth.delete')">✕</button>
+                <span class="user-info-text">{{ truncateAddress(getIdentityValue('wallet')) }}</span>
+                <button type="button" class="btn btn-sm btn-outline connect-btn" @click="handleDeleteIdentity('wallet', getIdentityValue('wallet'))">{{ t('auth.delete') }}</button>
               </span>
               <span v-else class="user-info-value">
-                {{ t('auth.notConnected') }}
-                <button class="connect-btn" @click="handleWalletAuth">{{ t('auth.connect') }}</button>
+                <span class="user-info-text">{{ t('auth.notConnected') }}</span>
+                <button type="button" class="btn btn-sm btn-outline connect-btn" @click="handleWalletAuth">{{ t('auth.connect') }}</button>
               </span>
             </div>
             <div class="user-info-item">
               <span class="user-info-label">{{ t('auth.telegram') }}</span>
               <span v-if="hasIdentityType('telegram')" class="user-info-value">
-                {{ getIdentityValue('telegram') }}
-                <button class="delete-identity-btn" @click="handleDeleteIdentity('telegram', getIdentityValue('telegram'))" :title="t('auth.delete')">✕</button>
+                <span class="user-info-text">{{ getIdentityValue('telegram') }}</span>
+                <button type="button" class="btn btn-sm btn-outline connect-btn" @click="handleDeleteIdentity('telegram', getIdentityValue('telegram'))">{{ t('auth.delete') }}</button>
               </span>
               <span v-else class="user-info-value">
-                {{ t('auth.notConnected') }}
-                <button class="connect-btn" @click="$emit('telegram-auth')">{{ t('auth.connect') }}</button>
+                <span class="user-info-text">{{ t('auth.notConnected') }}</span>
+                <button type="button" class="btn btn-sm btn-outline connect-btn" @click="$emit('telegram-auth')">{{ t('auth.connect') }}</button>
               </span>
             </div>
             <div class="user-info-item">
               <span class="user-info-label">{{ t('auth.email') }}</span>
               <span v-if="hasIdentityType('email')" class="user-info-value">
-                {{ getIdentityValue('email') }}
-                <button class="delete-identity-btn" @click="handleDeleteIdentity('email', getIdentityValue('email'))" :title="t('auth.delete')">✕</button>
+                <span class="user-info-text">{{ getIdentityValue('email') }}</span>
+                <button type="button" class="btn btn-sm btn-outline connect-btn" @click="handleDeleteIdentity('email', getIdentityValue('email'))">{{ t('auth.delete') }}</button>
               </span>
               <span v-else class="user-info-value">
-                {{ t('auth.notConnected') }}
-                <button class="connect-btn" @click="$emit('email-auth')">{{ t('auth.connect') }}</button>
+                <span class="user-info-text">{{ t('auth.notConnected') }}</span>
+                <button type="button" class="btn btn-sm btn-outline connect-btn" @click="$emit('email-auth')">{{ t('auth.connect') }}</button>
               </span>
             </div>
           </div>
@@ -152,7 +211,7 @@
               <span class="token-name">{{ token.tokenName }}</span>
               <span class="token-network">{{ token.network }}</span>
               <span v-if="token.error" class="token-error-message" :title="token.errorDetails">
-                ❌ {{ token.error }}
+                {{ token.error }}
               </span>
               <span v-else class="token-amount">{{ isNaN(Number(token.balance)) ? '—' : Number(token.balance).toLocaleString() }}</span>
             </div>
@@ -184,17 +243,20 @@ import eventBus from '../utils/eventBus';
 import EmailConnect from './identity/EmailConnect.vue';
 import TelegramConnect from './identity/TelegramConnect.vue';
 import LocaleControls from './LocaleControls.vue';
+import UiGlyph from './UiGlyph.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { useI18n } from 'vue-i18n';
 import { fetchSidebarNotice } from '@/services/sidebarNoticeService';
 import { fetchSidebarNav } from '@/services/sidebarNavService';
 import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
+import { getSidebarAuthMethodsCache } from '@/config/sidebarAuthMethodsCache';
 
 const props = defineProps({
   modelValue: Boolean,
   isAuthenticated: Boolean,
   telegramAuth: Object,
   emailAuth: Object,
+  passwordAuth: Object,
   tokenBalances: Array,
   identities: Array,
   isLoadingTokens: Boolean,
@@ -207,15 +269,60 @@ const emit = defineEmits([
   'disconnect-wallet',
   'telegram-auth',
   'email-auth',
+  'password-auth',
   'cancel-email-auth',
   'cancel-telegram-auth',
+  'confirm-telegram-deeplink',
+  'cancel-password-auth',
 ]);
 
 const { t } = useI18n();
-const { deleteIdentity } = useAuthContext();
+const { deleteIdentity, updateIdentities } = useAuthContext();
 const sidebarNoticeText = ref('');
 const showRepositories = ref(false);
 const privacyDocsUrl = getPrivacyDocsUrl();
+const authMethodsCache = getSidebarAuthMethodsCache();
+const authMethods = computed(() => authMethodsCache.methods);
+const selectedAuthType = ref('wallet');
+const authPickerOpen = ref(false);
+const authPickerRoot = ref(null);
+
+const enabledAuthOptions = computed(() => {
+  const all = [
+    { id: 'wallet', glyph: 'wallet', label: t('auth.authTypeWallet') },
+    { id: 'telegram', glyph: 'telegram', label: t('auth.authTypeTelegram') },
+    { id: 'email', glyph: 'at', label: t('auth.authTypeEmail') },
+    { id: 'password', glyph: 'lock', label: t('auth.authTypePassword') },
+  ];
+  return all.filter((opt) => Boolean(authMethods.value[opt.id]));
+});
+
+const showAuthPicker = computed(() => enabledAuthOptions.value.length > 1);
+
+const selectedAuthGlyph = computed(() => {
+  const found = enabledAuthOptions.value.find((o) => o.id === selectedAuthType.value);
+  return found?.glyph || 'wallet';
+});
+
+function selectAuthType(id) {
+  selectedAuthType.value = id;
+  authPickerOpen.value = false;
+}
+
+function onGuestConnect() {
+  const type = selectedAuthType.value;
+  if (type === 'telegram') emit('telegram-auth');
+  else if (type === 'email') emit('email-auth');
+  else if (type === 'password') emit('password-auth');
+  else emit('wallet-auth');
+}
+
+function onDocClick(event) {
+  if (!authPickerRoot.value) return;
+  if (!authPickerRoot.value.contains(event.target)) {
+    authPickerOpen.value = false;
+  }
+}
 
 async function loadSidebarNotice() {
   try {
@@ -231,6 +338,10 @@ async function loadSidebarNav() {
   try {
     const data = await fetchSidebarNav();
     showRepositories.value = Boolean(data?.buttons?.repositories);
+    // authMethods обновляет реактивный кеш в fetchSidebarNav
+    if (!authMethods.value[selectedAuthType.value]) {
+      selectedAuthType.value = 'wallet';
+    }
   } catch (error) {
     console.warn('[Sidebar] sidebar nav load failed:', error);
     showRepositories.value = false;
@@ -255,6 +366,7 @@ const giteaUrl = computed(() => {
 
 onMounted(() => {
   loadSidebarExtras();
+  document.addEventListener('click', onDocClick);
   window.addEventListener('clear-application-data', () => {
     console.log('[Sidebar] Clearing sidebar data');
   });
@@ -262,6 +374,10 @@ onMounted(() => {
     console.log('[Sidebar] Refreshing sidebar data');
     loadSidebarExtras();
   });
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick);
 });
 
 watch(
@@ -286,12 +402,22 @@ const closeSidebar = () => {
 const handleAuthEvent = () => {};
 
 let unsubscribe = null;
+let unsubscribeNav = null;
 onMounted(() => {
   unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
+  unsubscribeNav = eventBus.on('sidebar-nav-saved', (data) => {
+    if (data?.buttons) {
+      showRepositories.value = Boolean(data.buttons.repositories);
+    }
+    if (!authMethods.value[selectedAuthType.value]) {
+      selectedAuthType.value = 'wallet';
+    }
+  });
 });
 
 onBeforeUnmount(() => {
   if (unsubscribe) unsubscribe();
+  if (unsubscribeNav) unsubscribeNav();
 });
 
 const truncateAddress = (address) => {
@@ -311,8 +437,16 @@ const getIdentityValue = (type) => {
 };
 
 const handleDeleteIdentity = async (provider, providerId) => {
-  if (confirm(t('auth.confirmDeleteIdentity'))) {
+  if (!confirm(t('auth.confirmDeleteIdentity'))) return;
+  try {
     await deleteIdentity(provider, providerId);
+    await updateIdentities();
+  } catch (err) {
+    const msg =
+      err?.response?.data?.error ||
+      err?.message ||
+      t('auth.deleteIdentityFailed');
+    window.alert(msg);
   }
 };
 </script>
@@ -323,10 +457,12 @@ const handleDeleteIdentity = async (provider, providerId) => {
   top: 0;
   right: 0;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   background-color: var(--color-white);
   z-index: 1000;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--spacing-lg);
   box-sizing: border-box;
   display: flex;
@@ -336,7 +472,7 @@ const handleDeleteIdentity = async (provider, providerId) => {
 }
 
 .wallet-sidebar-content {
-  max-width: 600px;
+  max-width: 100%;
   width: 100%;
   margin: 0 auto;
   padding: 0 var(--spacing-md);
@@ -368,8 +504,8 @@ const handleDeleteIdentity = async (provider, providerId) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 15px;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
 .connect-wallet-btn,
@@ -377,61 +513,87 @@ const handleDeleteIdentity = async (provider, providerId) => {
   flex: 1;
 }
 
-.close-sidebar-btn {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  background-color: var(--color-white);
-  color: var(--color-dark);
-  border: 1px solid var(--color-grey);
-  border-radius: var(--radius-lg);
-  font-size: 24px;
+.auth-type-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.auth-type-picker__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 2.75rem;
+}
+
+.auth-type-picker__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  background: var(--color-white, #fff);
+  border: 1px solid var(--color-grey-light, #dee2e6);
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.12));
+}
+
+.auth-type-picker__menu li {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
-  line-height: 1;
-  transition: all var(--transition-normal);
+  cursor: pointer;
+  border-radius: var(--radius-sm, 6px);
 }
 
-.close-sidebar-btn:hover {
-  background-color: var(--color-grey-light);
-  border-color: var(--color-dark);
+.auth-type-picker__menu li:hover,
+.auth-type-picker__menu li.is-active {
+  background: var(--color-grey-light, #f1f3f5);
 }
 
-/* Стили для навигационных кнопок */
+.password-stub-panel p {
+  margin: 0 0 0.75rem;
+  line-height: 1.4;
+}
+
+/* Единое выравнивание текста кнопок сайдбара — слева (как список) */
+.wallet-sidebar :deep(.btn:not(.btn-icon)),
+.wallet-sidebar .nav-link-btn,
+.wallet-sidebar .connect-wallet-btn,
+.wallet-sidebar .disconnect-wallet-btn {
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
+}
+
+.wallet-sidebar :deep(.btn-icon),
+.wallet-sidebar .close-sidebar-btn {
+  justify-content: center;
+  text-align: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Навигация: active поверх .btn-ghost */
 .navigation-buttons {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.nav-link-btn {
-  display: flex;
-  align-items: center;
-  height: 48px;
-  background-color: var(--color-light);
-  color: var(--color-dark);
-  border: 1px solid var(--color-grey-light);
-  border-radius: var(--radius-lg);
-  padding: 0 15px;
-  font-size: var(--font-size-md);
-  text-decoration: none;
-  transition: all var(--transition-normal);
-  cursor: pointer;
-  box-sizing: border-box;
+  gap: var(--spacing-sm);
 }
 
 .nav-link-btn.active {
-  background-color: var(--color-grey-light, #e9ecef);
-  color: var(--color-dark);
-  border-color: var(--color-grey, #ced4da);
-  font-weight: 600;
-}
-
-.nav-link-btn:hover:not(.active) {
   background-color: var(--color-grey-light);
+  border-color: var(--color-grey);
+  font-weight: 600;
 }
 
 .sidebar-notice {
@@ -444,7 +606,7 @@ const handleDeleteIdentity = async (provider, providerId) => {
   line-height: 1.35;
   font-size: 0.7rem;
   font-weight: 400;
-  color: var(--color-text-light, #999);
+  color: var(--color-text-light);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -453,43 +615,19 @@ const handleDeleteIdentity = async (provider, providerId) => {
   display: inline-block;
   font-size: 0.7rem;
   font-weight: 400;
-  color: var(--color-text-light, #999);
+  color: var(--color-text-light);
   text-decoration: none;
   opacity: 0.85;
-  transition: color 0.15s ease, opacity 0.15s ease;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
 }
 
 .sidebar-notice__privacy:hover {
-  color: var(--color-grey, #777);
+  color: var(--color-grey);
   opacity: 1;
   text-decoration: underline;
 }
 
-/* Стили для общих кнопок аутентификации/действий в сайдбаре */
-.auth-btn {
-  width: 100%;
-  height: 48px;
-  border-radius: var(--radius-lg);
-  background-color: var(--color-light);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  color: var(--color-dark);
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0 var(--spacing-md);
-  box-sizing: border-box;
-  transition: all var(--transition-normal);
-  margin: 0;
-  text-decoration: none;
-}
-
-.auth-btn:hover {
-  background-color: var(--color-grey-light);
-}
-
-/* Новые стили для секций в сайдбаре */
+/* Секции сайдбара */
 .sidebar-section {
   background-color: var(--color-light);
   padding: var(--spacing-md);
@@ -511,10 +649,34 @@ h3 {
   font-size: var(--font-size-sm);
 }
 
+.user-info-item {
+  width: 100%;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.user-info-value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.user-info-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .token-name,
 .user-info-label {
   font-weight: bold;
   width: 80px;
+  flex-shrink: 0;
 }
 
 .token-amount {
@@ -551,28 +713,24 @@ h3 {
   cursor: help;
 }
 
-/* Медиа-запросы для адаптивности */
-@media screen and (min-width: 1200px) {
+/* bp: desktop ≥1200 (= 1199+1), tablet ≤1199, mobile ≤768/480/360 */
+@media (min-width: 1200px) {
   .wallet-sidebar {
-    width: 420px;
-    max-width: 420px;
+    width: var(--sidebar-panel-width);
+    max-width: var(--sidebar-panel-width);
   }
 }
 
-@media screen and (min-width: 769px) and (max-width: 1199px) {
+@media (min-width: 769px) and (max-width: 1199px) {
   .wallet-sidebar {
-    width: 350px;
-    max-width: 350px;
+    width: var(--sidebar-panel-width-narrow);
+    max-width: var(--sidebar-panel-width-narrow);
   }
 }
 
-@media screen and (max-width: 768px) {
-  /* На мобильных устройствах сайдбар по умолчанию занимает весь экран (width: 100%, height: 100%) */
-  /* Поэтому дополнительные правила для переопределения положения/размера не нужны */
-  /* Оставляем только adjustment for padding when needed */
+@media (max-width: 768px) {
   .wallet-sidebar {
     padding: var(--spacing-md);
-    /* Убраны bottom, top, height, max-height, чтобы вернуться к full-screen поведению */
   }
 
   .wallet-sidebar-content {
@@ -581,54 +739,16 @@ h3 {
   }
 }
 
-@media screen and (max-width: 480px) {
-  .close-sidebar-btn {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    font-size: 20px;
-  }
-  
-  .auth-btn {
-    height: 42px;
-    font-size: var(--font-size-sm);
-  }
-  
-  .nav-link-btn {
-    height: 42px;
-    padding: 0 12px;
-    font-size: var(--font-size-sm);
-  }
-}
-
-@media screen and (max-width: 360px) {
-  .close-sidebar-btn {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    font-size: 18px;
-  }
-  
-  .auth-btn {
-    height: 36px;
-  }
-  
-  .nav-link-btn {
-    height: 36px;
-    padding: 0 10px;
-  }
-}
-
 .token-balance-header {
   display: flex;
   font-weight: bold;
-  color: var(--color-dark, #333);
-  gap: 10px;
+  color: var(--color-dark);
+  gap: var(--spacing-sm);
   margin-bottom: 6px;
 }
 .token-balance-row {
   display: flex;
-  gap: 10px;
+  gap: var(--spacing-sm);
   align-items: center;
   margin-bottom: 4px;
 }
@@ -638,7 +758,7 @@ h3 {
 }
 .token-network {
   min-width: 70px;
-  color: var(--color-dark, #333);
+  color: var(--color-dark);
 }
 .token-amount {
   min-width: 80px;
@@ -647,54 +767,37 @@ h3 {
 }
 
 .connect-btn {
-  margin-left: 10px;
-  background: var(--color-light, #f8f9fa);
-  color: var(--color-dark);
-  border: 1px solid var(--color-grey-light, #e4e7ed);
-  border-radius: 6px;
-  padding: 0.2rem 0.8rem;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: background 0.2s, border-color 0.2s;
+  margin-left: 0;
+  flex-shrink: 0;
+  min-width: 7.5rem;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
-.connect-btn:hover {
-  background: var(--color-grey-light, #e9ecef);
-  border-color: var(--color-grey, #ced4da);
+
+.wallet-sidebar .connect-btn.btn {
+  justify-content: center;
+  text-align: center;
 }
 
 .auth-modal-panel {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.15);
-  padding: 2rem 2.5rem;
-  max-width: 400px;
+  background: var(--color-white);
+  border-radius: var(--block-radius);
+  box-shadow: var(--shadow-md);
+  padding: var(--block-padding);
+  max-width: min(400px, 100%);
   width: 100%;
-  margin: 2rem auto;
+  margin: var(--spacing-lg) auto;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  box-sizing: border-box;
 }
 
-.delete-identity-btn {
-  margin-left: 8px;
-  background: none;
-  border: none;
-  color: #d32f2f;
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0 4px;
-  border-radius: 3px;
-  transition: background 0.15s;
-}
-.delete-identity-btn:hover {
-  background: #ffeaea;
-}
-
-/* Компактный приглушённый футер авторских прав */
 .copyright-section {
   margin-top: auto;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--color-grey-light, #eee);
+  border-top: 1px solid var(--color-grey-light);
 }
 
 .copyright-text {
@@ -702,7 +805,7 @@ h3 {
   line-height: 1.35;
   font-size: 0.7rem;
   font-weight: 400;
-  color: var(--color-text-light, #999);
+  color: var(--color-text-light);
 }
 
 .copyright-link {
@@ -710,19 +813,24 @@ h3 {
   text-decoration: none;
   margin-left: 0.35rem;
   opacity: 0.85;
-  transition: color 0.15s ease, opacity 0.15s ease;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
 }
 
 .copyright-link:hover {
-  color: var(--color-grey, #777);
+  color: var(--color-grey);
   opacity: 1;
   text-decoration: underline;
 }
 
-@media screen and (max-width: 768px) {
+@media (max-width: 768px) {
   .copyright-section {
     margin-top: 0.75rem;
     padding-top: 0.5rem;
+  }
+
+  .auth-modal-panel {
+    padding: var(--block-padding-mobile);
+    margin: var(--spacing-md) auto;
   }
 }
 </style> 

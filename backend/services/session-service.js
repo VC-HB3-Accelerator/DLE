@@ -245,14 +245,20 @@ class SessionService {
 
       logger.info(`[SessionService] Attempting to retrieve session ${sessionId}`);
 
-      const result = await encryptedDb.getData('session', { sid: sessionId });
+      const { rows } = await db.getQuery()(
+        'SELECT sess FROM session WHERE sid = $1',
+        [sessionId]
+      );
 
-      if (result.length === 0) {
+      if (!rows.length) {
         logger.info(`[SessionService] No session found with ID ${sessionId}`);
         return null;
       }
 
-      const sessionData = result[0].sess;
+      let sessionData = rows[0].sess;
+      if (typeof sessionData === 'string') {
+        sessionData = JSON.parse(sessionData);
+      }
       logger.info(`[SessionService] Retrieved session data for ${sessionId}`);
 
       return sessionData;
@@ -260,6 +266,27 @@ class SessionService {
       logger.error(`[SessionService] Error retrieving session ${sessionId}:`, error);
       return null;
     }
+  }
+
+  /**
+   * Обновляет sess в таблице session по sid (нужно боту без cookie браузера).
+   * @param {string} sessionId
+   * @param {(sess: object) => object} mutator
+   */
+  async updateSessionDataBySid(sessionId, mutator) {
+    if (!sessionId || typeof mutator !== 'function') {
+      throw new Error('sessionId and mutator are required');
+    }
+    const current = await this.getSessionData(sessionId);
+    if (!current) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    const next = mutator({ ...current }) || current;
+    await db.getQuery()(
+      'UPDATE session SET sess = $1::json WHERE sid = $2',
+      [JSON.stringify(next), sessionId]
+    );
+    return next;
   }
 
   /**

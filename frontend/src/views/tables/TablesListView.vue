@@ -12,67 +12,55 @@
 
 <template>
   <BaseLayout>
-    <div class="tables-list-block">
-      <button class="close-btn" @click="goBack">×</button>
-    <h2>{{ t('tables.list.title') }}</h2>
-    <UserTablesList v-if="canViewData" />
-    <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
+    <div class="panel tables-list-block page-with-close">
+      <PageCloseButton :fallback="{ name: 'crm' }" />
+      <h2 class="tables-list-title">{{ t('tables.list.title') }}</h2>
+      <UserTablesList v-if="canViewData" />
+      <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import UserTablesList from '../../components/tables/UserTablesList.vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
-import { onMounted } from 'vue';
-const router = useRouter();
+
 const { t } = useI18n();
 const { canViewData } = usePermissions();
-
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    // Очищаем данные при выходе из системы
-    tables.value = [];
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    loadTables(); // Обновляем данные при входе в систему
-  });
-});
-
-function goBack() {
-  router.push({ name: 'crm' });
-}
-</script> 
+</script>
 
 <style scoped>
 .tables-list-block {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-  padding: 32px 24px 24px 24px;
   width: 100%;
-  margin-top: 40px;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--spacing-xl);
   position: relative;
   overflow-x: auto;
 }
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+
+.tables-list-title {
+  margin: 0 0 var(--spacing-lg);
+  padding-right: calc(var(--button-height) + var(--spacing-sm));
+  color: var(--theme-text);
 }
-.close-btn:hover {
-  color: #333;
+
+.page-with-close {
+  position: relative;
 }
-</style> 
+
+.empty-table-placeholder {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--theme-text-muted);
+}
+
+@media (max-width: 768px) {
+  .tables-list-block {
+    margin-top: var(--spacing-lg);
+  }
+}
+</style>

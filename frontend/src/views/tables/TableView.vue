@@ -12,53 +12,31 @@
 
 <template>
   <BaseLayout>
-    <div class="table-block-wrapper">
-    <div class="tableview-header-row">
-      <button class="nav-btn" @click="goToTables">{{ t('tables.view.navTables') }}</button>
-      <button class="nav-btn" @click="goToCreate">{{ t('tables.common.createTable') }}</button>
-      <button class="close-btn" @click="closeTable">{{ t('tables.common.close') }}</button>
-      <button v-if="canEditData" class="action-btn" @click="goToEdit">{{ t('tables.common.edit') }}</button>
-      <button v-if="canDeleteData" class="danger-btn" @click="goToDelete">{{ t('tables.common.delete') }}</button>
-    </div>
-    <UserTableView v-if="canViewData" :table-id="Number($route.params.id)" />
-    <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
+    <div class="panel table-block-wrapper page-with-close">
+      <PageCloseButton :fallback="{ name: 'tables-list' }" />
+      <div class="btn-row tableview-header-row">
+        <button type="button" class="btn btn-outline-primary" @click="goToCreate">{{ t('tables.common.createTable') }}</button>
+        <button v-if="canEditData" type="button" class="btn btn-primary" @click="goToEdit">{{ t('tables.common.edit') }}</button>
+        <button v-if="canDeleteData" type="button" class="btn btn-danger" @click="goToDelete">{{ t('tables.common.delete') }}</button>
+      </div>
+      <UserTableView v-if="canViewData" :table-id="Number($route.params.id)" />
+      <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import UserTableView from '../../components/tables/UserTableView.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
-import { onMounted } from 'vue';
+
 const $route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const { canViewData, canEditData, canDeleteData } = usePermissions();
-
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    // Очищаем данные при выходе из системы
-    tableData.value = [];
-    columns.value = [];
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    loadTableData(); // Обновляем данные при входе в систему
-  });
-});
-
-function closeTable() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: 'home' });
-  }
-}
 
 function goToEdit() {
   router.push({ name: 'edit-table', params: { id: $route.params.id } });
@@ -68,10 +46,6 @@ function goToDelete() {
   router.push({ name: 'delete-table', params: { id: $route.params.id } });
 }
 
-function goToTables() {
-  router.push({ name: 'tables-list' });
-}
-
 function goToCreate() {
   router.push({ name: 'create-table' });
 }
@@ -79,81 +53,33 @@ function goToCreate() {
 
 <style scoped>
 .table-block-wrapper {
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
   width: 100%;
-  position: relative;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
   overflow-x: auto;
-  margin-left: 0;
-  margin-right: 0;
+  position: relative;
 }
+
 .tableview-header-row {
-  display: flex;
   justify-content: flex-end;
-  align-items: center;
-  margin: 1.2em 0 0.5em 0;
+  margin: 0 0 var(--spacing-md);
 }
-.close-btn {
-  background: #ff4d4f;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background 0.2s;
+
+.empty-table-placeholder {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--theme-text-muted);
 }
-.close-btn:hover {
-  background: #d9363e;
+
+@media (max-width: 768px) {
+  .tableview-header-row {
+    justify-content: stretch;
+  }
+
+  .tableview-header-row .btn {
+    width: 100%;
+  }
 }
-.action-btn {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 1em;
-  margin-left: 0.7em;
-  transition: background 0.2s;
-}
-.action-btn:hover {
-  background: #27ae38;
-}
-.danger-btn {
-  background: #ff4d4f;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 1em;
-  margin-left: 0.7em;
-  transition: background 0.2s;
-}
-.danger-btn:hover {
-  background: #d9363e;
-}
-.nav-btn {
-  background: #eaeaea;
-  color: #333;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 500;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background 0.2s;
-  margin-right: 0.7em;
-}
-.nav-btn:hover {
-  background: #d5d5d5;
-}
-</style> 
+</style>

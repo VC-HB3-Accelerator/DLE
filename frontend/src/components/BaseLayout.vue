@@ -30,6 +30,7 @@
       :is-authenticated="isAuthenticated"
       :telegram-auth="telegramAuth"
       :email-auth="emailAuth"
+      :password-auth="passwordAuth"
       :token-balances="tokenBalances"
       :identities="identities"
       :is-loading-tokens="isLoadingTokens"
@@ -37,10 +38,13 @@
       @disconnect-wallet="disconnectWallet"
       @telegram-auth="handleTelegramAuth"
       @cancel-telegram-auth="cancelTelegramAuth"
+      @confirm-telegram-deeplink="confirmTelegramDeeplink"
       @email-auth="showEmailForm"
       @send-email-verification="sendEmailVerification"
       @verify-email-code="verifyEmailCode"
       @cancel-email-auth="cancelEmailAuth"
+      @password-auth="showPasswordStub"
+      @cancel-password-auth="cancelPasswordAuth"
     />
 
     <!-- Компонент для отображения уведомлений -->
@@ -131,12 +135,16 @@ onMounted(() => {
 const {
   telegramAuth,
   handleTelegramAuth,
+  confirmTelegramDeeplink,
   cancelTelegramAuth,
   emailAuth,
   showEmailForm,
   sendEmailVerification,
   verifyEmailCode,
   cancelEmailAuth,
+  passwordAuth,
+  showPasswordStub,
+  cancelPasswordAuth,
 } = useAuthFlow({ onAuthSuccess: handleAuthFlowSuccess });
 
 // =====================================================================
@@ -275,57 +283,77 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/*
+ * Живая оболочка приложения (TZ §0.3 / §3.1).
+ * Контракт: этот scoped + Header/Sidebar — источник правды для shell.
+ * layout.css — только legacy/fallback (.app-layout, .main-view); global.css — примитивы страниц.
+ * bp: 1199 / 768 / 480 — литералы из контракта.
+ */
 .app-container {
   display: flex;
   height: 100vh;
+  max-width: 100%;
   position: relative;
-  background-color: var(--color-light);
+  background-color: var(--theme-surface);
   overflow: hidden;
 }
 
+/*
+ * Sidebar position:fixed — резервируем ширину через max-width,
+ * иначе контент уедет под панель (C2). Ширины = --sidebar-panel-*.
+ */
 .main-content {
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   transition: all var(--transition-normal);
   display: flex;
   flex-direction: column;
-  max-width: calc(100% - 350px);
-  padding: 0 20px 20px 20px; /* Уменьшаем отступ снизу */
-  background-color: var(--color-white);
-  min-height: 100vh; /* Изменяем на min-height для возможности прокрутки */
-  overflow-y: auto; /* Разрешаем вертикальную прокрутку */
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+  background-color: var(--theme-bg);
+  min-height: 100vh;
+  overflow-y: auto;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
-.main-content.no-right-sidebar {
+/*
+ * Flex-колонка: у детей min-width:auto по умолчанию — длинный nowrap/minmax
+ * раздувает страницу шире экрана и обрезается справа (iPhone/Samsung).
+ */
+.main-content > * {
+  min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
-/* Адаптивный дизайн */
-@media (max-width: 1199px) {
-  .main-content {
-    max-width: calc(100% - 320px);
+/* Сайдбар fixed — резерв ширины только на десктопе/планшете */
+@media (min-width: 769px) {
+  .main-content:not(.no-right-sidebar) {
+    max-width: calc(100% - var(--sidebar-panel-width-narrow));
+  }
+}
+
+@media (min-width: 1200px) {
+  .main-content:not(.no-right-sidebar) {
+    max-width: calc(100% - var(--sidebar-panel-width));
   }
 }
 
 @media (max-width: 768px) {
   .main-content {
-    max-width: 100%;
-    padding-bottom: 10px;
-  }
-  
-  .main-content.no-right-sidebar {
-    padding-bottom: 10px;
+    padding-left: var(--spacing-sm);
+    padding-right: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
   }
 }
 
 @media (max-width: 480px) {
   .main-content {
-    padding: 0 10px;
-    padding-bottom: 5px; /* Минимальный отступ для очень маленьких экранов */
-  }
-  
-  .main-content.no-right-sidebar {
-    padding-bottom: 5px;
+    padding-left: var(--spacing-xs);
+    padding-right: var(--spacing-xs);
+    padding-bottom: var(--spacing-xs);
   }
 }
 

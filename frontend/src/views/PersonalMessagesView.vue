@@ -12,10 +12,10 @@
 
 <template>
   <BaseLayout>
-    <div class="personal-messages-header">
+    <div class="personal-messages-header page-with-close">
+      <PageCloseButton :fallback="{ name: 'crm' }" />
       <span>{{ t('chat.personalMessages') }}</span>
       <span v-if="newMessagesCount > 0" class="badge">+{{ newMessagesCount }}</span>
-      <button class="close-btn" @click="goBack">×</button>
     </div>
 
     <div v-if="conferenceInvites.length" class="conference-invites">
@@ -72,6 +72,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import BaseLayout from '../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import adminChatService from '../services/adminChatService.js';
 import { usePermissions } from '@/composables/usePermissions';
 import { getPrivateConversations } from '../services/messagesService';
@@ -225,14 +226,6 @@ function openPersonalChat(conversation) {
   router.push({ name: 'admin-chat', params: { adminId: adminId } });
 }
 
-function goBack() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: 'crm' });
-  }
-}
-
 const formatDate = (dateString) => {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -273,9 +266,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--color-primary, #409eff);
+  border: 1px solid var(--color-primary);
   border-radius: 8px;
-  background: #ecf5ff;
+  background: var(--color-primary-light);
 }
 
 .conference-invite-text {
@@ -291,10 +284,12 @@ onUnmounted(() => {
 }
 
 .personal-messages-header {
+  position: relative;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   padding: 1rem;
+  padding-right: calc(var(--spacing-md) + 2rem);
   background: #f5f5f5;
   border-bottom: 1px solid #ddd;
   font-size: 1.2rem;
@@ -308,20 +303,6 @@ onUnmounted(() => {
   border-radius: 12px;
   font-size: 0.8rem;
   font-weight: bold;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.close-btn:hover {
-  background-color: #e0e0e0;
 }
 
 .loading-container {
@@ -394,14 +375,10 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .personal-messages-header {
     padding: 0.75rem;
+    padding-right: calc(var(--spacing-md) + 2rem);
     font-size: 1rem;
     flex-wrap: wrap;
     gap: 0.5rem;
-  }
-  
-  .close-btn {
-    font-size: 1.25rem;
-    padding: 0.2rem 0.4rem;
   }
   
   .personal-messages-list {

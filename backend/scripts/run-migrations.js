@@ -183,12 +183,37 @@ async function runMigrations() {
     }
 
     console.log('Все миграции успешно применены');
+
+    // Юр. шаблоны + published «политика и согласия» (идемпотентно; установка ОС / update)
+    try {
+      const { seedLegalTemplates } = require('./seed/legalTemplatesSeed');
+      const stats = await seedLegalTemplates();
+      console.log(
+        `[run-migrations] legal seed OK: templates +${stats.templatesInserted}/~${stats.templatesUpdated}, ` +
+          `published +${stats.publishedInserted}/~${stats.publishedUpdated}`
+      );
+    } catch (seedErr) {
+      console.error('[run-migrations] legal seed failed:', seedErr);
+      throw seedErr;
+    }
   } catch (error) {
     console.error('Ошибка при выполнении миграций:', error);
+    try {
+      await pool.end();
+    } catch (_) { /* already ended */ }
     process.exit(1);
-  } finally {
-    await pool.end();
   }
+
+  // Один раз закрываем общий pool из db.js (seed использует тот же getPool())
+  try {
+    await pool.end();
+  } catch (e) {
+    if (!/more than once/i.test(String(e?.message || e))) {
+      console.error('Ошибка закрытия pool:', e);
+      process.exit(1);
+    }
+  }
+  process.exit(0);
 }
 
 runMigrations();

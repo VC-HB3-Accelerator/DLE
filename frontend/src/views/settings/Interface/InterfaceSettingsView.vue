@@ -11,8 +11,8 @@
 -->
 
 <template>
-  <div class="interface-settings settings-panel" style="position:relative;min-height:120px">
-    <button class="close-btn" @click="goBack">×</button>
+  <div class="interface-settings settings-panel page-with-close">
+    <PageCloseButton fallback="/settings" />
     <h2>{{ $t('settings.interface.web3Hosting') }}</h2>
     
 
@@ -23,7 +23,7 @@
     <div class="web3-service-block">
       <div class="service-header">
         <h3>Akash Network</h3>
-        <span class="service-badge akash">{{ $t('settings.interface.akash.badge') }}</span>
+        <span class="service-badge">{{ $t('settings.interface.akash.badge') }}</span>
       </div>
       <p>{{ $t('settings.interface.akash.description') }}</p>
       <div class="service-features">
@@ -32,7 +32,8 @@
         <span class="feature">{{ $t('settings.interface.akash.feature3') }}</span>
       </div>
       <button 
-        class="btn-primary" 
+        type="button"
+        class="btn btn-primary" 
         @click="canManageSettings ? goToAkashDetails() : null"
         :disabled="!canManageSettings"
       >
@@ -44,16 +45,17 @@
     <div class="web3-service-block">
       <div class="service-header">
         <h3>Flux</h3>
-        <span class="service-badge flux">Web3 Cloud Infrastructure</span>
+        <span class="service-badge">Web3 Cloud Infrastructure</span>
       </div>
       <p>{{ $t('settings.interface.flux.description') }}</p>
       <div class="service-features">
-        <span class="feature">✓ Web3 Infrastructure</span>
+        <span class="feature">Web3 Infrastructure</span>
         <span class="feature">{{ $t('settings.interface.flux.feature2') }}</span>
         <span class="feature">{{ $t('settings.interface.flux.feature3') }}</span>
       </div>
       <button 
-        class="btn-primary" 
+        type="button"
+        class="btn btn-primary" 
         @click="canManageSettings ? goToFluxDetails() : null"
         :disabled="!canManageSettings"
       >
@@ -65,7 +67,7 @@
     <div class="web3-service-block">
       <div class="service-header">
         <h3>{{ $t('settings.interface.vds.title') }}</h3>
-        <span class="service-badge webssh">{{ $t('settings.interface.vds.badge') }}</span>
+        <span class="service-badge">{{ $t('settings.interface.vds.badge') }}</span>
       </div>
       <p>{{ $t('settings.interface.vds.description') }}</p>
       <div class="service-features">
@@ -74,7 +76,8 @@
         <span class="feature">{{ $t('settings.interface.vds.feature3') }}</span>
       </div>
       <button 
-        class="btn-primary" 
+        type="button"
+        class="btn btn-primary" 
         @click="canManageSettings ? goToWebSsh() : null"
         :disabled="!canManageSettings"
       >
@@ -87,8 +90,8 @@
       <div style="padding:2rem;max-width:600px">
         <h3>{{ $t('settings.interface.websshModalTitle') }}</h3>
         <!-- Здесь будет компонент WebSshForm.vue -->
-        <div style="color:#888">{{ $t('settings.interface.websshModalPlaceholder') }}</div>
-        <button class="btn-primary" @click="showWebSsh = false" style="margin-top:1.5rem">{{ $t('common.close') }}</button>
+        <div style="color:var(--color-text-light)">{{ $t('settings.interface.websshModalPlaceholder') }}</div>
+        <button type="button" class="btn btn-outline" @click="showWebSsh = false" style="margin-top:1.5rem">{{ $t('common.close') }}</button>
       </div>
     </NoAccessModal>
   </div>
@@ -101,6 +104,7 @@ import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { onMounted } from 'vue';
 
 // Подписываемся на централизованные события очистки и обновления данных
@@ -119,9 +123,6 @@ onMounted(() => {
 import { ref } from 'vue';
 const router = useRouter();
 const { canManageSettings } = usePermissions();
-const goBack = () => router.push('/settings');
-
-
 
 const goToAkashDetails = () => {
   window.open('https://akash.network/', '_blank');
@@ -170,103 +171,68 @@ h2:first-of-type {
 }
 
 .web3-service-block:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-color: var(--color-grey);
+  box-shadow: var(--shadow-sm);
 }
 
 .service-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-md);
   width: 100%;
 }
 
 .service-header h3 {
   margin: 0;
   color: var(--color-text);
-  font-size: 1.2rem;
+  font-size: var(--font-size-lg);
 }
 
 .service-badge {
-  background: var(--color-primary);
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
+  background: var(--color-light);
+  color: var(--color-text-light);
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
   font-weight: 500;
-}
-
-.service-badge.akash {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-}
-
-.service-badge.flux {
-  background: linear-gradient(135deg, #4ecdc4, #44a08d);
-}
-
-.service-badge.webssh {
-  background: linear-gradient(135deg, #6c757d, #343a40);
 }
 
 .service-features {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 0.5rem 0;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-xs) 0;
 }
 
 .feature {
-  background: var(--color-grey-lightest);
-  color: var(--color-text-secondary);
+  background: var(--color-light);
+  color: var(--color-text-light);
   padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
 }
 
-.btn-primary {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.2s;
-  margin-top: 0.5rem;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
-.btn-primary:disabled {
-  background: #e0e0e0 !important;
-  color: #aaa !important;
-  cursor: not-allowed !important;
-  transform: none !important;
-}
-
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
-  z-index: 10;
-}
-
-.close-btn:hover {
-  color: #333;
+.page-with-close {
+  position: relative;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* TZ package S */
+@media (max-width: 768px) {
+  .interface-settings.settings-panel,
+  .settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .row, .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style> 

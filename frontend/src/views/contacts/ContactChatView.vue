@@ -350,8 +350,8 @@ watch(broadcastCampaignId, async () => {
 }
 
 .broadcast-draft-subject label {
-  font-size: 0.9rem;
-  color: #606266;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
 }
 
 .contact-chat-panel :deep(.chat-container) {
@@ -367,6 +367,14 @@ watch(broadcastCampaignId, async () => {
     height: auto;
     max-height: none;
     border-radius: 0;
+  }
+}
+
+/* TZ package C safe */
+@media (max-width: 768px) {
+  .page, .layout, .panel, .settings-panel, [class*="container"], [class*="layout"], [class*="panel"] {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 </style>

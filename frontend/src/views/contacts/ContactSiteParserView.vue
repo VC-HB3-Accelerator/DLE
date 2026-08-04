@@ -552,8 +552,8 @@ onUnmounted(() => {
 
 .field-hint {
   margin-top: 4px;
-  font-size: 0.85rem;
-  color: #909399;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
 }
 
 .prompt-actions {
@@ -576,7 +576,7 @@ onUnmounted(() => {
 
 .run-hint {
   margin: 0 0 12px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .jobs-header {
@@ -588,15 +588,15 @@ onUnmounted(() => {
 }
 
 .jobs-empty {
-  color: #909399;
+  color: var(--color-text-light);
 }
 
 .job-card {
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
   padding: 12px;
   margin-bottom: 10px;
-  background: #fff;
+  background: var(--color-white);
 }
 
 .job-meta {
@@ -612,27 +612,43 @@ onUnmounted(() => {
 }
 
 .job-result-row {
-  font-size: 0.9rem;
-  color: #606266;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
 }
 
 .job-contact-link {
   margin-right: 8px;
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
 }
 
 .job-error {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .job-preview {
-  color: #67c23a;
+  color: var(--color-primary-dark);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

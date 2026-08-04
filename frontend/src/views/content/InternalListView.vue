@@ -15,8 +15,8 @@
 -->
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
-    <div class="list-page">
-      <button class="close-btn" @click="goBack" style="margin-bottom: 20px;">×</button>
+    <div class="list-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
       <div class="content-block">
         <div class="section-header">
           <h2>{{ t('content.internal.title') }}</h2>
@@ -32,7 +32,7 @@
             </div>
             <div class="search-box">
               <input v-model="search" type="text" :placeholder="t('common.searchPlaceholder')" class="search-input" />
-              <i class="fas fa-search search-icon"></i>
+              <UiGlyph name="search" class="search-icon" />
             </div>
           </div>
         </div>
@@ -44,14 +44,14 @@
             <div class="page-card-content">
               <p class="page-summary">{{ p.summary || t('common.noDescription') }}</p>
               <div class="page-meta">
-                <span class="page-status" :class="p.status === 'published' ? 'published' : 'draft'"><i class="fas fa-circle"></i>{{ p.status === 'published' ? t('common.status.published') : t('common.status.draft') }}</span>
-                <span class="page-status"><i class="fas fa-lock"></i>{{ t('content.internal.internalBadge') }}</span>
+                <span class="page-status" :class="p.status === 'published' ? 'published' : 'draft'"><UiGlyph name="circle" filled :size="8" />{{ p.status === 'published' ? t('common.status.published') : t('common.status.draft') }}</span>
+                <span class="page-status"><UiGlyph name="lock" :size="14" />{{ t('content.internal.internalBadge') }}</span>
               </div>
             </div>
           </div>
         </div>
         <div v-else class="empty-state">
-          <div class="empty-icon"><i class="fas fa-file-alt"></i></div>
+          <div class="empty-icon"><UiGlyph name="file" :size="40" /></div>
           <h3>{{ t('content.internal.emptyTitle') }}</h3>
         </div>
       </div>
@@ -64,10 +64,12 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import pagesService from '../../services/pagesService';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from './permissions.js';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -87,7 +89,6 @@ const { address } = useAuthContext();
 const { hasPermission } = usePermissions();
 const canManageLegalDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 
-function goBack() { router.push({ name: 'content-list' }); }
 function open(id) { router.push({ name: 'page-view', params: { id } }); }
 
 const filtered = computed(() => {
@@ -145,7 +146,7 @@ onMounted(async () => {
 .page-header { display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; }
 .header-content h1 { color: var(--color-primary); font-size: 2.2rem; margin: 0 0 8px 0; }
 .header-content p { color: var(--color-grey-dark); margin: 0; }
-.close-btn { background:none; border:none; font-size: 1.5rem; cursor:pointer; color:#888; }
+.list-page.page-with-close { position: relative; }
 
 /* Переиспользуем стили из TemplatesListView */
 .content-block { background: #f8f9fa; border-radius: var(--radius-lg); padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -169,6 +170,21 @@ onMounted(async () => {
 .page-status.draft i { color: #ff9800; }
 .empty-state { text-align:center; padding: 60px 20px; }
 .empty-icon { font-size: 3rem; color: var(--color-grey-dark); margin-bottom: 10px; }
+
+
+/* TZ package D */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style>
 
 

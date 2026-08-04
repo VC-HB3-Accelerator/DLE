@@ -15,6 +15,14 @@ const KNOWN_BUTTONS = {
   // store: false — позже
 };
 
+/** Guest auth methods in sidebar picker (wallet always on). */
+const DEFAULT_AUTH_METHODS = {
+  wallet: true,
+  telegram: false,
+  email: false,
+  password: false,
+};
+
 /** Поддерживаемые языки UI (порядок отображения). */
 const KNOWN_LOCALES = ['ru', 'en'];
 const DEFAULT_LOCALES = [...KNOWN_LOCALES];
@@ -28,6 +36,16 @@ function normalizeButtons(raw) {
     }
   }
   return out;
+}
+
+function normalizeAuthMethods(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    wallet: true,
+    telegram: Boolean(src.telegram),
+    email: Boolean(src.email),
+    password: Boolean(src.password),
+  };
 }
 
 /**
@@ -99,7 +117,7 @@ async function applyGiteaDesired(enabled) {
 
 async function readRow() {
   const { rows } = await db.getQuery()(
-    `SELECT buttons_json, locales_json, updated_at, updated_by
+    `SELECT buttons_json, locales_json, auth_methods_json, updated_at, updated_by
      FROM sidebar_nav_settings
      WHERE id = 1`
   );
@@ -112,11 +130,13 @@ async function getSettings() {
   const locales = row?.locales_json != null
     ? normalizeLocales(row.locales_json)
     : [...DEFAULT_LOCALES];
+  const authMethods = normalizeAuthMethods(row?.auth_methods_json ?? DEFAULT_AUTH_METHODS);
   const gitea = await getGiteaStatus();
 
   return {
     buttons,
     locales,
+    authMethods,
     knownButtons: Object.keys(KNOWN_BUTTONS),
     knownLocales: [...KNOWN_LOCALES],
     gitea,
@@ -125,7 +145,7 @@ async function getSettings() {
   };
 }
 
-async function setSettings({ buttons, locales, updatedBy = null } = {}) {
+async function setSettings({ buttons, locales, authMethods, updatedBy = null } = {}) {
   const existing = await readRow();
   const normalizedButtons = buttons !== undefined
     ? normalizeButtons(buttons)
@@ -135,21 +155,30 @@ async function setSettings({ buttons, locales, updatedBy = null } = {}) {
     : (existing?.locales_json != null
       ? normalizeLocales(existing.locales_json)
       : [...DEFAULT_LOCALES]);
+  const normalizedAuth = authMethods !== undefined
+    ? normalizeAuthMethods(authMethods)
+    : normalizeAuthMethods(existing?.auth_methods_json ?? DEFAULT_AUTH_METHODS);
 
   const userId = updatedBy != null && Number.isFinite(Number(updatedBy))
     ? Number(updatedBy)
     : null;
 
   const { rows } = await db.getQuery()(
-    `INSERT INTO sidebar_nav_settings (id, buttons_json, locales_json, updated_at, updated_by)
-     VALUES (1, $1::jsonb, $2::jsonb, NOW(), $3)
+    `INSERT INTO sidebar_nav_settings (id, buttons_json, locales_json, auth_methods_json, updated_at, updated_by)
+     VALUES (1, $1::jsonb, $2::jsonb, $3::jsonb, NOW(), $4)
      ON CONFLICT (id) DO UPDATE SET
        buttons_json = EXCLUDED.buttons_json,
        locales_json = EXCLUDED.locales_json,
+       auth_methods_json = EXCLUDED.auth_methods_json,
        updated_at = NOW(),
        updated_by = EXCLUDED.updated_by
-     RETURNING buttons_json, locales_json, updated_at, updated_by`,
-    [JSON.stringify(normalizedButtons), JSON.stringify(normalizedLocales), userId]
+     RETURNING buttons_json, locales_json, auth_methods_json, updated_at, updated_by`,
+    [
+      JSON.stringify(normalizedButtons),
+      JSON.stringify(normalizedLocales),
+      JSON.stringify(normalizedAuth),
+      userId,
+    ]
   );
 
   const giteaAction = buttons !== undefined
@@ -160,6 +189,7 @@ async function setSettings({ buttons, locales, updatedBy = null } = {}) {
   return {
     buttons: normalizeButtons(rows[0].buttons_json),
     locales: normalizeLocales(rows[0].locales_json),
+    authMethods: normalizeAuthMethods(rows[0].auth_methods_json),
     knownButtons: Object.keys(KNOWN_BUTTONS),
     knownLocales: [...KNOWN_LOCALES],
     gitea,
@@ -174,8 +204,10 @@ module.exports = {
   setSettings,
   normalizeButtons,
   normalizeLocales,
+  normalizeAuthMethods,
   KNOWN_BUTTONS,
   KNOWN_LOCALES,
   DEFAULT_LOCALES,
+  DEFAULT_AUTH_METHODS,
   GITEA_CONTAINER,
 };

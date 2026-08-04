@@ -142,13 +142,19 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 100; /* Ensure header stays on top */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* Убираем max-width, margin, padding */
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--spacing-sm);
 }
 
 .header-text {
@@ -161,14 +167,16 @@ onBeforeUnmount(() => {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-xs);
   flex-shrink: 0;
 }
 
 .footer-dle-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .footer-dle-logo {
@@ -176,22 +184,23 @@ onBeforeUnmount(() => {
   height: 32px;
   border-radius: 6px;
   object-fit: contain;
-  border: 2px solid #e9ecef;
-  background: white;
+  border: 2px solid var(--color-border);
+  background: var(--color-white);
+  flex-shrink: 0;
 }
 
 .footer-dle-logo-placeholder {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--color-primary), #0056b3);
-  color: white;
+  border-radius: var(--radius-md);
+  background: var(--theme-surface);
+  color: var(--color-white);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 12px;
-  border: 2px solid #e9ecef;
+  font-size: var(--font-size-xs);
+  border: 2px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -200,6 +209,9 @@ onBeforeUnmount(() => {
   color: var(--color-primary);
   font-weight: 500;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .title {
@@ -220,11 +232,11 @@ onBeforeUnmount(() => {
   background-color: var(--color-white);
   color: var(--color-primary);
   border: none;
-  padding: 8px;
+  padding: var(--spacing-xs);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all var(--transition-normal);
-  gap: 8px;
+  transition: background-color var(--transition-normal);
+  gap: var(--spacing-xs);
   box-shadow: none;
 }
 
@@ -287,6 +299,10 @@ onBeforeUnmount(() => {
 
 /* Add some responsive styles if needed */
 @media (max-width: 768px) {
+  .header {
+    padding: 16px 4px 14px;
+  }
+
   .title {
     font-size: 1.2rem;
   }
@@ -302,6 +318,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 480px) {
+  .header {
+    padding: 12px 2px 10px;
+  }
+
   .title {
     font-size: 1em;
     text-align: left;

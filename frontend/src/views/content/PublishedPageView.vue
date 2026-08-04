@@ -12,10 +12,8 @@
 
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
-    <div class="docs-page">
-      <div class="docs-header">
-        <button class="close-btn" @click="goBack" :title="t('common.close')">×</button>
-      </div>
+    <div class="docs-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-published' }" />
 
       <!-- Основной контент: сайдбар + контент -->
       <div class="docs-layout has-content">
@@ -41,6 +39,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import DocsSidebar from '../../components/docs/DocsSidebar.vue';
 import DocsContent from '../../components/docs/DocsContent.vue';
 import pagesService from '../../services/pagesService';
@@ -58,10 +57,6 @@ const { t } = useI18n();
 
 const currentPageId = ref(null);
 const pageSlug = computed(() => route.params.slug);
-
-function goBack() {
-  router.push({ name: 'content-published' });
-}
 
 function goToIndex() {
   router.push({ name: 'content-published' });
@@ -89,6 +84,7 @@ onMounted(async () => {
 
 <style scoped>
 .docs-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 40px);
@@ -105,21 +101,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #888;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
 
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
-}
 
 .docs-layout {
   display: flex;
@@ -167,6 +149,7 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .docs-page {
+  position: relative;
     height: auto;
     min-height: calc(100vh - 40px);
     overflow: visible;
@@ -195,6 +178,8 @@ onMounted(async () => {
     padding: 16px;
   }
 }
+
+/* TZ package D: reviewed */
 </style>
 
 

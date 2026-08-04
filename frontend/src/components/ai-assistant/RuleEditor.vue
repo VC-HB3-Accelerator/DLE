@@ -293,14 +293,15 @@ function close() {
 }
 
 .modal {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.12);
-  padding: 2rem;
-  min-width: 500px;
-  max-width: 600px;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--block-padding);
+  min-width: 0;
+  max-width: min(600px, 100%);
   width: 100%;
   margin: auto;
+  box-sizing: border-box;
 }
 
 h3 {
@@ -486,5 +487,35 @@ button:last-child:hover {
 .tag-check input {
   width: auto;
   margin-top: 0.2rem;
+}
+
+@media (max-width: 768px) {
+  .modal-bg {
+    padding: var(--spacing-sm);
+    align-items: flex-start;
+  }
+
+  .modal {
+    padding: var(--block-padding-mobile);
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions button {
+    width: 100%;
+    height: var(--button-height-mobile);
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-bg {
+    padding: var(--spacing-xs);
+  }
 }
 </style>

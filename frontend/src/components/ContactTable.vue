@@ -330,7 +330,7 @@
               <th v-if="isEditorRole" class="col-settings">
                 <el-popover placement="bottom-end" :width="240" trigger="click">
                   <template #reference>
-                    <button type="button" class="columns-menu-btn" :title="t('contacts.columnsSettings')">
+                    <button type="button" class="btn btn-outline btn-sm columns-menu-btn" :title="t('contacts.columnsSettings')">
                       {{ t('contacts.columnsSettings') }}
                     </button>
                   </template>
@@ -861,6 +861,7 @@ function buildFiltersSnapshot() {
     pageSize: PAGE_SIZE_OPTIONS.includes(Number(pageSize.value))
       ? Number(pageSize.value)
       : 100,
+    currentPage: Math.max(1, Number(currentPage.value) || 1),
     showAdvancedFilters: Boolean(showAdvancedFilters.value)
   };
 }
@@ -890,6 +891,9 @@ function restoreFiltersSnapshot(saved) {
 
   const nextPageSize = Number(saved.pageSize);
   pageSize.value = PAGE_SIZE_OPTIONS.includes(nextPageSize) ? nextPageSize : 100;
+
+  const nextPage = Number(saved.currentPage);
+  currentPage.value = Number.isInteger(nextPage) && nextPage > 0 ? nextPage : 1;
 
   if (typeof saved.showAdvancedFilters === 'boolean') {
     showAdvancedFilters.value = saved.showAdvancedFilters;
@@ -930,6 +934,19 @@ function scheduleSaveFilters() {
       console.log('[ContactTable] Не удалось сохранить фильтры:', error.message);
     }
   }, 400);
+}
+
+async function flushSaveFilters() {
+  if (!filtersHydrated.value || !isAuthenticated.value) return;
+  if (filtersSaveTimer) {
+    clearTimeout(filtersSaveTimer);
+    filtersSaveTimer = null;
+  }
+  try {
+    await setPreference(CONTACTS_FILTERS_PREFERENCE_KEY, buildFiltersSnapshot(), { version: 1 });
+  } catch (error) {
+    console.log('[ContactTable] Не удалось сохранить фильтры:', error.message);
+  }
 }
 
 const isEditorRole = computed(() => userAccessLevel.value?.level === 'editor');
@@ -1059,6 +1076,7 @@ async function loadContactsPage(options = {}) {
     if (currentPage.value > maxPage && !options.clampRetried) {
       currentPage.value = maxPage;
       isLoadingContacts.value = false;
+      scheduleSaveFilters();
       return loadContactsPage({ clampRetried: true });
     }
 
@@ -1110,6 +1128,7 @@ function onPageChange(page) {
   if (page === currentPage.value) return;
   currentPage.value = page;
   loadContactsPage();
+  scheduleSaveFilters();
 }
 
 function onPageSizeChange(size) {
@@ -1258,6 +1277,7 @@ function formatDate(date) {
   return new Date(date).toLocaleString();
 }
 async function goToContactDetails(contactId) {
+  await flushSaveFilters();
   if (props.markContactAsRead) {
     await props.markContactAsRead(contactId);
   }
@@ -1272,11 +1292,12 @@ function onImported() {
   applyFilters(true);
 }
 
-function goToCreateContact() {
+async function goToCreateContact() {
+  await flushSaveFilters();
   router.push({ name: 'contact-profile', params: { id: 'new' } });
 }
 
-function editSelectedContact() {
+async function editSelectedContact() {
   if (!hasSingleSelection.value) {
     ElMessage.warning(t('contacts.selectOneToEdit'));
     return;
@@ -1284,6 +1305,7 @@ function editSelectedContact() {
 
   const contactId = selectedIdsForActions.value[0];
   if (!contactId) return;
+  await flushSaveFilters();
   router.push({ name: 'contact-profile', params: { id: contactId } });
 }
 
@@ -1589,8 +1611,8 @@ async function deleteMessagesSelected() {
 
 .contacts-toolbar--context {
   padding: 12px 16px;
-  background: #f0faf0;
-  border: 1px solid rgba(76, 175, 80, 0.35);
+  background: color-mix(in srgb, var(--color-primary) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, white);
   border-radius: var(--block-radius);
   margin-bottom: 16px;
 }
@@ -1848,7 +1870,7 @@ async function deleteMessagesSelected() {
 }
 
 .contact-table tbody tr:nth-child(even) {
-  background: #fafafa;
+  background: var(--color-light);
 }
 
 .contact-row {
@@ -1856,7 +1878,7 @@ async function deleteMessagesSelected() {
 }
 
 .contact-table tbody tr:hover {
-  background: #f0faf0;
+  background: color-mix(in srgb, var(--color-primary) 8%, white);
 }
 
 .contact-table td {
@@ -1898,18 +1920,7 @@ async function deleteMessagesSelected() {
 }
 
 .columns-menu-btn {
-  border: 1px solid var(--color-border);
-  background: var(--color-white);
-  color: var(--color-dark);
-  border-radius: 6px;
-  padding: 4px 10px;
   font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-
-.columns-menu-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
 }
 
 .columns-menu__title {
@@ -1949,7 +1960,7 @@ async function deleteMessagesSelected() {
 
 .personal-field:not(.personal-field--revealed):hover {
   color: var(--color-primary-dark);
-  background: rgba(76, 175, 80, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .loading-row {
@@ -1959,31 +1970,31 @@ async function deleteMessagesSelected() {
 }
 
 .new-contact-row {
-  background: #e8f5e9 !important;
+  background: color-mix(in srgb, var(--color-primary) 12%, white) !important;
 }
 
 .new-contact-row:hover {
-  background: #c8e6c9 !important;
+  background: color-mix(in srgb, var(--color-primary) 20%, white) !important;
 }
 
 .admin-badge {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: color-mix(in srgb, var(--color-secondary) 15%, white);
+  color: var(--color-secondary);
   padding: 2px 8px;
   border-radius: 12px;
   font-size: var(--font-size-xs);
 }
 
 .editor-badge {
-  background: #f3e5f5;
-  color: #7b1fa2;
+  background: color-mix(in srgb, var(--color-accent) 15%, white);
+  color: var(--color-accent);
   padding: 2px 8px;
   border-radius: 12px;
   font-size: var(--font-size-xs);
 }
 
 .readonly-badge {
-  background: #e8f5e8;
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
   color: var(--color-primary-dark);
   padding: 2px 8px;
   border-radius: 12px;
@@ -2014,7 +2025,7 @@ async function deleteMessagesSelected() {
   width: 100%;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .filters-row--primary,
   .filters-row--advanced {
     grid-template-columns: 1fr;
@@ -2042,7 +2053,7 @@ async function deleteMessagesSelected() {
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .contacts-toolbar {
     gap: 12px;
   }
@@ -2062,4 +2073,9 @@ async function deleteMessagesSelected() {
     padding: 8px;
   }
 }
+
+/* TZ package C: bp normalized */
+
+/* TZ package C */
+.table-scroll-wrapper { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 </style> 

@@ -211,9 +211,12 @@ scripts/export-template-for-release.sh
 scripts/replace-release-assets.sh
 scripts/export-update-for-release.sh
 scripts/gitea-upload-update-pack.sh
+scripts/gitea-upload-release-assets.sh
 scripts/setup-gitea-updates-repo.sh
 scripts/setup-gitea-db.sh
 scripts/prepare-clean-template.sh
+scripts/localize-readme-for-mirror.py
+scripts/patch-update-pack-min-from.py
 
 # Docker data and release archives - не коммитить в Git!
 docker-data/

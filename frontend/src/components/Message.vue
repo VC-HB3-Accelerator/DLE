@@ -609,7 +609,7 @@ function copyEmail(email) {
 }
 
 .system-btn {
-  background: var(--color-primary, #3b82f6);
+  background: var(--color-primary);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -619,14 +619,14 @@ function copyEmail(email) {
   transition: background 0.2s;
 }
 .system-btn:hover {
-  background: var(--color-primary-dark, #2563eb);
+  background: var(--color-primary-dark);
 }
 .system-btn.primary {
-  background: var(--color-primary, #007bff);
+  background: var(--color-primary);
   font-weight: 600;
 }
 .system-btn.primary:hover {
-  background: var(--color-primary-dark, #0056b3);
+  background: var(--color-primary-dark);
 }
 .system-btn:disabled {
   opacity: 0.6;
@@ -652,7 +652,7 @@ function copyEmail(email) {
 }
 
 .consent-document-item:hover {
-  border-color: var(--color-primary, #007bff);
+  border-color: var(--color-primary);
   background: #f8f9fa;
 }
 
@@ -694,7 +694,7 @@ function copyEmail(email) {
 }
 
 .consent-document-link {
-  color: var(--color-primary, #007bff);
+  color: var(--color-primary);
   text-decoration: none;
   font-size: 0.9rem;
   display: inline-block;
@@ -730,7 +730,7 @@ function copyEmail(email) {
 
 .sender-direction {
   font-weight: 600;
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
 }
 
 .sender-wallet {
@@ -762,7 +762,7 @@ function copyEmail(email) {
 
 /* Стили для приватного чата */
 .private-current-user {
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8); /* Синий градиент */
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: white;
   margin-left: auto;
   margin-right: 0;
@@ -803,7 +803,7 @@ function copyEmail(email) {
 }
 
 .reply-link {
-  color: var(--color-primary, #007bff);
+  color: var(--color-primary);
   text-decoration: none;
   font-size: var(--font-size-sm);
   font-weight: 500;
@@ -816,7 +816,7 @@ function copyEmail(email) {
 
 .reply-link:hover {
   background-color: rgba(0, 123, 255, 0.2);
-  color: var(--color-primary-dark, #0056b3);
+  color: var(--color-primary-dark);
   text-decoration: none;
 }
 

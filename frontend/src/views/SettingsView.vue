@@ -19,11 +19,8 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="settings-view-container">
-      <div v-if="route.name === 'settings-blockchain-dle-deploy' || route.name === 'settings-dle-v2-deploy'" class="page-header">
-        <button 
-          class="close-btn" 
-          @click="router.push('/settings')"
-        >×</button>
+      <div v-if="route.name === 'settings-blockchain-dle-deploy' || route.name === 'settings-dle-v2-deploy'" class="page-header page-with-close">
+        <PageCloseButton fallback="/settings" />
       </div>
       <!-- Router view для отображения дочерних компонентов настроек -->
       <router-view></router-view>
@@ -39,6 +36,7 @@ import { useAuthContext } from '../composables/useAuth';
 import { useRouter, useRoute } from 'vue-router';
 import { getFromStorage, setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import eventBus from '../utils/eventBus';
 
 // Определяем props
@@ -129,35 +127,18 @@ onBeforeUnmount(() => {
 /* Заголовки */
 .page-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+}
+
+.page-with-close {
+  position: relative;
 }
 
 h1 {
   color: var(--color-dark);
   margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
 }
 
 h3 {
@@ -209,6 +190,17 @@ strong {
   .buttons-grid {
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

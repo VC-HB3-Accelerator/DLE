@@ -18,7 +18,8 @@
     :is-loading-tokens="props.isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="transfer-tokens-page">
+    <div class="transfer-tokens-page page-with-close">
+      <PageCloseButton :on-navigate="goBackToProposals" />
       <!-- Информация для неавторизованных пользователей -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
@@ -30,11 +31,10 @@
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ t('common.loading') }}
         </div>
-        <button class="close-btn" @click="goBackToProposals">×</button>
       </div>
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
-          <i class="fas fa-info-circle"></i>
+          <span class="ui-fa-fallback" aria-hidden="true">ℹ</span>
           <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
           <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
@@ -46,7 +46,7 @@
           <!-- Адрес отправителя -->
           <div class="form-group">
             <label for="sender" class="form-label">
-              <i class="fas fa-paper-plane"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">➤</span>
               {{ t('smartcontracts.transferTokens.senderLabel') }}
             </label>
             <input
@@ -65,7 +65,7 @@
           <!-- Адрес получателя -->
           <div class="form-group">
             <label for="recipient" class="form-label">
-              <i class="fas fa-user"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">👤</span>
               {{ t('smartcontracts.transferTokens.recipientLabel') }}
             </label>
             <input
@@ -84,7 +84,7 @@
           <!-- Количество токенов -->
           <div class="form-group">
             <label for="amount" class="form-label">
-              <i class="fas fa-coins"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">◎</span>
               {{ t('smartcontracts.transferTokens.amountLabel') }}
             </label>
             <input
@@ -101,7 +101,7 @@
               {{ t('smartcontracts.transferTokens.amountHelp') }}
             </small>
             <div v-if="dleInfo?.totalSupply" class="balance-info">
-              <i class="fas fa-info-circle"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">ℹ</span>
               {{ t('smartcontracts.transferTokens.availableBalance', { amount: formatTokenAmount(dleInfo.totalSupply), symbol: dleInfo.symbol }) }}
             </div>
           </div>
@@ -109,7 +109,7 @@
           <!-- Описание предложения -->
           <div class="form-group">
             <label for="description" class="form-label">
-              <i class="fas fa-file-alt"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">📄</span>
               {{ t('smartcontracts.transferTokens.descriptionLabel') }}
             </label>
             <textarea
@@ -128,7 +128,7 @@
           <!-- Время голосования -->
           <div class="form-group">
             <label for="votingDuration" class="form-label">
-              <i class="fas fa-clock"></i>
+              <span class="ui-fa-fallback" aria-hidden="true">◷</span>
               {{ t('smartcontracts.transferTokens.votingDurationLabel') }}
             </label>
             <select
@@ -151,7 +151,7 @@
 
           <!-- Информация о мульти-чейн развертывании -->
           <div v-if="dleInfo?.deployedNetworks && dleInfo.deployedNetworks.length > 1" class="multichain-info">
-            <i class="fas fa-info-circle"></i>
+            <span class="ui-fa-fallback" aria-hidden="true">ℹ</span>
             <strong>{{ t('smartcontracts.transferTokens.multichainInfo', {
               count: dleInfo.deployedNetworks.length,
               networks: dleInfo.deployedNetworks.map(net => getChainName(net.chainId)).join(', ')
@@ -160,12 +160,9 @@
 
           <!-- Кнопки -->
           <div class="form-actions">
-            <button type="button" class="btn-secondary" @click="goBackToProposals">
-              <i class="fas fa-arrow-left"></i>
-              {{ t('common.back') }}
-            </button>
+
             <button type="submit" class="btn-primary" :disabled="isSubmitting">
-              <i class="fas fa-paper-plane" :class="{ 'fa-spin': isSubmitting }"></i>
+              <span class="ui-fa-fallback" :class="{ 'ui-fa-fallback--spin': isSubmitting }" aria-hidden="true">➤</span>
               {{ isSubmitting ? t('smartcontracts.transferTokens.creating') : t('smartcontracts.transferTokens.createProposal') }}
             </button>
           </div>
@@ -174,7 +171,7 @@
         <!-- Результат создания предложений -->
         <div v-if="proposalResult" class="proposal-result">
           <div class="alert" :class="proposalResult.success ? 'alert-success' : 'alert-danger'">
-            <i :class="proposalResult.success ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i>
+            <span class="ui-fa-fallback" aria-hidden="true">•</span>
             <strong>{{ proposalResult.success ? `${t('common.success')}!` : `${t('common.error')}!` }}</strong>
             <p class="mb-0 mt-2">{{ proposalResult.message }}</p>
           </div>
@@ -192,7 +189,7 @@
                 <div class="chain-header">
                   <span class="chain-name">{{ getChainName(result.chainId) }}</span>
                   <span class="chain-status">
-                    <i :class="result.success ? 'fas fa-check' : 'fas fa-times'"></i>
+                    <span class="ui-fa-fallback" aria-hidden="true">•</span>
                     {{ result.success ? t('smartcontracts.transferTokens.resultSuccess') : t('smartcontracts.transferTokens.resultError') }}
                   </span>
                 </div>
@@ -218,6 +215,7 @@ import { defineProps, defineEmits, ref, onMounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import api from '@/api/axios';
 import { ethers } from 'ethers';
 import { createProposal, switchToVotingNetwork } from '@/utils/dle-contract';
@@ -905,5 +903,11 @@ onMounted(() => {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* TZ package G/SC: reviewed */
+
+.transfer-tokens-container.page-with-close {
+  position: relative;
 }
 </style>

@@ -18,19 +18,19 @@
           :title="t('blog.comments.action')"
           @click="scrollToComments"
         >
-          <span class="blog-engagement__glyph" aria-hidden="true">💬</span>
+          <BlogGlyph name="comment" />
           <span class="blog-engagement__count">{{ engagement.commentsCount }}</span>
         </button>
-        <span class="blog-engagement__icon-btn blog-engagement__icon-btn--static" :title="t('blog.views.label')">
-          <span class="blog-engagement__glyph" aria-hidden="true">👁</span>
-          <span class="blog-engagement__count">{{ engagement.viewsCount }}</span>
-        </span>
         <BlogShareBar
           v-if="shareUrl"
           :url="shareUrl"
           :title="pageTitle"
           compact
         />
+        <span class="blog-engagement__icon-btn blog-engagement__icon-btn--static" :title="t('blog.views.label')">
+          <BlogGlyph name="views" />
+          <span class="blog-engagement__count">{{ engagement.viewsCount || 0 }}</span>
+        </span>
       </div>
     </div>
 
@@ -52,7 +52,7 @@
         <button
           v-if="!isAuthenticated"
           type="button"
-          class="blog-engagement__login-btn"
+          class="btn btn-ghost btn-sm"
           @click="requestLogin"
         >
           {{ t('blog.feed.login') }}
@@ -80,7 +80,7 @@
         </label>
         <button
           type="submit"
-          class="blog-engagement__subscribe-btn"
+          class="btn btn-primary btn-sm"
           :disabled="isSubscribing || !privacyConsent"
         >
           {{ t('blog.subscribe.button') }}
@@ -89,8 +89,8 @@
       <p v-if="subscribeMessage" class="blog-engagement__subscribe-msg">{{ subscribeMessage }}</p>
     </div>
 
-    <button type="button" class="blog-engagement__ask-btn" @click="askAi">
-      <span class="blog-engagement__glyph" aria-hidden="true">🤖</span>
+    <button type="button" class="btn btn-ghost btn-sm blog-engagement__ask-btn" @click="askAi">
+      <BlogGlyph name="ask" />
       <span>{{ t('blog.askAi.button') }}</span>
     </button>
   </section>
@@ -107,6 +107,7 @@ import { getPrivacyDocsUrl } from '../../constants/publishedDocs';
 import BlogShareBar from './BlogShareBar.vue';
 import BlogComments from './BlogComments.vue';
 import BlogReactions from './BlogReactions.vue';
+import BlogGlyph from './BlogGlyph.vue';
 
 const props = defineProps({
   pageId: { type: Number, default: null },
@@ -261,7 +262,7 @@ watch(() => props.isAuthenticated, loadEngagement);
 .blog-engagement {
   margin-top: 28px;
   padding-top: 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--theme-text) 8%, transparent);
 }
 
 .blog-engagement__toolbar {
@@ -283,48 +284,34 @@ watch(() => props.isAuthenticated, loadEngagement);
 .blog-engagement__icon-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   height: 40px;
-  padding: 0 10px;
+  padding: 0 var(--spacing-sm);
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: #262626;
-  font-size: 14px;
+  color: var(--color-dark);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
-}
-
-.blog-engagement__icon-btn i {
-  font-size: 18px;
-  line-height: 1;
-  color: #262626;
-}
-
-.blog-engagement__glyph {
-  font-size: 18px;
-  line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .blog-engagement__icon-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.blog-engagement__icon-btn:active {
-  transform: scale(0.96);
+  background: var(--color-light);
+  color: var(--color-primary);
 }
 
 .blog-engagement__icon-btn--static {
   cursor: default;
+  margin-left: auto;
+  color: var(--color-text-light);
+  font-weight: 500;
 }
 
 .blog-engagement__icon-btn--static:hover {
   background: transparent;
-}
-
-.blog-engagement__icon-btn--static:active {
-  transform: none;
+  color: var(--color-text-light);
 }
 
 .blog-engagement__count {
@@ -335,9 +322,9 @@ watch(() => props.isAuthenticated, loadEngagement);
 .blog-engagement__subscribe {
   margin-top: 24px;
   padding: 16px 18px;
-  background: #fafafa;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
+  background: var(--color-light);
+  border: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
+  border-radius: var(--radius-lg);
 }
 
 .blog-engagement__subscribe-head {
@@ -352,32 +339,14 @@ watch(() => props.isAuthenticated, loadEngagement);
   margin: 0 0 4px;
   font-size: 15px;
   font-weight: 650;
-  color: #262626;
+  color: var(--theme-text);
 }
 
 .blog-engagement__subscribe-hint {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: #8e8e8e;
-}
-
-.blog-engagement__login-btn {
-  flex-shrink: 0;
-  height: 36px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.05);
-  color: #262626;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.blog-engagement__login-btn:hover {
-  background: rgba(0, 0, 0, 0.09);
+  color: var(--theme-text-muted);
 }
 
 .blog-engagement__subscribe-form {
@@ -392,7 +361,7 @@ watch(() => props.isAuthenticated, loadEngagement);
   gap: 8px;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
   cursor: pointer;
 }
 
@@ -402,7 +371,7 @@ watch(() => props.isAuthenticated, loadEngagement);
 }
 
 .blog-engagement__consent a {
-  color: var(--color-primary, #2d72d9);
+  color: var(--color-primary);
   text-decoration: underline;
 }
 
@@ -411,38 +380,17 @@ watch(() => props.isAuthenticated, loadEngagement);
   box-sizing: border-box;
   height: 40px;
   padding: 0 14px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   font-size: 14px;
-  background: #fff;
-  color: #262626;
+  background: var(--color-white);
+  color: var(--theme-text);
 }
 
 .blog-engagement__subscribe-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
-}
-
-.blog-engagement__subscribe-btn {
-  height: 40px;
-  padding: 0 18px;
-  border: none;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.blog-engagement__subscribe-btn:hover:not(:disabled) {
-  background: var(--color-primary-dark);
-}
-
-.blog-engagement__subscribe-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .blog-engagement__subscribe-msg {
@@ -452,23 +400,26 @@ watch(() => props.isAuthenticated, loadEngagement);
 }
 
 .blog-engagement__ask-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   margin-top: 16px;
-  height: 40px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: #262626;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
 }
 
-.blog-engagement__ask-btn:hover {
-  background: rgba(76, 175, 80, 0.1);
+.blog-engagement__ask-btn:hover:not(:disabled):not(.is-disabled) {
   color: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+
+/* TZ package D */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>

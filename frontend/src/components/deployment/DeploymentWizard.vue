@@ -37,7 +37,7 @@
     <div class="status-section">
       <div class="status-card" :class="statusClass">
         <div class="status-icon">
-          <i :class="statusIcon"></i>
+          <UiGlyph :name="statusIcon" :spin="statusIcon === 'sync'" />
         </div>
         <div class="status-content">
           <h3 class="status-title">{{ statusTitle }}</h3>
@@ -97,7 +97,7 @@
         @click="stopDeploymentTracking"
         v-if="isDeploying"
       >
-        <i class="fas fa-stop"></i>
+        <UiGlyph name="stop" />
         {{ t('deployment.stopTracking') }}
       </button>
       
@@ -106,7 +106,7 @@
         @click="resetDeploymentState"
         v-if="deploymentStatus === 'completed' || deploymentStatus === 'failed'"
       >
-        <i class="fas fa-redo"></i>
+        <UiGlyph name="redo" />
         {{ t('deployment.resetState') }}
       </button>
     </div>
@@ -114,7 +114,7 @@
     <!-- Ошибка -->
     <div v-if="error" class="error-section">
       <div class="error-card">
-        <i class="fas fa-exclamation-triangle"></i>
+        <UiGlyph name="warning" />
         <div>
           <h4>{{ t('deployment.errorTitle') }}</h4>
           <p>{{ error }}</p>
@@ -128,6 +128,7 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useDeploymentWebSocket } from '@/composables/useDeploymentWebSocket';
+import UiGlyph from '../UiGlyph.vue';
 import api from '@/api/axios';
 
 const { t } = useI18n();
@@ -206,10 +207,10 @@ const statusClass = computed(() => {
 
 const statusIcon = computed(() => {
   switch (deploymentStatus.value) {
-    case 'completed': return 'fas fa-check-circle';
-    case 'failed': return 'fas fa-times-circle';
-        case 'in_progress': return 'fas fa-spinner fa-spin';
-    default: return 'fas fa-clock';
+    case 'completed': return 'check-circle';
+    case 'failed': return 'times-circle';
+    case 'in_progress': return 'sync';
+    default: return 'clock';
   }
 });
 
@@ -626,5 +627,20 @@ watch(deploymentStatus, (newStatus) => {
 .error-card p {
   margin: 0;
   color: #7f8c8d;
+}
+
+
+/* TZ package G/SC */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, .modal, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="form"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>

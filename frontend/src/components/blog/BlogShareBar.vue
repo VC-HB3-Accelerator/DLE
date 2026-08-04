@@ -13,7 +13,7 @@
       :title="copied ? t('blog.share.copied') : t('blog.share.action')"
       @click.stop="share"
     >
-      <span class="blog-share-bar__glyph" aria-hidden="true">{{ copied ? '✓' : '↗' }}</span>
+      <BlogGlyph :name="copied ? 'check' : 'share'" />
       <span v-if="!compact">{{ copied ? t('blog.share.copied') : t('blog.share.action') }}</span>
     </button>
   </div>
@@ -22,6 +22,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import BlogGlyph from './BlogGlyph.vue';
 
 const props = defineProps({
   url: { type: String, required: true },
@@ -86,26 +87,13 @@ async function share() {
   height: 36px;
   padding: 0 10px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: #262626;
+  color: var(--color-dark);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
-}
-
-.blog-share-bar__btn i {
-  font-size: 16px;
-  line-height: 1;
-  width: 1em;
-  text-align: center;
-}
-
-.blog-share-bar__glyph {
-  font-size: 18px;
-  line-height: 1;
-  font-weight: 700;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .blog-share-bar--compact .blog-share-bar__btn {
@@ -114,14 +102,26 @@ async function share() {
 }
 
 .blog-share-bar__btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.blog-share-bar__btn:active {
-  transform: scale(0.94);
+  background: var(--color-light);
+  color: var(--color-primary);
 }
 
 .blog-share-bar__btn--ok {
   color: var(--color-primary);
+}
+
+
+/* TZ package D */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>

@@ -353,7 +353,6 @@
         </div>
 
         <div class="form-actions">
-          <el-button :disabled="loading && !activeCampaignId" @click="goBack">{{ t('common.cancel') }}</el-button>
           <el-button
             v-if="activeCampaignId && campaignStatus === 'in_progress'"
             :disabled="actionLoading"
@@ -433,14 +432,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import messagesService from '@/services/messagesService.js';
 import BroadcastTemplatesDialog from './BroadcastTemplatesDialog.vue';
 
 const { t } = useI18n();
 const route = useRoute();
-const router = useRouter();
 
 const subject = ref('');
 const greeting = ref('Здравствуйте!');
@@ -1117,12 +1115,6 @@ async function rePrepareDrafts() {
   }
 }
 
-function goBack() {
-  sessionStorage.removeItem('broadcastActiveCampaignId');
-  sessionStorage.removeItem('broadcastRecipientIds');
-  router.push({ name: 'contacts-list' });
-}
-
 function applyTemplate({
   subject: nextSubject,
   greeting: nextGreeting,
@@ -1327,7 +1319,7 @@ async function sendBroadcast() {
 
 .broadcast-section-header p {
   margin: 0 0 20px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .broadcast-alert {
@@ -1335,10 +1327,11 @@ async function sendBroadcast() {
 }
 
 .broadcast-form {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.08);
-  padding: 24px;
+  background: var(--color-white);
+  border-radius: var(--block-radius);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  padding: var(--block-padding);
 }
 
 .template-toolbar {
@@ -1360,8 +1353,8 @@ async function sendBroadcast() {
 
 .attachments-hint,
 .field-hint {
-  color: #909399;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .field-hint {
@@ -1371,8 +1364,8 @@ async function sendBroadcast() {
 .attachments-list {
   width: 100%;
   margin-top: 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
   overflow: hidden;
 }
 
@@ -1382,7 +1375,7 @@ async function sendBroadcast() {
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .attachment-item:last-child {
@@ -1410,9 +1403,9 @@ async function sendBroadcast() {
 }
 
 .ai-settings-link {
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: var(--font-size-sm);
 }
 
 .ai-settings-link:hover {
@@ -1435,12 +1428,12 @@ async function sendBroadcast() {
 
 .history-hint {
   margin: 0 0 12px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .history-empty {
   margin: 12px 0 0;
-  color: #909399;
+  color: var(--color-text-light);
 }
 
 .history-list {
@@ -1453,17 +1446,17 @@ async function sendBroadcast() {
 .history-item {
   display: block;
   padding: 12px 14px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
   text-decoration: none;
   color: inherit;
-  background: #fafafa;
+  background: var(--color-light);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .history-item:hover {
-  border-color: #c6e2ff;
-  background: #f5f9ff;
+  border-color: color-mix(in srgb, var(--color-primary) 40%, white);
+  background: color-mix(in srgb, var(--color-primary) 8%, white);
 }
 
 .history-item-top {
@@ -1475,12 +1468,12 @@ async function sendBroadcast() {
 
 .history-id {
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text);
 }
 
 .history-status {
-  color: #909399;
-  font-size: 0.9rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .history-subject {
@@ -1489,8 +1482,8 @@ async function sendBroadcast() {
 }
 
 .history-body {
-  color: #606266;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1498,13 +1491,13 @@ async function sendBroadcast() {
 
 .history-open {
   margin-top: 8px;
-  color: #409eff;
-  font-size: 0.9rem;
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
 }
 
 .drafts-count {
-  color: #606266;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .drafts-list {
@@ -1520,22 +1513,22 @@ async function sendBroadcast() {
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
 }
 
 .draft-meta {
   display: flex;
   gap: 12px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .draft-status {
-  color: #909399;
+  color: var(--color-text-light);
 }
 
 .draft-link {
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -1562,7 +1555,7 @@ async function sendBroadcast() {
 .delivery-checklist {
   margin: 12px 0 0;
   padding-left: 20px;
-  color: #606266;
+  color: var(--color-text-light);
   line-height: 1.6;
 }
 
@@ -1572,13 +1565,13 @@ async function sendBroadcast() {
 
 .progress-text {
   margin-bottom: 8px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .status-line {
   margin: 8px 0 0;
-  color: #909399;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .form-actions {
@@ -1593,10 +1586,10 @@ async function sendBroadcast() {
 }
 
 .errors-list {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .section-heading {
     flex-direction: column;
     align-items: flex-start;
@@ -1612,6 +1605,22 @@ async function sendBroadcast() {
 
   .form-actions {
     flex-direction: column-reverse;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

@@ -573,4 +573,16 @@ pre {
   margin-top: 0.5em;
   text-align: right;
 }
+
+/* TZ package S */
+@media (max-width: 768px) {
+  .agent-instruction-block {
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: var(--block-padding-mobile);
+  }
+  .settings-header h2 {
+    font-size: 1.25rem;
+  }
+}
 </style> 

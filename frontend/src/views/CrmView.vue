@@ -39,48 +39,48 @@
       <!-- Блоки CRM -->
       <div class="management-blocks">        <!-- Столбец 1 -->
         <div class="blocks-column">
-          <div class="management-block">
+          <div class="management-block panel">
             <h3>{{ t('crm.contacts') }}</h3>
             <p>{{ t('crm.contactsDesc') }}</p>
-            <button class="details-btn" @click="goToContactsList">
+            <button type="button" class="btn btn-primary" @click="goToContactsList">
               {{ t('common.details') }}
             </button>
           </div>
           
-          <div class="management-block">
+          <div class="management-block panel">
             <h3>{{ t('crm.tables') }}</h3>
             <p>{{ t('crm.tablesDesc') }}</p>
-            <button class="details-btn" @click="goToTables">{{ t('common.details') }}</button>
+            <button type="button" class="btn btn-primary" @click="goToTables">{{ t('common.details') }}</button>
           </div>
         </div>
 
         <!-- Столбец 2 -->
         <div class="blocks-column">
-          <div class="management-block">
+          <div class="management-block panel">
             <h3>{{ t('crm.content') }}</h3>
             <p>{{ t('crm.contentDesc') }}</p>
-            <button class="details-btn" @click="goToContent">{{ t('common.details') }}</button>
+            <button type="button" class="btn btn-primary" @click="goToContent">{{ t('common.details') }}</button>
           </div>
 
-          <div class="management-block">
+          <div class="management-block panel">
             <h3>{{ t('crm.settings') }}</h3>
             <p>{{ t('crm.settingsDesc') }}</p>
-            <button class="details-btn" @click="goToSettings">{{ t('common.details') }}</button>
+            <button type="button" class="btn btn-primary" @click="goToSettings">{{ t('common.details') }}</button>
           </div>
         </div>
 
         <!-- Столбец 3 -->
         <div class="blocks-column">
-          <div class="management-block">
+          <div class="management-block panel">
             <h3>{{ t('crm.vds') }}</h3>
             <p>{{ t('crm.vdsDesc') }}</p>
-            <button class="details-btn" @click="goToWeb3App">{{ t('common.details') }}</button>
+            <button type="button" class="btn btn-primary" @click="goToWeb3App">{{ t('common.details') }}</button>
           </div>
           
-          <div class="management-block">
+          <div class="management-block panel">
             <h3>{{ t('crm.groups') }}</h3>
             <p>{{ t('crm.groupsDesc') }}</p>
-            <button class="details-btn" @click="goToAcceleratorRegistration">{{ t('common.details') }}</button>
+            <button type="button" class="btn btn-primary" @click="goToAcceleratorRegistration">{{ t('common.details') }}</button>
           </div>
         </div>
       </div>
@@ -301,24 +301,24 @@ function goToAcceleratorRegistration() {
   display: inline-flex;
   align-items: center;
   padding: 8px 16px;
-  border-radius: var(--block-radius, 8px);
-  border: 1px solid var(--color-border, #dcdfe6);
-  background: var(--color-white, #fff);
-  color: var(--color-grey, #606266);
+  border-radius: var(--block-radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-grey);
   text-decoration: none;
-  font-size: var(--font-size-md, 0.95rem);
+  font-size: var(--font-size-md);
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .crm-top-nav__link:hover {
-  border-color: var(--color-primary, #409eff);
-  color: var(--color-primary, #409eff);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .crm-top-nav__link.is-active {
-  background: var(--color-primary, #409eff);
-  border-color: var(--color-primary, #409eff);
-  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
 }
 
 .management-header {
@@ -327,7 +327,7 @@ function goToAcceleratorRegistration() {
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #e9ecef;
+  border-bottom: 2px solid var(--theme-border);
 }
 
 .header-content h1 {
@@ -339,7 +339,7 @@ function goToAcceleratorRegistration() {
 
 .crm-description {
   margin: 0.5rem 0 0 0;
-  color: #666;
+  color: var(--theme-text-muted);
   font-size: 1.1rem;
 }
 
@@ -357,21 +357,16 @@ function goToAcceleratorRegistration() {
 }
 
 .management-block {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
   text-align: center;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 250px;
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
 }
 
 .management-block:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
   border-color: var(--color-primary);
 }
@@ -386,30 +381,16 @@ function goToAcceleratorRegistration() {
 
 .management-block p {
   margin: 0 0 1.5rem 0;
-  color: #666;
+  color: var(--theme-text-muted);
   font-size: 1rem;
   line-height: 1.5;
   flex-grow: 1;
 }
 
-.details-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.2s;
-  min-width: 120px;
-  flex-shrink: 0;
+.management-block .btn {
   margin-top: auto;
-}
-
-.details-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
+  align-self: center;
+  min-width: 120px;
 }
 
 /* Адаптивность */
@@ -432,6 +413,17 @@ function goToAcceleratorRegistration() {
   
   .header-content h1 {
     font-size: 1.5rem;
+  }
+}
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

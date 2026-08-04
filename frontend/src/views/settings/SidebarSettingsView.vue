@@ -4,8 +4,8 @@
 -->
 
 <template>
-  <div class="sidebar-settings settings-panel">
-    <button class="close-btn" type="button" @click="router.push('/settings')">×</button>
+  <div class="sidebar-settings settings-panel page-with-close">
+    <PageCloseButton fallback="/settings" />
     <h2>{{ t('settings.sidebar.pageTitle') }}</h2>
     <p class="sidebar-settings__intro">{{ t('settings.sidebar.intro') }}</p>
 
@@ -23,6 +23,13 @@
         active-class="is-active"
       >
         {{ t('settings.sidebar.tabs.languages') }}
+      </router-link>
+      <router-link
+        :to="{ name: 'settings-sidebar-auth' }"
+        class="sidebar-settings__tab"
+        active-class="is-active"
+      >
+        {{ t('settings.sidebar.tabs.auth') }}
       </router-link>
       <router-link
         :to="{ name: 'settings-sidebar-buttons' }"
@@ -45,11 +52,10 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const { t } = useI18n();
-const router = useRouter();
 </script>
 
 <style scoped>
@@ -96,23 +102,11 @@ const router = useRouter();
   box-shadow: inset 0 -2px 0 var(--color-primary);
 }
 
-.close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  color: #6c757d;
-}
-
-.close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #343a40;
+/* TZ package S */
+@media (max-width: 768px) {
+  .sidebar-settings.settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style>

@@ -10,6 +10,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const db = require('../db');
 const logger = require('../utils/logger');
 
@@ -18,6 +19,114 @@ const PACK_DIR = process.env.UPDATES_PACK_DIR
   || path.resolve(__dirname, '../../update-packs');
 
 const DOWNLOAD_TTL_MS = Number(process.env.UPDATES_DOWNLOAD_TTL_MS || 60 * 60 * 1000);
+
+/** Публичный Latest template на GitHub — пол для min_from update-pack. */
+const PUBLIC_BASELINE_REPO = process.env.UPDATES_PUBLIC_BASELINE_REPO
+  || 'VC-HB3-Accelerator/DLE';
+const PUBLIC_BASELINE_FALLBACK = process.env.UPDATES_PUBLIC_BASELINE_FALLBACK
+  || 'v1.0.6';
+
+function normalizeVersion(v) {
+  return String(v || '').trim().replace(/^v/i, '');
+}
+
+/** @returns {-1|0|1} */
+function compareVersions(a, b) {
+  const pa = normalizeVersion(a).split('.').map((x) => parseInt(x, 10) || 0);
+  const pb = normalizeVersion(b).split('.').map((x) => parseInt(x, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i += 1) {
+    const da = pa[i] || 0;
+    const dbv = pb[i] || 0;
+    if (da > dbv) return 1;
+    if (da < dbv) return -1;
+  }
+  return 0;
+}
+
+function ensureVPrefix(v) {
+  const s = String(v || '').trim();
+  if (!s) return null;
+  return s.startsWith('v') || s.startsWith('V') ? s : `v${s}`;
+}
+
+function readLocalManifestMinFrom(version) {
+  const safe = String(version || '').trim();
+  if (!safe) return null;
+  const candidates = [
+    path.join(PACK_DIR, `dle-update-${safe}.manifest.json`),
+  ];
+  for (const file of candidates) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (data?.min_from) return ensureVPrefix(data.min_from);
+    } catch {
+      // next
+    }
+  }
+  return null;
+}
+
+function fetchGithubPublicLatestTag() {
+  return new Promise((resolve) => {
+    const url = `https://api.github.com/repos/${PUBLIC_BASELINE_REPO}/releases/latest`;
+    const req = https.get(
+      url,
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'DLE-updates-min-from',
+        },
+        timeout: 15000,
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          try {
+            if (res.statusCode >= 400) {
+              resolve(null);
+              return;
+            }
+            const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            resolve(ensureVPrefix(data?.tag_name) || null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
+/**
+ * min_from для update-pack:
+ * 1) явный minFrom / sidecar-манифест / публичный GitHub Latest;
+ * 2) если получилось выше публичного Latest — clamp вниз,
+ *    чтобы с Latest template сразу обновлялись до текущего pack.
+ */
+async function resolveReleaseMinFrom({ version, minFrom }) {
+  const publicLatest = (await fetchGithubPublicLatestTag())
+    || ensureVPrefix(PUBLIC_BASELINE_FALLBACK);
+  const fromManifest = readLocalManifestMinFrom(version);
+  let resolved = ensureVPrefix(minFrom)
+    || fromManifest
+    || publicLatest;
+
+  if (publicLatest && compareVersions(resolved, publicLatest) > 0) {
+    logger.warn(
+      `[updates] min_from ${resolved} > public Latest ${publicLatest} — clamp`
+    );
+    resolved = publicLatest;
+  }
+  return resolved;
+}
 
 function publicBaseUrl(req) {
   if (process.env.UPDATES_PUBLIC_BASE_URL) {
@@ -229,6 +338,7 @@ async function registerRelease({
   publish = false,
   giteaAssetUrl = null,
 }) {
+  const resolvedMinFrom = await resolveReleaseMinFrom({ version, minFrom });
   const { rows } = await db.getQuery()(
     `INSERT INTO update_releases
        (version, min_from, changelog, pack_filename, pack_sha256, pack_size_bytes,
@@ -246,7 +356,7 @@ async function registerRelease({
      RETURNING *`,
     [
       version,
-      minFrom || null,
+      resolvedMinFrom,
       changelog || null,
       packFilename,
       packSha256 || null,
@@ -298,6 +408,7 @@ module.exports = {
   authorizeDownload,
   consumeDownloadToken,
   registerRelease,
+  resolveReleaseMinFrom,
   listLocalPacks,
   resolveLocalPackFile,
   assertEntitled,

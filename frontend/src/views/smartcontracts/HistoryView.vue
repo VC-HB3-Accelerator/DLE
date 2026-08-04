@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="history-container">
+    <div class="history-container page-with-close">
+      <PageCloseButton :on-navigate="goBackToBlocks" />
       <!-- Фильтры -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
@@ -27,7 +28,6 @@
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ t('common.loading') }}
         </div>
-        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div class="filters-section">
         <h2>{{ t('smartcontracts.history.filters') }}</h2>
@@ -256,6 +256,7 @@ import { ref, computed, defineProps, defineEmits, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import api from '../../api/axios';
 
 const { t, locale } = useI18n();
@@ -520,6 +521,7 @@ const viewOnExplorer = (event) => {
 
 <style scoped>
 .history-container {
+  position: relative;
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
@@ -941,6 +943,17 @@ const viewOnExplorer = (event) => {
 
   .detail-value {
     text-align: left;
+  }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

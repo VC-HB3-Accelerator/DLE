@@ -28,12 +28,12 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="proposals-page">
+    <div class="proposals-page page-with-close">
+      <PageCloseButton :on-navigate="goBack" />
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ dleAddress }}
         </div>
-        <button @click="goBack" class="close-btn">×</button>
       </div>
 
       <!-- Уведомление о необходимости авторизации -->
@@ -416,12 +416,18 @@ export default {
 
 <style scoped>
 .proposals-page {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
   margin-bottom: 20px;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .close-btn {
@@ -548,8 +554,10 @@ export default {
 
 .proposals-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
   gap: 14px;
+  width: 100%;
+  min-width: 0;
 }
 
 .proposal-card {
@@ -557,12 +565,16 @@ export default {
   border-radius: var(--radius-md);
   padding: 18px;
   border: 1px solid var(--color-grey-light, #e9ecef);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .proposal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -601,6 +613,9 @@ export default {
   color: var(--color-dark, #333);
   margin-bottom: 12px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .proposal-meta {
@@ -801,6 +816,17 @@ export default {
 
   .proposals-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

@@ -396,20 +396,14 @@ contract TimelockModule is ReentrancyGuard {
         bytes4 updateQuorum = bytes4(keccak256("updateQuorumPercentage(uint256)"));
         bytes4 addModule = bytes4(keccak256("_addModule(bytes32,address)"));
         bytes4 removeModule = bytes4(keccak256("_removeModule(bytes32)"));
-        bytes4 addChain = bytes4(keccak256("_addSupportedChain(uint256)"));
-        bytes4 removeChain = bytes4(keccak256("_removeSupportedChain(uint256)"));
         
         operationDelays[updateQuorum] = 7 days;
         operationDelays[addModule] = 7 days;
         operationDelays[removeModule] = 7 days;
-        operationDelays[addChain] = 5 days;
-        operationDelays[removeChain] = 5 days;
         
         criticalOperations[updateQuorum] = true;
         criticalOperations[addModule] = true;
         criticalOperations[removeModule] = true;
-        criticalOperations[addChain] = true;
-        criticalOperations[removeChain] = true;
         
         // Обычные операции - стандартная задержка (2 дня)
         bytes4 updateDLEInfo = bytes4(keccak256("updateDLEInfo(string,string,string,string,uint256,string[],uint256)"));
@@ -427,6 +421,5 @@ contract TimelockModule is ReentrancyGuard {
         
         // Экстренные операции (могут исполняться немедленно при необходимости)
         emergencyOperations[removeModule] = true; // Удаление вредоносного модуля
-        emergencyOperations[removeChain] = true;  // Отключение скомпрометированной сети
     }
 }

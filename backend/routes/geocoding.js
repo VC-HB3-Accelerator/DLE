@@ -69,6 +69,8 @@
       try {
         // Формируем URL для Nominatim, используя все query параметры из исходного запроса
         const queryParams = new URLSearchParams(req.query);
+        // Политика OSM Nominatim требует идентифицирующий User-Agent
+        // https://operations.osmfoundation.org/policies/nominatim/
         const nominatimUrl = `https://nominatim.openstreetmap.org/search?${queryParams.toString()}`;
 
         if (logger && typeof logger.info === 'function') {
@@ -77,23 +79,34 @@
             console.log(`[Geocoding] Proxying request to Nominatim: ${nominatimUrl}`);
         }
 
-        const nominatimResponse = await axios.get(nominatimUrl);
+        const nominatimResponse = await axios.get(nominatimUrl, {
+          timeout: 20000,
+          headers: {
+            'User-Agent': 'DLE-DigitalLegalEntity/1.0 (geocoding proxy; info@hb3-accelerator.com)',
+            'Accept': 'application/json',
+            'Accept-Language': String(req.query['accept-language'] || req.query.accept_language || 'en'),
+          },
+          // Не форвардить axios default browser-like agent; явный UA выше
+          validateStatus: (status) => status >= 200 && status < 300,
+        });
         
         res.json(nominatimResponse.data);
 
       } catch (error) {
         let errorMessage = error.message;
-        let errorStatus = 500;
+        let errorStatus = 502;
         let errorDetails = null;
 
         if (error.response) {
             // Ошибка пришла от Nominatim (или сети)
             errorMessage = error.response.data?.message || error.response.statusText || 'Error fetching data from Nominatim';
-            errorStatus = error.response.status || 500;
+            // Клиенту не отдаём 403 Nominatim «как есть» — это инфраструктурная ошибка прокси
+            errorStatus = error.response.status === 403 ? 502 : (error.response.status || 502);
             errorDetails = error.response.data;
         } else if (error.request) {
             // Запрос был сделан, но ответ не получен
             errorMessage = 'No response received from Nominatim';
+            errorStatus = 504;
         }
         // Иначе это ошибка настройки axios или другая внутренняя ошибка
 

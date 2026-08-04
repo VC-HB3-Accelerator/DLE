@@ -466,7 +466,7 @@ onMounted(loadHistory);
 
 .broadcast-section-header p {
   margin: 0 0 20px;
-  color: #606266;
+  color: var(--color-text-light);
 }
 
 .history-toolbar {
@@ -495,7 +495,7 @@ onMounted(loadHistory);
 }
 
 .history-card {
-  border-radius: 16px;
+  border-radius: var(--block-radius);
 }
 
 .history-table {
@@ -505,7 +505,7 @@ onMounted(loadHistory);
 
 .empty-state {
   margin: 0;
-  color: #909399;
+  color: var(--color-text-light);
   text-align: center;
   padding: 24px 0;
 }
@@ -530,9 +530,9 @@ onMounted(loadHistory);
 
 .message-preview {
   white-space: pre-wrap;
-  color: #606266;
-  background: #f5f7fa;
-  border-radius: 8px;
+  color: var(--color-text-light);
+  background: var(--color-light);
+  border-radius: var(--block-radius);
   padding: 12px;
 }
 
@@ -553,12 +553,12 @@ onMounted(loadHistory);
   flex-direction: column;
   gap: 4px;
   padding: 10px 0;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .event-time {
-  color: #909399;
-  font-size: 0.9rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .event-type {
@@ -566,8 +566,8 @@ onMounted(loadHistory);
 }
 
 .event-details {
-  color: #606266;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
 }
 
 .deliveries-list {
@@ -577,7 +577,7 @@ onMounted(loadHistory);
 }
 
 .deliveries-list li {
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border);
   padding: 10px 0;
 }
 
@@ -601,11 +601,24 @@ onMounted(loadHistory);
 
 .delivery-error {
   margin: 6px 0 0;
-  color: #f56c6c;
-  font-size: 0.9rem;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
 }
 
 .details-loading {
-  color: #909399;
+  color: var(--color-text-light);
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .broadcast-history, .history-panel, .page-container, [class*="history"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .row, .actions, .toolbar, .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  table { display: block; width: 100%; overflow-x: auto; }
 }
 </style>

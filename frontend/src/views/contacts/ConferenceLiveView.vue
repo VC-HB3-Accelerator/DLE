@@ -4,7 +4,8 @@
 -->
 
 <template>
-  <div class="conference-live" v-loading="loading">
+  <div class="conference-live page-with-close" v-loading="loading">
+    <PageCloseButton v-if="showLocalClose" :on-navigate="leaveRoom" />
     <el-alert
       :type="realtimeStatus === 'connected' ? 'success' : 'info'"
       :closable="false"
@@ -266,16 +267,16 @@
       <el-button type="danger" plain @click="leaveRoom">
         {{ t('contacts.conference.live.leave') }}
       </el-button>
-      <el-button @click="leaveRoom">{{ t('contacts.conference.live.back') }}</el-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import conferenceService from '@/services/conferenceService';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
@@ -287,6 +288,11 @@ const route = useRoute();
 const router = useRouter();
 const { isEditor } = usePermissions();
 const { userId } = useAuthContext();
+
+/** Layout может перехватить × и вызвать leaveRoom (с очисткой медиа) */
+const registerPageCloseHandler = inject('registerPageCloseHandler', null);
+const unregisterPageCloseHandler = inject('unregisterPageCloseHandler', null);
+const showLocalClose = !registerPageCloseHandler;
 
 const loading = ref(false);
 const session = ref(null);
@@ -921,6 +927,7 @@ function goAgent() {
 
 onMounted(async () => {
   liveViewActive = true;
+  registerPageCloseHandler?.(leaveRoom);
   document.addEventListener('fullscreenchange', syncFullscreenState);
   await load();
   if (!liveViewActive) return;
@@ -941,6 +948,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   liveViewActive = false;
+  unregisterPageCloseHandler?.();
   document.removeEventListener('fullscreenchange', syncFullscreenState);
   if (document.fullscreenElement && videoPanelRef.value
     && document.fullscreenElement === videoPanelRef.value) {
@@ -956,6 +964,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.conference-live.page-with-close {
+  position: relative;
+}
+
 .live-alert {
   margin-bottom: 16px;
 }
@@ -967,7 +979,7 @@ onBeforeUnmount(() => {
 .live-id,
 .live-langs {
   margin-left: 10px;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
 }
 
 .live-grid {
@@ -978,10 +990,10 @@ onBeforeUnmount(() => {
 }
 
 .live-panel {
-  border: 1px solid var(--color-border, #dcdfe6);
-  border-radius: var(--block-radius, 8px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
   padding: 12px 14px;
-  background: var(--color-white, #fff);
+  background: var(--color-white);
 }
 
 .live-panel h3 {
@@ -1080,7 +1092,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  width: 100vw;
+  max-width: 100%;
   height: 100%;
   height: 100vh;
   height: 100dvh;
@@ -1150,17 +1162,17 @@ onBeforeUnmount(() => {
 
 .video-hint {
   margin: 8px 0 0;
-  font-size: 0.85rem;
-  color: var(--el-color-warning, #b88230);
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
 }
 
 .video-note {
   margin: 8px 0 0;
-  font-size: 0.8rem;
-  color: var(--color-grey, #606266);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .video-stage-split {
     grid-template-columns: 1fr;
   }
@@ -1190,13 +1202,13 @@ onBeforeUnmount(() => {
 }
 
 .chat-original {
-  font-size: 0.8rem;
-  color: var(--color-grey, #909399);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
 }
 
 .chat-role {
   font-weight: 600;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
   flex-shrink: 0;
 }
 
@@ -1210,8 +1222,8 @@ onBeforeUnmount(() => {
 
 .coach-hint {
   margin: 0 0 8px;
-  color: var(--color-grey, #606266);
-  font-size: 0.85rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-xs);
 }
 
 .coach-list {
@@ -1223,9 +1235,11 @@ onBeforeUnmount(() => {
   margin-top: 18px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .live-grid {
     grid-template-columns: 1fr;
   }
 }
+
+/* TZ package C: bp normalized */
 </style>

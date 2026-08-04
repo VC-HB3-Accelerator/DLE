@@ -14,13 +14,25 @@
   <div class="user-table-header" v-if="tableMeta">
     <h2>{{ tableMeta.name }}</h2>
     <div class="table-desc">{{ tableMeta.description }}</div>
-    <div class="table-header-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; margin-bottom: 18px;">
-      <el-button v-if="canEditData" type="danger" :disabled="!selectedRows.length" @click="deleteSelectedRows">{{ t('tables.common.deleteSelected') }}</el-button>
-      <span v-if="selectedRows.length">{{ t('tables.common.selected', { count: selectedRows.length }) }}</span>
-      <button v-if="canEditData" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
+    <div class="table-header-actions btn-row">
+      <button
+        v-if="canEditData"
+        type="button"
+        class="btn btn-danger"
+        :disabled="!selectedRows.length"
+        @click="deleteSelectedRows"
+      >{{ t('tables.common.deleteSelected') }}</button>
+      <span v-if="selectedRows.length" class="selection-hint">{{ t('tables.common.selected', { count: selectedRows.length }) }}</span>
+      <button
+        v-if="canEditData"
+        type="button"
+        class="btn btn-primary"
+        @click="rebuildIndex"
+        :disabled="rebuilding"
+      >
         {{ rebuilding ? t('tables.common.rebuilding') : t('tables.common.rebuildIndex') }}
       </button>
-      <el-button @click="resetFilters" type="default" icon="el-icon-refresh">{{ t('tables.common.resetFilters') }}</el-button>
+      <button type="button" class="btn btn-outline" @click="resetFilters">{{ t('tables.common.resetFilters') }}</button>
       <template v-for="def in relationFilterDefs" :key="def.col.id">
         <el-select
           v-model="relationFilters[def.filterKey]"
@@ -28,7 +40,7 @@
           filterable
           clearable
           :placeholder="def.col.name"
-          style="min-width: 180px;"
+          class="relation-filter-select"
         >
           <el-option v-for="opt in def.options" :key="opt.id" :label="opt.display" :value="opt.id" />
         </el-select>
@@ -63,8 +75,8 @@
         <template #header="{ column }">
           <template v-if="editingCol && editingCol.id === col.id">
             <input v-model="colEditValue" class="notion-input" style="width: 90px; display: inline-block;" @keyup.enter="saveColEdit(col)" />
-            <button class="save-btn" @click="saveColEdit(col)">{{ t('tables.common.save') }}</button>
-            <button class="cancel-btn" @click="cancelColEdit">{{ t('tables.common.cancel') }}</button>
+            <button type="button" class="btn btn-primary btn-sm" @click="saveColEdit(col)">{{ t('tables.common.save') }}</button>
+            <button type="button" class="btn btn-outline btn-sm" @click="cancelColEdit">{{ t('tables.common.cancel') }}</button>
           </template>
           <template v-else>
             <span>{{ col.name }}</span>
@@ -92,9 +104,9 @@
         <template #header>
           <button v-if="canEditData" class="add-col-btn" @click.stop="openAddMenu($event)" :title="t('tables.common.add')">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="11" cy="11" r="10" fill="#f3f4f6" stroke="#b6c6e6"/>
-              <rect x="10" y="5.5" width="2" height="11" rx="1" fill="#4f8cff"/>
-              <rect x="5.5" y="10" width="11" height="2" rx="1" fill="#4f8cff"/>
+              <circle cx="11" cy="11" r="10" fill="var(--theme-surface)" stroke="currentColor"/>
+              <rect x="10" y="5.5" width="2" height="11" rx="1" fill="currentColor"/>
+              <rect x="5.5" y="10" width="11" height="2" rx="1" fill="currentColor"/>
             </svg>
           </button>
           <teleport to="body">
@@ -124,7 +136,13 @@
         <!-- <button class="menu-item" @click="addColumn">Добавить столбец</button> -->
       </div>
     </teleport>
-    <div v-if="openedColMenuId || openedRowMenuId || showAddMenu" class="menu-overlay" @click="closeMenus"></div>
+    <teleport to="body">
+      <div
+        v-if="openedColMenuId || openedRowMenuId || showAddMenu"
+        class="menu-overlay"
+        @click="closeMenus"
+      ></div>
+    </teleport>
     <!-- Модалка добавления столбца -->
     <div v-if="showAddColModal" class="modal-backdrop">
       <div class="modal add-col-modal">
@@ -168,8 +186,8 @@
           <option value="date">{{ t('tables.common.purposeDate') }}</option>
         </select>
         <div class="modal-actions">
-          <button class="save-btn" @click="handleAddColumn">{{ t('tables.common.add') }}</button>
-          <button class="cancel-btn" @click="closeAddColModal">{{ t('tables.common.cancel') }}</button>
+          <button type="button" class="btn btn-primary btn-sm" @click="handleAddColumn">{{ t('tables.common.add') }}</button>
+          <button type="button" class="btn btn-outline btn-sm" @click="closeAddColModal">{{ t('tables.common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -198,7 +216,7 @@ onMounted(() => {
   });
 });
 // Импортируем компоненты Element Plus
-import { ElSelect, ElOption, ElButton } from 'element-plus';
+import { ElSelect, ElOption } from 'element-plus';
 import websocketService from '../../services/websocketService';
 import cacheService from '../../services/cacheService';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
@@ -719,12 +737,14 @@ function addRowAfter(row) {
 function openColMenu(col, event) {
   openedColMenuId.value = col.id;
   openedRowMenuId.value = null;
-  setMenuPosition(event, colMenuStyle);
+  showAddMenu.value = false;
+  setMenuPosition(event, colMenuStyle, { minWidth: 160, minHeight: 80 });
 }
 function openRowMenu(row, event) {
   openedRowMenuId.value = row.id;
   openedColMenuId.value = null;
-  setMenuPosition(event, rowMenuStyle);
+  showAddMenu.value = false;
+  setMenuPosition(event, rowMenuStyle, { minWidth: 200, minHeight: 160 });
 }
 function closeMenus() {
   openedColMenuId.value = null;
@@ -736,12 +756,40 @@ function openAddMenu(event) {
   showAddMenu.value = true;
   openedColMenuId.value = null;
   openedRowMenuId.value = null;
-  setMenuPosition(event, addMenuStyle);
+  setMenuPosition(event, addMenuStyle, { minWidth: 200, minHeight: 88 });
 }
-function setMenuPosition(event, styleRef) {
-  // Позиционируем меню под кнопкой
-  const rect = event.target.getBoundingClientRect();
-  styleRef.value = `top: ${rect.bottom + window.scrollY}px; left: ${rect.left + window.scrollX}px;`;
+function setMenuPosition(event, styleRef, { minWidth = 200, minHeight = 96 } = {}) {
+  // Кнопка или ближайший button (клик мог попасть в SVG внутри)
+  const anchor =
+    (event.currentTarget instanceof Element && event.currentTarget)
+    || (event.target instanceof Element && event.target.closest('button'))
+    || event.target;
+  const rect = anchor.getBoundingClientRect();
+  const pad = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const width = Math.min(minWidth, vw - pad * 2);
+
+  // У правого края — открываем влево от якоря
+  let left = rect.left;
+  if (left + width > vw - pad) {
+    left = rect.right - width;
+  }
+  left = Math.min(Math.max(pad, left), vw - width - pad);
+
+  let top = rect.bottom + 4;
+  if (top + minHeight > vh - pad) {
+    top = Math.max(pad, rect.top - minHeight - 4);
+  }
+
+  styleRef.value = {
+    position: 'fixed',
+    top: `${top}px`,
+    left: `${left}px`,
+    minWidth: `${width}px`,
+    maxWidth: `calc(100vw - ${pad * 2}px)`,
+    zIndex: 3000,
+  };
 }
 
 async function deleteRow(row) {
@@ -846,15 +894,12 @@ async function updateRowData(rowId) {
 
 <style scoped>
 .user-table-header {
-  /* max-width: 1100px; */
-  margin: 0 auto 0 auto;
-  /* padding: 32px 24px 18px 24px; */
-  /* background: #fff; */
-  /* border-radius: 18px; */
-  /* box-shadow: 0 4px 24px rgba(0,0,0,0.08); */
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-sm);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .user-table-header h2 {
   font-size: 2rem;
@@ -863,52 +908,50 @@ async function updateRowData(rowId) {
   letter-spacing: 0.5px;
 }
 .table-desc {
-  color: #6b7280;
+  color: var(--theme-text-muted);
   font-size: 1.08rem;
   margin-bottom: 6px;
 }
-.rebuild-btn {
-  background: #4f8cff;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 1rem;
-  margin-top: 8px;
-  cursor: pointer;
-  transition: background 0.2s;
+.table-header-actions {
+  margin: var(--spacing-xs) 0 var(--spacing-md);
+  max-width: 100%;
 }
-.rebuild-btn:disabled {
-  background: #b6c6e6;
-  cursor: not-allowed;
+.table-header-actions .selection-hint {
+  color: var(--theme-text-muted);
+  font-size: var(--font-size-sm, 0.9rem);
+  align-self: center;
 }
-.rebuild-btn:not(:disabled):hover {
-  background: #2563eb;
+.relation-filter-select {
+  min-width: 180px;
+  max-width: 100%;
 }
 .rebuild-status {
   margin-top: 6px;
   font-size: 1rem;
   font-weight: 500;
 }
-.rebuild-status.success { color: #22c55e; }
-.rebuild-status.error { color: #ef4444; }
+.rebuild-status.success { color: var(--color-primary); }
+.rebuild-status.error { color: var(--color-danger); }
 
 .table-filters-el {
   display: flex;
-  gap: 16px;
+  gap: var(--spacing-md);
   align-items: center;
   margin: 18px auto 0 auto;
-  max-width: 1100px;
-  padding: 0 24px;
+  max-width: 100%;
+  width: 100%;
+  padding: 0 var(--spacing-lg);
+  box-sizing: border-box;
+  flex-wrap: wrap;
 }
 
 .notion-table-wrapper {
-  /* max-width: 1100px; */
-  margin: 0 auto 0 auto;
-  /* background: #fff; */
-  /* border-radius: 6px; */
-  /* box-shadow: 0 1px 4px rgba(0,0,0,0.04); */
-  /* padding: 12px 6px 18px 6px; */
+  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .el-table__cell, .el-table th, .el-table td {
@@ -923,23 +966,24 @@ async function updateRowData(rowId) {
 .notion-input {
   width: 100%;
   padding: 4px 7px;
-  border: 1px solid #d1d5db;
-  border-radius: 3px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
   font-size: 0.98rem;
-  background: #fff;
+  background: var(--theme-bg);
   transition: border 0.2s;
 }
 
 .notion-input:focus {
-  border-color: #4f8cff;
+  border-color: var(--color-primary);
   outline: none;
 }
 
-.add-row, .add-col, .save-btn, .cancel-btn, .rebuild-btn {
-  background: #f3f4f6;
-  color: #222;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+.add-row,
+.add-col {
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
   padding: 5px 12px;
   font-size: 0.98rem;
   cursor: pointer;
@@ -947,9 +991,10 @@ async function updateRowData(rowId) {
   margin: 0 2px;
 }
 
-.add-row:hover, .add-col:hover, .save-btn:hover, .cancel-btn:hover, .rebuild-btn:hover {
-  background: #e5e7eb;
-  border-color: #b6c6e6;
+.add-row:hover,
+.add-col:hover {
+  background: var(--color-grey-light);
+  border-color: var(--color-grey);
 }
 
 .col-menu, .row-menu {
@@ -957,25 +1002,27 @@ async function updateRowData(rowId) {
   border: none;
   font-size: 1.1rem;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--theme-text-muted);
   padding: 2px 6px;
   border-radius: 3px;
   transition: background 0.15s;
 }
 
 .col-menu:hover, .row-menu:hover {
-  background: #e5e7eb;
-  color: #1d4ed8;
+  background: var(--theme-surface);
+  color: var(--color-primary);
 }
 
 .context-menu {
-  position: absolute;
-  z-index: 2000;
-  min-width: 120px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  position: fixed;
+  z-index: 3000;
+  min-width: 160px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: var(--radius-md, 4px);
+  box-shadow: var(--shadow-md, 0 2px 8px rgba(0, 0, 0, 0.07));
   padding: 4px 0;
   display: flex;
   flex-direction: column;
@@ -988,18 +1035,21 @@ async function updateRowData(rowId) {
   text-align: left;
   padding: 7px 14px;
   font-size: 0.98rem;
-  color: #222;
+  color: var(--theme-text, #222);
   border-radius: 2px;
   cursor: pointer;
   transition: background 0.13s;
+  white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .menu-item:hover {
-  background: #f5f7fa;
+  background: var(--color-grey-light, #f5f7fa);
 }
 
 .menu-item.danger {
-  color: #ef4444;
+  color: var(--color-danger, #ef4444);
 }
 
 .menu-item.danger:hover {
@@ -1009,7 +1059,7 @@ async function updateRowData(rowId) {
 .menu-overlay {
   position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 2990;
   background: transparent;
 }
 
@@ -1021,18 +1071,23 @@ async function updateRowData(rowId) {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--spacing-md);
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .modal {
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-  padding: 18px 16px 14px 16px;
-  min-width: 320px;
-  max-width: 98vw;
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-md);
+  min-width: 0;
+  width: 100%;
+  max-width: min(480px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--spacing-sm);
+  box-sizing: border-box;
 }
 
 .modal h4 {
@@ -1072,24 +1127,56 @@ async function updateRowData(rowId) {
 }
 .add-col-header .add-col-btn:hover svg circle {
   fill: #e5e7eb;
-  stroke: #4f8cff;
+  stroke: var(--color-primary);
 }
 .add-col-header .add-col-btn:active svg circle {
   fill: #dbeafe;
 }
 
-@media (max-width: 700px) {
-  .notion-table-wrapper, .table-filters-el {
-    padding: 4px 1vw;
-    max-width: 100vw;
+@media (max-width: 768px) {
+  .user-table-header {
+    max-width: 100%;
+    box-sizing: border-box;
   }
+
+  .table-filters-el {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notion-table-wrapper {
+    padding: 0;
+  }
+
   .modal {
-    min-width: 90vw;
-    padding: 10px 2vw;
+    padding: var(--block-padding-mobile);
   }
-  .notion-table th, .notion-table td {
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions button {
+    width: 100%;
+    height: var(--button-height-mobile);
+  }
+
+  .notion-table th,
+  .notion-table td {
     padding: 4px 2px;
     font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-table-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .modal-backdrop {
+    padding: var(--spacing-sm);
+    align-items: flex-start;
   }
 }
 </style>

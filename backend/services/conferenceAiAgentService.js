@@ -204,7 +204,9 @@ async function listAvailableModels(providerOverride = null) {
       base_url: providerSettings.base_url,
       proxy_url: providerSettings.proxy_url,
       proxy_enabled: providerSettings.proxy_enabled,
-      blanc_subscription_url: providerSettings.blanc_subscription_url
+      blanc_subscription_url: providerSettings.blanc_subscription_url,
+      proxy_openai: providerSettings.proxy_openai,
+      proxy_telegram: providerSettings.proxy_telegram
     });
 
     return (models || []).map((m) => ({

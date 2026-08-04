@@ -48,7 +48,6 @@
     "minFrom": "Минимальная версия для обновления",
     "unknown": "не определена",
     "noRelease": "Опубликованных обновлений пока нет",
-    "stubHint": "Включён stub_mode в настройках обновлений (БД): проверка license-токена на казне DLE временно отключена. Список токенов-лицензий задаётся в Security → auth_tokens.",
     "hubLabel": "Hub обновлений",
     "applyTitle": "Обновить здесь",
     "applyHint": "Скачает pack с hub, запустит update.sh и удалит файл. Страница может стать недоступна на время recreate — обновите её через несколько минут.",
@@ -88,8 +87,23 @@
     "tabs": {
       "text": "Текст",
       "languages": "Языки",
+      "auth": "Кнопки входа",
       "buttons": "Кнопки",
       "regions": "Регионы"
+    },
+    "auth": {
+      "intro": "Отметьте способы входа, которые гости увидят рядом с кошельком в сайдбаре. Кошелёк всегда доступен.",
+      "wallet": "Кошелёк",
+      "walletHint": "Базовый способ — нельзя отключить.",
+      "telegram": "Telegram",
+      "telegramHint": "Deep-link: открыть бота и нажать Start.",
+      "email": "Email",
+      "emailHint": "Вход / привязка по коду на почту.",
+      "password": "Пароль",
+      "passwordHint": "Пока заглушка — полного API ещё нет.",
+      "saved": "Настройки способов входа сохранены",
+      "saveError": "Не удалось сохранить способы входа",
+      "loadError": "Не удалось загрузить способы входа"
     },
     "languages": {
       "intro": "Отметьте языки интерфейса, доступные посетителям. Кнопка переключения языка в сайдбаре появляется только если выбрано два и более языка.",
@@ -166,7 +180,23 @@
       "description": "Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).",
       "pageTitle": "OpenAI: интеграция и настройки",
       "label": "OpenAI API Key",
-      "providerDescription": "Введите OpenAI API Key. Для обхода блокировки по IP РФ — включите BlancVPN (ссылка подписки)."
+      "providerDescription": "Введите OpenAI API Key и (при необходимости) Base URL. Исходящий VPN — в разделе «VPN / BlancVPN»."
+    },
+    "vpn": {
+      "title": "VPN / BlancVPN",
+      "cardDescription": "Общий исходящий SOCKS для OpenAI и Telegram-бота (обход блокировок API).",
+      "pageTitle": "VPN (Blanc): исходящий прокси",
+      "description": "Используется для OpenAI и Telegram-бота (API + polling). Это не VPN в браузере пользователя.",
+      "enabled": "Включить BlancVPN / исходящий прокси",
+      "hint": "Вставьте ссылку подписки BlancVPN. Backend скачает узлы, поднимет Xray. Ниже отметьте, куда направлять трафик.",
+      "targetsLabel": "Куда направлять через VPN",
+      "targetsHint": "По умолчанию оба выключены — отметьте нужные сервисы.",
+      "targetOpenai": "OpenAI API",
+      "targetTelegram": "Telegram Bot (API + polling)",
+      "verify": "Проверить",
+      "verifying": "Проверка…",
+      "verifyOk": "Прокси / подписка доступны",
+      "verifyFail": "Не удалось проверить прокси"
     },
     "ollama": {
       "title": "Ollama",
@@ -380,8 +410,8 @@
       "proxyHint": "Костыль для geo-block: backend ходит к api.openai.com через ваш прокси.",
       "proxyUrl": "Ручной HTTP/SOCKS URL:",
       "proxyUrlPlaceholder": "http://user:pass{'@'}host:port или socks5://host:port",
-      "blancEnabled": "BlancVPN для OpenAI",
-      "blancHint": "Вставьте ссылку подписки BlancVPN (https://….withblancvpn.online/s/…). Backend скачает узлы, поднимет Xray и будет ходить в OpenAI через SOCKS. Не нужен WireGuard и не нужна ручная vless:// в этом поле — именно subscription URL.",
+      "blancEnabled": "BlancVPN (устарело здесь — см. VPN)",
+      "blancHint": "Настройки VPN перенесены: Настройки → AI → VPN / BlancVPN. Этот блок больше не показывается на странице OpenAI.",
       "blancUrl": "Ссылка подписки BlancVPN:",
       "blancUrlPlaceholder": "https://….withblancvpn.online/s/…",
       "blancMeta": "Узел: {name} (всего в подписке: {total})",

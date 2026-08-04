@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="content-create-page">
+    <div class="content-create-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
       <!-- Основной контент с тенью -->
       <div class="content-block">
         <form class="content-form" @submit.prevent="handleSubmit">
@@ -65,6 +66,31 @@
               <p class="form-hint">
                 {{ t('content.editor.showInBlogHint') }}
               </p>
+            </div>
+            <div class="form-group" v-if="form.visibility === 'public' && form.showInBlog">
+              <span class="form-label-text">{{ t('content.editor.feedFilters') }}</span>
+              <p class="form-hint">{{ t('content.editor.feedFiltersHint') }}</p>
+              <div v-if="feedFilterOptionsError" class="form-hint form-hint--error">
+                {{ feedFilterOptionsError }}
+              </div>
+              <div v-else-if="!feedFilterOptions.length" class="form-hint">
+                {{ t('content.editor.feedFiltersEmpty') }}
+              </div>
+              <div v-else class="feed-filters-checkboxes">
+                <label
+                  v-for="flt in feedFilterOptions"
+                  :key="flt.id"
+                  class="checkbox-label"
+                >
+                  <input
+                    type="checkbox"
+                    class="form-checkbox"
+                    :value="flt.id"
+                    v-model="form.feedFilterIds"
+                  />
+                  <span>{{ flt.label_ru || flt.label_en || flt.slug }}</span>
+                </label>
+              </div>
             </div>
             <p class="form-hint">
               {{ t('content.editor.variablesHint') }}
@@ -113,7 +139,7 @@
                   class="btn btn-outline btn-add-section"
                   @click="handleAddSection"
                 >
-                  <i class="fas fa-plus"></i>
+                  <UiGlyph name="plus" />
                   {{ t('content.editor.addCategory') }}
                 </button>
               </div>
@@ -205,12 +231,8 @@
 
           <!-- Кнопки действий -->
           <div class="form-actions">
-            <button type="button" class="btn btn-outline" @click="goBack">
-              <i class="fas fa-times"></i>
-              {{ t('common.cancel') }}
-            </button>
-            <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
-              <i class="fas fa-globe"></i>
+<button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+              <UiGlyph name="globe" />
               {{ isSubmitting ? t('content.editor.publishing') : t('content.editor.publish') }}
             </button>
           </div>
@@ -227,10 +249,12 @@ import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import pagesService from '../services/pagesService';
+import blogFeedService from '../services/blogFeedService';
 import api from '../api/axios';
 import { PERMISSIONS } from './permissions.js';
 import { useAuthContext } from '../composables/useAuth';
 import { usePermissions } from '../composables/usePermissions';
+import UiGlyph from '../components/UiGlyph.vue';
 
 // Props
 const props = defineProps({
@@ -288,8 +312,35 @@ const form = ref({
   requiredPermission: '',
   format: 'html',
   category: '',
-  showInBlog: false
+  showInBlog: false,
+  feedFilterIds: []
 });
+
+const feedFilterOptions = ref([]);
+const feedFilterOptionsError = ref('');
+
+async function loadFeedFilterOptions() {
+  feedFilterOptionsError.value = '';
+  try {
+    const settings = await blogFeedService.getFeedSettings();
+    feedFilterOptions.value = (settings.filters || [])
+      .filter((f) => f.id != null && f.is_active !== false)
+      .map((f) => ({
+        id: f.id,
+        slug: f.slug,
+        label_ru: f.label_ru,
+        label_en: f.label_en,
+      }));
+  } catch (e) {
+    console.warn('[ContentPageView] feed filters:', e.message || e);
+    feedFilterOptions.value = [];
+    const status = e?.response?.status;
+    feedFilterOptionsError.value =
+      status === 403
+        ? t('content.editor.feedFiltersForbidden')
+        : (e?.response?.data?.error || e?.message || t('content.editor.feedFiltersLoadError'));
+  }
+}
 
 // Список категорий
 const categories = ref([]);
@@ -356,10 +407,6 @@ const characterCount = computed(() => {
 });
 
 // Методы
-function goBack() {
-  router.push({ name: 'content-list' });
-}
-
 async function deletePage() {
   if (!isEditMode.value || !editId.value) {
     return;
@@ -468,6 +515,9 @@ async function loadPageForEdit() {
       form.value.format = page.format || 'html';
       form.value.category = page.category || '';
       form.value.showInBlog = page.show_in_blog === true || page.show_in_blog === 'true';
+      form.value.feedFilterIds = Array.isArray(page.feed_filter_ids)
+        ? page.feed_filter_ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id))
+        : [];
     }
   } catch (error) {
     console.error('Ошибка загрузки страницы для редактирования:', error);
@@ -502,6 +552,9 @@ async function handleSubmit() {
 
   try {
     isSubmitting.value = true;
+    const feedFilterIdsPayload = (form.value.visibility === 'public' && form.value.showInBlog)
+      ? (form.value.feedFilterIds || []).map((id) => Number(id)).filter((id) => !Number.isNaN(id))
+      : [];
     
     let page;
     if (isEditMode.value) {
@@ -524,7 +577,8 @@ async function handleSubmit() {
           mime_type: 'text/html',
           storage_type: 'embedded',
           category: form.value.category || null,
-          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false
+          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false,
+          feed_filter_ids: feedFilterIdsPayload
         };
         page = await pagesService.updatePage(editId.value, pageData);
       } else {
@@ -551,6 +605,8 @@ async function handleSubmit() {
         } else {
           fd.append('show_in_blog', 'false');
         }
+        fd.append('category', form.value.category || '');
+        fd.append('feed_filter_ids', JSON.stringify(feedFilterIdsPayload));
         if (fileBlob.value) {
           fd.append('file', fileBlob.value);
         }
@@ -576,7 +632,8 @@ async function handleSubmit() {
           mime_type: 'text/html',
           storage_type: 'embedded',
           category: form.value.category || null,
-          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false
+          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false,
+          feed_filter_ids: feedFilterIdsPayload
         };
         page = await pagesService.createPage(pageData);
       } else {
@@ -603,6 +660,8 @@ async function handleSubmit() {
         } else {
           fd.append('show_in_blog', 'false');
         }
+        fd.append('category', form.value.category || '');
+        fd.append('feed_filter_ids', JSON.stringify(feedFilterIdsPayload));
         fd.append('file', fileBlob.value);
         page = await pagesService.createPage(fd, true);
       }
@@ -610,6 +669,10 @@ async function handleSubmit() {
     
     if (!page || !page.id) {
       throw new Error(isEditMode.value ? t('content.editor.notUpdated') : t('content.editor.notCreated'));
+    }
+
+    if (page.feed_filter_error) {
+      alert(t('content.editor.feedFilterSyncError', { message: page.feed_filter_error }));
     }
 
     const seo = page.seoHtml || null;
@@ -639,7 +702,11 @@ async function handleSubmit() {
     }
   } catch (error) {
     console.error('Ошибка при создании страницы:', error);
-    alert(t('content.editor.createError') + (error?.message || error));
+    const msg =
+      error?.response?.data?.error ||
+      error?.message ||
+      error;
+    alert(t('content.editor.createError') + msg);
   } finally {
     isSubmitting.value = false;
   }
@@ -649,7 +716,12 @@ async function handleSubmit() {
 watch(() => form.value.visibility, (newVisibility) => {
   if (newVisibility === 'internal') {
     form.value.showInBlog = false;
+    form.value.feedFilterIds = [];
   }
+});
+
+watch(() => form.value.showInBlog, (on) => {
+  if (!on) form.value.feedFilterIds = [];
 });
 
 // Загрузка данных при монтировании
@@ -660,8 +732,8 @@ onMounted(async () => {
     return;
   }
   
-  // Загружаем категории
-  await loadCategories();
+  // Загружаем категории и фильтры ленты
+  await Promise.all([loadCategories(), loadFeedFilterOptions()]);
   
   if (isEditMode.value) {
     await loadPageForEdit();
@@ -671,6 +743,7 @@ onMounted(async () => {
 
 <style scoped>
 .content-create-page {
+  position: relative;
   padding: 20px;
   width: 100%;
 }
@@ -700,19 +773,7 @@ onMounted(async () => {
   margin: 0;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: var(--color-grey-dark);
-  cursor: pointer;
-  padding: 0 10px;
-  transition: color 0.3s ease;
-}
 
-.close-btn:hover {
-  color: var(--color-primary);
-}
 
 .content-block {
   background: #f8f9fa;
@@ -916,6 +977,23 @@ onMounted(async () => {
   gap: 10px;
   cursor: pointer;
   font-weight: normal;
+}
+
+.form-hint--error {
+  color: var(--color-danger);
+}
+
+.feed-filters-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.form-label-text {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
 }
 
 .form-checkbox {

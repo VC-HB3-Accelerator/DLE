@@ -50,23 +50,32 @@ const visibleNavItems = computed(() =>
   display: inline-flex;
   align-items: center;
   padding: 8px 16px;
-  border-radius: var(--block-radius, 8px);
-  border: 1px solid var(--color-border, #dcdfe6);
-  background: var(--color-white, #fff);
-  color: var(--color-grey, #606266);
+  border-radius: var(--block-radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-grey);
   text-decoration: none;
-  font-size: var(--font-size-md, 0.95rem);
+  font-size: var(--font-size-md);
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .conference-nav-link:hover {
-  border-color: var(--color-primary, #409eff);
-  color: var(--color-primary, #409eff);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .conference-nav-link.is-active {
-  background: var(--color-primary, #409eff);
-  border-color: var(--color-primary, #409eff);
-  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .conference-nav, nav {
+    max-width: 100%;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+  }
 }
 </style>

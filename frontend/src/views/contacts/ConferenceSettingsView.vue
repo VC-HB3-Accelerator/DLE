@@ -750,7 +750,7 @@ onMounted(load);
 
 .conference-section-header p {
   margin: 0 0 16px;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
 }
 
 .conference-alert {
@@ -777,7 +777,7 @@ onMounted(load);
 
 .list-hint {
   margin: 0 0 12px;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
   font-size: 0.9rem;
 }
 
@@ -793,15 +793,15 @@ onMounted(load);
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--color-border, #dcdfe6);
-  border-radius: var(--block-radius, 8px);
-  background: var(--color-white, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
+  background: var(--color-white);
   cursor: pointer;
 }
 
 .session-row.is-selected {
-  border-color: var(--color-primary, #409eff);
-  box-shadow: 0 0 0 1px var(--color-primary, #409eff);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .session-title {
@@ -812,7 +812,7 @@ onMounted(load);
 .session-id {
   margin-left: 6px;
   font-weight: 400;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
   font-size: 0.85rem;
 }
 
@@ -821,7 +821,7 @@ onMounted(load);
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
   font-size: 0.85rem;
 }
 
@@ -841,8 +841,8 @@ onMounted(load);
 .participants-block {
   margin: 16px 0;
   padding: 12px;
-  border: 1px solid var(--color-border, #dcdfe6);
-  border-radius: var(--block-radius, 8px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
 }
 
 .participants-block h4 {
@@ -861,7 +861,7 @@ onMounted(load);
   gap: 10px;
   align-items: flex-start;
   padding: 8px 0;
-  border-bottom: 1px solid var(--color-border, #ebeef5);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .participant-main {
@@ -873,7 +873,7 @@ onMounted(load);
 .participant-meta,
 .participant-email {
   font-size: 0.85rem;
-  color: var(--color-grey, #606266);
+  color: var(--color-grey);
 }
 
 .participant-actions {
@@ -902,7 +902,7 @@ onMounted(load);
   font-size: 0.85rem;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .settings-grid {
     grid-template-columns: 1fr;
   }
@@ -910,6 +910,22 @@ onMounted(load);
   .session-row {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+/* TZ package C: bp normalized */
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

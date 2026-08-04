@@ -164,12 +164,12 @@ router.get('/sidebar-nav', async (req, res) => {
 
 router.put('/sidebar-nav', requireAdmin, async (req, res) => {
   try {
-    const { buttons, locales } = req.body || {};
+    const { buttons, locales, authMethods } = req.body || {};
     const sessionUserId = req.session?.userId;
     const updatedBy = sessionUserId != null && Number.isFinite(Number(sessionUserId))
       ? Number(sessionUserId)
       : null;
-    const data = await sidebarNavService.setSettings({ buttons, locales, updatedBy });
+    const data = await sidebarNavService.setSettings({ buttons, locales, authMethods, updatedBy });
     res.json({ success: true, data });
   } catch (error) {
     logger.error('[Settings] Ошибка сохранения sidebar-nav:', error);
@@ -505,7 +505,7 @@ router.get('/ai-settings/:provider', async (req, res, next) => {
 router.put('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
   try {
     const { provider } = req.params;
-    const { api_key, base_url, selected_model, embedding_model, proxy_url, proxy_enabled, blanc_subscription_url } = req.body;
+    const { api_key, base_url, selected_model, embedding_model, proxy_url, proxy_enabled, blanc_subscription_url, proxy_openai, proxy_telegram } = req.body;
     const updated = await aiProviderSettingsService.upsertProviderSettings({
       provider,
       api_key,
@@ -514,9 +514,22 @@ router.put('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
       embedding_model,
       proxy_url,
       proxy_enabled,
-      blanc_subscription_url
+      blanc_subscription_url,
+      proxy_openai,
+      proxy_telegram
     });
     const meta = provider === 'openai' ? require('../services/blancVpnService').readMeta() : null;
+    // VPN-цели Telegram меняют SOCKS → перезапуск polling
+    if (provider === 'openai' && proxy_telegram !== undefined) {
+      try {
+        const botManager = require('../services/botManager');
+        if (typeof botManager.restartBot === 'function') {
+          await botManager.restartBot('telegram');
+        }
+      } catch (e) {
+        logger.warn('[settings] Telegram bot restart after VPN save:', e.message);
+      }
+    }
     res.json({ success: true, settings: updated, blanc: meta });
   } catch (error) {
     logger.error('Ошибка при сохранении AI-настроек:', error);
@@ -558,7 +571,7 @@ router.get('/ai-settings/:provider/models', requireAdmin, async (req, res, next)
 router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next) => {
   try {
     const { provider } = req.params;
-    const { api_key, base_url, proxy_url, proxy_enabled, blanc_subscription_url } = req.body;
+    const { api_key, base_url, proxy_url, proxy_enabled, blanc_subscription_url, proxy_openai, proxy_telegram } = req.body;
     if (provider === 'openai' && proxy_enabled && blanc_subscription_url) {
       const blancVpnService = require('../services/blancVpnService');
       await blancVpnService.applySubscription(blanc_subscription_url);
@@ -570,7 +583,9 @@ router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next
       base_url,
       proxy_url,
       proxy_enabled,
-      blanc_subscription_url
+      blanc_subscription_url,
+      proxy_openai,
+      proxy_telegram
     });
     if (result.success) {
       res.json({

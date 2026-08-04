@@ -19,7 +19,7 @@
       </div>
       <div class="modal-actions">
         <slot name="actions">
-          <button class="modal-ok-btn" @click="$emit('close')">{{ t('common.ok') }}</button>
+          <button class="btn btn-primary" @click="$emit('close')">{{ t('common.ok') }}</button>
         </slot>
       </div>
     </div>
@@ -43,44 +43,50 @@ defineProps({
   position: fixed;
   z-index: 1000;
   left: 0; top: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.35);
+  background: rgba(31, 41, 55, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .modal-window {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.18);
-  padding: 2rem 2.5rem 1.5rem 2.5rem;
+  background: var(--color-white);
+  border-radius: var(--block-radius);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  padding: var(--block-padding) var(--spacing-xl) var(--spacing-lg);
   min-width: 320px;
+  max-width: calc(100% - 2rem);
   text-align: center;
+  box-sizing: border-box;
 }
 .modal-title {
-  font-size: 1.2rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-dark);
 }
 .modal-body {
-  margin-bottom: 1.5rem;
-  color: #444;
+  margin-bottom: var(--spacing-lg);
+  color: var(--color-text);
 }
 .modal-actions {
   display: flex;
   justify-content: center;
-  gap: 18px;
+  gap: var(--button-gap);
 }
-.modal-ok-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 2rem;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
-}
-.modal-ok-btn:hover {
-  background: var(--color-primary-dark);
+
+
+/* TZ package G/SC */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, .modal, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="form"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style> 

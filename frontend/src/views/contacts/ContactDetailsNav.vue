@@ -112,4 +112,13 @@ function isNavActive(name) {
   border-color: var(--color-primary);
   color: var(--color-white);
 }
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .contact-details-nav, nav {
+    max-width: 100%;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+  }
+}
 </style>

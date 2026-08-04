@@ -7,7 +7,8 @@
 
 <template>
   <BaseLayout>
-    <div class="hub-page">
+    <div class="hub-page page-with-close">
+      <PageCloseButton :on-navigate="handlePageClose" />
       <div class="hub-topbar">
         <div class="hub-topbar-left">
           <h1 class="hub-title">{{ t('contacts.conference.hub.title') }}</h1>
@@ -29,7 +30,6 @@
             </router-link>
           </nav>
         </div>
-        <el-button @click="goBack">{{ t('contacts.conference.hub.backToList') }}</el-button>
       </div>
       <router-view />
     </div>
@@ -37,10 +37,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, provide, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '@/components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -49,12 +50,28 @@ const router = useRouter();
 const sessionId = computed(() => route.params.sessionId || null);
 const isLive = computed(() => route.name === 'hub-conference-live');
 
+const pageCloseHandler = ref(null);
+provide('registerPageCloseHandler', (fn) => {
+  pageCloseHandler.value = fn;
+});
+provide('unregisterPageCloseHandler', () => {
+  pageCloseHandler.value = null;
+});
+
 function goBack() {
   if (route.name === 'hub-conferences' || !sessionId.value) {
     router.push({ name: 'contacts-list' });
     return;
   }
   router.push({ name: 'hub-conferences' });
+}
+
+function handlePageClose() {
+  if (typeof pageCloseHandler.value === 'function') {
+    pageCloseHandler.value();
+    return;
+  }
+  goBack();
 }
 </script>
 
@@ -63,6 +80,7 @@ function goBack() {
   max-width: 960px;
   margin: 0 auto;
   padding: 24px;
+  position: relative;
 }
 
 .hub-topbar {
@@ -87,8 +105,8 @@ function goBack() {
 
 .hub-subtitle {
   margin: 0;
-  color: var(--color-grey, #606266);
-  font-size: 0.95rem;
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
 }
 
 .hub-nav {
@@ -100,19 +118,19 @@ function goBack() {
 
 .hub-nav-link {
   padding: 6px 12px;
-  border-radius: var(--block-radius, 8px);
+  border-radius: var(--block-radius);
   text-decoration: none;
-  color: var(--color-text, #303133);
-  border: 1px solid var(--color-border, #dcdfe6);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }
 
 .hub-nav-link.is-active {
-  border-color: var(--color-primary, #409eff);
-  color: var(--color-primary, #409eff);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
   font-weight: 600;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .hub-page {
     padding: 12px;
   }
@@ -122,4 +140,6 @@ function goBack() {
     align-items: stretch;
   }
 }
+
+/* TZ package C: bp normalized */
 </style>

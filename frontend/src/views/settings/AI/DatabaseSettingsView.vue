@@ -12,8 +12,8 @@
 
 <template>
   <BaseLayout>
-    <div class="db-settings-block">
-      <button class="close-btn" @click="goBack">×</button>
+    <div class="db-settings-block page-with-close">
+      <PageCloseButton fallback="/settings/ai" />
       <h2>{{ $t('settings.ai.database.pageTitle') }}</h2>
       <div class="db-settings settings-panel">
         <form v-if="editMode" @submit.prevent="saveDbSettings" class="settings-form">
@@ -27,7 +27,10 @@
           </div>
           <div class="form-group">
             <label class="info-label">
-              <i class="info-icon">ℹ️</i>
+              <svg class="info-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 7v4M8 5h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
               Database name: <strong>{{ form.dbName }}</strong> {{ $t('settings.ai.database.readonlyBadge') }}
             </label>
           </div>
@@ -53,8 +56,9 @@
             <div class="encryption-key-inline">
               <div class="encryption-key-field">
                 <span class="key-display">{{ displayKey }}</span>
-                <button type="button" class="eye-btn" @click="toggleKeyVisibility" v-if="encryptionKeyState.exists">
-                  {{ showKey ? '👁️' : '👁️‍🗨️' }}
+                <button type="button" class="eye-btn btn btn-sm btn-ghost" @click="toggleKeyVisibility" v-if="encryptionKeyState.exists">
+                  <span aria-hidden="true">{{ showKey ? '▾' : '▸' }}</span>
+                  <span class="visually-hidden">{{ showKey ? 'hide' : 'show' }}</span>
                 </button>
               </div>
               <span class="key-status" :class="keyStatusClass">
@@ -66,7 +70,6 @@
             </div>
           </div>
           <button type="button" class="edit-btn" @click="editMode = true">{{ $t('common.edit') }}</button>
-          <button type="button" class="cancel-btn" @click="goBack">{{ $t('common.close') }}</button>
         </div>
       </div>
     </div>
@@ -77,12 +80,9 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
-import { useRouter } from 'vue-router';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { reactive, ref, onMounted, nextTick, computed, watch } from 'vue';
 import api from '@/api/axios';
-
-const router = useRouter();
-const goBack = () => router.push('/settings/ai');
 
 const form = reactive({
   dbHost: '',
@@ -245,19 +245,8 @@ const cancelEdit = () => {
   position: relative;
   overflow-x: auto;
 }
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
-}
-.close-btn:hover {
-  color: #333;
+.page-with-close {
+  position: relative;
 }
 h2 {
   margin-bottom: 0;
@@ -348,8 +337,12 @@ h2 {
 }
 
 .info-icon {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
   margin-right: 0.5rem;
-  color: #007bff;
+  color: var(--color-primary, #4a7c59);
+  vertical-align: middle;
 }
 
 .readonly-badge {
@@ -441,5 +434,26 @@ h2 {
 
 .generate-key-btn:hover {
   background: var(--color-primary-dark);
+}
+
+/* TZ package S */
+@media (max-width: 768px) {
+  .db-settings.settings-panel,
+  .db-settings-block {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .view-row,
+  .encryption-key-inline,
+  .encryption-key-field {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .edit-btn, button.save-btn, .settings-form button {
+    width: 100%;
+    height: var(--button-height-mobile);
+  }
 }
 </style> 

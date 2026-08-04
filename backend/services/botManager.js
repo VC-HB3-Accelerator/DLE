@@ -33,6 +33,14 @@ class BotManager {
     try {
       logger.info('[BotManager] 🚀 Инициализация BotManager...');
 
+      // Повторный init: остановить прежний polling, иначе 409 Conflict
+      if (this.bots.size > 0) {
+        await this.stop().catch((error) => {
+          logger.warn('[BotManager] stop перед re-init:', error.message);
+        });
+        this.bots.clear();
+      }
+
       // Создаем экземпляры ботов
       const WebBot = require('./webBot');
       const webBot = new WebBot();

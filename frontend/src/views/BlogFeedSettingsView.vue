@@ -11,8 +11,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="feed-settings">
-      <button type="button" class="close-btn" @click="goBack">×</button>
+    <div class="feed-settings page-with-close">
+      <PageCloseButton :fallback="{ name: 'blog' }" />
 
       <div class="feed-settings__panel">
         <h2>{{ t('blog.feedSettings.title') }}</h2>
@@ -30,7 +30,7 @@
           <section class="feed-settings__section">
             <div class="feed-settings__section-header">
               <h3>{{ t('blog.feedSettings.filtersTitle') }}</h3>
-              <button type="button" class="feed-settings__add" :disabled="isSaving" @click="addFilter">
+              <button type="button" class="btn btn-primary btn-sm" :disabled="isSaving" @click="addFilter">
                 {{ t('blog.feedSettings.addFilter') }}
               </button>
             </div>
@@ -44,7 +44,7 @@
                 <span>{{ filter.label_ru || filter.label_en || t('blog.feedSettings.filterN', { n: index + 1 }) }}</span>
                 <button
                   type="button"
-                  class="feed-settings__remove"
+                  class="btn btn-danger btn-sm"
                   :disabled="isSaving || filters.length <= 1"
                   @click="removeFilter(index)"
                 >
@@ -95,8 +95,61 @@
                   {{ t('blog.feedSettings.default') }}
                 </label>
                 <div class="feed-settings__order">
-                  <button type="button" :disabled="isSaving || index === 0" @click="moveFilter(index, -1)">↑</button>
-                  <button type="button" :disabled="isSaving || index === filters.length - 1" @click="moveFilter(index, 1)">↓</button>
+                  <button type="button" class="btn btn-outline btn-sm btn-icon" :disabled="isSaving || index === 0" @click="moveFilter(index, -1)">↑</button>
+                  <button type="button" class="btn btn-outline btn-sm btn-icon" :disabled="isSaving || index === filters.length - 1" @click="moveFilter(index, 1)">↓</button>
+                </div>
+              </div>
+
+              <div class="feed-settings__articles">
+                <p class="feed-settings__hint feed-settings__hint--tight">
+                  {{ t('blog.feedSettings.filterArticlesHint') }}
+                </p>
+                <label class="feed-settings__field feed-settings__field--inline">
+                  <span>{{ t('blog.feedSettings.addArticleToFilter') }}</span>
+                  <select
+                    :value="articlePickByFilter[filter.key] || ''"
+                    :disabled="isSaving"
+                    @change="onAddArticleToFilter(index, $event)"
+                  >
+                    <option value="">{{ t('blog.feedSettings.selectArticle') }}</option>
+                    <option
+                      v-for="page in availablePagesForFilter(filter)"
+                      :key="page.id"
+                      :value="String(page.id)"
+                    >
+                      {{ page.title || page.slug || `#${page.id}` }}
+                    </option>
+                  </select>
+                </label>
+                <ul v-if="filter.page_ids?.length" class="feed-settings__pins">
+                  <li
+                    v-for="(pageId, pIndex) in filter.page_ids"
+                    :key="`${filter.key}-${pageId}`"
+                    class="feed-settings__pin"
+                  >
+                    <span class="feed-settings__pin-title">{{ pageTitle(pageId) }}</span>
+                    <div class="feed-settings__order">
+                      <button type="button" class="btn btn-outline btn-sm btn-icon" :disabled="isSaving || pIndex === 0" @click="moveFilterArticle(index, pIndex, -1)">↑</button>
+                      <button
+                        type="button"
+                        class="btn btn-outline btn-sm btn-icon"
+                        :disabled="isSaving || pIndex === filter.page_ids.length - 1"
+                        @click="moveFilterArticle(index, pIndex, 1)"
+                      >↓</button>
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        :disabled="isSaving"
+                        @click="removeFilterArticle(index, pIndex)"
+                      >
+                        {{ t('common.delete') }}
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+                <div v-else class="feed-settings__empty feed-settings__empty--warn">
+                  {{ t('blog.feedSettings.noFilterArticles') }}
+                  <strong>{{ t('blog.feedSettings.emptyPageIdsMeansAll') }}</strong>
                 </div>
               </div>
             </div>
@@ -137,9 +190,9 @@
                   <em v-if="pin.is_pinned_badge">{{ t('blog.feedSettings.pinnedBadge') }}</em>
                 </span>
                 <div class="feed-settings__order">
-                  <button type="button" :disabled="isSaving || index === 0" @click="movePin(index, -1)">↑</button>
-                  <button type="button" :disabled="isSaving || index === pins.length - 1" @click="movePin(index, 1)">↓</button>
-                  <button type="button" class="feed-settings__remove" :disabled="isSaving" @click="removePin(index)">
+                  <button type="button" class="btn btn-outline btn-sm btn-icon" :disabled="isSaving || index === 0" @click="movePin(index, -1)">↑</button>
+                  <button type="button" class="btn btn-outline btn-sm btn-icon" :disabled="isSaving || index === pins.length - 1" @click="movePin(index, 1)">↓</button>
+                  <button type="button" class="btn btn-danger btn-sm" :disabled="isSaving" @click="removePin(index)">
                     {{ t('common.delete') }}
                   </button>
                 </div>
@@ -151,7 +204,7 @@
           <p v-if="saveSuccess" class="feed-settings__success">{{ saveSuccess }}</p>
 
           <div class="feed-settings__actions">
-            <button type="button" class="feed-settings__save" :disabled="isSaving" @click="handleSave">
+            <button type="button" class="btn btn-primary" :disabled="isSaving" @click="handleSave">
               {{ isSaving ? t('common.saving') : t('common.save') }}
             </button>
           </div>
@@ -163,9 +216,9 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import blogFeedService from '../services/blogFeedService';
 import pagesService from '../services/pagesService';
 import { usePermissions } from '../composables/usePermissions';
@@ -181,7 +234,6 @@ defineProps({
 defineEmits(['auth-action-completed']);
 
 const { t } = useI18n();
-const router = useRouter();
 const { hasPermission } = usePermissions();
 
 const canManage = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
@@ -194,6 +246,7 @@ const filters = ref([]);
 const pins = ref([]);
 const blogPages = ref([]);
 const pinToAdd = ref('');
+const articlePickByFilter = ref({});
 const sortByOptions = ref(['new', 'views', 'likes', 'comments', 'popular']);
 
 const pageTitleById = computed(() => {
@@ -208,6 +261,15 @@ const availablePinPages = computed(() => {
   const pinnedIds = new Set(pins.value.map((p) => p.page_id));
   return blogPages.value.filter((p) => !pinnedIds.has(p.id));
 });
+
+function pageTitle(pageId) {
+  return pageTitleById.value.get(pageId) || `#${pageId}`;
+}
+
+function availablePagesForFilter(filter) {
+  const taken = new Set(filter.page_ids || []);
+  return blogPages.value.filter((p) => !taken.has(p.id));
+}
 
 function makeKey() {
   return `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -224,15 +286,12 @@ function createFilter(data = {}, index = 0) {
     is_default: Boolean(data.is_default),
     is_active: data.is_active !== false,
     position: data.position ?? index,
+    page_ids: Array.isArray(data.page_ids) ? [...data.page_ids] : [],
   };
 }
 
 function pinTitle(pin) {
   return pageTitleById.value.get(pin.page_id) || pin.title || `#${pin.page_id}`;
-}
-
-function goBack() {
-  router.push({ name: 'blog' });
 }
 
 function addFilter() {
@@ -243,6 +302,7 @@ function addFilter() {
     sort_by: 'new',
     is_default: false,
     is_active: true,
+    page_ids: [],
   }, filters.value.length));
 }
 
@@ -271,6 +331,35 @@ function moveFilter(index, delta) {
   const [item] = list.splice(index, 1);
   list.splice(next, 0, item);
   filters.value = list;
+}
+
+function onAddArticleToFilter(filterIndex, event) {
+  const pageId = parseInt(event?.target?.value, 10);
+  const filter = filters.value[filterIndex];
+  if (filter) {
+    articlePickByFilter.value = { ...articlePickByFilter.value, [filter.key]: '' };
+  }
+  if (!pageId || Number.isNaN(pageId) || !filter) return;
+  if (!Array.isArray(filter.page_ids)) filter.page_ids = [];
+  if (filter.page_ids.includes(pageId)) return;
+  filter.page_ids.push(pageId);
+}
+
+function removeFilterArticle(filterIndex, articleIndex) {
+  const filter = filters.value[filterIndex];
+  if (!filter?.page_ids) return;
+  filter.page_ids.splice(articleIndex, 1);
+}
+
+function moveFilterArticle(filterIndex, articleIndex, delta) {
+  const filter = filters.value[filterIndex];
+  if (!filter?.page_ids) return;
+  const next = articleIndex + delta;
+  if (next < 0 || next >= filter.page_ids.length) return;
+  const list = [...filter.page_ids];
+  const [item] = list.splice(articleIndex, 1);
+  list.splice(next, 0, item);
+  filter.page_ids = list;
 }
 
 function addPin() {
@@ -351,6 +440,7 @@ async function handleSave() {
         is_default: f.is_default,
         is_active: f.is_active,
         position: i,
+        page_ids: Array.isArray(f.page_ids) ? f.page_ids : [],
       })),
       pins: pins.value.map((p, i) => ({
         page_id: p.page_id,
@@ -387,18 +477,7 @@ onMounted(loadData);
   max-width: 720px;
   margin: 0 auto;
   padding: var(--block-padding) var(--spacing-lg) 48px;
-}
-
-.close-btn {
-  margin-bottom: 16px;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--color-grey-light);
-  border-radius: var(--radius-lg);
-  background: var(--color-white);
-  font-size: 1.4rem;
-  cursor: pointer;
-  line-height: 1;
+  position: relative;
 }
 
 .feed-settings__panel {
@@ -414,11 +493,20 @@ onMounted(loadData);
   font-size: 1.4rem;
 }
 
-.feed-settings__intro,
 .feed-settings__hint {
   margin: 0 0 20px;
   color: var(--color-grey-dark);
   font-size: var(--font-size-sm);
+}
+
+.feed-settings__hint--tight {
+  margin: 12px 0 8px;
+}
+
+.feed-settings__articles {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-grey-light);
 }
 
 .feed-settings__section {
@@ -497,38 +585,7 @@ onMounted(loadData);
   display: inline-flex;
   gap: 6px;
   margin-left: auto;
-}
-
-.feed-settings__order button,
-.feed-settings__add,
-.feed-settings__remove,
-.feed-settings__save {
-  border: 1px solid var(--color-grey-light);
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-
-.feed-settings__add,
-.feed-settings__save {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
-  font-weight: 600;
-}
-
-.feed-settings__save:disabled,
-.feed-settings__add:disabled,
-.feed-settings__remove:disabled,
-.feed-settings__order button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.feed-settings__remove {
-  color: #c62828;
+  flex-wrap: wrap;
 }
 
 .feed-settings__pins {
@@ -567,18 +624,29 @@ onMounted(loadData);
 .feed-settings__empty,
 .feed-settings__loading,
 .feed-settings__denied {
-  color: var(--color-grey-dark);
+  color: var(--theme-text-muted);
   font-size: var(--font-size-sm);
   padding: 12px 0;
 }
 
+.feed-settings__empty--warn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning) 10%, white);
+  color: var(--theme-text);
+}
+
 .feed-settings__error {
-  color: #c62828;
+  color: var(--color-error);
   font-size: var(--font-size-sm);
 }
 
 .feed-settings__success {
-  color: #2e7d32;
+  color: var(--color-primary-dark);
   font-size: var(--font-size-sm);
 }
 
@@ -586,7 +654,7 @@ onMounted(loadData);
   margin-top: 16px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .feed-settings {
     padding: var(--block-padding-mobile) var(--spacing-sm) 40px;
   }
@@ -602,6 +670,17 @@ onMounted(loadData);
 
   .feed-settings__order {
     margin-left: 0;
+  }
+}
+
+
+/* TZ package R stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

@@ -19,6 +19,7 @@ import router from './router';
 import axios from 'axios';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
+import './assets/styles/element-plus-bridge.css';
 import { i18n, elementPlusLocales, setAppLocale } from './locales';
 
 // Настройка axios

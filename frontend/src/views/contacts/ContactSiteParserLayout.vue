@@ -12,13 +12,13 @@
 
 <template>
   <BaseLayout>
-    <div class="parser-page">
+    <div class="parser-page page-with-close">
+      <PageCloseButton :on-navigate="goBack" />
       <div class="parser-topbar">
         <div>
           <h1 class="parser-title">{{ t('contacts.parser.title') }}</h1>
           <p class="parser-subtitle">{{ t('contacts.parser.description') }}</p>
         </div>
-        <el-button @click="goBack">{{ t('contacts.parser.backToContacts') }}</el-button>
       </div>
 
       <router-view />
@@ -31,6 +31,7 @@ import { watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '@/components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const PARSER_IDS_STORAGE_KEY = 'contactSiteParserIds';
 
@@ -59,6 +60,7 @@ function goBack() {
   max-width: 960px;
   margin: 0 auto;
   padding: 24px;
+  position: relative;
 }
 
 .parser-topbar {
@@ -76,12 +78,12 @@ function goBack() {
 
 .parser-subtitle {
   margin: 0;
-  color: #606266;
-  font-size: 0.95rem;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
   max-width: 640px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .parser-page {
     padding: 12px;
   }
@@ -91,4 +93,6 @@ function goBack() {
     align-items: stretch;
   }
 }
+
+/* TZ package C: bp normalized */
 </style>

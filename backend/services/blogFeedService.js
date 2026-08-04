@@ -13,7 +13,87 @@ const DEFAULT_FILTERS = [
   { slug: 'views', label_ru: 'По просмотрам', label_en: 'By views', sort_by: 'views', is_default: false, is_active: true, position: 2 },
   { slug: 'likes', label_ru: 'По лайкам', label_en: 'By likes', sort_by: 'likes', is_default: false, is_active: true, position: 3 },
   { slug: 'comments', label_ru: 'По комментариям', label_en: 'By comments', sort_by: 'comments', is_default: false, is_active: true, position: 4 },
+  {
+    slug: 'politika-i-soglasiya',
+    label_ru: 'Политика и согласия',
+    label_en: 'Policy & consent',
+    sort_by: 'new',
+    is_default: false,
+    is_active: true,
+    position: 5,
+  },
 ];
+
+/** Раздел опубликованных юрдоков ↔ фильтр ленты /blog */
+const PRIVACY_BLOG_FILTER_SLUG = 'politika-i-soglasiya';
+const PRIVACY_SECTION = 'политика и согласия';
+
+/**
+ * Гарантирует фильтр «Политика и согласия» и членство published-доков раздела.
+ */
+async function ensurePrivacyBlogFilter() {
+  if (!(await tableExists('blog_feed_filters'))) {
+    return { ok: false, reason: 'no_filters_table' };
+  }
+
+  await db.getQuery()(
+    `UPDATE admin_pages_simple
+     SET show_in_blog = TRUE, updated_at = NOW()
+     WHERE LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM($1))
+       AND status = 'published'
+       AND visibility = 'public'
+       AND COALESCE(is_system_template, FALSE) = FALSE`,
+    [PRIVACY_SECTION]
+  );
+
+  const existing = await db.getQuery()(
+    `SELECT id FROM blog_feed_filters WHERE slug = $1 LIMIT 1`,
+    [PRIVACY_BLOG_FILTER_SLUG]
+  );
+
+  let filterId = existing.rows[0]?.id || null;
+  if (!filterId) {
+    const { rows: maxPos } = await db.getQuery()(
+      `SELECT COALESCE(MAX(position), -1) AS m FROM blog_feed_filters`
+    );
+    const position = Number(maxPos[0]?.m ?? -1) + 1;
+    const inserted = await db.getQuery()(
+      `INSERT INTO blog_feed_filters
+        (slug, label_ru, label_en, sort_by, is_default, is_active, position, updated_at)
+       VALUES ($1, $2, $3, 'new', false, true, $4, NOW())
+       RETURNING id`,
+      [PRIVACY_BLOG_FILTER_SLUG, 'Политика и согласия', 'Policy & consent', position]
+    );
+    filterId = inserted.rows[0]?.id;
+  }
+
+  if (!filterId || !(await tableExists('blog_feed_filter_pages'))) {
+    return { ok: Boolean(filterId), filterId, pages: 0 };
+  }
+
+  const pages = await db.getQuery()(
+    `SELECT id FROM admin_pages_simple
+     WHERE LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM($1))
+       AND status = 'published'
+       AND visibility = 'public'
+       AND COALESCE(is_system_template, FALSE) = FALSE
+       AND COALESCE(show_in_blog, FALSE) = TRUE
+     ORDER BY COALESCE(order_index, 0) ASC, id ASC`,
+    [PRIVACY_SECTION]
+  );
+
+  await db.getQuery()(`DELETE FROM blog_feed_filter_pages WHERE filter_id = $1`, [filterId]);
+  for (let i = 0; i < pages.rows.length; i += 1) {
+    await db.getQuery()(
+      `INSERT INTO blog_feed_filter_pages (filter_id, page_id, position)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (filter_id, page_id) DO UPDATE SET position = EXCLUDED.position`,
+      [filterId, pages.rows[i].id, i]
+    );
+  }
+
+  return { ok: true, filterId, pages: pages.rows.length };
+}
 
 function slugify(value) {
   return String(value || '')
@@ -38,6 +118,10 @@ function normalizeFilter(row, index = 0) {
   let slug = slugify(row.slug || row.label_en || row.label_ru || `filter-${index + 1}`);
   if (!slug) slug = `filter-${index + 1}`;
 
+  const pageIds = Array.isArray(row.page_ids)
+    ? row.page_ids.map((id) => parseInt(id, 10)).filter((id) => id && !Number.isNaN(id))
+    : [];
+
   return {
     id: row.id ?? null,
     slug,
@@ -47,6 +131,7 @@ function normalizeFilter(row, index = 0) {
     is_default: Boolean(row.is_default),
     is_active: row.is_active !== false,
     position: Number.isFinite(Number(row.position)) ? Number(row.position) : index,
+    page_ids: pageIds,
   };
 }
 
@@ -132,6 +217,125 @@ async function getPinnedMap() {
   return new Map(rows.map((r) => [r.page_id, r.position]));
 }
 
+/** page_id[] для фильтра; null = без ограничения (все статьи ленты) */
+async function getFilterPageIds(filterId) {
+  if (!filterId || !(await tableExists('blog_feed_filter_pages'))) {
+    return null;
+  }
+  const { rows } = await db.getQuery()(
+    `SELECT page_id FROM blog_feed_filter_pages
+     WHERE filter_id = $1
+     ORDER BY position ASC, id ASC`,
+    [filterId]
+  );
+  if (!rows.length) return null;
+  return rows.map((r) => r.page_id);
+}
+
+async function getFilterPagesMap() {
+  const map = new Map();
+  if (!(await tableExists('blog_feed_filter_pages'))) {
+    return map;
+  }
+  const { rows } = await db.getQuery()(
+    `SELECT filter_id, page_id, position
+     FROM blog_feed_filter_pages
+     ORDER BY filter_id ASC, position ASC, id ASC`
+  );
+  for (const row of rows) {
+    if (!map.has(row.filter_id)) map.set(row.filter_id, []);
+    map.get(row.filter_id).push(row.page_id);
+  }
+  return map;
+}
+
+async function getPageFilterIds(pageId) {
+  const id = parseInt(pageId, 10);
+  if (!id || Number.isNaN(id) || !(await tableExists('blog_feed_filter_pages'))) {
+    return [];
+  }
+  const { rows } = await db.getQuery()(
+    `SELECT filter_id FROM blog_feed_filter_pages WHERE page_id = $1 ORDER BY filter_id ASC`,
+    [id]
+  );
+  return rows.map((r) => r.filter_id);
+}
+
+/**
+ * Заменить членство страницы в фильтрах (по id фильтров).
+ */
+async function setPageFilterIds(pageId, filterIds = []) {
+  const id = parseInt(pageId, 10);
+  if (!id || Number.isNaN(id)) {
+    const err = new Error('Некорректный page_id');
+    err.status = 400;
+    throw err;
+  }
+  if (!(await tableExists('blog_feed_filter_pages')) || !(await tableExists('blog_feed_filters'))) {
+    return [];
+  }
+
+  const uniqueIds = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(filterIds) ? filterIds : []) {
+    const fid = parseInt(raw, 10);
+    if (!fid || Number.isNaN(fid) || seen.has(fid)) continue;
+    seen.add(fid);
+    uniqueIds.push(fid);
+  }
+
+  if (uniqueIds.length) {
+    const { rows: valid } = await db.getQuery()(
+      `SELECT id FROM blog_feed_filters WHERE id = ANY($1::int[])`,
+      [uniqueIds]
+    );
+    const validSet = new Set(valid.map((r) => r.id));
+    const invalid = uniqueIds.filter((x) => !validSet.has(x));
+    if (invalid.length) {
+      const err = new Error(`Неизвестные фильтры: ${invalid.join(', ')}`);
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  const pool = db.getPool();
+  if (!pool) {
+    const err = new Error('База данных недоступна');
+    err.status = 503;
+    throw err;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM blog_feed_filter_pages WHERE page_id = $1`, [id]);
+    for (let i = 0; i < uniqueIds.length; i += 1) {
+      const fid = uniqueIds[i];
+      const { rows: maxPos } = await client.query(
+        `SELECT COALESCE(MAX(position), -1) AS m FROM blog_feed_filter_pages WHERE filter_id = $1`,
+        [fid]
+      );
+      const position = Number(maxPos[0]?.m ?? -1) + 1;
+      await client.query(
+        `INSERT INTO blog_feed_filter_pages (filter_id, page_id, position)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (filter_id, page_id) DO UPDATE SET position = EXCLUDED.position`,
+        [fid, id, position]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+  return getPageFilterIds(id);
+}
+
 async function listActiveFilters() {
   if (!(await tableExists('blog_feed_filters'))) {
     return DEFAULT_FILTERS.map((f, i) => normalizeFilter(f, i));
@@ -170,6 +374,12 @@ async function getFeedSettings() {
       filters = ensureSingleDefault(rows.map((r, i) => normalizeFilter(r, i)));
     }
   }
+
+  const pagesMap = await getFilterPagesMap();
+  filters = filters.map((f) => ({
+    ...f,
+    page_ids: f.id != null ? (pagesMap.get(f.id) || []) : [],
+  }));
 
   if (await tableExists('blog_pinned_pages')) {
     const { rows } = await db.getQuery()(
@@ -219,7 +429,6 @@ async function saveFeedSettings({ filters = [], pins = [] } = {}) {
     throw err;
   }
 
-  // Уникальность slug
   const slugs = new Set();
   for (const f of normalizedFilters) {
     let slug = f.slug;
@@ -232,6 +441,11 @@ async function saveFeedSettings({ filters = [], pins = [] } = {}) {
     slugs.add(slug);
   }
 
+  const allPageIds = new Set();
+  for (const f of normalizedFilters) {
+    for (const pid of f.page_ids) allPageIds.add(pid);
+  }
+
   const pinPageIds = [];
   const seenPins = new Set();
   for (const pin of Array.isArray(pins) ? pins : []) {
@@ -239,21 +453,25 @@ async function saveFeedSettings({ filters = [], pins = [] } = {}) {
     if (!pageId || Number.isNaN(pageId) || seenPins.has(pageId)) continue;
     seenPins.add(pageId);
     pinPageIds.push(pageId);
+    allPageIds.add(pageId);
   }
 
-  if (pinPageIds.length) {
+  if (allPageIds.size) {
+    const ids = [...allPageIds];
     const { rows: validPages } = await db.getQuery()(
       `SELECT id FROM admin_pages_simple
        WHERE id = ANY($1::int[])
          AND show_in_blog = TRUE
          AND status = 'published'
          AND visibility = 'public'`,
-      [pinPageIds]
+      [ids]
     );
     const validSet = new Set(validPages.map((r) => r.id));
-    const invalid = pinPageIds.filter((id) => !validSet.has(id));
+    const invalid = ids.filter((id) => !validSet.has(id));
     if (invalid.length) {
-      const err = new Error(`Нельзя закрепить страницы вне публичной ленты: ${invalid.join(', ')}`);
+      const err = new Error(
+        `В подборку/закреп можно брать только опубликованные статьи блога. Нельзя: ${invalid.join(', ')}`
+      );
       err.status = 400;
       throw err;
     }
@@ -273,12 +491,24 @@ async function saveFeedSettings({ filters = [], pins = [] } = {}) {
     await client.query('DELETE FROM blog_feed_filters');
     for (let i = 0; i < normalizedFilters.length; i += 1) {
       const f = normalizedFilters[i];
-      await client.query(
+      const { rows: inserted } = await client.query(
         `INSERT INTO blog_feed_filters
           (slug, label_ru, label_en, sort_by, is_default, is_active, position, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+         RETURNING id`,
         [f.slug, f.label_ru, f.label_en, f.sort_by, f.is_default, f.is_active, i]
       );
+      const filterId = inserted[0]?.id;
+      if (filterId && (await tableExists('blog_feed_filter_pages'))) {
+        for (let j = 0; j < f.page_ids.length; j += 1) {
+          await client.query(
+            `INSERT INTO blog_feed_filter_pages (filter_id, page_id, position)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (filter_id, page_id) DO UPDATE SET position = EXCLUDED.position`,
+            [filterId, f.page_ids[j], j]
+          );
+        }
+      }
     }
 
     await client.query('DELETE FROM blog_pinned_pages');
@@ -304,13 +534,28 @@ async function saveFeedSettings({ filters = [], pins = [] } = {}) {
   return getFeedSettings();
 }
 
+/**
+ * Ограничить список страниц ленты подборкой фильтра (если задана).
+ */
+function applyFilterPageRestriction(pages, pageIds) {
+  if (!pageIds || !pageIds.length) return pages;
+  const allow = new Set(pageIds);
+  return pages.filter((p) => allow.has(p.id));
+}
+
 module.exports = {
   SORT_BY_OPTIONS,
   DEFAULT_FILTERS,
+  PRIVACY_BLOG_FILTER_SLUG,
   listActiveFilters,
   getFilterBySlug,
   getFeedSettings,
   saveFeedSettings,
   getPinnedMap,
   sortFeedPages,
+  getFilterPageIds,
+  getPageFilterIds,
+  setPageFilterIds,
+  applyFilterPageRestriction,
+  ensurePrivacyBlogFilter,
 };

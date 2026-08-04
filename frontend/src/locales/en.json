@@ -29,6 +29,17 @@
     "cancel": "Cancel",
     "connect": "Connect",
     "notConnected": "Not connected",
+    "authTypePicker": "Sign-in method",
+    "authTypeWallet": "Wallet",
+    "authTypeTelegram": "Telegram",
+    "authTypeEmail": "Email",
+    "authTypePassword": "Password",
+    "passwordComingSoon": "Password sign-in is coming soon.",
+    "consent": {
+      "prefix": "I agree to the",
+      "link": "Privacy Policy and consents",
+      "required": "Please accept the Privacy Policy and consents."
+    },
     "yourIdentifiers": "Your identifiers:",
     "wallet": "Wallet:",
     "telegram": "Telegram:",
@@ -49,6 +60,7 @@
     "logoutSuccess": "You have successfully signed out",
     "logoutError": "An error occurred while signing out",
     "confirmDeleteIdentity": "Delete identifier?",
+    "deleteIdentityFailed": "Failed to delete identifier. Please try again.",
     "providerNotFound": "MetaMask or another Ethereum provider was not found. Please install the MetaMask extension.",
     "accountsAccessDenied": "Failed to access accounts. Please allow access in MetaMask.",
     "walletNotConnectedRetry": "Wallet is not connected. Please connect your wallet and try again.",
@@ -67,6 +79,7 @@
       "telegramInitFailed": "Telegram initialization error",
       "telegramInitError": "Error initializing Telegram authentication",
       "telegramConnectedSuccess": "Telegram connected successfully!",
+      "telegramTimeout": "Telegram wait timed out. Please start again.",
       "emailInitFailed": "Email authentication initialization error",
       "emailCodeRequestError": "Error requesting confirmation code",
       "invalidVerificationCode": "Invalid verification code",
@@ -398,7 +411,14 @@
       "formatPdfSoon": "PDF (file upload) — coming soon",
       "formatImageSoon": "Image (PNG/JPG) — coming soon",
       "showInBlog": "Show in blog",
+      "showInBlog": "Show in blog",
       "showInBlogHint": "If checked, the page will appear on /blog and get SEO HTML for search engines immediately",
+      "feedFilters": "Feed filters",
+      "feedFiltersHint": "Add this article to curated filter lists. None selected means it only appears in filters without a curated list.",
+      "feedFiltersEmpty": "No filters yet. Create them in Blog feed settings.",
+      "feedFiltersLoadError": "Failed to load feed filters.",
+      "feedFiltersForbidden": "No permission to read feed filter settings (403).",
+      "feedFilterSyncError": "Page saved, but feed filters could not be updated: {message}",
       "seoReady": "Page published. SEO HTML is ready.",
       "openInBlogConfirm": "Open the page in the blog in a new tab?",
       "seoNotReady": "Page saved, but SEO HTML was not built.",
@@ -532,6 +552,9 @@
   },
   "blog": {
     "loading": "Loading articles...",
+    "loadErrorTitle": "Could not load the feed",
+    "loadErrorDefault": "Failed to load blog articles",
+    "loadErrorRetry": "Retry",
     "emptyTitle": "No blog articles",
     "emptyDescription": "Articles will appear here after editors publish them",
     "readMore": "Read more →",
@@ -605,7 +628,7 @@
     "feedSettings": {
       "open": "Feed settings",
       "title": "Feed settings",
-      "intro": "Create sort filters and pin articles to the top of the feed.",
+      "intro": "Filters are article curated lists (or the full feed when empty) plus pinned articles.",
       "noPermission": "Insufficient permissions. Editors only.",
       "filtersTitle": "Filters",
       "addFilter": "Add filter",
@@ -616,6 +639,10 @@
       "sortBy": "Sort by",
       "active": "Active",
       "default": "Default",
+      "filterArticlesHint": "Curated list: if articles are added, the filter shows only them. Empty list = all blog articles.",
+      "addArticleToFilter": "Add article to filter",
+      "noFilterArticles": "No curated articles — full feed is shown",
+      "emptyPageIdsMeansAll": "Warning: empty page_ids means the entire blog. Add articles for a curated list.",
       "pinsTitle": "Pinned articles",
       "pinsHint": "Pinned articles always appear above the rest, in the chosen order.",
       "addPin": "Add article",
@@ -1854,7 +1881,7 @@
         "saved": "AI agent settings saved",
         "loadError": "Failed to load agent settings",
         "saveError": "Failed to save agent settings",
-        "modelsEmpty": "Model list is empty. Check OpenAI key and BlancVPN in Settings → AI → OpenAI.",
+        "modelsEmpty": "Model list is empty. Check OpenAI key and BlancVPN in Settings → AI → VPN.",
         "modelsLoadError": "Failed to load model list"
       }
     }
@@ -1882,6 +1909,11 @@
     "telegram": {
       "title": "Telegram",
       "step1of2": "Step 1 of 2",
+      "deeplinkStep": "Sign in via bot",
+      "deeplinkHint": "Click “Open bot” — a link with a login token must open. Do not press Start in an already open chat without that link.",
+      "openBotButton": "Open bot",
+      "popupBlocked": "The browser blocked the popup. Allow popups for this site and try again.",
+      "waitingStart": "Waiting for Start in Telegram…",
       "openBot": "Open the Telegram bot:",
       "linkHint": "The link will open in a new window",
       "enterCode": "Enter the code:",
@@ -1943,14 +1975,6 @@
           "title": "Remove module",
           "description": "Remove an existing module from the DLE contract"
         },
-        "addChain": {
-          "title": "Add network",
-          "description": "Add a new supported blockchain network"
-        },
-        "removeChain": {
-          "title": "Remove network",
-          "description": "Remove a supported blockchain network"
-        },
         "setLogoUri": {
           "title": "Change logo",
           "description": "Update the DLE logo URI for display on blockchain explorers"
@@ -1958,8 +1982,6 @@
       },
       "comingSoon": {
         "removeModule": "The remove module form will be implemented soon",
-        "addChain": "The add network form will be implemented soon",
-        "removeChain": "The remove network form will be implemented soon",
         "updateDleInfo": "The update DLE data form will be implemented soon",
         "updateQuorum": "The change quorum form will be implemented soon",
         "updateVotingDurations": "The change voting duration form will be implemented soon",

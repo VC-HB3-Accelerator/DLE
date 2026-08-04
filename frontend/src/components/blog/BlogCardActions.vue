@@ -6,15 +6,15 @@
 <template>
   <div class="blog-card-actions" @click.stop>
     <button type="button" class="blog-card-actions__btn" :title="t('blog.likes.action')" @click="emit('like')">
-      <span class="blog-card-actions__icon" aria-hidden="true">♥</span>
+      <BlogGlyph name="heart" />
       <span>{{ likesCount }}</span>
     </button>
     <button type="button" class="blog-card-actions__btn" :title="t('blog.comments.action')" @click="emit('comment')">
-      <span class="blog-card-actions__icon" aria-hidden="true">💬</span>
+      <BlogGlyph name="comment" />
       <span>{{ commentsCount }}</span>
     </button>
     <button type="button" class="blog-card-actions__btn" :title="t('blog.share.copy')" @click="copyLink">
-      <span class="blog-card-actions__icon" aria-hidden="true">{{ copied ? '✓' : '↗' }}</span>
+      <BlogGlyph :name="copied ? 'check' : 'share'" />
     </button>
   </div>
 </template>
@@ -22,6 +22,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import BlogGlyph from './BlogGlyph.vue';
 
 const props = defineProps({
   likesCount: { type: Number, default: 0 },
@@ -48,7 +49,7 @@ async function copyLink() {
 .blog-card-actions {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--spacing-sm);
 }
 
 .blog-card-actions__btn {
@@ -58,20 +59,15 @@ async function copyLink() {
   padding: 4px 8px;
   border: none;
   background: transparent;
-  color: var(--color-text, #495057);
+  color: var(--color-text);
   cursor: pointer;
-  font-size: 0.9rem;
-  border-radius: 6px;
-  transition: color 0.2s ease, background 0.2s ease;
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .blog-card-actions__btn:hover {
   color: var(--color-primary);
-  background: var(--color-light, #f8f9fa);
-}
-
-.blog-card-actions__icon {
-  font-size: 1.05rem;
-  line-height: 1;
+  background: var(--color-light);
 }
 </style>

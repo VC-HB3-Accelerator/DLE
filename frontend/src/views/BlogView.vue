@@ -39,9 +39,19 @@
           <p>{{ t('blog.loading') }}</p>
         </div>
 
+        <!-- Ошибка загрузки -->
+        <div v-else-if="loadError" class="error-state">
+          <div class="error-icon"><UiGlyph name="warning" :size="48" /></div>
+          <h3>{{ t('blog.loadErrorTitle') }}</h3>
+          <p>{{ loadError }}</p>
+          <button type="button" class="retry-button" @click="loadPages">
+            {{ t('blog.loadErrorRetry') }}
+          </button>
+        </div>
+
         <!-- Пустое состояние -->
         <div v-else-if="filteredPages.length === 0" class="empty-state">
-          <div class="empty-icon"><i class="fas fa-book-open"></i></div>
+          <div class="empty-icon"><BlogGlyph name="book" /></div>
           <h3>{{ t('blog.emptyTitle') }}</h3>
           <p>{{ t('blog.emptyDescription') }}</p>
         </div>
@@ -71,6 +81,8 @@ import BaseLayout from '../components/BaseLayout.vue';
 import DocsContent from '../components/docs/DocsContent.vue';
 import BlogFeedCard from '../components/blog/BlogFeedCard.vue';
 import BlogFeedToolbar from '../components/blog/BlogFeedToolbar.vue';
+import BlogGlyph from '../components/blog/BlogGlyph.vue';
+import UiGlyph from '../components/UiGlyph.vue';
 import pagesService from '../services/pagesService';
 import blogFeedService from '../services/blogFeedService';
 import { usePermissions } from '../composables/usePermissions';
@@ -92,6 +104,7 @@ const { hasPermission } = usePermissions();
 
 const pages = ref([]);
 const isLoading = ref(false);
+const loadError = ref('');
 const feedFilters = ref([]);
 const activeFilter = ref('');
 const loadPagesRequestId = ref(0);
@@ -183,22 +196,18 @@ async function loadPages() {
   const requestId = ++loadPagesRequestId.value;
   try {
     isLoading.value = true;
+    loadError.value = '';
     const loadedPages = await pagesService.getBlogPages({
       filter: activeFilter.value || undefined,
     });
 
     if (requestId !== loadPagesRequestId.value) return;
     
-    if (!Array.isArray(loadedPages)) {
-      console.error('[BlogView] loadedPages не является массивом:', typeof loadedPages, loadedPages);
-      pages.value = [];
-      return;
-    }
-    
     pages.value = loadedPages;
   } catch (e) {
     if (requestId !== loadPagesRequestId.value) return;
     console.error('[BlogView] Ошибка загрузки страниц:', e);
+    loadError.value = e.response?.data?.error || e.message || t('blog.loadErrorDefault');
     pages.value = [];
   } finally {
     if (requestId === loadPagesRequestId.value) {
@@ -329,10 +338,14 @@ onMounted(async () => {
 
 <style scoped>
 .blog-page {
+  width: 100%;
   max-width: 640px;
+  min-width: 0;
   margin: 0 auto;
   padding: var(--block-padding) var(--spacing-lg) 48px;
   min-height: calc(100vh - 200px);
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .blog-page--article {
@@ -341,9 +354,46 @@ onMounted(async () => {
 }
 
 .loading-state,
-.empty-state {
+.empty-state,
+.error-state {
   text-align: center;
   padding: 60px var(--spacing-lg);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.error-icon {
+  font-size: 2.5rem;
+  color: var(--color-danger, #c0392b);
+  margin-bottom: var(--spacing-md);
+  opacity: 0.85;
+}
+
+.error-state h3 {
+  color: var(--color-dark);
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.error-state p {
+  color: var(--color-grey);
+  margin: 0 0 var(--spacing-lg);
+  font-size: var(--font-size-md);
+}
+
+.retry-button {
+  padding: 10px 20px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.retry-button:hover {
+  opacity: 0.9;
 }
 
 .loading-spinner {
@@ -362,10 +412,16 @@ onMounted(async () => {
 }
 
 .empty-icon {
-  font-size: 2.5rem;
-  color: var(--color-grey);
+  display: flex;
+  justify-content: center;
   margin-bottom: var(--spacing-md);
+  color: var(--color-grey);
   opacity: 0.7;
+}
+
+.empty-icon :deep(.blog-glyph) {
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 .empty-state h3 {
@@ -385,16 +441,56 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .article-view {
   margin-top: 0;
   max-width: 100%;
+  min-width: 0;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  .blog-page {
+    padding: var(--block-padding-mobile) 0 40px;
+  }
+
+  .blog-page--article {
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 @media (max-width: 480px) {
   .blog-page {
-    padding: var(--block-padding-mobile) var(--spacing-sm) 40px;
+    padding: var(--spacing-sm) 0 40px;
+  }
+
+  .loading-state,
+  .empty-state,
+  .error-state {
+    padding-left: var(--spacing-sm);
+    padding-right: var(--spacing-sm);
+  }
+}
+
+
+/* TZ package R — .actions не включать: ломает строку карточки блога */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="management"], [class*="settings"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"]:not(.blog-feed), .form-row {
+    grid-template-columns: 1fr !important;
   }
 }
 </style>

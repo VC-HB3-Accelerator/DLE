@@ -18,13 +18,13 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="dle-blocks-management">
+    <div class="dle-blocks-management page-with-close">
+      <PageCloseButton fallback="/management" />
       <!-- Блоки управления -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div v-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ dleAddress }}
         </div>
-        <button class="close-btn" @click="router.push('/management')">×</button>
       </div>
       <div class="management-blocks">
         <!-- Столбец 1 -->
@@ -83,6 +83,7 @@ import { computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const { t } = useI18n();
 
@@ -162,6 +163,7 @@ onMounted(() => {
 
 <style scoped>
 .dle-blocks-management {
+  position: relative;
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
@@ -296,6 +298,17 @@ onMounted(() => {
   
   .header-content h1 {
     font-size: 1.5rem;
+  }
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

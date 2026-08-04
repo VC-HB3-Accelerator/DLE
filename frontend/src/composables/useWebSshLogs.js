@@ -181,22 +181,22 @@ export function useWebSshLogs() {
   // Получить цвет для типа лога
   const getLogColor = (type) => {
     switch (type) {
-      case 'success': return '#27ae60';
-      case 'error': return '#e74c3c';
-      case 'warning': return '#f39c12';
-      case 'debug': return '#95a5a6';
-      default: return '#3498db';
+      case 'success': return 'var(--color-primary)';
+      case 'error': return 'var(--color-danger)';
+      case 'warning': return 'var(--color-warning)';
+      case 'debug': return 'var(--color-text-light)';
+      default: return 'var(--color-secondary)';
     }
   };
 
-  // Получить иконку для типа лога
+  // Текстовая метка типа лога (без emoji)
   const getLogIcon = (type) => {
     switch (type) {
-      case 'success': return '✅';
-      case 'error': return '❌';
-      case 'warning': return '⚠️';
-      case 'debug': return '🔍';
-      default: return 'ℹ️';
+      case 'success': return '[ok]';
+      case 'error': return '[err]';
+      case 'warning': return '[warn]';
+      case 'debug': return '[dbg]';
+      default: return '[info]';
     }
   };
 

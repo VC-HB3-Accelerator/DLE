@@ -12,49 +12,51 @@
 
 <template>
   <BaseLayout>
-    <div class="email-settings-block">
-      <button class="close-btn" @click="goBack">×</button>
+    <div class="email-settings-block panel page-with-close">
+      <PageCloseButton fallback="/settings/ai" />
       <h2>{{ $t('settings.ai.email.pageTitle') }}</h2>
       <div class="email-settings settings-panel">
         <form v-if="editMode" @submit.prevent="saveEmailSettings" class="settings-form">
           <div class="form-group">
-            <label for="smtpHost">SMTP Host</label>
-            <input id="smtpHost" v-model="form.smtpHost" type="text" required />
+            <label class="form-label" for="smtpHost">SMTP Host</label>
+            <input id="smtpHost" v-model="form.smtpHost" type="text" class="form-control" required />
           </div>
           <div class="form-group">
-            <label for="smtpPort">SMTP Port</label>
-            <input id="smtpPort" v-model.number="form.smtpPort" type="number" required />
+            <label class="form-label" for="smtpPort">SMTP Port</label>
+            <input id="smtpPort" v-model.number="form.smtpPort" type="number" class="form-control" required />
           </div>
           <div class="form-group">
-            <label for="smtpUser">SMTP User</label>
-            <input id="smtpUser" v-model="form.smtpUser" type="text" required />
+            <label class="form-label" for="smtpUser">SMTP User</label>
+            <input id="smtpUser" v-model="form.smtpUser" type="text" class="form-control" required />
           </div>
           <div class="form-group">
-            <label for="smtpPassword">SMTP Password</label>
-            <input id="smtpPassword" v-model="form.smtpPassword" type="password" :placeholder="form.smtpPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
+            <label class="form-label" for="smtpPassword">SMTP Password</label>
+            <input id="smtpPassword" v-model="form.smtpPassword" type="password" class="form-control" :placeholder="form.smtpPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
           </div>
           <div class="form-group">
-            <label for="imapHost">IMAP Host</label>
-            <input id="imapHost" v-model="form.imapHost" type="text" required />
+            <label class="form-label" for="imapHost">IMAP Host</label>
+            <input id="imapHost" v-model="form.imapHost" type="text" class="form-control" required />
           </div>
           <div class="form-group">
-            <label for="imapPort">IMAP Port</label>
-            <input id="imapPort" v-model.number="form.imapPort" type="number" required />
+            <label class="form-label" for="imapPort">IMAP Port</label>
+            <input id="imapPort" v-model.number="form.imapPort" type="number" class="form-control" required />
           </div>
           <div class="form-group">
-            <label for="imapUser">IMAP User</label>
-            <input id="imapUser" v-model="form.imapUser" type="text" required />
+            <label class="form-label" for="imapUser">IMAP User</label>
+            <input id="imapUser" v-model="form.imapUser" type="text" class="form-control" required />
           </div>
           <div class="form-group">
-            <label for="imapPassword">IMAP Password</label>
-            <input id="imapPassword" v-model="form.imapPassword" type="password" :placeholder="form.imapPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
+            <label class="form-label" for="imapPassword">IMAP Password</label>
+            <input id="imapPassword" v-model="form.imapPassword" type="password" class="form-control" :placeholder="form.imapPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
           </div>
           <div class="form-group">
-            <label for="fromEmail">From Email</label>
-            <input id="fromEmail" v-model="form.fromEmail" type="email" required />
+            <label class="form-label" for="fromEmail">From Email</label>
+            <input id="fromEmail" v-model="form.fromEmail" type="email" class="form-control" required />
           </div>
-          <button type="submit" class="save-btn">{{ $t('common.save') }}</button>
-          <button type="button" class="cancel-btn" @click="cancelEdit">{{ $t('common.cancel') }}</button>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{{ $t('common.save') }}</button>
+            <button type="button" class="btn btn-ghost" @click="cancelEdit">{{ $t('common.cancel') }}</button>
+          </div>
         </form>
         <div v-else class="settings-view">
           <div class="view-row"><span>SMTP Host:</span> <b>{{ form.smtpHost }}</b></div>
@@ -65,9 +67,10 @@
           <div class="view-row"><span>IMAP User:</span> <b>{{ form.imapUser }}</b></div>
           <div class="view-row"><span>IMAP Password:</span> <b>{{ form.imapPassword ? '••••••••' : $t('settings.ai.email.notSet') }}</b></div>
           <div class="view-row"><span>From Email:</span> <b>{{ form.fromEmail }}</b></div>
-          <button type="button" class="edit-btn" @click="editMode = true">{{ $t('common.edit') }}</button>
-          <button type="button" class="clear-btn" @click="clearEmailSettings">{{ $t('settings.ai.email.clear') }}</button>
-          <button type="button" class="cancel-btn" @click="goBack">{{ $t('common.close') }}</button>
+          <div class="form-actions settings-view-actions">
+            <button type="button" class="btn btn-primary" @click="editMode = true">{{ $t('common.edit') }}</button>
+            <button type="button" class="btn btn-danger" @click="clearEmailSettings">{{ $t('settings.ai.email.clear') }}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -78,13 +81,10 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
-import { useRouter } from 'vue-router';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import { reactive, ref, onMounted, watch } from 'vue';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
-
-const router = useRouter();
-const goBack = () => router.push('/settings/ai');
 
 const form = reactive({
   smtpHost: '',
@@ -213,33 +213,21 @@ const clearEmailSettings = async () => {
 
 <style scoped>
 .email-settings-block {
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
   width: 100%;
   position: relative;
   overflow-x: auto;
 }
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+
+.page-with-close {
+  position: relative;
 }
-.close-btn:hover {
-  color: #333;
-}
+
 h2 {
   margin-bottom: 0;
 }
+
 .email-settings.settings-panel {
   background: none !important;
   box-shadow: none !important;
@@ -247,83 +235,53 @@ h2 {
   margin-top: 0 !important;
   max-width: 100% !important;
   padding: 0 !important;
+  border: none !important;
 }
+
 .settings-form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-}
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.save-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
-}
-.save-btn:hover {
-  background: var(--color-primary-dark);
-}
-.clear-btn {
-  background: #dc3545;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  margin-left: 1rem;
-  transition: background 0.2s;
+  gap: var(--spacing-md);
 }
 
-.clear-btn:hover {
-  background: #c82333;
-}
-
-.cancel-btn {
-  background: #eee;
-  color: #333;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  margin-left: 1rem;
-}
 .settings-view {
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: var(--spacing-md);
 }
+
 .view-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 1rem;
-  background: #f8f8f8;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
+  font-size: var(--font-size-md);
+  background: var(--color-light);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
 }
-.edit-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
+
+.settings-view-actions {
+  margin-top: var(--spacing-md);
   align-self: flex-end;
-  margin-top: 1.5rem;
-  transition: background 0.2s;
 }
-.edit-btn:hover {
-  background: var(--color-primary-dark);
+
+@media (max-width: 768px) {
+  .email-settings-block,
+  .email-settings.settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .view-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .settings-view-actions {
+    align-self: stretch;
+    width: 100%;
+  }
 }
-</style> 
+</style>

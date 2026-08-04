@@ -18,7 +18,7 @@
           <h2>{{ t('content.settings.legalVariablesTitle') }}</h2>
         </div>
         <div class="empty-state">
-          <div class="empty-icon"><i class="fas fa-cog"></i></div>
+          <div class="empty-icon"><UiGlyph name="settings" :size="40" /></div>
           <h3>{{ t('content.settings.comingSoonTitle') }}</h3>
           <p>{{ t('content.settings.comingSoonDescription') }}</p>
         </div>
@@ -30,6 +30,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 const { t } = useI18n();
 </script>
@@ -167,4 +168,6 @@ const { t } = useI18n();
     font-size: 2rem;
   }
 }
+
+/* TZ package D: reviewed */
 </style> 

@@ -33,7 +33,9 @@ async function upsertProviderSettings({
   embedding_model,
   proxy_url,
   proxy_enabled,
-  blanc_subscription_url
+  blanc_subscription_url,
+  proxy_openai,
+  proxy_telegram
 }) {
   const data = {
     provider: provider,
@@ -62,6 +64,12 @@ async function upsertProviderSettings({
       } else {
         data.blanc_subscription_url = '';
       }
+    }
+    if (proxy_openai !== undefined) {
+      data.proxy_openai = Boolean(proxy_openai);
+    }
+    if (proxy_telegram !== undefined) {
+      data.proxy_telegram = Boolean(proxy_telegram);
     }
   }
 
@@ -113,7 +121,9 @@ async function getProviderModels(provider, settings = {}) {
         base_url: settings.base_url,
         proxy_url: settings.proxy_url,
         proxy_enabled: settings.proxy_enabled,
-        blanc_subscription_url: settings.blanc_subscription_url
+        blanc_subscription_url: settings.blanc_subscription_url,
+        proxy_openai: settings.proxy_openai,
+        proxy_telegram: settings.proxy_telegram
       });
       const res = await client.models.list();
       return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
@@ -154,12 +164,22 @@ async function getProviderModels(provider, settings = {}) {
 async function verifyProviderKey(provider, settings = {}) {
   try {
     if (provider === 'openai') {
+      // VPN-страница: достаточно применить Blanc без ключа OpenAI
+      if (
+        !settings.api_key
+        && settings.proxy_enabled
+        && String(settings.blanc_subscription_url || '').trim()
+      ) {
+        return { success: true };
+      }
       const client = openaiProxy.createOpenAIClient({
         api_key: settings.api_key,
         base_url: settings.base_url,
         proxy_url: settings.proxy_url,
         proxy_enabled: settings.proxy_enabled,
-        blanc_subscription_url: settings.blanc_subscription_url
+        blanc_subscription_url: settings.blanc_subscription_url,
+        proxy_openai: settings.proxy_openai !== undefined ? settings.proxy_openai : true,
+        proxy_telegram: settings.proxy_telegram
       });
       await client.models.list();
       return { success: true };

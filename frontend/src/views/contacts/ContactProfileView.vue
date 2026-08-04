@@ -972,7 +972,7 @@ watch(contact, () => {
 
 .personal-field:not(.personal-field--revealed):hover {
   color: var(--color-primary-dark);
-  background: rgba(76, 175, 80, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-radius: var(--radius-sm);
   padding: 0 4px;
   margin: 0 -4px;
@@ -1030,7 +1030,7 @@ watch(contact, () => {
 }
 
 .lang-tag {
-  background: #e8f5e9;
+  background: color-mix(in srgb, var(--color-primary) 15%, white);
   color: var(--color-primary-dark);
   border-radius: var(--radius-sm);
   padding: 2px 8px;
@@ -1083,7 +1083,7 @@ watch(contact, () => {
 }
 
 .lang-dropdown li.selected {
-  background: #e8f5e9;
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
   color: var(--color-primary-dark);
 }
 
@@ -1094,7 +1094,7 @@ watch(contact, () => {
 .user-tag {
   display: inline-flex;
   align-items: center;
-  background: #e8f5e9;
+  background: color-mix(in srgb, var(--color-primary) 15%, white);
   color: var(--color-primary-dark);
   border-radius: var(--radius-md);
   padding: 2px 10px;
@@ -1179,6 +1179,20 @@ watch(contact, () => {
 
   .contact-actions__buttons {
     grid-column: 1;
+  }
+}
+
+/* TZ package C stack */
+@media (max-width: 768px) {
+  .form-row,
+  .live-grid,
+  .video-stage-split,
+  [class*="-grid"],
+  [class*="Grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

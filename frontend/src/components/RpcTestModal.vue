@@ -21,7 +21,7 @@
       <div class="modal-body">
         <div v-if="isSuccess" class="success-content">
           <div class="success-icon">
-            <i class="fas fa-check-circle"></i>
+            <UiGlyph name="check-circle" :size="48" />
           </div>
           <h4>{{ t('rpc.connectionSuccess') }}</h4>
           <div class="connection-details">
@@ -42,7 +42,7 @@
         
         <div v-else class="error-content">
           <div class="error-icon">
-            <i class="fas fa-exclamation-triangle"></i>
+            <UiGlyph name="warning" :size="48" />
           </div>
           <h4>{{ t('rpc.connectionFailed') }}</h4>
           <div class="error-details">
@@ -68,6 +68,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import UiGlyph from './UiGlyph.vue';
 
 const { t } = useI18n();
 
@@ -99,22 +100,29 @@ const closeModal = () => {
   top: 0;
   left: 0;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: var(--spacing-md);
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  min-width: 400px;
-  max-width: 500px;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 0;
+  width: 100%;
+  max-width: min(500px, 100%);
   max-height: 80vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .modal-header {
@@ -231,11 +239,31 @@ const closeModal = () => {
 }
 
 .btn-primary {
-  background: #007bff;
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-white);
+  height: var(--button-height);
 }
 
 .btn-primary:hover {
-  background: #0056b3;
+  background: var(--color-primary-dark);
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: var(--spacing-sm);
+    align-items: flex-start;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: var(--block-padding-mobile);
+    padding-right: var(--block-padding-mobile);
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: var(--button-height-mobile);
+  }
 }
 </style>

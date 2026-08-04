@@ -9,20 +9,20 @@
 
     <form class="sidebar-text-tab__form" @submit.prevent="handleSave">
       <label class="sidebar-text-tab__field">
-        <span class="sidebar-text-tab__label">{{ t('settings.sidebarNotice.textLabel') }}</span>
+        <span class="form-label">{{ t('settings.sidebarNotice.textLabel') }}</span>
         <textarea
           v-model="body"
-          class="sidebar-text-tab__textarea"
+          class="form-control"
           rows="8"
           :placeholder="t('settings.sidebarNotice.textPlaceholder')"
           :disabled="isSaving"
           maxlength="4000"
         />
-        <span class="sidebar-text-tab__hint">{{ t('settings.sidebarNotice.textHint') }}</span>
+        <span class="form-hint">{{ t('settings.sidebarNotice.textHint') }}</span>
       </label>
 
       <div class="sidebar-text-tab__fixed-link">
-        <span class="sidebar-text-tab__label">{{ t('settings.sidebarNotice.fixedLinkLabel') }}</span>
+        <span class="form-label">{{ t('settings.sidebarNotice.fixedLinkLabel') }}</span>
         <a
           class="sidebar-text-tab__privacy"
           :href="privacyDocsUrl"
@@ -31,14 +31,14 @@
         >
           {{ t('settings.sidebarNotice.privacyLink') }}
         </a>
-        <span class="sidebar-text-tab__hint">{{ t('settings.sidebarNotice.fixedLinkHint') }}</span>
+        <span class="form-hint">{{ t('settings.sidebarNotice.fixedLinkHint') }}</span>
       </div>
 
-      <p v-if="saveError" class="sidebar-text-tab__error">{{ saveError }}</p>
-      <p v-if="saveSuccess" class="sidebar-text-tab__success">{{ saveSuccess }}</p>
+      <p v-if="saveError" class="alert alert-danger">{{ saveError }}</p>
+      <p v-if="saveSuccess" class="alert alert-success">{{ saveSuccess }}</p>
 
-      <div class="sidebar-text-tab__actions">
-        <button type="submit" class="sidebar-text-tab__save" :disabled="isSaving">
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
@@ -115,8 +115,8 @@ onMounted(initPage);
 
 <style scoped>
 .sidebar-text-tab__intro {
-  margin: 0 0 1.25rem;
-  color: #6c757d;
+  margin: 0 0 var(--spacing-lg);
+  color: var(--color-text-light);
   line-height: 1.5;
   max-width: 720px;
 }
@@ -124,7 +124,7 @@ onMounted(initPage);
 .sidebar-text-tab__form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--spacing-lg);
   max-width: 720px;
 }
 
@@ -132,38 +132,7 @@ onMounted(initPage);
 .sidebar-text-tab__fixed-link {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.sidebar-text-tab__label {
-  font-weight: 600;
-  color: #343a40;
-  font-size: 0.95rem;
-}
-
-.sidebar-text-tab__textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ced4da;
-  border-radius: 8px;
-  font: inherit;
-  line-height: 1.5;
-  resize: vertical;
-  min-height: 140px;
-  background: #fff;
-}
-
-.sidebar-text-tab__textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
-}
-
-.sidebar-text-tab__hint {
-  font-size: 0.85rem;
-  color: #6c757d;
-  line-height: 1.4;
+  gap: var(--spacing-sm);
 }
 
 .sidebar-text-tab__privacy {
@@ -173,33 +142,10 @@ onMounted(initPage);
   width: fit-content;
 }
 
-.sidebar-text-tab__error {
-  margin: 0;
-  color: #c0392b;
-}
-
-.sidebar-text-tab__success {
-  margin: 0;
-  color: var(--color-primary-dark, #2e7d32);
-}
-
-.sidebar-text-tab__actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.sidebar-text-tab__save {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.sidebar-text-tab__save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+@media (max-width: 768px) {
+  .sidebar-text-tab, .settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style>

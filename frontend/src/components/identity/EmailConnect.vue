@@ -23,7 +23,15 @@
         <label for="email-input" class="form-label">{{ t('identity.email.title') }}</label>
         <input id="email-input" v-model="email" type="email" :placeholder="t('identity.email.placeholder')" class="email-input" :disabled="isLoading" autocomplete="email" />
         <div class="form-hint">{{ t('identity.email.codeHint') }}</div>
-        <button type="submit" :disabled="isLoading || !isValidEmail" class="email-btn main-btn">
+        <label class="email-consent">
+          <input v-model="privacyAccepted" type="checkbox" :disabled="isLoading" />
+          <span>
+            {{ t('auth.consent.prefix') }}
+            <a :href="privacyDocsUrl" target="_blank" rel="noopener noreferrer" @click.stop>{{ t('auth.consent.link') }}</a>
+          </span>
+        </label>
+        <p v-if="consentError" class="error-msg">{{ consentError }}</p>
+        <button type="submit" :disabled="isLoading || !isValidEmail || !privacyAccepted" class="email-btn main-btn">
         {{ isLoading ? t('identity.email.sending') : t('identity.email.getCode') }}
       </button>
     </div>
@@ -52,8 +60,10 @@
   import { useI18n } from 'vue-i18n';
   import axios from '@/api/axios';
   import { useAuthContext } from '@/composables/useAuth';
+  import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
 
   const { t } = useI18n();
+  const privacyDocsUrl = getPrivacyDocsUrl();
 
   onMounted(() => {
     window.addEventListener('clear-application-data', () => {
@@ -66,11 +76,13 @@
   });
 
   const emit = defineEmits(['close', 'success']);
-  const { linkIdentity } = useAuthContext();
+  const { checkAuth } = useAuthContext();
 
   const email = ref('');
   const code = ref('');
   const error = ref('');
+  const consentError = ref('');
+  const privacyAccepted = ref(false);
   const isLoading = ref(false);
   const showVerification = ref(false);
 
@@ -79,6 +91,11 @@
   });
 
   const requestCode = async () => {
+    if (!privacyAccepted.value) {
+      consentError.value = t('auth.consent.required');
+      return;
+    }
+    consentError.value = '';
     try {
       isLoading.value = true;
       error.value = '';
@@ -101,12 +118,14 @@
     try {
       isLoading.value = true;
       error.value = '';
-    const response = await axios.post('/auth/email/verify-code', {
+      const response = await axios.post('/auth/email/verify-code', {
         email: email.value,
         code: code.value,
       });
       if (response.data.success) {
-      emit('success');
+        // Сессия уже на сервере; без checkAuth UI остаётся гостем до F5
+        await checkAuth();
+        emit('success');
       } else {
         error.value = response.data.error || t('identity.email.invalidCode');
       }
@@ -230,6 +249,17 @@
   text-align: left;
   font-weight: 500;
 }
+.email-consent {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  margin: 0.35rem 0 0.5rem;
+}
+.email-consent a {
+  color: inherit;
+}
 .success-msg {
   color: var(--color-primary, #2e7d32);
   font-size: 1.05rem;
@@ -257,5 +287,15 @@
 }
 .cancel-btn:hover {
   background: var(--color-grey, #bdbdbd);
+}
+
+/* TZ package C */
+@media (max-width: 768px) {
+  .email-connect, form {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  input, button { width: 100%; max-width: 100%; box-sizing: border-box; }
+  button { height: var(--button-height-mobile); }
 }
 </style>

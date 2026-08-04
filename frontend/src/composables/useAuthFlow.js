@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
- * 
+ *
  * This software is proprietary and confidential.
  * Unauthorized copying, modification, or distribution is prohibited.
- * 
+ *
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
  * GitHub: https://github.com/VC-HB3-Accelerator
@@ -18,94 +18,116 @@ import { i18n } from '@/locales/index.js';
 
 const t = (key, params) => i18n.global.t(key, params);
 
+const TELEGRAM_POLL_MS = 3000;
+const TELEGRAM_TIMEOUT_MS = 10 * 60 * 1000;
+
 export function useAuthFlow(options = {}) {
-  const { onAuthSuccess } = options; // Callback после успешной аутентификации/привязки
+  const { onAuthSuccess } = options;
 
   const auth = useAuthContext();
   const { showSuccessMessage, showErrorMessage } = useNotifications();
 
-  // Состояния Telegram
   const telegramAuth = ref({
     showVerification: false,
-    verificationCode: '',
     botLink: '',
     checkInterval: null,
+    timeoutTimer: null,
     error: '',
-    isLoading: false, // Добавим isLoading
+    isLoading: false,
+    hadTelegramBefore: false,
   });
 
-  // Состояния Email
   const emailAuth = ref({
     showForm: false,
     showVerification: false,
     email: '',
-    verificationEmail: '', // Храним email, на который отправили код
+    verificationEmail: '',
     verificationCode: '',
     formatError: false,
-    isLoading: false, // Для отправки запроса на init
-    isVerifying: false, // Для проверки кода
+    isLoading: false,
+    isVerifying: false,
     error: '',
   });
 
-  // --- Telegram --- 
+  const passwordAuth = ref({
+    showStub: false,
+  });
 
   const clearTelegramInterval = () => {
     if (telegramAuth.value.checkInterval) {
       clearInterval(telegramAuth.value.checkInterval);
       telegramAuth.value.checkInterval = null;
-      // console.log('[useAuthFlow] Интервал проверки Telegram авторизации очищен');
+    }
+    if (telegramAuth.value.timeoutTimer) {
+      clearTimeout(telegramAuth.value.timeoutTimer);
+      telegramAuth.value.timeoutTimer = null;
     }
   };
 
-  const handleTelegramAuth = async () => {
-    if (telegramAuth.value.isLoading) return;
+  const startTelegramPolling = () => {
+    clearTelegramInterval();
+    const startedAt = Date.now();
+    telegramAuth.value.timeoutTimer = setTimeout(() => {
+      clearTelegramInterval();
+      telegramAuth.value.error = t('auth.flow.telegramTimeout');
+      showErrorMessage(telegramAuth.value.error);
+    }, TELEGRAM_TIMEOUT_MS);
+
+    telegramAuth.value.checkInterval = setInterval(async () => {
+      try {
+        if (Date.now() - startedAt > TELEGRAM_TIMEOUT_MS) return;
+        await auth.checkAuth();
+        const telegramId = auth.telegramId?.value;
+        const linkedNow = Boolean(telegramId);
+        const successGuest = auth.isAuthenticated.value && linkedNow;
+        const successLink =
+          auth.isAuthenticated.value &&
+          linkedNow &&
+          telegramAuth.value.hadTelegramBefore === false;
+
+        if (successGuest || successLink) {
+          clearTelegramInterval();
+          telegramAuth.value.showVerification = false;
+          telegramAuth.value.botLink = '';
+          telegramAuth.value.error = '';
+          showSuccessMessage(t('auth.flow.telegramConnectedSuccess'));
+          if (onAuthSuccess) onAuthSuccess('telegram');
+        }
+      } catch (_) {
+        /* keep polling */
+      }
+    }, TELEGRAM_POLL_MS);
+  };
+
+  /** Открыть панель согласия (без API). */
+  const handleTelegramAuth = () => {
+    telegramAuth.value.error = '';
+    telegramAuth.value.botLink = '';
+    telegramAuth.value.hadTelegramBefore = Boolean(auth.telegramId?.value);
+    telegramAuth.value.showVerification = true;
+  };
+
+  /** После галочки: init + deep-link + polling. */
+  const confirmTelegramDeeplink = async () => {
+    if (telegramAuth.value.isLoading) return null;
     telegramAuth.value.isLoading = true;
     telegramAuth.value.error = '';
+    telegramAuth.value.botLink = '';
     try {
-      const response = await api.post('/auth/telegram/init');
-      if (response.data.success) {
-        telegramAuth.value.verificationCode = response.data.verificationCode;
+      const response = await api.post('/auth/telegram/init', { privacyAccepted: true });
+      if (response.data.success && response.data.botLink) {
         telegramAuth.value.botLink = response.data.botLink;
-        telegramAuth.value.showVerification = true;
-
-        // Начинаем проверку статуса
-        clearTelegramInterval(); // На всякий случай
-        telegramAuth.value.checkInterval = setInterval(async () => {
-          try {
-            // console.log('[useAuthFlow] Проверка статуса Telegram...');
-            // Используем checkAuth из useAuth для обновления состояния
-            const checkResponse = await auth.checkAuth();
-            const telegramId = auth.telegramId.value;
-
-            if (auth.isAuthenticated.value && telegramId) {
-              // console.log('[useAuthFlow] Telegram успешно связан/подтвержден.');
-              clearTelegramInterval();
-              telegramAuth.value.showVerification = false;
-              telegramAuth.value.verificationCode = '';
-              telegramAuth.value.error = '';
-
-              showSuccessMessage(t('auth.flow.telegramConnectedSuccess'));
-              if (onAuthSuccess) onAuthSuccess('telegram'); // Вызываем callback
-              // Нет необходимости продолжать интервал
-              return;
-            }
-          } catch (intervalError) {
-            // console.error('[useAuthFlow] Ошибка при проверке статуса Telegram в интервале:', intervalError);
-            // Решаем, останавливать ли интервал при ошибке
-            // telegramAuth.value.error = 'Ошибка проверки статуса Telegram.';
-            // clearTelegramInterval();
-          }
-        }, 3000); // Проверяем каждые 3 секунды
-
-      } else {
-        telegramAuth.value.error = response.data.error || t('auth.flow.telegramInitFailed');
-        showErrorMessage(telegramAuth.value.error);
+        startTelegramPolling();
+        return response.data.botLink;
       }
+      telegramAuth.value.error = response.data.error || t('auth.flow.telegramInitFailed');
+      showErrorMessage(telegramAuth.value.error);
+      return null;
     } catch (error) {
-      // console.error('[useAuthFlow] Ошибка инициализации Telegram аутентификации:', error);
       const message = error?.response?.data?.error || t('auth.flow.telegramInitError');
       telegramAuth.value.error = message;
       showErrorMessage(message);
+      return null;
     } finally {
       telegramAuth.value.isLoading = false;
     }
@@ -114,13 +136,10 @@ export function useAuthFlow(options = {}) {
   const cancelTelegramAuth = () => {
     clearTelegramInterval();
     telegramAuth.value.showVerification = false;
-    telegramAuth.value.verificationCode = '';
+    telegramAuth.value.botLink = '';
     telegramAuth.value.error = '';
     telegramAuth.value.isLoading = false;
-    // console.log('[useAuthFlow] Аутентификация Telegram отменена');
   };
-
-  // --- Email --- 
 
   const showEmailForm = () => {
     emailAuth.value.showForm = true;
@@ -147,17 +166,15 @@ export function useAuthFlow(options = {}) {
     try {
       const response = await api.post('/auth/email/init', { email: emailAuth.value.email });
       if (response.data.success) {
-        emailAuth.value.verificationEmail = emailAuth.value.email; // Сохраняем email
+        emailAuth.value.verificationEmail = emailAuth.value.email;
         emailAuth.value.showForm = false;
         emailAuth.value.showVerification = true;
-        emailAuth.value.verificationCode = ''; // Очищаем поле кода
-        // console.log('[useAuthFlow] Код верификации Email отправлен на:', emailAuth.value.verificationEmail);
+        emailAuth.value.verificationCode = '';
       } else {
         emailAuth.value.error = response.data.error || t('auth.flow.emailInitFailed');
         showErrorMessage(emailAuth.value.error);
       }
     } catch (error) {
-      // console.error('[useAuthFlow] Ошибка при запросе инициализации Email:', error);
       const message = error?.response?.data?.error || t('auth.flow.emailCodeRequestError');
       emailAuth.value.error = message;
       showErrorMessage(message);
@@ -182,26 +199,20 @@ export function useAuthFlow(options = {}) {
       });
 
       if (response.data.success) {
-        console.log('[useAuthFlow] Email успешно подтвержден:', emailAuth.value.verificationEmail);
         emailAuth.value.showForm = false;
         emailAuth.value.showVerification = false;
         emailAuth.value.error = '';
-
-        // Обновляем состояние аутентификации через useAuth
-        await auth.checkAuth(); 
-        showSuccessMessage(t('auth.flow.emailVerifiedSuccess', { email: emailAuth.value.verificationEmail }));
-
-        if (onAuthSuccess) onAuthSuccess('email'); // Вызываем callback
-
+        await auth.checkAuth();
+        showSuccessMessage(
+          t('auth.flow.emailVerifiedSuccess', { email: emailAuth.value.verificationEmail })
+        );
+        if (onAuthSuccess) onAuthSuccess('email');
       } else {
         emailAuth.value.error = response.data.message || t('auth.flow.invalidVerificationCode');
-        // Не используем showErrorMessage здесь, т.к. ошибка отображается локально в форме
       }
     } catch (error) {
-        console.error('[useAuthFlow] Ошибка проверки кода Email:', error);
-        const message = error?.response?.data?.error || t('auth.flow.verifyCodeError');
-        emailAuth.value.error = message;
-        // Не используем showErrorMessage здесь
+      const message = error?.response?.data?.error || t('auth.flow.verifyCodeError');
+      emailAuth.value.error = message;
     } finally {
       emailAuth.value.isVerifying = false;
     }
@@ -216,10 +227,16 @@ export function useAuthFlow(options = {}) {
     emailAuth.value.formatError = false;
     emailAuth.value.isLoading = false;
     emailAuth.value.isVerifying = false;
-    console.log('[useAuthFlow] Аутентификация Email отменена');
   };
 
-  // Очистка интервала при размонтировании
+  const showPasswordStub = () => {
+    passwordAuth.value.showStub = true;
+  };
+
+  const cancelPasswordAuth = () => {
+    passwordAuth.value.showStub = false;
+  };
+
   onUnmounted(() => {
     clearTelegramInterval();
   });
@@ -227,6 +244,7 @@ export function useAuthFlow(options = {}) {
   return {
     telegramAuth,
     handleTelegramAuth,
+    confirmTelegramDeeplink,
     cancelTelegramAuth,
 
     emailAuth,
@@ -234,5 +252,9 @@ export function useAuthFlow(options = {}) {
     sendEmailVerification,
     verifyEmailCode,
     cancelEmailAuth,
+
+    passwordAuth,
+    showPasswordStub,
+    cancelPasswordAuth,
   };
-} 
+}

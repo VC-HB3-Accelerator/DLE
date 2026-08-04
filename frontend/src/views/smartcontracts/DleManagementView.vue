@@ -66,7 +66,7 @@
               @click="addDle"
               :disabled="!isFormValid || isAdding"
             >
-              <i class="fas fa-plus"></i> 
+              <UiGlyph name="plus" /> 
               {{ isAdding ? t('smartcontracts.dleManagement.adding') : t('smartcontracts.dleManagement.addButton') }}
             </button>
           </div>
@@ -115,13 +115,13 @@
                 class="btn btn-sm btn-primary" 
                 @click="openDle(dle.link)"
               >
-                <i class="fas fa-external-link-alt"></i> {{ t('smartcontracts.dleManagement.open') }}
+                <UiGlyph name="external-link" /> {{ t('smartcontracts.dleManagement.open') }}
               </button>
               <button 
                 class="btn btn-sm btn-danger" 
                 @click="removeDle(dle.id)"
               >
-                <i class="fas fa-trash"></i> {{ t('common.delete') }}
+                <UiGlyph name="trash" /> {{ t('common.delete') }}
               </button>
             </div>
           </div>
@@ -135,6 +135,7 @@
 import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 const { t, locale } = useI18n();
 
@@ -395,26 +396,52 @@ onMounted(() => {
 
 .dles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
   gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 768px) {
   .dles-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }
   
   .dle-card {
     padding: 1rem;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
   }
   
+  .dle-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
   .dle-header h5 {
     font-size: 1.1rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   
   .detail-item {
     font-size: 0.9rem;
+  }
+
+  .dle-link {
+    overflow-wrap: anywhere;
+    word-break: break-all;
+  }
+
+  .dle-actions {
+    flex-wrap: wrap;
+  }
+
+  .dle-actions :deep(.btn),
+  .dle-actions .btn-sm {
+    max-width: 100%;
   }
 }
 
@@ -424,6 +451,9 @@ onMounted(() => {
   padding: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid #e9ecef;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .dle-header {
@@ -469,11 +499,23 @@ onMounted(() => {
 
 .dle-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
+}
+
+
+/* TZ package G/SC stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .management-blocks {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>

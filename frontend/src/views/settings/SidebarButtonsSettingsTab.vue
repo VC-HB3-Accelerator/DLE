@@ -30,12 +30,12 @@
         <span v-if="gitea.detail" class="sidebar-buttons-tab__hint">{{ gitea.detail }}</span>
       </div>
 
-      <p v-if="saveError" class="sidebar-buttons-tab__error">{{ saveError }}</p>
-      <p v-if="saveSuccess" class="sidebar-buttons-tab__success">{{ saveSuccess }}</p>
-      <p v-if="giteaWarning" class="sidebar-buttons-tab__warn">{{ giteaWarning }}</p>
+      <p v-if="saveError" class="alert alert-danger">{{ saveError }}</p>
+      <p v-if="saveSuccess" class="alert alert-success">{{ saveSuccess }}</p>
+      <p v-if="giteaWarning" class="alert alert-warning">{{ giteaWarning }}</p>
 
-      <div class="sidebar-buttons-tab__actions">
-        <button type="submit" class="sidebar-buttons-tab__save" :disabled="isSaving">
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
@@ -128,8 +128,8 @@ onMounted(initPage);
 
 <style scoped>
 .sidebar-buttons-tab__intro {
-  margin: 0 0 1.25rem;
-  color: #6c757d;
+  margin: 0 0 var(--spacing-lg);
+  color: var(--color-text-light);
   line-height: 1.5;
   max-width: 720px;
 }
@@ -137,18 +137,18 @@ onMounted(initPage);
 .sidebar-buttons-tab__form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-md);
   max-width: 640px;
 }
 
 .sidebar-buttons-tab__check {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
   align-items: flex-start;
-  padding: 0.85rem 1rem;
-  background: #fff;
-  border: 1px solid #e9ecef;
-  border-radius: 10px;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   cursor: pointer;
 }
 
@@ -164,63 +164,35 @@ onMounted(initPage);
 .sidebar-buttons-tab__check span {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--spacing-xs);
 }
 
 .sidebar-buttons-tab__check small {
-  color: #6c757d;
+  color: var(--color-text-light);
   line-height: 1.4;
 }
 
 .sidebar-buttons-tab__status {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--spacing-xs);
 }
 
 .sidebar-buttons-tab__label {
   font-weight: 600;
-  color: #343a40;
-  font-size: 0.95rem;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
 }
 
 .sidebar-buttons-tab__hint {
-  font-size: 0.85rem;
-  color: #6c757d;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
 }
 
-.sidebar-buttons-tab__error {
-  margin: 0;
-  color: #c0392b;
-}
-
-.sidebar-buttons-tab__success {
-  margin: 0;
-  color: var(--color-primary-dark, #2e7d32);
-}
-
-.sidebar-buttons-tab__warn {
-  margin: 0;
-  color: #b7791f;
-}
-
-.sidebar-buttons-tab__actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.sidebar-buttons-tab__save {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.sidebar-buttons-tab__save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+@media (max-width: 768px) {
+  .sidebar-buttons-tab, .settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 </style>

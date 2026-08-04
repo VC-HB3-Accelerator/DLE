@@ -10,7 +10,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="system-messages-page">
+    <div class="system-messages-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
       <div class="page-header" v-if="canManageSystemMessages">
         <div class="header-content">
           <p v-if="canManageSystemMessages">
@@ -20,9 +21,7 @@
             {{ t('content.systemMessages.editorRequired') }}
           </p>
         </div>
-        <div class="header-actions">
-          <button class="close-btn" @click="goBack">×</button>
-        </div>
+
       </div>
 
       <section v-if="!canManageSystemMessages" class="permission-warning">
@@ -208,6 +207,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import BaseLayout from '../../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import systemMessagesService from '../../../services/systemMessagesService';
 import { usePermissions } from '../../../composables/usePermissions';
 
@@ -303,10 +303,6 @@ async function fetchMessages() {
   } finally {
     isLoading.value = false;
   }
-}
-
-function goBack() {
-  router.push({ name: 'content-list' });
 }
 
 function refresh() {
@@ -420,6 +416,7 @@ function showNotification(type, message) {
 
 <style scoped>
 .system-messages-page {
+  position: relative;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -446,21 +443,7 @@ function showNotification(type, message) {
   font-size: 1rem;
 }
 
-.header-actions .close-btn {
-  background: none;
-  border: none;
-  font-size: 1.75rem;
-  cursor: pointer;
-  color: var(--color-grey-dark);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  transition: background 0.2s;
-}
 
-.header-actions .close-btn:hover {
-  background: #f0f0f0;
-  color: var(--color-primary);
-}
 
 .permission-warning {
   padding: 24px;
@@ -800,5 +783,7 @@ function showNotification(type, message) {
     flex-direction: column;
   }
 }
+
+/* TZ package D: reviewed */
 </style>
 

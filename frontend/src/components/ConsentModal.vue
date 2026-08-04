@@ -57,10 +57,11 @@
         </div>
       </div>
       
-      <div class="consent-modal-footer">
-        <button class="btn-secondary" @click="close">{{ t('common.cancel') }}</button>
+      <div class="consent-modal-footer form-actions">
+        <button type="button" class="btn btn-outline" @click="close">{{ t('common.cancel') }}</button>
         <button 
-          class="btn-primary" 
+          type="button"
+          class="btn btn-primary" 
           @click="submitConsent"
           :disabled="selectedDocuments.length === 0 || submitting"
         >
@@ -296,42 +297,24 @@ onMounted(() => {
 .consent-modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 20px 24px;
-  border-top: 1px solid #e9ecef;
+  gap: var(--button-gap);
+  padding: var(--spacing-lg) var(--block-padding);
+  border-top: 1px solid var(--color-border);
+  margin-top: 0;
 }
 
-.btn-secondary,
-.btn-primary {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.2s;
-}
 
-.btn-secondary {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.btn-secondary:hover {
-  background: #e0e0e0;
-}
-
-.btn-primary {
-  background: var(--color-primary, #007bff);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-dark, #0056b3);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* TZ package G/SC */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, .modal, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="form"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>

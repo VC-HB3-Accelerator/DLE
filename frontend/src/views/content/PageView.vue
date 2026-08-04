@@ -18,38 +18,35 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="page-view-container">
+    <div class="page-view-container page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
       <div v-if="page" class="page-header">
         <div class="header-content">
-          <button class="btn btn-outline back-btn-inline" @click="goBack">
-            <i class="fas fa-arrow-left"></i>
-            {{ t('common.back') }}
-          </button>
-          <h1>{{ page.title }}</h1>
+<h1>{{ page.title }}</h1>
           <div class="page-meta">
             <span class="page-status" :class="page.status">{{ getStatusText(page.status) }}</span>
             <span v-if="page.visibility === 'internal'" class="page-status internal">{{ t('content.editor.visibilityInternalBadge') }}</span>
             <span class="page-date">
-              <i class="fas fa-calendar"></i>
+              <UiGlyph name="calendar" :size="14" />
               {{ formatDate(page.created_at) }}
             </span>
             <span v-if="page.updated_at" class="page-updated">
-              <i class="fas fa-edit"></i>
+              <UiGlyph name="edit" :size="14" />
               {{ formatDate(page.updated_at) }}
             </span>
           </div>
         </div>
         <div v-if="canManageLegalDocs" class="header-actions">
           <button class="btn btn-outline" @click="goToEdit">
-            <i class="fas fa-edit"></i>
+            <UiGlyph name="edit" />
             {{ t('common.edit') }}
           </button>
           <button class="btn btn-outline" @click="reindex">
-            <i class="fas fa-search"></i>
+            <UiGlyph name="search" />
             {{ t('content.docsContent.reindex') }}
           </button>
           <button class="btn btn-danger" @click="deletePage">
-            <i class="fas fa-trash"></i>
+            <UiGlyph name="trash" />
             {{ t('common.delete') }}
           </button>
         </div>
@@ -86,7 +83,7 @@
               </div>
 
               <div v-else class="empty-content">
-                <i class="fas fa-file-alt"></i>
+                <UiGlyph name="file" :size="40" />
                 <p>{{ t('content.page.noContent') }}</p>
               </div>
             </div>
@@ -141,14 +138,11 @@
       <!-- Ошибка -->
       <div v-else class="error-state">
         <div class="error-icon">
-          <i class="fas fa-exclamation-triangle"></i>
+          <UiGlyph name="warning" :size="48" />
         </div>
         <h3>{{ t('content.page.notFoundTitle') }}</h3>
         <p>{{ t('content.page.notFoundDescription') }}</p>
-        <button class="btn btn-primary" @click="goBack">
-          <i class="fas fa-arrow-left"></i>
-          {{ t('content.page.goBack') }}
-        </button>
+
       </div>
     </div>
   </BaseLayout>
@@ -159,10 +153,12 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import pagesService from '../../services/pagesService';
 import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
+import UiGlyph from '../../components/UiGlyph.vue';
 
 // Props
 const props = defineProps({
@@ -236,10 +232,6 @@ async function deletePage() {
       console.error('Ошибка удаления страницы:', error);
     alert(t('content.page.deleteError') + (error?.response?.data?.error || error?.message || t('common.unknownError')));
   }
-}
-
-function goBack() {
-  router.go(-1);
 }
 
 function formatDate(date) {
@@ -360,6 +352,7 @@ onMounted(() => {
 
 <style scoped>
 .page-view-container {
+  position: relative;
   padding: 20px;
   width: 100%;
 }
@@ -697,19 +690,7 @@ onMounted(() => {
   background: var(--color-primary-dark);
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: var(--color-grey-dark);
-  cursor: pointer;
-  padding: 0 10px;
-  transition: color 0.3s ease;
-}
 
-.close-btn:hover {
-  color: var(--color-primary);
-}
 
 @media (max-width: 768px) {
   .page-header {
@@ -752,6 +733,17 @@ onMounted(() => {
   
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* TZ package D stack */
+@media (max-width: 768px) {
+  [class*="grid"], .form-row, .cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .row, .actions, .toolbar, .filters, .form-actions {
+    flex-wrap: wrap;
   }
 }
 </style> 

@@ -11,14 +11,19 @@
 -->
 
 <template>
-  <div class="ai-settings settings-panel" style="position:relative">
-    <button class="close-btn" @click="$router.push('/settings')">×</button>
+  <div class="ai-settings settings-panel page-with-close">
+    <PageCloseButton fallback="/settings" />
     <h2>{{ t('settings.ai.integrations') }}</h2>
     <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings && !showDbSettings">
       <div class="integration-block">
         <h3>{{ t('settings.ai.openai.title') }}</h3>
         <p>{{ t('settings.ai.openai.description') }}</p>
         <button class="details-btn" @click="goTo('/settings/ai/openai')">{{ t('common.details') }}</button>
+      </div>
+      <div class="integration-block">
+        <h3>{{ t('settings.ai.vpn.title') }}</h3>
+        <p>{{ t('settings.ai.vpn.cardDescription') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/vpn')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
         <h3>{{ t('settings.ai.ollama.title') }}</h3>
@@ -74,6 +79,7 @@ import AIProviderSettings from './AIProviderSettings.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import NoAccessModal from '@/components/NoAccessModal.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -197,19 +203,19 @@ function closeNoAccessModal() {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
-  z-index: 10;
+.page-with-close {
+  position: relative;
 }
-.close-btn:hover {
-  color: #333;
+
+/* TZ package S */
+@media (max-width: 768px) {
+  .ai-settings.settings-panel,
+  .settings-panel {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .provider-cards, .cards, .row {
+    flex-direction: column;
+  }
 }
 </style>

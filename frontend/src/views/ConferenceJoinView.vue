@@ -111,4 +111,19 @@ onMounted(async () => {
 .join-home {
   margin-top: 16px;
 }
+
+
+/* TZ package R */
+@media (max-width: 768px) {
+  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="management"], [class*="settings"] {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .form-row, .row, .actions, .toolbar, .header-row, .filters {
+    flex-wrap: wrap;
+  }
+  [class*="grid"], .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style>
