@@ -593,6 +593,14 @@ router.post('/telegram/verify', async (req, res) => {
 router.post('/email/request', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
+    const privacyAccepted = Boolean(req.body?.privacyAccepted);
+
+    if (!privacyAccepted) {
+      return res.status(400).json({
+        success: false,
+        error: 'Требуется согласие с Политикой и согласиями',
+      });
+    }
 
     if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       return res.status(400).json({ error: 'Invalid email format' });
@@ -600,6 +608,9 @@ router.post('/email/request', authLimiter, async (req, res) => {
 
     // Инициализация email аутентификации
     const result = await emailAuth.initEmailAuth(req.session, email);
+
+    // Флаг для grantMissingConsents на verify-code (не доверяем только UI)
+    req.session.emailPrivacyAccepted = true;
 
     // Сохраняем сессию после установки pendingEmail
     await sessionService.saveSession(req.session);
@@ -732,12 +743,33 @@ router.post('/email/verify-code', async (req, res) => {
     // Очищаем временные данные (authService уже должен был это сделать, но на всякий случай)
     delete req.session.tempUserId;
     delete req.session.pendingEmail;
+    const emailPrivacyAccepted = Boolean(req.session.emailPrivacyAccepted);
+    delete req.session.emailPrivacyAccepted;
 
     // Сохраняем обновленную сессию
     await sessionService.saveSession(req.session);
 
     // Связываем гостевые сообщения
     await sessionService.linkGuestMessages(req.session, authResult.userId);
+
+    // Согласие с шага 1 (галочка) → consent_logs (как SIWE Resources / Telegram)
+    if (emailPrivacyAccepted && authResult.userId) {
+      try {
+        const clientIp = req.ip || req.headers['x-forwarded-for'] || null;
+        const clientUa = req.get('user-agent') || null;
+        await consentService.grantMissingConsents({
+          userId: authResult.userId,
+          walletAddress: linkedWalletAddress || null,
+          channel: 'email',
+          ipAddress: clientIp,
+          userAgent: clientUa,
+        });
+      } catch (consentErr) {
+        logger.warn(`[email/verify-code] grantMissingConsents failed: ${consentErr.message}`);
+      }
+    } else if (!emailPrivacyAccepted) {
+      logger.warn(`[email/verify-code] session without emailPrivacyAccepted for user ${authResult.userId}`);
+    }
 
     // 4. Отправляем ответ
     // Получаем уровень доступа для пользователя

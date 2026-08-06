@@ -34,31 +34,42 @@
           <UiGlyph name="arrow-left" />
           <span>{{ $t('common.back') }}</span>
         </button>
-        <div v-if="canManageDocs" class="page-header-actions">
+        <div class="page-header-actions">
           <button
-            class="page-action-btn page-edit-btn"
-            @click="editPage"
-            :title="$t('content.publishedList.editDocument')"
+            type="button"
+            class="page-action-btn page-print-btn"
+            @click="printAsPdf"
+            :title="$t('content.docsContent.printPdfTitle')"
           >
-            <UiGlyph name="edit" />
-            <span>{{ $t('common.edit') }}</span>
+            <UiGlyph name="file" />
+            <span>{{ $t('content.docsContent.printPdf') }}</span>
           </button>
-          <button
-            class="page-action-btn page-index-btn"
-            @click="reindexPage"
-            :title="$t('content.docsContent.reindexTitle')"
-          >
-            <UiGlyph name="search" />
-            <span>{{ $t('content.docsContent.reindex') }}</span>
-          </button>
-          <button
-            class="page-action-btn page-delete-btn"
-            @click="confirmDeletePage"
-            :title="$t('content.publishedList.deleteDocument')"
-          >
-            <UiGlyph name="trash" />
-            <span>{{ $t('common.delete') }}</span>
-          </button>
+          <template v-if="canManageDocs">
+            <button
+              class="page-action-btn page-edit-btn"
+              @click="editPage"
+              :title="$t('content.publishedList.editDocument')"
+            >
+              <UiGlyph name="edit" />
+              <span>{{ $t('common.edit') }}</span>
+            </button>
+            <button
+              class="page-action-btn page-index-btn"
+              @click="reindexPage"
+              :title="$t('content.docsContent.reindexTitle')"
+            >
+              <UiGlyph name="search" />
+              <span>{{ $t('content.docsContent.reindex') }}</span>
+            </button>
+            <button
+              class="page-action-btn page-delete-btn"
+              @click="confirmDeletePage"
+              :title="$t('content.publishedList.deleteDocument')"
+            >
+              <UiGlyph name="trash" />
+              <span>{{ $t('common.delete') }}</span>
+            </button>
+          </template>
         </div>
       </div>
       <h1>{{ page.title }}</h1>
@@ -821,6 +832,38 @@ function navigateTo(path) {
   }
 }
 
+/** Печать / «Сохранить как PDF» в диалоге браузера (для бланка и живой печати). */
+function printAsPdf() {
+  if (!page.value) return;
+
+  // Уже загруженный PDF-файл — открыть/скачать оригинал
+  if (page.value.format === 'pdf' && page.value.file_path) {
+    const a = document.createElement('a');
+    a.href = page.value.file_path;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.download = `${String(page.value.title || 'document').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
+
+  const prevTitle = document.title;
+  document.title = page.value.title || prevTitle;
+  document.body.classList.add('dle-print-document');
+
+  const cleanup = () => {
+    document.body.classList.remove('dle-print-document');
+    document.title = prevTitle;
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  // Safari / если afterprint не сработал
+  setTimeout(cleanup, 1500);
+}
+
 // Редактирование документа
 function editPage() {
   if (!page.value || !page.value.id) return;
@@ -1027,11 +1070,15 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .page-header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .page-action-btn {
@@ -1061,6 +1108,11 @@ onUnmounted(() => {
   background: #fee;
   color: #dc3545;
   border-color: #dc3545;
+}
+
+.page-print-btn:hover {
+  background: #f0f7f2;
+  color: var(--color-primary);
 }
 
 .page-header h1 {

@@ -1,0 +1,452 @@
+{
+  "packId": "ru-rf-pdn-v1",
+  "jurisdiction": "643",
+  "locale": "ru",
+  "title": "Пакет документов оператора ПДн (РФ / 152‑ФЗ)",
+  "version": "1.0.0",
+  "variables": [
+    {
+      "key": "company_name",
+      "label_ru": "Краткое наименование",
+      "label_en": "Short name",
+      "required": true
+    },
+    {
+      "key": "company_full",
+      "label_ru": "Полное наименование",
+      "label_en": "Full legal name",
+      "required": true
+    },
+    {
+      "key": "ogrn",
+      "label_ru": "ОГРН",
+      "label_en": "OGRN",
+      "required": true
+    },
+    {
+      "key": "inn",
+      "label_ru": "ИНН",
+      "label_en": "INN",
+      "required": true
+    },
+    {
+      "key": "kpp",
+      "label_ru": "КПП",
+      "label_en": "KPP",
+      "required": false
+    },
+    {
+      "key": "company_address",
+      "label_ru": "Юридический адрес",
+      "label_en": "Legal address",
+      "required": true
+    },
+    {
+      "key": "privacy_email",
+      "label_ru": "Email по ПДн",
+      "label_en": "Privacy email",
+      "required": true
+    },
+    {
+      "key": "privacy_phone",
+      "label_ru": "Телефон",
+      "label_en": "Phone",
+      "required": false
+    },
+    {
+      "key": "site",
+      "label_ru": "Домен / URL веб‑приложения (https://…)",
+      "label_en": "Domain / web app URL (https://…)",
+      "required": true
+    },
+    {
+      "key": "site_host",
+      "label_ru": "Домен (авто из URL)",
+      "label_en": "Host (from URL)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "site_idn",
+      "label_ru": "IDN (авто)",
+      "label_en": "IDN (auto)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "responsible_person",
+      "label_ru": "Ответственный (ФИО)",
+      "label_en": "Responsible person",
+      "required": true
+    },
+    {
+      "key": "responsible_person_genitive",
+      "label_ru": "Ответственный (род. падеж, авто)",
+      "label_en": "Responsible (genitive, auto)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "responsible_person_short",
+      "label_ru": "Ответственный (кратко, авто)",
+      "label_en": "Responsible short (auto)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "date",
+      "label_ru": "Дата версии (ДД.ММ.ГГГГ)",
+      "label_en": "Version date",
+      "required": true
+    },
+    {
+      "key": "jurisdiction_name",
+      "label_ru": "Юрисдикция",
+      "label_en": "Jurisdiction name",
+      "required": false,
+      "form": false,
+      "default": "Российская Федерация"
+    }
+  ],
+  "documents": [
+    {
+      "id": "politika-pdn",
+      "file": "templates/politika-pdn.html",
+      "title": "Политика в отношении обработки персональных данных",
+      "summary": "Политика в отношении обработки персональных данных",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 10,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "politika-confidential",
+      "file": "templates/politika-confidential.html",
+      "title": "Политика конфиденциальности",
+      "summary": "Политика конфиденциальности",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 20,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-obrabotka",
+      "file": "templates/soglasie-obrabotka.html",
+      "title": "Согласие на обработку персональных данных",
+      "summary": "Согласие на обработку персональных данных",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 30,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-cookie",
+      "file": "templates/soglasie-cookie.html",
+      "title": "Согласие на использование файлов cookie",
+      "summary": "Согласие на использование файлов cookie",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 40,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-transgranica",
+      "file": "templates/soglasie-transgranica.html",
+      "title": "Согласие на трансграничную передачу ПДн",
+      "summary": "Согласие на трансграничную передачу ПДн",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 50,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-ai",
+      "file": "templates/soglasie-ai.html",
+      "title": "Согласие на обработку данных средствами искусственного интеллекта",
+      "summary": "Согласие на обработку данных средствами искусственного интеллекта",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 55,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-rassylki",
+      "file": "templates/soglasie-rassylki.html",
+      "title": "Согласие на получение сервисных и информационных рассылок",
+      "summary": "Согласие на получение сервисных и информационных рассылок",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 60,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-biometriya",
+      "file": "templates/soglasie-biometriya.html",
+      "title": "Согласие на обработку биометрических ПДн",
+      "summary": "Согласие на обработку биометрических ПДн",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 70,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "prava-subekta",
+      "file": "templates/prava-subekta.html",
+      "title": "Права субъектов персональных данных и отзыв согласия",
+      "summary": "Права субъектов персональных данных и отзыв согласия",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 80,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "prikaz",
+      "file": "templates/internal/prikaz.html",
+      "title": "Приказ о назначении ответственного за ПДн",
+      "summary": "Приказ о назначении ответственного за ПДн",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 10,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "di-otvetstvennyj",
+      "file": "templates/internal/di-otvetstvennyj.html",
+      "title": "Должностная инструкция ответственного за ПДн",
+      "summary": "Должностная инструкция ответственного за ПДн",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 20,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "polozhenie-pdn",
+      "file": "templates/internal/polozhenie-pdn.html",
+      "title": "Положение об обработке и защите ПДн",
+      "summary": "Положение об обработке и защите ПДн",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 30,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "hranenie",
+      "file": "templates/internal/hranenie.html",
+      "title": "Политика хранения и уничтожения ПДн",
+      "summary": "Политика хранения и уничтожения ПДн",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 40,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "dostup",
+      "file": "templates/internal/dostup.html",
+      "title": "Политика разграничения доступа к ПДн",
+      "summary": "Политика разграничения доступа к ПДн",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 50,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "nda",
+      "file": "templates/internal/nda.html",
+      "title": "Перечень допущенных лиц и НДА",
+      "summary": "Перечень допущенных лиц и НДА",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 60,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "obuchenie",
+      "file": "templates/internal/obuchenie.html",
+      "title": "Программа обучения и журнал инструктажей",
+      "summary": "Программа обучения и журнал инструктажей",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 70,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "cookie-storonnie",
+      "file": "templates/internal/cookie-storonnie.html",
+      "title": "Политика работы с cookie и сторонними сервисами",
+      "summary": "Политика работы с cookie и сторонними сервисами",
+      "visibility": "internal",
+      "category": "локальные акты",
+      "order_index": 80,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "reglament-obrashchenij",
+      "file": "templates/internal/reglament-obrashchenij.html",
+      "title": "Регламент обращений субъектов ПДн",
+      "summary": "Регламент обращений субъектов ПДн",
+      "visibility": "internal",
+      "category": "обращения субъектов",
+      "order_index": 10,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "ispolnenie-zaprosov",
+      "file": "templates/internal/ispolnenie-zaprosov.html",
+      "title": "Регламент исполнения запросов субъектов",
+      "summary": "Регламент исполнения запросов субъектов",
+      "visibility": "internal",
+      "category": "обращения субъектов",
+      "order_index": 20,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "soglasie-rebenok",
+      "file": "templates/internal/soglasie-rebenok.html",
+      "title": "Согласие ребенка/законного представителя",
+      "summary": "Согласие ребенка/законного представителя",
+      "visibility": "internal",
+      "category": "обращения субъектов",
+      "order_index": 30,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "reestr",
+      "file": "templates/internal/reestr.html",
+      "title": "Реестр операций по обработке ПДн",
+      "summary": "Реестр операций по обработке ПДн",
+      "visibility": "internal",
+      "category": "испдн и реестры",
+      "order_index": 10,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "ispdn",
+      "file": "templates/internal/ispdn.html",
+      "title": "Перечень и описание ИСПДн",
+      "summary": "Перечень и описание ИСПДн",
+      "visibility": "internal",
+      "category": "испдн и реестры",
+      "order_index": 20,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "incidenty",
+      "file": "templates/internal/incidenty.html",
+      "title": "Регламент реагирования на инциденты",
+      "summary": "Регламент реагирования на инциденты",
+      "visibility": "internal",
+      "category": "безопасность и инциденты",
+      "order_index": 10,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "zhurnaly",
+      "file": "templates/internal/zhurnaly.html",
+      "title": "Журналы учетов и инцидентов",
+      "summary": "Журналы учетов и инцидентов",
+      "visibility": "internal",
+      "category": "безопасность и инциденты",
+      "order_index": 20,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "model-ugroz",
+      "file": "templates/internal/model-ugroz.html",
+      "title": "Модель угроз и меры защиты",
+      "summary": "Модель угроз и меры защиты",
+      "visibility": "internal",
+      "category": "безопасность и инциденты",
+      "order_index": 30,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "plan-bezopasnosti",
+      "file": "templates/internal/plan-bezopasnosti.html",
+      "title": "План обеспечения безопасности ПДн",
+      "summary": "План обеспечения безопасности ПДн",
+      "visibility": "internal",
+      "category": "безопасность и инциденты",
+      "order_index": 40,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "uvedomlenie-rkn",
+      "file": "templates/internal/uvedomlenie-rkn.html",
+      "title": "Уведомление РКН об обработке ПДн (шаблон)",
+      "summary": "Уведомление РКН об обработке ПДн (шаблон)",
+      "visibility": "internal",
+      "category": "поручения и ркн",
+      "order_index": 10,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "dpa",
+      "file": "templates/internal/dpa.html",
+      "title": "Шаблон DPA (поручение обработки ПДн)",
+      "summary": "Шаблон DPA (поручение обработки ПДн)",
+      "visibility": "internal",
+      "category": "поручения и ркн",
+      "order_index": 20,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    },
+    {
+      "id": "transgranica-proc",
+      "file": "templates/internal/transgranica-proc.html",
+      "title": "Процедуры трансграничной передачи ПДн",
+      "summary": "Процедуры трансграничной передачи ПДн",
+      "visibility": "internal",
+      "category": "поручения и ркн",
+      "order_index": 30,
+      "required": true,
+      "required_permission": "view_legal_docs",
+      "show_in_blog": false
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "packId": "intl-neutral-v1",
+  "jurisdiction": "*",
+  "fallback": true,
+  "locale": "en",
+  "title": "Neutral web-app policy pack (International)",
+  "version": "1.0.0",
+  "variables": [
+    {
+      "key": "company_name",
+      "label_ru": "Краткое наименование",
+      "label_en": "Company short name",
+      "required": true
+    },
+    {
+      "key": "company_full",
+      "label_ru": "Полное наименование",
+      "label_en": "Company legal name",
+      "required": true
+    },
+    {
+      "key": "company_address",
+      "label_ru": "Адрес",
+      "label_en": "Registered / business address",
+      "required": true
+    },
+    {
+      "key": "privacy_email",
+      "label_ru": "Email по privacy",
+      "label_en": "Privacy contact email",
+      "required": true
+    },
+    {
+      "key": "privacy_phone",
+      "label_ru": "Телефон",
+      "label_en": "Phone",
+      "required": false
+    },
+    {
+      "key": "site",
+      "label_ru": "Домен / URL веб‑приложения (https://…)",
+      "label_en": "Domain / web app URL (https://…)",
+      "required": true
+    },
+    {
+      "key": "site_host",
+      "label_ru": "Домен (авто)",
+      "label_en": "Host (auto)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "site_idn",
+      "label_ru": "IDN (авто)",
+      "label_en": "IDN (auto)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "responsible_person",
+      "label_ru": "Ответственный (ФИО)",
+      "label_en": "Responsible person (full name)",
+      "required": true
+    },
+    {
+      "key": "responsible_person_short",
+      "label_ru": "Ответственный (кратко, авто)",
+      "label_en": "Responsible short (auto)",
+      "required": false,
+      "form": false
+    },
+    {
+      "key": "date",
+      "label_ru": "Дата версии (ДД.ММ.ГГГГ)",
+      "label_en": "Version date (DD.MM.YYYY)",
+      "required": true
+    },
+    {
+      "key": "jurisdiction_name",
+      "label_ru": "Юрисдикция / право",
+      "label_en": "Governing law / jurisdiction label",
+      "required": false,
+      "form": false,
+      "default": "International"
+    }
+  ],
+  "documents": [
+    {
+      "id": "privacy-policy",
+      "file": "templates/privacy-policy.html",
+      "title": "Privacy Policy",
+      "summary": "How the operator processes personal data in the web application",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 10,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "cookie-notice",
+      "file": "templates/cookie-notice.html",
+      "title": "Cookie Notice",
+      "summary": "Cookies and similar technologies used by the web application",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 20,
+      "required": true,
+      "show_in_blog": false
+    },
+    {
+      "id": "terms-of-use",
+      "file": "templates/terms-of-use.html",
+      "title": "Terms of Use",
+      "summary": "Lite terms for using the web application",
+      "visibility": "public",
+      "category": "политика и согласия",
+      "order_index": 30,
+      "required": true,
+      "show_in_blog": false
+    }
+  ]
+}

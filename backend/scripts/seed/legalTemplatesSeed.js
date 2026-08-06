@@ -19,14 +19,56 @@
  *   (status=published, visibility=public, category=политика и согласия,
  *    show_in_blog=false, is_system_template=false)
  * - С ленты /blog эти доки и фильтр politika-i-soglasiya снимаются
- * - Идемпотентно: повторный запуск обновляет тело/summary, не плодит дубли
+ * - Идемпотентно: не плодит дубли.
+ * - Существующие строки: content/status НЕ перезаписываются, если документ уже
+ *   заполнен оператором или published (иначе migrate на проде затирал бы ПДн).
+ * - Каркас (плейсхолдеры {{company_name}} и т.п.) по-прежнему можно обновлять seed'ом.
  * - Вызывается из scripts/run-migrations.js после SQL-миграций (установка ОС / update)
  */
 
 const db = require('../../db');
+const fs = require('fs');
+const path = require('path');
 
 /** Совпадает с frontend/src/constants/publishedDocs.js PRIVACY_SECTION_SLUG */
 const PRIVACY_SECTION = 'политика и согласия';
+
+/** Каркас из tpl()/pack: содержит переменные {{…}} — его можно безопасно обновлять seed'ом. */
+function isSkeletonContent(content) {
+  const s = String(content || '');
+  if (!s.trim()) return true;
+  return /\{\{\s*[a-z0-9_]+\s*\}\}/i.test(s);
+}
+
+/** Контент дефолтов из legal-packs/ru-rf-pdn-v1 (не короткий tpl). */
+let _rfPackHtmlByTitle = null;
+function getRfPackHtmlByTitle() {
+  if (_rfPackHtmlByTitle) return _rfPackHtmlByTitle;
+  _rfPackHtmlByTitle = new Map();
+  try {
+    const packDir = path.join(__dirname, '../../legal-packs/ru-rf-pdn-v1');
+    const packPath = path.join(packDir, 'pack.json');
+    if (!fs.existsSync(packPath)) {
+      console.warn('[seed:legal] pack.json not found:', packPath);
+      return _rfPackHtmlByTitle;
+    }
+    const pack = JSON.parse(fs.readFileSync(packPath, 'utf8'));
+    for (const d of pack.documents || []) {
+      if (!d?.title || !d?.file) continue;
+      const abs = path.normalize(path.join(packDir, d.file));
+      if (!abs.startsWith(path.normalize(packDir + path.sep))) continue;
+      if (!fs.existsSync(abs)) {
+        console.warn('[seed:legal] missing template file:', d.file);
+        continue;
+      }
+      _rfPackHtmlByTitle.set(d.title, fs.readFileSync(abs, 'utf8'));
+    }
+    console.log(`[seed:legal] loaded ${ _rfPackHtmlByTitle.size } HTML from ru-rf-pdn-v1`);
+  } catch (e) {
+    console.warn('[seed:legal] pack load failed:', e.message);
+  }
+  return _rfPackHtmlByTitle;
+}
 
 async function getExistingColumns(tableName) {
   const res = await db.getQuery()(
@@ -168,10 +210,11 @@ function generateSlug(text, maxLength = 100) {
 }
 
 function doc(title, summary, visibility = 'public', requiredPermission = null) {
+  const packHtml = getRfPackHtmlByTitle().get(title);
   return {
     title,
     summary,
-    content: tpl({ title, visibility }),
+    content: packHtml || tpl({ title, visibility }),
     seo: { title, description: summary, keywords: 'ПДн, политика, согласие' },
     status: 'draft',
     visibility,
@@ -185,17 +228,43 @@ function doc(title, summary, visibility = 'public', requiredPermission = null) {
 
 async function upsertTemplate(tableName, template) {
   const exists = await db.getQuery()(
-    `SELECT id FROM ${tableName} WHERE title = $1 AND is_system_template = TRUE LIMIT 1`,
+    `SELECT id, content, status FROM ${tableName}
+     WHERE title = $1 AND is_system_template = TRUE LIMIT 1`,
     [template.title]
   );
   if (exists.rows.length > 0) {
+    const row = exists.rows[0];
+    const filledOrPublished =
+      row.status === 'published' || !isSkeletonContent(row.content);
+
+    // А+Б: заполненные / published — не трогаем content, status, summary, visibility
+    if (filledOrPublished) {
+      await db.getQuery()(
+        `UPDATE ${tableName}
+         SET required_permission = COALESCE(required_permission, $2),
+             format = COALESCE(format, $3),
+             mime_type = COALESCE(mime_type, $4),
+             storage_type = COALESCE(storage_type, $5),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+          row.id,
+          template.required_permission,
+          template.format,
+          template.mime_type,
+          template.storage_type,
+        ]
+      );
+      return { updated: 0, inserted: 0, skipped: 1 };
+    }
+
     const sql = `UPDATE ${tableName}
       SET summary = $2, content = $3, seo = $4, status = $5, visibility = $6,
           required_permission = $7, format = $8, mime_type = $9, storage_type = $10,
           updated_at = NOW()
       WHERE id = $1`;
     await db.getQuery()(sql, [
-      exists.rows[0].id,
+      row.id,
       template.summary,
       template.content,
       JSON.stringify(template.seo || {}),
@@ -206,7 +275,7 @@ async function upsertTemplate(tableName, template) {
       template.mime_type,
       template.storage_type,
     ]);
-    return { updated: 1, inserted: 0 };
+    return { updated: 1, inserted: 0, skipped: 0 };
   }
 
   const sql = `INSERT INTO ${tableName}
@@ -224,7 +293,7 @@ async function upsertTemplate(tableName, template) {
     template.mime_type,
     template.storage_type,
   ]);
-  return { updated: 0, inserted: 1 };
+  return { updated: 0, inserted: 1, skipped: 0 };
 }
 
 async function uniqueSlug(tableName, baseSlug, excludeId = null) {
@@ -250,7 +319,7 @@ async function uniqueSlug(tableName, baseSlug, excludeId = null) {
 async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
   const category = PRIVACY_SECTION;
   const exists = await db.getQuery()(
-    `SELECT id, slug FROM ${tableName}
+    `SELECT id, slug, content, summary FROM ${tableName}
      WHERE title = $1
        AND LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM($2))
        AND COALESCE(is_system_template, FALSE) = FALSE
@@ -265,6 +334,22 @@ async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
     const slug = exists.rows[0].slug && String(exists.rows[0].slug).trim()
       ? exists.rows[0].slug
       : await uniqueSlug(tableName, baseSlug, id);
+
+    // Заполненный оператором текст не затираем каркасом seed
+    if (!isSkeletonContent(exists.rows[0].content)) {
+      await db.getQuery()(
+        `UPDATE ${tableName}
+         SET status = 'published', visibility = 'public',
+             required_permission = NULL,
+             is_system_template = FALSE, show_in_blog = FALSE,
+             category = $2, slug = $3, order_index = $4,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [id, category, slug, orderIndex]
+      );
+      return { updated: 0, inserted: 0, skipped: 1 };
+    }
+
     await db.getQuery()(
       `UPDATE ${tableName}
        SET summary = $2, content = $3, seo = $4,
@@ -287,7 +372,7 @@ async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
         orderIndex,
       ]
     );
-    return { updated: 1, inserted: 0 };
+    return { updated: 1, inserted: 0, skipped: 0 };
   }
 
   const slug = await uniqueSlug(tableName, baseSlug);
@@ -310,7 +395,7 @@ async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
       orderIndex,
     ]
   );
-  return { updated: 0, inserted: 1 };
+  return { updated: 0, inserted: 1, skipped: 0 };
 }
 
 function buildDocSets() {
@@ -320,8 +405,10 @@ function buildDocSets() {
     doc('Согласие на обработку персональных данных', 'Шаблон пользовательского согласия на обработку ПДн.', 'public'),
     doc('Согласие на использование файлов cookie', 'Шаблон согласия на использование cookie по категориям.', 'public'),
     doc('Согласие на трансграничную передачу ПДн', 'Шаблон согласия на трансграничную передачу ПДн.', 'public'),
+    doc('Согласие на обработку данных средствами искусственного интеллекта', 'Согласие на ИИ / LLM в сервисе.', 'public'),
+    doc('Согласие на получение сервисных и информационных рассылок', 'Согласие на сервисные и информационные рассылки.', 'public'),
     doc('Согласие на обработку биометрических ПДн', 'Шаблон согласия на обработку биометрических ПДн.', 'public'),
-    doc('Права субъектов ПДн и отзыв согласия', 'Информация о правах субъектов ПДн и форма отзыва согласия.', 'public'),
+    doc('Права субъектов персональных данных и отзыв согласия', 'Информация о правах субъектов ПДн и форма отзыва согласия.', 'public'),
   ];
 
   const internalPermView = 'view_legal_docs';
@@ -363,18 +450,22 @@ async function seedLegalTemplates() {
 
   let inserted = 0;
   let updated = 0;
+  let skipped = 0;
   for (const t of [...publicDocs, ...internalDocs]) {
     const res = await upsertTemplate(tableName, t);
-    inserted += res.inserted;
-    updated += res.updated;
+    inserted += res.inserted || 0;
+    updated += res.updated || 0;
+    skipped += res.skipped || 0;
   }
 
   let publishedInserted = 0;
   let publishedUpdated = 0;
+  let publishedSkipped = 0;
   for (let i = 0; i < publicDocs.length; i += 1) {
     const res = await upsertPublishedPrivacyDoc(tableName, publicDocs[i], i);
-    publishedInserted += res.inserted;
-    publishedUpdated += res.updated;
+    publishedInserted += res.inserted || 0;
+    publishedUpdated += res.updated || 0;
+    publishedSkipped += res.skipped || 0;
   }
 
   let blogDetach = null;
@@ -388,8 +479,10 @@ async function seedLegalTemplates() {
   return {
     templatesInserted: inserted,
     templatesUpdated: updated,
+    templatesSkipped: skipped,
     publishedInserted,
     publishedUpdated,
+    publishedSkipped,
     privacySection: PRIVACY_SECTION,
     blogDetach,
   };

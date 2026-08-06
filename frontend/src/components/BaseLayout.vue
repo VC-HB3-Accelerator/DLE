@@ -11,9 +11,15 @@
 -->
 
 <template>
-  <div class="app-container">
+  <div class="app-container" :class="{ 'app-container--document-scroll': documentScroll }">
     <!-- Основной контент -->
-    <div class="main-content" :class="{ 'no-right-sidebar': !showWalletSidebar }">
+    <div
+      class="main-content"
+      :class="{
+        'no-right-sidebar': !showWalletSidebar,
+        'main-content--document-scroll': documentScroll,
+      }"
+    >
       <!-- Шапка сайта -->
       <Header 
         :is-sidebar-open="showWalletSidebar" 
@@ -83,7 +89,13 @@ const props = defineProps({
   isAuthenticated: Boolean,
   identities: Array,
   tokenBalances: Object,
-  isLoadingTokens: Boolean
+  isLoadingTokens: Boolean,
+  /**
+   * Document-scroll: окно крутит страницу вместо внутренней колонки .main-content.
+   * Включается страницами вроде /blog. На mobile (≤768) оболочка без изменений —
+   * там полоса обычно скрыта, а fixed-сайдбар остаётся в прежней модели.
+   */
+  documentScroll: { type: Boolean, default: false },
 });
 
 // Определяем emits
@@ -354,6 +366,23 @@ onBeforeUnmount(() => {
     padding-left: var(--spacing-xs);
     padding-right: var(--spacing-xs);
     padding-bottom: var(--spacing-xs);
+  }
+}
+
+/*
+ * Document-scroll (только ≥769px): рост оболочки с контентом, скролл у окна.
+ * Mobile ≤768 — прежний overflow-y:auto у .main-content.
+ */
+@media (min-width: 769px) {
+  .app-container.app-container--document-scroll {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .main-content.main-content--document-scroll {
+    overflow-y: visible;
+    overflow-x: hidden;
   }
 }
 

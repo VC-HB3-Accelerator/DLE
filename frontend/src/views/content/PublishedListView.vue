@@ -166,6 +166,8 @@ import DocsContent from '../../components/docs/DocsContent.vue';
 import BlogFeedToolbar from '../../components/blog/BlogFeedToolbar.vue';
 import UiGlyph from '../../components/UiGlyph.vue';
 import pagesService from '../../services/pagesService';
+import legalPacksService from '../../services/legalPacksService';
+import { PRIVACY_SECTION_SLUG } from '../../constants/publishedDocs';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 
@@ -193,6 +195,8 @@ const showEditPageModal = ref(false);
 const editingPage = ref(null);
 const isSaving = ref(false);
 const allCategories = ref([]);
+const activePackId = ref('');
+const activePackTitle = ref('');
 
 const currentPageId = computed(() => {
   const queryPage = route.query.page;
@@ -218,9 +222,22 @@ function isBlogPage(page) {
   return cat === 'блог' || cat === 'blog';
 }
 
+function isPrivacySectionPage(page) {
+  return normalizeCategory(page) === PRIVACY_SECTION_SLUG;
+}
+
+function matchesActivePack(page) {
+  if (!isPrivacySectionPage(page)) return true;
+  if (!activePackId.value) return true;
+  const pid = String(page?.pack_id || page?.packId || '').trim();
+  // legacy: доки без pack_id считаем РФ-пакетом (пока не пересозданы)
+  if (!pid) return activePackId.value === 'ru-rf-pdn-v1';
+  return pid === activePackId.value;
+}
+
 const documentPages = computed(() => {
   if (!Array.isArray(pages.value)) return [];
-  return pages.value.filter((page) => !isBlogPage(page));
+  return pages.value.filter((page) => !isBlogPage(page) && matchesActivePack(page));
 });
 
 const sectionFilters = computed(() => {
@@ -434,8 +451,13 @@ async function savePageStructure() {
 async function loadPages() {
   try {
     isLoading.value = true;
-    const loadedPages = await pagesService.getPublishedPagesList();
+    const [loadedPages, active] = await Promise.all([
+      pagesService.getPublishedPagesList(),
+      legalPacksService.getActivePack().catch(() => null),
+    ]);
     pages.value = Array.isArray(loadedPages) ? loadedPages : [];
+    activePackId.value = active?.packId ? String(active.packId) : '';
+    activePackTitle.value = active?.title ? String(active.title) : '';
   } catch {
     // keep previous
   } finally {
@@ -471,8 +493,6 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   padding: 12px 16px 0;
 }
-
-
 
 .published-page__list-wrap {
   padding: 8px 24px 32px;

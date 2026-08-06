@@ -15,7 +15,8 @@
     :is-authenticated="isAuthenticated" 
     :identities="identities" 
     :token-balances="tokenBalances" 
-    :is-loading-tokens="isLoadingTokens" 
+    :is-loading-tokens="isLoadingTokens"
+    :document-scroll="true"
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="blog-page" :class="{ 'blog-page--article': currentPageId || currentSlug }">

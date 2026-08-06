@@ -61,6 +61,7 @@ const uploadsRoutes = require('./routes/uploads');
 const ensRoutes = require('./routes/ens');
 const sshRoutes = require('./routes/ssh'); // SSH роуты
 const encryptionRoutes = require('./routes/encryption'); // Encryption роуты
+const legalPacksRoutes = require('./routes/legalPacks');
 // Factory routes removed - no longer needed
 
 // Проверка и создание директорий для хранения данных контрактов
@@ -408,6 +409,7 @@ app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/pages', pagesRoutes); // Обработка favicon.ico - возвращаем 204 No Content чтобы избежать 404 в логах
+app.use('/api/legal-packs', legalPacksRoutes);
 app.use('/api/blog', blogEngagementRoutes);
 app.get('/favicon.ico', (req, res) => {
   res.status(204).end();

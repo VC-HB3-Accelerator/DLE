@@ -438,4 +438,60 @@ select.form-control {
 
 @keyframes ui-fa-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Печать / «Сохранить как PDF» из DocsContent */
+@media print {
+  body.dle-print-document * {
+    visibility: hidden !important;
+  }
+
+  body.dle-print-document .docs-content,
+  body.dle-print-document .docs-content * {
+    visibility: visible !important;
+  }
+
+  body.dle-print-document .docs-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 12mm 14mm;
+    background: #fff;
+    color: #000;
+  }
+
+  body.dle-print-document .breadcrumbs,
+  body.dle-print-document .back-btn,
+  body.dle-print-document .page-header-actions,
+  body.dle-print-document .page-meta,
+  body.dle-print-document .page-navigation,
+  body.dle-print-document .related-articles,
+  body.dle-print-document .blog-engagement,
+  body.dle-print-document .page-close-btn,
+  body.dle-print-document .PageCloseButton {
+    display: none !important;
+  }
+
+  body.dle-print-document .page-header {
+    border-bottom: 1px solid #ccc !important;
+    margin-bottom: 12px !important;
+    padding-bottom: 8px !important;
+  }
+
+  body.dle-print-document .page-header h1 {
+    font-size: 18pt !important;
+    color: #000 !important;
+  }
+
+  body.dle-print-document a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  body.dle-print-document .content-text table {
+    page-break-inside: avoid;
+  }
 } 

@@ -101,6 +101,7 @@
       error.value = '';
     const response = await axios.post('/auth/email/request', {
         email: email.value,
+        privacyAccepted: true,
       });
       if (response.data.success) {
         showVerification.value = true;

@@ -189,8 +189,8 @@ async function runMigrations() {
       const { seedLegalTemplates } = require('./seed/legalTemplatesSeed');
       const stats = await seedLegalTemplates();
       console.log(
-        `[run-migrations] legal seed OK: templates +${stats.templatesInserted}/~${stats.templatesUpdated}, ` +
-          `published +${stats.publishedInserted}/~${stats.publishedUpdated}`
+        `[run-migrations] legal seed OK: templates +${stats.templatesInserted}/~${stats.templatesUpdated}/skip${stats.templatesSkipped || 0}, ` +
+          `published +${stats.publishedInserted}/~${stats.publishedUpdated}/skip${stats.publishedSkipped || 0}`
       );
     } catch (seedErr) {
       console.error('[run-migrations] legal seed failed:', seedErr);

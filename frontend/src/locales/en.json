@@ -211,7 +211,39 @@
     "settings": {
       "legalVariablesTitle": "Legal details (variables)",
       "comingSoonTitle": "Variable settings will appear here soon",
-      "comingSoonDescription": "Editors will be able to fill in details for substitution across all templates"
+      "comingSoonDescription": "Editors will be able to fill in details for substitution across all templates",
+      "constructorTitle": "Legal document pack builder",
+      "constructorSubtitle": "Choose a country, fill operator details, and create the full document set with one click.",
+      "noPermission": "Editor rights are required to use the pack builder.",
+      "countryLabel": "Country (jurisdiction)",
+      "countryPlaceholder": "Select a country",
+      "countriesLoading": "Loading countries…",
+      "packMissing": "No document pack is available for this country yet.",
+      "packLoading": "Loading pack…",
+      "openTemplates": "Open templates",
+      "docsCount": "documents: {count}",
+      "variablesTitle": "Operator details",
+      "saveSettings": "Save details",
+      "savingSettings": "Saving…",
+      "settingsSavedAt": "Saved in DB: {date}",
+      "autosaveHint": "Details auto-save to the DB about 1s after you change a field.",
+      "domainHint": "One company URL — the domain in documents is derived. Texts say “web application” plus this link.",
+      "prefillDeployNote": "Prefill from deploy form filled empty fields: {count}.",
+      "packHubHint": "After generate, /content/published privacy section shows only this pack (from the country above).",
+      "documentsTitle": "Pack documents",
+      "selectAll": "Select all",
+      "selectNone": "Clear all",
+      "modeLabel": "Generation mode",
+      "modeMissing": "Missing only (do not overwrite filled docs)",
+      "modeOverwrite": "Overwrite selected",
+      "modeHint": "Safe default: already published filled documents are left unchanged.",
+      "generate": "Create document pack",
+      "generating": "Creating…",
+      "overwriteConfirm": "Overwrite selected documents with new text from the form? This changes published copies.",
+      "resultTitle": "Result",
+      "resultCounts": "Created: {created}, updated: {updated}, skipped: {skipped}, errors: {error}",
+      "openPublished": "Published (privacy section)",
+      "openInternal": "Internal documents"
     },
     "publishedPage": {
       "loadingDocument": "Loading document..."
@@ -269,6 +301,7 @@
       "filterAll": "All sections",
       "loading": "Loading documents...",
       "emptyTitle": "No published documents",
+      "activePackHint": "Privacy section shows pack “{pack}” (set by country in /content/settings).",
       "indexBadge": "Home",
       "editDocument": "Edit document",
       "editStructure": "Edit structure",
@@ -330,6 +363,8 @@
     "docsContent": {
       "reindex": "Index",
       "reindexTitle": "Send document to search index",
+      "printPdf": "Download PDF",
+      "printPdfTitle": "Open print dialog: save as PDF or print a paper copy for stamping",
       "previous": "Previous",
       "next": "Next",
       "readAlso": "Read also",
@@ -358,7 +393,9 @@
       "permissionReaders": "Readers",
       "permissionEditors": "Editors",
       "internalBadge": "Internal",
-      "emptyTitle": "No internal documents"
+      "emptyTitle": "No internal documents",
+      "filterAll": "All sections",
+      "loading": "Loading documents..."
     },
     "systemMessages": {
       "headerDescription": "Create and manage notifications visible to users in the DLE chat and interface",
