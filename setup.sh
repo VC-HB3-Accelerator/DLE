@@ -31,7 +31,7 @@ ARCHIVE_VERSION="v1.0.6"
 # Примеры:
 #   https://github.com/VC-HB3-Accelerator/DLE
 #   https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
-#   https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE
+#   https://ru.hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
 # Задаётся через --base-url=... или DLE_BASE_URL; по умолчанию — GitHub.
 DLE_BASE_URL_DEFAULT="https://github.com/VC-HB3-Accelerator/DLE"
 DLE_BASE_URL="${DLE_BASE_URL:-}"

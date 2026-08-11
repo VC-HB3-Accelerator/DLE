@@ -196,11 +196,11 @@
 
 | Назначение | Описание | Ссылка |
 |------------|----------|--------|
-| **DApp для управления** | Предложения, голосования, казна, участники | [Управление DLE](https://xn--80aqc0am6d.xn--p1ai/management) |
+| **DApp для управления** | Предложения, голосования, казна, участники | [Управление DLE](https://ru.hb3-accelerator.com/management) |
 | **Мультичейн-абстракция Governance** | Один адрес `0xdD27…29386` в Sepolia (Ethereum, Arbitrum, Base) | [Ethereum](https://sepolia.etherscan.io/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) · [Arbitrum](https://sepolia.arbiscan.io/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) · [Base](https://sepolia.basescan.org/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) |
 | **DLE Governance** | Create Proposal, Vote, Execute | [0x8e96…E63E1](https://sepolia.etherscan.io/address/0x8e96DdB110aa1C55A4b9ded8c16E66Fbdb5E63E1) |
 
-На [странице управления](https://xn--80aqc0am6d.xn--p1ai/management) можно создавать предложения, голосовать и исполнять решения через подключённый кошелёк.
+На [странице управления](https://ru.hb3-accelerator.com/management) можно создавать предложения, голосовать и исполнять решения через подключённый кошелёк.
 
 ---
 

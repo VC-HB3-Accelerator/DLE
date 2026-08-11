@@ -196,11 +196,11 @@ Live examples on the Sepolia (Ethereum) test network:
 
 | Purpose | Description | Link |
 |---------|-------------|------|
-| **Management DApp** | Proposals, voting, treasury, participants | [DLE Management](https://xn--80aqc0am6d.xn--p1ai/management) |
+| **Management DApp** | Proposals, voting, treasury, participants | [DLE Management](https://ru.hb3-accelerator.com/management) |
 | **Multichain Governance abstraction** | One address `0xdD27…29386` on Sepolia (Ethereum, Arbitrum, Base) | [Ethereum](https://sepolia.etherscan.io/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) · [Arbitrum](https://sepolia.arbiscan.io/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) · [Base](https://sepolia.basescan.org/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) |
 | **DLE Governance** | Create Proposal, Vote, Execute | [0x8e96…E63E1](https://sepolia.etherscan.io/address/0x8e96DdB110aa1C55A4b9ded8c16E66Fbdb5E63E1) |
 
-On the [management page](https://xn--80aqc0am6d.xn--p1ai/management) you can create proposals, vote, and execute decisions with a connected wallet.
+On the [management page](https://ru.hb3-accelerator.com/management) you can create proposals, vote, and execute decisions with a connected wallet.
 
 ---
 

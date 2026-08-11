@@ -19,7 +19,7 @@
         : message.sender_type === 'assistant' || message.role === 'assistant'
           ? 'ai-message'
           : message.sender_type === 'system' || message.role === 'system'
-            ? 'system-message'
+            ? (message.cmsEphemeral || message.i18n ? 'ai-message cms-welcome' : 'system-message')
             : 'user-message',
       message.isLocal ? 'is-local' : '',
       message.hasError ? 'has-error' : '',
@@ -37,9 +37,37 @@
       </div>
     </div>
 
+    <div v-if="cmsTitle" class="cms-welcome-title">{{ cmsTitle }}</div>
+
     <!-- Текстовый контент, если есть -->
     <!-- eslint-disable-next-line vue/no-v-html -->
-    <div v-if="message.content" class="message-content" v-html="formattedContent" />
+    <div v-if="displayContent" class="message-content" v-html="formattedContent" />
+
+    <!-- CMS ветки: кнопки + текстовые вопросы -->
+    <div v-if="cmsBranches.length" class="cms-branches">
+      <div v-if="buttonBranches.length" class="cms-branches__buttons">
+        <button
+          v-for="branch in buttonBranches"
+          :key="'btn-' + branch.id"
+          type="button"
+          class="system-btn"
+          @click="onBranchClick(branch)"
+        >
+          {{ branch.label }}
+        </button>
+      </div>
+      <div v-if="textBranches.length" class="cms-branches__texts">
+        <button
+          v-for="branch in textBranches"
+          :key="'txt-' + branch.id"
+          type="button"
+          class="cms-branch-text"
+          @click="onBranchClick(branch)"
+        >
+          {{ branch.label }}
+        </button>
+      </div>
+    </div>
     
     <!-- Ссылка "Ответить" для публичных сообщений от других пользователей -->
     <div v-if="shouldShowReplyLink" class="message-reply-link">
@@ -151,7 +179,7 @@ import { marked } from 'marked';
 import eventBus from '../utils/eventBus';
 import { useAuthContext } from '../composables/useAuth';
 
-const { t } = useI18n();
+const { t, locale: i18nLocale } = useI18n();
 const auth = useAuthContext();
 
 const props = defineProps({
@@ -169,7 +197,38 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['consent-granted']);
+const emit = defineEmits(['consent-granted', 'cms-branch']);
+
+const cmsLocaleBlock = computed(() => {
+  const map = props.message?.i18n;
+  if (!map || typeof map !== 'object') return null;
+  const loc = String(i18nLocale.value || 'ru');
+  return map[loc] || map.ru || map.en || Object.values(map)[0] || null;
+});
+
+const displayContent = computed(() => {
+  if (cmsLocaleBlock.value?.content) return cmsLocaleBlock.value.content;
+  return props.message?.content || '';
+});
+
+const cmsTitle = computed(() => {
+  if (!(props.message?.cmsEphemeral || props.message?.i18n)) return '';
+  return cmsLocaleBlock.value?.title || '';
+});
+
+const cmsBranches = computed(() => {
+  const branches = cmsLocaleBlock.value?.branches;
+  return Array.isArray(branches) ? branches : [];
+});
+
+const buttonBranches = computed(() => cmsBranches.value.filter((b) => b.ui !== 'text'));
+const textBranches = computed(() => cmsBranches.value.filter((b) => b.ui === 'text'));
+
+function onBranchClick(branch) {
+  const payload = branch.payload || branch.label || '';
+  if (!payload) return;
+  emit('cms-branch', { payload, branch, message: props.message });
+}
 
 const showWalletInvite = computed(() => (
   Boolean(props.message?.suggestWalletLogin) && !auth.isAuthenticated.value
@@ -343,8 +402,8 @@ onUnmounted(() => {
 
 // --- Форматирование контента и времени (остается как было) ---
 const formattedContent = computed(() => {
-  if (!props.message.content) return '';
-  const rawHtml = marked.parse(props.message.content);
+  if (!displayContent.value) return '';
+  const rawHtml = marked.parse(displayContent.value);
   return DOMPurify.sanitize(rawHtml);
 });
 
@@ -432,6 +491,58 @@ function copyEmail(email) {
   color: var(--color-system-text);
   text-align: center;
   max-width: 90%;
+}
+
+/* CMS-приветствие — как ответ ассистента, без «системного» italic */
+.message.cms-welcome {
+  font-style: normal;
+  color: inherit;
+  text-align: left;
+}
+
+.cms-welcome-title {
+  font-weight: 600;
+  font-size: var(--font-size-md);
+  margin-bottom: var(--spacing-xs);
+  line-height: 1.35;
+}
+
+.cms-branches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  font-style: normal;
+}
+
+.cms-branches__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.cms-branches__texts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.cms-branch-text {
+  border: none;
+  background: transparent;
+  color: var(--color-primary, #1a1a1a);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: 0;
+  text-align: left;
+}
+
+.cms-branch-text:hover {
+  opacity: 0.8;
 }
 
 .message-content {

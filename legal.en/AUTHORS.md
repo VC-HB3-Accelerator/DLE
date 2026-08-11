@@ -14,7 +14,7 @@
 
 - **Limited Liability Company "ERAYTI" (LLC "ERAYTI")**  
   - **Role:** Official seller and licensing partner for customers in the Russian Federation  
-  - **Contacts:** 18900@эрайти.рф, +7 (968) 269-92-64
+  - **Contacts:** info@ru.hb3-accelerator.com, +7 (968) 269-92-64
 
 ## Contact Information
 

@@ -21,6 +21,11 @@
         <button class="details-btn" @click="goTo('/settings/ai/openai')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
+        <h3>{{ t('settings.ai.deepseek.title') }}</h3>
+        <p>{{ t('settings.ai.deepseek.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/deepseek')">{{ t('common.details') }}</button>
+      </div>
+      <div class="integration-block">
         <h3>{{ t('settings.ai.vpn.title') }}</h3>
         <p>{{ t('settings.ai.vpn.cardDescription') }}</p>
         <button class="details-btn" @click="goTo('/settings/ai/vpn')">{{ t('common.details') }}</button>
@@ -114,6 +119,14 @@ const providerLabels = computed(() => ({
     description: t('settings.ai.openai.providerDescription'),
     apiKeyPlaceholder: 'sk-...',
     baseUrlPlaceholder: 'https://api.openai.com/v1',
+    showApiKey: true,
+    showBaseUrl: true,
+  },
+  deepseek: {
+    label: t('settings.ai.deepseek.label'),
+    description: t('settings.ai.deepseek.providerDescription'),
+    apiKeyPlaceholder: 'sk-...',
+    baseUrlPlaceholder: 'https://api.deepseek.com',
     showApiKey: true,
     showBaseUrl: true,
   },

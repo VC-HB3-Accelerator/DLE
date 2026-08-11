@@ -168,6 +168,26 @@ class TelegramBot {
         logger.warn(`[TelegramBot] /start payload=${payload ? `${payload.slice(0, 6)}…` : '(empty)'} text=${String(ctx.message?.text || '').slice(0, 40)}`);
 
         if (!payload) {
+          // Органический /start: welcome CMS (если есть), иначе подсказка про вход
+          try {
+            const systemMessages = require('./systemMessagesService');
+            const viewer = { isGuest: true, userId: null, role: 'guest', createdAt: null, tagIds: [] };
+            const welcome = await systemMessages.getActiveWelcome({ channel: 'telegram', viewer });
+            if (welcome) {
+              const lang = String(ctx.from?.language_code || 'ru').toLowerCase().startsWith('en') ? 'en' : 'ru';
+              const formatted = systemMessages.formatWelcomeText(welcome, { locale: lang, channel: 'telegram' });
+              const keyboard = systemMessages.telegramInlineKeyboard(welcome, lang);
+              await ctx.reply(formatted.text || formatted.title || 'Welcome', keyboard
+                ? { reply_markup: { inline_keyboard: keyboard } }
+                : undefined);
+              if (telegramId) {
+                await systemMessages.tryRecordDelivery(welcome.id, 'telegram', String(telegramId));
+              }
+              return;
+            }
+          } catch (welcomeErr) {
+            logger.warn('[TelegramBot] welcome on empty /start:', welcomeErr.message);
+          }
           await ctx.reply(
             'Чтобы войти, откройте бота именно ссылкой с сайта (кнопка «Открыть бота»), а не через уже открытый чат.'
           );
@@ -178,10 +198,86 @@ class TelegramBot {
         const result = await telegramLoginService.completeFromStart(payload, telegramId);
         logger.warn(`[TelegramBot] /start login ok=${!!result.ok}`);
         await ctx.reply(result.message || (result.ok ? 'Готово. Можно вернуться на сайт.' : 'Ошибка входа.'));
+
+        if (result.ok && telegramId) {
+          try {
+            const systemMessages = require('./systemMessagesService');
+            const db = require('../db');
+            const { rows } = await db.getQuery()(
+              `SELECT u.id, u.role, u.created_at FROM users u
+               JOIN user_identities ui ON ui.user_id = u.id
+               WHERE decrypt_text(ui.provider_encrypted, $2) = 'telegram'
+                 AND decrypt_text(ui.provider_id_encrypted, $2) = $1
+               LIMIT 1`,
+              [String(telegramId), require('../utils/encryptionUtils').getEncryptionKey()]
+            );
+            const user = rows[0];
+            const viewer = user
+              ? await systemMessages.buildViewerFromUserId(user.id)
+              : { isGuest: true, userId: null, role: 'guest', createdAt: null, tagIds: [] };
+            const welcome = await systemMessages.getActiveWelcome({ channel: 'telegram', viewer });
+            if (welcome && !(await systemMessages.hasDelivery(welcome.id, 'telegram', String(telegramId)))) {
+              const lang = String(ctx.from?.language_code || 'ru').toLowerCase().startsWith('en') ? 'en' : 'ru';
+              const formatted = systemMessages.formatWelcomeText(welcome, { locale: lang, channel: 'telegram' });
+              const keyboard = systemMessages.telegramInlineKeyboard(welcome, lang);
+              await ctx.reply(formatted.text || formatted.title || 'Welcome', keyboard
+                ? { reply_markup: { inline_keyboard: keyboard } }
+                : undefined);
+              await systemMessages.tryRecordDelivery(welcome.id, 'telegram', String(telegramId));
+            }
+          } catch (welcomeErr) {
+            logger.warn('[TelegramBot] welcome after login:', welcomeErr.message);
+          }
+        }
       } catch (error) {
         logger.error('[TelegramBot] /start error:', error);
         try {
           await ctx.reply('Произошла ошибка при входе. Попробуйте снова с сайта.');
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    });
+
+    // Callback кнопок CMS welcome
+    this.bot.on('callback_query', async (ctx) => {
+      try {
+        const data = String(ctx.callbackQuery?.data || '');
+        if (!data.startsWith('sysmsg:')) {
+          await ctx.answerCbQuery();
+          return;
+        }
+        const parts = data.split(':');
+        const slug = parts[1];
+        const branchId = parts[2];
+        const systemMessages = require('./systemMessagesService');
+        const msg = await systemMessages.getBySlug(slug);
+        if (!msg) {
+          await ctx.answerCbQuery('—');
+          return;
+        }
+        const lang = String(ctx.from?.language_code || 'ru').toLowerCase().startsWith('en') ? 'en' : 'ru';
+        const { branches } = systemMessages.formatWelcomeText(msg, { locale: lang, channel: 'telegram' });
+        const branch = branches.find((b) => b.id === branchId);
+        await ctx.answerCbQuery();
+        if (branch?.payload) {
+          const fakeCtx = {
+            ...ctx,
+            message: {
+              message_id: ctx.callbackQuery?.message?.message_id,
+              text: branch.payload,
+              from: ctx.from,
+              chat: ctx.chat || ctx.callbackQuery?.message?.chat,
+              date: Math.floor(Date.now() / 1000),
+            },
+            updateType: 'message',
+          };
+          await this.handleMessage(fakeCtx);
+        }
+      } catch (error) {
+        logger.error('[TelegramBot] callback_query sysmsg:', error);
+        try {
+          await ctx.answerCbQuery();
         } catch (_) {
           /* ignore */
         }

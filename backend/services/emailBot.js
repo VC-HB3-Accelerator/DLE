@@ -375,6 +375,32 @@ class EmailBot {
                 const messageData = await this.extractMessageData(parsed, messageId, uid);
                 if (messageData && this.messageProcessor) {
                   try {
+                    // First-touch welcome (CMS) — не в history; только первый email
+                    try {
+                      const systemMessages = require('./systemMessagesService');
+                      const fromAddr = String(fromEmail || '').toLowerCase().trim();
+                      if (fromAddr && fromAddr.includes('@')) {
+                        const viewer = { isGuest: true, userId: null, role: 'guest', createdAt: null, tagIds: [] };
+                        const welcome = await systemMessages.getActiveWelcome({ channel: 'email', viewer });
+                        if (welcome && !(await systemMessages.hasDelivery(welcome.id, 'email', fromAddr))) {
+                          const inserted = await systemMessages.tryRecordDelivery(welcome.id, 'email', fromAddr);
+                          if (inserted) {
+                            const formatted = systemMessages.formatWelcomeText(welcome, {
+                              locale: 'ru',
+                              channel: 'email',
+                            });
+                            await this.sendEmail(
+                              fromAddr,
+                              formatted.title || 'Welcome',
+                              formatted.text || formatted.content || ''
+                            );
+                          }
+                        }
+                      }
+                    } catch (welcomeErr) {
+                      logger.warn(`[EmailBot] welcome first-touch: ${welcomeErr.message}`);
+                    }
+
                     // Обрабатываем сообщение через унифицированный процессор
                     // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
                     const result = await this.messageProcessor(messageData);

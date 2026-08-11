@@ -1565,7 +1565,7 @@ router.post('/send', requireAuth, async (req, res) => {
       const encryptionUtils = require('../utils/encryptionUtils');
       const encryptionKey = encryptionUtils.getEncryptionKey();
       const botManager = require('../services/botManager');
-      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://xn--80aqc0am6d.xn--p1ai';
+      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://ru.hb3-accelerator.com';
       
       // Получаем все идентификаторы получателя
       const identitiesRes = await db.getQuery()(

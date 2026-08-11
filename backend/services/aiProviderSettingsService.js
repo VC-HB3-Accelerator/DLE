@@ -12,6 +12,7 @@
 
 const encryptedDb = require('./encryptedDatabaseService');
 const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const axios = require('axios');
 const ollamaConfig = require('./ollamaConfig');
 const openaiProxy = require('./openaiProxy');
@@ -19,6 +20,26 @@ const blancVpnService = require('./blancVpnService');
 
 const TABLE = 'ai_providers_settings';
 const TIMEOUTS = ollamaConfig.getTimeouts();
+const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com';
+
+function resolveDeepseekBaseUrl(base_url) {
+  const trimmed = String(base_url || '').trim();
+  return trimmed || DEEPSEEK_DEFAULT_BASE_URL;
+}
+
+/** DeepSeek — OpenAI-compatible API, без openai proxy/Blanc. */
+function createDeepseekClient(settings) {
+  if (!settings?.api_key) {
+    const err = new Error('DeepSeek API key не настроен');
+    err.status = 400;
+    err.code = 'DEEPSEEK_KEY_MISSING';
+    throw err;
+  }
+  return new OpenAI({
+    apiKey: settings.api_key,
+    baseURL: resolveDeepseekBaseUrl(settings.base_url)
+  });
+}
 
 async function getProviderSettings(provider) {
   const settings = await encryptedDb.getData(TABLE, { provider: provider }, 1);
@@ -128,6 +149,11 @@ async function getProviderModels(provider, settings = {}) {
       const res = await client.models.list();
       return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
     }
+    if (provider === 'deepseek') {
+      const client = createDeepseekClient(settings);
+      const res = await client.models.list();
+      return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
+    }
     if (provider === 'anthropic') {
       const client = new Anthropic({ apiKey: settings.api_key, baseURL: settings.base_url });
       const res = await client.models.list();
@@ -181,6 +207,11 @@ async function verifyProviderKey(provider, settings = {}) {
         proxy_openai: settings.proxy_openai !== undefined ? settings.proxy_openai : true,
         proxy_telegram: settings.proxy_telegram
       });
+      await client.models.list();
+      return { success: true };
+    }
+    if (provider === 'deepseek') {
+      const client = createDeepseekClient(settings);
       await client.models.list();
       return { success: true };
     }

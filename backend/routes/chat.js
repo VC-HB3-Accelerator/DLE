@@ -63,11 +63,23 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     const content = req.body.message;
     const guestId = req.body.guestId;
     const files = req.files || [];
+    let assignTags = [];
+    if (req.body.assign_tags) {
+      try {
+        const parsed = typeof req.body.assign_tags === 'string'
+          ? JSON.parse(req.body.assign_tags)
+          : req.body.assign_tags;
+        if (Array.isArray(parsed)) assignTags = parsed.map((t) => String(t).trim()).filter(Boolean);
+      } catch (_) {
+        assignTags = String(req.body.assign_tags).split(',').map((t) => t.trim()).filter(Boolean);
+      }
+    }
 
     logger.info('[Chat] Получен guest-message запрос:', { 
       content: content?.substring(0, 50), 
       guestId, 
       hasFiles: files.length > 0,
+      assignTags,
       bodyKeys: Object.keys(req.body)
     });
 
@@ -189,7 +201,8 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       content: content,
       channel: 'web',
       attachments: attachments,
-      contentData: contentData
+      contentData: contentData,
+      assign_tags: assignTags
     };
 
     // Обработка через unified processor
@@ -246,6 +259,17 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     const { conversationId, recipientId } = req.body;
     const userId = req.session.userId;
     const files = req.files || [];
+    let assignTags = [];
+    if (req.body.assign_tags) {
+      try {
+        const parsed = typeof req.body.assign_tags === 'string'
+          ? JSON.parse(req.body.assign_tags)
+          : req.body.assign_tags;
+        if (Array.isArray(parsed)) assignTags = parsed.map((t) => String(t).trim()).filter(Boolean);
+      } catch (_) {
+        assignTags = String(req.body.assign_tags).split(',').map((t) => t.trim()).filter(Boolean);
+      }
+    }
 
     if (!content) {
       return res.status(400).json({
@@ -352,7 +376,8 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       attachments: attachments,
       conversationId: conversationId || null,
       recipientId: recipientId || null,
-      userId: userId
+      userId: userId,
+      assign_tags: assignTags
     };
 
     // Обработка через unified processor

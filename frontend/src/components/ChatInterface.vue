@@ -31,6 +31,7 @@
           :isPrivateChat="isPrivateChat"
           :currentUserId="currentUserId"
           @consent-granted="handleConsentGranted"
+          @cms-branch="handleCmsBranch"
         />
       </div>
     </div>
@@ -194,6 +195,18 @@ function panelWidthStyle() {
 function handleConsentGranted(messageId) {
   // После подписания удаляем системное сообщение о необходимости согласия
   emit('remove-consent-messages', [messageId]);
+}
+
+function handleCmsBranch({ payload, branch }) {
+  if (!payload) return;
+  const assignTags = Array.isArray(branch?.assign_tags)
+    ? branch.assign_tags
+    : (Array.isArray(branch?.assignTags) ? branch.assignTags : []);
+  emit('send-message', {
+    message: payload,
+    attachments: [],
+    assign_tags: assignTags,
+  });
 }
 
 // Локальное состояние для предпросмотра, синхронизированное с props.attachments

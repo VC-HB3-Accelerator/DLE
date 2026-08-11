@@ -35,7 +35,7 @@ const DEFAULT_PROGRESS = path.resolve(
   'companies_for_mailing_verify_progress.json'
 );
 
-const DEFAULT_MAIL_FROM = '18900@xn--80aqc0am6d.xn--p1ai';
+const DEFAULT_MAIL_FROM = 'info@ru.hb3-accelerator.com';
 const DEFAULT_HELO = 'verify.local';
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_CONCURRENCY = 3;

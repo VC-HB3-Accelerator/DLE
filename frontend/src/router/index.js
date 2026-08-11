@@ -178,6 +178,12 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
+    path: '/settings/ai/deepseek',
+    name: 'deepseek-settings',
+    component: () => import('@/views/settings/AI/DeepSeekSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
+  },
+  {
     path: '/settings/ai/vpn',
     name: 'vpn-settings',
     component: () => import('@/views/settings/AI/VpnSettingsView.vue'),

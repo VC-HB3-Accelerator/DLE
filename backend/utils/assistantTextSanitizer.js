@@ -98,6 +98,10 @@ function sanitizeAssistantText(raw) {
   text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
   text = replaceLatinLookalikesInCyrillicWords(text);
   text = text.replace(/[ \t]{2,}/g, ' ').trim();
+  // Служебные утечки из RAG-промпта
+  text = text.replace(/\(?\s*Таблица\s*\(ID:\s*\d+\)\s*\)?/gi, '');
+  text = text.replace(/\[Источник\s+\d+[^\]]*\]/gi, '');
+  text = text.replace(/[ \t]{2,}/g, ' ').trim();
 
   return text;
 }

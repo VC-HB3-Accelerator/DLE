@@ -72,6 +72,37 @@ class AIAssistant {
     try {
       logger.info(`[AIAssistant] Генерация ответа для канала ${channel}, пользователь ${userId}`);
 
+      // Теги аудитории с кнопки welcome (или явный metadata) — работают и для гостей
+      const WELCOME_TAG_HINTS = [
+        { re: /хочу узнать об инвестициях\s*\/\s*stage a/i, tags: ['investor-a'] },
+        { re: /i want to learn about investing\s*\/\s*stage a/i, tags: ['investor-a'] },
+        { re: /интересует партн[её]рство\s*\/\s*контрибьютор/i, tags: ['partner'] },
+        { re: /interested in partnership\s*\/\s*contributor/i, tags: ['partner'] },
+      ];
+      let assignTagNames = [];
+      if (Array.isArray(metadata.assign_tags)) {
+        assignTagNames = metadata.assign_tags.map((t) => String(t).trim()).filter(Boolean);
+      } else if (typeof metadata.assign_tags === 'string' && metadata.assign_tags.trim()) {
+        try {
+          const parsed = JSON.parse(metadata.assign_tags);
+          if (Array.isArray(parsed)) assignTagNames = parsed.map((t) => String(t).trim()).filter(Boolean);
+          else assignTagNames = metadata.assign_tags.split(',').map((t) => t.trim()).filter(Boolean);
+        } catch (_) {
+          assignTagNames = metadata.assign_tags.split(',').map((t) => t.trim()).filter(Boolean);
+        }
+      }
+      if (!assignTagNames.length) {
+        for (const hint of WELCOME_TAG_HINTS) {
+          if (hint.re.test(String(userQuestion || ''))) {
+            assignTagNames = hint.tags;
+            break;
+          }
+        }
+      }
+      if (assignTagNames.length) {
+        logger.info(`[AIAssistant] assign_tags аудитории: ${assignTagNames.join(', ')}`);
+      }
+
       // 0. Проверяем язык сообщения (только русский)
       const languageCheck = shouldProcessWithAI(userQuestion);
       if (!languageCheck.shouldProcess) {
@@ -186,12 +217,18 @@ class AIAssistant {
         if (userId && !userContextService.isGuestId(userId)) {
           userTagIds = await userContextService.getUserTags(userId);
         }
+        if (assignTagNames.length) {
+          const hintedIds = await profileAnalysisService.getTagIdsByNames(assignTagNames);
+          if (Array.isArray(hintedIds) && hintedIds.length) {
+            userTagIds = Array.from(new Set([...(userTagIds || []), ...hintedIds]));
+          }
+        }
         rules = await aiAssistantRulesService.resolveRulesForUser({
           rulesId: aiSettings?.rules_id || null,
           tagIds: userTagIds
         });
         logger.info(
-          `[AIAssistant] Правила: по тегам=${rules.byTags?.length || 0}, базовый=${rules.global ? rules.global.name : 'нет'}`
+          `[AIAssistant] Правила: по тегам=${rules.byTags?.length || 0}, базовый=${rules.global ? rules.global.name : 'нет'}, tagIds=[${(userTagIds || []).join(',')}]`
         );
       } catch (rulesErr) {
         logger.warn(`[AIAssistant] Не удалось загрузить правила: ${rulesErr.message}`);
@@ -213,6 +250,10 @@ class AIAssistant {
       let searchResults = null;
       let ragResult = null; // Для обратной совместимости
 
+      // Важно (продукт): не отдаём FAQ дословно — ассистент ведёт беседу и синтезирует ответ.
+      // RAG hit’ы = факты/якоря для LLM, не готовый UX-текст («киоск документов»).
+      // См. docs.ru/back-docs/AI-OS-CONFIG/00-product-intent.ru.md
+
       if (tableIds.length > 0 || true) { // Всегда ищем в документах, если включено
         try {
           logger.info(`[AIAssistant] Вызов multiSourceSearchService.search для запроса: "${userQuestion.substring(0, 50)}..."`);
@@ -228,6 +269,22 @@ class AIAssistant {
           });
           const searchDuration = Date.now() - searchStartTime;
           logger.info(`[AIAssistant] Мульти-источниковый поиск завершен за ${searchDuration}ms, найдено результатов: ${searchResults?.results?.length || 0}`);
+
+          // Аудиторный фильтр по assign_tags / welcome (в т.ч. для гостей без профиля)
+          if (assignTagNames.length && searchResults?.results?.length) {
+            const wanted = new Set(assignTagNames.map((t) => String(t).toLowerCase()));
+            const filtered = searchResults.results.filter((r) => {
+              const rowTags = r.metadata?.userTags || r.userTags || [];
+              if (!Array.isArray(rowTags) || !rowTags.length) return false;
+              return rowTags.some((t) => wanted.has(String(t).toLowerCase()));
+            });
+            if (filtered.length) {
+              searchResults.results = filtered;
+              logger.info(`[AIAssistant] После фильтра assign_tags осталось ${filtered.length} hit(s)`);
+            } else {
+              logger.warn(`[AIAssistant] Фильтр assign_tags опустошил выдачу — оставляем исходные hit(s)`);
+            }
+          }
 
           // Формируем объединенный результат для обратной совместимости
           if (searchResults.results && searchResults.results.length > 0) {
@@ -246,7 +303,7 @@ class AIAssistant {
             const allResultsContext = searchResults.results
               .slice(0, 3) // Берем топ-3 результатов
               .map((r, idx) => {
-                const sourceLabel = r.sourceType === 'table' ? 'Таблица' : 'Документ';
+                const sourceLabel = r.sourceType === 'table' ? 'База знаний' : 'Документ';
                 const fallbackText = (r.metadata?.answer && String(r.metadata.answer).trim())
                   || (r.metadata?.title && String(r.metadata.title).trim())
                   || '(текст отсутствует)';
@@ -321,7 +378,9 @@ class AIAssistant {
       const userProfile = {
         id: userId,
         name: userNameForProfile || null,
-        tags: Array.isArray(userTags) ? userTags : [],
+        tags: Array.isArray(userTags) && userTags.length
+          ? userTags
+          : (assignTagNames.length ? assignTagNames : []),
         nameMissing: shouldAskForName,
         suggestedTags: profileAnalysis?.suggestedTags || [],
         comment: profileComment,
@@ -352,7 +411,7 @@ class AIAssistant {
         selectedRagTables: aiSettings ? aiSettings.selected_rag_tables : [],
         userId: userId,
         multiSourceResults: searchResults,
-        userTags: userTags,
+        userTags: (Array.isArray(userTags) && userTags.length) ? userTags : (assignTagNames.length ? assignTagNames : null),
         userProfile,
         enableTools: needsProfileTools && userId && !userContextService.isGuestId(userId),
         conversationMemory

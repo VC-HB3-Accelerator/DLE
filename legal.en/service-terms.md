@@ -424,7 +424,7 @@ Licenses are sold **through Authorized Contributors** who have accepted
 - OGRN: 1222600014383
 - INN: 2636220809
 - Address: 355007, Stavropol Territory, Stavropol, Burmistrova St., 65B, premises 2
-- Contacts: 18900@эрайти.рф, +7 (968) 269-92-64
+- Contacts: info@ru.hb3-accelerator.com, +7 (968) 269-92-64
 - Client agreement templates: [legal.en/templates/](templates/)
 
 ### 11.3. Direct Purchase from the Author

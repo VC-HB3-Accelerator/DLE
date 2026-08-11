@@ -15,6 +15,7 @@ import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
 import websocketModule from '../services/websocketService';
+import systemMessagesService from '../services/systemMessagesService';
 import { i18n } from '@/locales/index.js';
 
 const t = (key, params) => i18n.global.t(key, params);
@@ -195,6 +196,80 @@ export function useChat(auth) {
       messageLoading.value.isLoadingHistory = false;
       messageLoading.value.isHistoryLoadingInProgress = false;
       if (initial) isLoading.value = false;
+      if (initial) {
+        // После входа: API сам отфильтрует «старых» user; гостевой ответ в полёте отбрасываем (generation).
+        injectCmsSystemMessages().catch(() => {});
+      }
+    }
+  };
+
+  /** Счётчик, чтобы устаревший гостевой /published не вставил welcome уже после логина. */
+  let cmsInjectGeneration = 0;
+  const CMS_SHOWN_KEY = 'dle_cms_welcome_shown';
+
+  function stripCmsEphemeral() {
+    messages.value = messages.value.filter((m) => !m.cmsEphemeral);
+  }
+
+  /** Ephemeral CMS welcome — не в историю БД. Гостям — да; существующим user — нет (бэкенд). */
+  const injectCmsSystemMessages = async () => {
+    const generation = ++cmsInjectGeneration;
+    const startedAsGuest = !auth.isAuthenticated.value;
+    try {
+      const response = await systemMessagesService.getPublishedSystemMessages({ channel: 'web' });
+      if (generation !== cmsInjectGeneration) return;
+
+      // Ответ «как для гостя», а сессия уже есть — устаревший/кэшированный ответ, не вставляем.
+      if (auth.isAuthenticated.value && response?.viewer?.isGuest) {
+        stripCmsEphemeral();
+        return;
+      }
+      // Запрос стартовал гостем, к ответу уже вошли — не дублируем welcome после входа.
+      if (startedAsGuest && auth.isAuthenticated.value) {
+        stripCmsEphemeral();
+        return;
+      }
+      // Гость уже видел в этой вкладке → после входа не второй раз (ТЗ P0).
+      if (auth.isAuthenticated.value) {
+        try {
+          if (sessionStorage.getItem(CMS_SHOWN_KEY)) {
+            stripCmsEphemeral();
+            return;
+          }
+        } catch (_) { /* ignore */ }
+      }
+
+      const items = Array.isArray(response?.items) ? response.items : [];
+      const welcome = items.find((m) => m.kind === 'welcome') || items[0];
+      stripCmsEphemeral();
+      if (!welcome) return;
+
+      // Держим сверху ленты: иначе watch-сортировка по timestamp утащит «сейчас» вниз после логина.
+      const oldestTs = messages.value.reduce((min, m) => {
+        const t = new Date(m.timestamp || m.created_at || 0).getTime();
+        return Number.isFinite(t) && t > 0 && t < min ? t : min;
+      }, Date.now());
+
+      messages.value.unshift({
+        id: `cms-${welcome.id}`,
+        cmsEphemeral: true,
+        persist_to_history: false,
+        sender_type: 'system',
+        role: 'system',
+        systemMessageId: welcome.id,
+        slug: welcome.slug,
+        kind: welcome.kind,
+        importance: welcome.importance,
+        i18n: welcome.i18n,
+        reply_type: welcome.reply_type,
+        timestamp: new Date(oldestTs - 1000).toISOString(),
+        content: welcome.i18n?.ru?.content || welcome.i18n?.en?.content || '',
+      });
+      try {
+        sessionStorage.setItem(CMS_SHOWN_KEY, String(welcome.id));
+      } catch (_) { /* ignore */ }
+    } catch (error) {
+      // тихо: админка/миграция ещё могут отсутствовать
     }
   };
 
@@ -209,7 +284,7 @@ export function useChat(auth) {
     // });
     // --- КОНЕЦ ДОБАВЛЕННЫХ ЛОГОВ ---
 
-    const { message: text, attachments: files } = payload; // files - массив File объектов
+    const { message: text, attachments: files, assign_tags: assignTags } = payload; // files - массив File объектов
     const userMessageContent = text.trim();
 
     // Проверка на пустое сообщение (если нет ни текста, ни файлов)
@@ -250,6 +325,9 @@ export function useChat(auth) {
         const formData = new FormData();
         formData.append('message', userMessageContent);
         formData.append('language', userLanguage.value);
+        if (Array.isArray(assignTags) && assignTags.length) {
+            formData.append('assign_tags', JSON.stringify(assignTags));
+        }
 
         if (files && files.length > 0) {
             files.forEach((file) => {
@@ -435,6 +513,9 @@ export function useChat(auth) {
     // Сортируем только если массив изменился
     if (newMessages.length > 1) {
        messages.value.sort((a, b) => {
+         // CMS welcome всегда выше обычной истории (не «всплывает» вниз после логина).
+         if (a.cmsEphemeral && !b.cmsEphemeral) return -1;
+         if (!a.cmsEphemeral && b.cmsEphemeral) return 1;
          const dateA = new Date(a.timestamp || a.created_at || 0);
          const dateB = new Date(b.timestamp || b.created_at || 0);
          return dateA - dateB;
@@ -445,20 +526,19 @@ export function useChat(auth) {
  // Сброс чата при выходе пользователя
  watch(() => auth.isAuthenticated.value, (isAuth, wasAuth) => {
      if (!isAuth && wasAuth) { // Если пользователь разлогинился
-         // console.log('[useChat] Пользователь вышел, сброс состояния чата.');
+         cmsInjectGeneration += 1;
+         try { sessionStorage.removeItem(CMS_SHOWN_KEY); } catch (_) { /* ignore */ }
          messages.value = [];
          messageLoading.value.offset = 0;
          messageLoading.value.hasMoreMessages = false;
          hasUserSentMessage.value = false;
          newMessage.value = '';
          attachments.value = [];
-         // Отключаем WebSocket
          cleanupWebSocket();
-         // Гостевые данные очищаются при успешной аутентификации в loadMessages
-         // или если пользователь сам очистит localStorage
      } else if (isAuth && !wasAuth) { // Если пользователь вошел
-         // console.log('[useChat] Пользователь вошел, подключаем WebSocket.');
-         // Отложенное подключение, чтобы дождаться загрузки данных пользователя
+         // Сразу снимаем гостевой welcome; актуальный inject — только после history + API с сессией.
+         cmsInjectGeneration += 1;
+         stripCmsEphemeral();
          setTimeout(() => setupChatWebSocket(), 100);
      }
  });
@@ -555,8 +635,11 @@ export function useChat(auth) {
   onMounted(() => {
     if (!auth.isAuthenticated.value && guestId.value) {
       loadGuestMessagesFromStorage();
+      injectCmsSystemMessages().catch(() => {});
     } else if (auth.isAuthenticated.value) {
       loadMessages({ initial: true });
+    } else {
+      injectCmsSystemMessages().catch(() => {});
     }
     
     // Подключаем WebSocket если пользователь уже аутентифицирован
@@ -593,5 +676,6 @@ export function useChat(auth) {
     handleSendMessage,
     loadGuestMessagesFromStorage, // Экспортируем на всякий случай
     linkGuestMessagesAfterAuth,   // Экспортируем для вызова после авторизации
+    injectCmsSystemMessages,
   };
 } 

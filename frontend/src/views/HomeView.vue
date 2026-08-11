@@ -179,7 +179,8 @@
   const handleAuthEvent = async (eventData) => {
     const loggedIn = eventData?.isAuthenticated ?? eventData?.authenticated;
     if (loggedIn) {
-      // Сначала перенос гостя → messages, потом история на главной
+      // Гостевой CMS-welcome не переносим в авторизованный чат (ТЗ: не дублировать после входа).
+      messages.value = messages.value.filter((m) => !m.cmsEphemeral);
       await linkGuestMessagesAfterAuth();
       await loadMessages({ initial: true, authType: eventData.authType || 'wallet' });
     } else {

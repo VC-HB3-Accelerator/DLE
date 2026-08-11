@@ -154,9 +154,11 @@
                 </td>
                 <td>
                   <button class="title-button" type="button" @click="openDetails(message.id)">
-                    {{ message.title }}
+                    {{ messageTitle(message) }}
                   </button>
-                  <p class="summary" v-if="message.summary">{{ message.summary }}</p>
+                  <p class="summary" v-if="message.i18n?.ru?.summary || message.summary">
+                    {{ message.i18n?.ru?.summary || message.summary }}
+                  </p>
                 </td>
                 <td>
                   <span :class="['status-badge', message.status]">
@@ -169,7 +171,7 @@
                   </span>
                 </td>
                 <td>
-                  <span class="audience-label">{{ formatAudience(message.visible_for || message.visibleFor) }}</span>
+                  <span class="audience-label">{{ formatAudience(message.audience?.preset || message.visible_for || message.visibleFor) }}</span>
                 </td>
                 <td>
                   <div class="period">
@@ -197,6 +199,13 @@
           <p v-else>{{ t('content.systemMessages.empty') }}</p>
         </div>
       </section>
+        <SystemMessageFormDrawer
+          :open="formOpen"
+          :message-id="editingId"
+          @close="closeForm"
+          @saved="onFormSaved"
+          @deleted="onFormSaved"
+        />
     </div>
   </BaseLayout>
 </template>
@@ -208,6 +217,7 @@ import { useRouter } from 'vue-router';
 
 import BaseLayout from '../../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import SystemMessageFormDrawer from './SystemMessageFormDrawer.vue';
 import systemMessagesService from '../../../services/systemMessagesService';
 import { usePermissions } from '../../../composables/usePermissions';
 
@@ -245,10 +255,22 @@ const searchTerm = ref('');
 const statusFilter = ref('all');
 const audienceFilter = ref('all');
 const selectedRows = ref([]);
+const formOpen = ref(false);
+const editingId = ref(null);
 const notification = reactive({
   type: '',
   message: ''
 });
+
+function messageTitle(message) {
+  return (
+    message.i18n?.ru?.title
+    || message.i18n?.en?.title
+    || message.title
+    || message.slug
+    || message.id
+  );
+}
 
 const filteredMessages = computed(() => {
   const term = searchTerm.value.trim().toLowerCase();
@@ -256,15 +278,18 @@ const filteredMessages = computed(() => {
   const audience = audienceFilter.value;
 
   return systemMessages.value.filter((message) => {
-    const matchesTerm =
-      !term ||
-      message.title?.toLowerCase().includes(term) ||
-      message.summary?.toLowerCase().includes(term);
+    const title = String(messageTitle(message)).toLowerCase();
+    const summary = String(message.i18n?.ru?.summary || message.summary || '').toLowerCase();
+    const matchesTerm = !term || title.includes(term) || summary.includes(term) || String(message.slug || '').includes(term);
 
     const matchesStatus = status === 'all' || message.status === status;
 
-    const messageAudience = message.visible_for || message.visibleFor || 'all';
-    const matchesAudience = audience === 'all' || messageAudience === audience;
+    const messageAudience = message.audience?.preset || message.visible_for || message.visibleFor || 'all';
+    const matchesAudience =
+      audience === 'all'
+      || messageAudience === audience
+      || (audience === 'guests' && message.audience?.include_guests)
+      || (audience === 'authenticated' && message.audience?.include_authenticated);
 
     return matchesTerm && matchesStatus && matchesAudience;
   });
@@ -310,11 +335,23 @@ function refresh() {
 }
 
 function openCreateMessage() {
-  showNotification('info', t('content.systemMessages.createComingSoon'));
+  editingId.value = null;
+  formOpen.value = true;
 }
 
 function openDetails(id) {
-  showNotification('info', t('content.systemMessages.detailsComingSoon', { id }));
+  editingId.value = id;
+  formOpen.value = true;
+}
+
+function closeForm() {
+  formOpen.value = false;
+  editingId.value = null;
+}
+
+async function onFormSaved() {
+  await fetchMessages();
+  showNotification('success', t('content.systemMessages.form.saved'));
 }
 
 function toggleSelectAll(event) {
@@ -388,7 +425,18 @@ function formatAudience(audience = 'all') {
     case 'authenticated':
       return t('content.systemMessages.audienceAuthenticated');
     case 'guests':
+    case 'guests_only':
       return t('content.systemMessages.audienceGuests');
+    case 'guests_and_new_users':
+      return t('content.systemMessages.form.presetGuestsNew');
+    case 'users_by_tags':
+      return t('content.systemMessages.form.presetTags');
+    case 'users_by_roles':
+      return t('content.systemMessages.form.presetRoles');
+    case 'users_by_tags_and_roles':
+      return t('content.systemMessages.form.presetTagsRoles');
+    case 'custom':
+      return t('content.systemMessages.form.presetCustom');
     case 'all':
     default:
       return t('content.systemMessages.audienceAll');

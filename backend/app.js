@@ -137,6 +137,7 @@ const compileRoutes = require('./routes/compile'); // Компиляция ко�
 const { router: dleHistoryRoutes } = require('./routes/dleHistory'); // Расширенная история
 const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
 const consentRoutes = require('./routes/consent'); // Добавляем импорт маршрутов согласий
+const systemMessagesRoutes = require('./routes/systemMessages');
 const vdsRoutes = require('./routes/vds'); // Добавляем импорт маршрутов VDS управления
 const updatesRoutes = require('./routes/updates'); // Закрытая раздача update-pack
 
@@ -418,6 +419,7 @@ app.get('/favicon.ico', (req, res) => {
 // Подключаем роутер страниц
 app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы) - ДОЛЖНО БЫТЬ ПЕРЕД статической раздачей
 app.use('/api/consent', consentRoutes); // Добавляем маршрут согласий
+app.use('/api/system-messages', systemMessagesRoutes);
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
 app.use('/api/vds', vdsRoutes); // Добавляем маршрут VDS управления
 app.use('/api/updates', updatesRoutes); // Закрытая раздача обновлений (ТЗ)
