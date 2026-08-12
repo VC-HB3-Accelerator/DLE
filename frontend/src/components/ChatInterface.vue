@@ -556,16 +556,80 @@ const checkMobile = () => {
   }
 };
 
-// Отслеживаем изменение размера окна
+// --- visualViewport: подгонка под мобильную клавиатуру (особенно iOS Safari) ---
+const KEYBOARD_OPEN_PX = 80;
+let blurResetTimer = null;
+
+const isMobileViewport = () => window.innerWidth <= 768;
+
+const getChatContainer = () => messagesContainer.value?.closest('.chat-container') || null;
+
+const resetPageScroll = () => {
+  window.scrollTo(0, 0);
+  if (document.documentElement) document.documentElement.scrollTop = 0;
+  if (document.body) document.body.scrollTop = 0;
+};
+
+const resetContainerHeight = () => {
+  const container = getChatContainer();
+  if (container) {
+    container.style.height = '';
+    container.style.maxHeight = '';
+  }
+};
+
+const getKeyboardInset = () => {
+  const vv = window.visualViewport;
+  if (!vv) return 0;
+  // iOS: layout viewport часто не сжимается; inset = разница + offsetTop
+  return Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+};
+
+const syncChatToViewport = () => {
+  if (!isMobileViewport() || !window.visualViewport) return;
+  const vv = window.visualViewport;
+  const container = getChatContainer();
+  if (!container) return;
+
+  const keyboardInset = getKeyboardInset();
+  if (keyboardInset > KEYBOARD_OPEN_PX) {
+    // Не vv.height целиком (игнорирует шапку) — только видимая зона от верха контейнера
+    const top = container.getBoundingClientRect().top;
+    const available = Math.max(120, Math.floor(vv.height - (top - vv.offsetTop)));
+    container.style.height = `${available}px`;
+    container.style.maxHeight = `${available}px`;
+    resetPageScroll();
+  } else {
+    resetContainerHeight();
+    resetPageScroll();
+  }
+  nextTick(() => scrollToBottom());
+};
+
+const onViewportChange = () => {
+  syncChatToViewport();
+};
+
 onMounted(() => {
   checkMobile();
   window.addEventListener('resize', checkMobile);
   adjustTextareaHeight();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onViewportChange);
+    // iOS двигает visualViewport.offsetTop через scroll, не только resize
+    window.visualViewport.addEventListener('scroll', onViewportChange);
+  }
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile);
   resetSendPressState();
+  if (blurResetTimer) clearTimeout(blurResetTimer);
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', onViewportChange);
+    window.visualViewport.removeEventListener('scroll', onViewportChange);
+  }
+  resetContainerHeight();
 });
 
 const startResize = (e) => {
@@ -621,7 +685,24 @@ const scrollToBottom = () => {
 // Вызываем scrollToBottom при изменении количества сообщений
 watch(() => props.messages.length, () => {
   scrollToBottom();
-}, { flush: 'post' }); // flush: 'post' гарантирует выполнение после обновления DOM
+}, { flush: 'post' });
+
+// Авто-скролл при потоковом обновлении последнего сообщения (стриминг ИИ)
+watch(
+  () => {
+    const msgs = props.messages;
+    if (!msgs.length) return '';
+    const last = msgs[msgs.length - 1];
+    return last?.content?.length || 0;
+  },
+  () => {
+    const el = messagesContainer.value;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (atBottom) scrollToBottom();
+  },
+  { flush: 'post' }
+);
 
 // Обработчик скролла для подгрузки сообщений
 const handleScroll = () => {
@@ -631,9 +712,32 @@ const handleScroll = () => {
   }
 };
 
-const handleFocus = () => {};
+const handleFocus = () => {
+  if (!isMobileViewport()) return;
+  // iOS: клавиатура и auto-zoom анимируются ~250–350ms
+  setTimeout(() => {
+    syncChatToViewport();
+    scrollToBottom();
+    resetPageScroll();
+  }, 300);
+};
 
-const handleBlur = () => {};
+const handleBlur = () => {
+  if (!isMobileViewport()) return;
+  if (blurResetTimer) clearTimeout(blurResetTimer);
+  // iOS закрывает клавиатуру дольше Android — двойной сброс
+  blurResetTimer = setTimeout(() => {
+    resetContainerHeight();
+    resetPageScroll();
+    nextTick(() => scrollToBottom());
+    setTimeout(() => {
+      resetContainerHeight();
+      resetPageScroll();
+      syncChatToViewport();
+      scrollToBottom();
+    }, 350);
+  }, 100);
+};
 
 // Форматирование размера файла
 const formatFileSize = (bytes) => {
@@ -755,6 +859,9 @@ async function handleAiReply() {
   height: 100%;
   max-height: 100%;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
   position: relative;
   overflow: hidden;
   --chat-column-width: 680px;
@@ -765,9 +872,13 @@ async function handleAiReply() {
   width: 100% !important;
   flex: unset !important;
   overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   padding: var(--spacing-md);
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   background-color: #ffffff;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -784,8 +895,10 @@ async function handleAiReply() {
   grid-row: 2;
   position: relative;
   width: 100% !important;
+  max-width: 100%;
   height: auto !important;
   min-height: 0;
+  min-width: 0;
   flex-shrink: 0;
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
   gap: 6px;
@@ -794,7 +907,8 @@ async function handleAiReply() {
   border-top: none;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .chat-compose-row {
@@ -1059,19 +1173,30 @@ async function handleAiReply() {
   .chat-container--embedded,
   .chat-container {
     margin: 0;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
 
   .chat-container .chat-input {
-    position: fixed;
-    left: 0;
-    right: 0;
+    position: sticky;
     bottom: 0;
-    z-index: 200;
+    left: auto;
+    right: auto;
+    z-index: 20;
+    width: 100% !important;
+    max-width: 100%;
     background: #fff;
   }
 
   .chat-container .chat-messages {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--spacing-md);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* iOS Safari зумит страницу при focus, если font-size < 16px */
+  .input-shell textarea {
+    font-size: 16px;
   }
 }
 
@@ -1102,6 +1227,9 @@ async function handleAiReply() {
   display: flex;
   align-items: flex-start;
   margin-bottom: 12px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Для приватного чата выравниваем сообщения по сторонам */

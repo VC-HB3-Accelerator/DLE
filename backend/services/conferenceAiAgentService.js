@@ -220,16 +220,25 @@ async function listAvailableModels(providerOverride = null) {
   }
 }
 
-async function getOpenAiKeyStatus() {
+async function getProviderKeyStatus(provider = 'openai') {
+  const name = String(provider || 'openai').trim().toLowerCase() || 'openai';
   try {
-    const providerSettings = await aiProviderSettingsService.getProviderSettings('openai');
+    if (name === 'ollama') {
+      return { provider: name, configured: true, selected_model: null };
+    }
+    const providerSettings = await aiProviderSettingsService.getProviderSettings(name);
     return {
+      provider: name,
       configured: Boolean(providerSettings?.api_key),
       selected_model: providerSettings?.selected_model || null
     };
   } catch {
-    return { configured: false, selected_model: null };
+    return { provider: name, configured: false, selected_model: null };
   }
+}
+
+async function getOpenAiKeyStatus() {
+  return getProviderKeyStatus('openai');
 }
 
 module.exports = {
@@ -238,6 +247,7 @@ module.exports = {
   saveSettings,
   listAvailableModels,
   getOpenAiKeyStatus,
+  getProviderKeyStatus,
   DEFAULTS,
   LIMITS
 };

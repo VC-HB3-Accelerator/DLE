@@ -26,6 +26,11 @@
         <button class="details-btn" @click="goTo('/settings/ai/deepseek')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
+        <h3>{{ t('settings.ai.qwencloud.title') }}</h3>
+        <p>{{ t('settings.ai.qwencloud.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/qwencloud')">{{ t('common.details') }}</button>
+      </div>
+      <div class="integration-block">
         <h3>{{ t('settings.ai.vpn.title') }}</h3>
         <p>{{ t('settings.ai.vpn.cardDescription') }}</p>
         <button class="details-btn" @click="goTo('/settings/ai/vpn')">{{ t('common.details') }}</button>
@@ -127,6 +132,14 @@ const providerLabels = computed(() => ({
     description: t('settings.ai.deepseek.providerDescription'),
     apiKeyPlaceholder: 'sk-...',
     baseUrlPlaceholder: 'https://api.deepseek.com',
+    showApiKey: true,
+    showBaseUrl: true,
+  },
+  qwencloud: {
+    label: t('settings.ai.qwencloud.label'),
+    description: t('settings.ai.qwencloud.providerDescription'),
+    apiKeyPlaceholder: 'sk-...',
+    baseUrlPlaceholder: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     showApiKey: true,
     showBaseUrl: true,
   },

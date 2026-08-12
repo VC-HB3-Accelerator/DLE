@@ -5,8 +5,10 @@ WORKDIR /app
 # Копируем файлы зависимостей
 COPY frontend/package.json frontend/yarn.lock ./
 
-# Устанавливаем зависимости
-RUN yarn install
+# Устанавливаем зависимости (длинный timeout — нестабильная сеть на VDS)
+RUN yarn config set registry https://registry.npmjs.org \
+    && yarn config set network-timeout 600000 \
+    && yarn install --frozen-lockfile
 
 # Копируем исходный код frontend и общий shared-модуль (SIWE statement)
 COPY frontend/ .

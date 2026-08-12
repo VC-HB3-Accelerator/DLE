@@ -364,11 +364,14 @@ async function callOllama({ model, systemPrompt, userPrompt, temperature, maxTok
   });
 }
 
-async function callOpenAICompatible({ providerSettings, model, systemPrompt, userPrompt, temperature, maxTokens, timeoutMs }) {
-  const openaiProxy = require('./openaiProxy');
-  const client = openaiProxy.createOpenAIClient(providerSettings, {
-    timeout: clampNumber(timeoutMs, LIMITS.timeoutMsMin, LIMITS.timeoutMsMax, DEFAULTS.timeout_ms)
-  });
+async function callOpenAICompatible({ provider, providerSettings, model, systemPrompt, userPrompt, temperature, maxTokens, timeoutMs }) {
+  const timeout = clampNumber(timeoutMs, LIMITS.timeoutMsMin, LIMITS.timeoutMsMax, DEFAULTS.timeout_ms);
+  let client;
+  if (provider === 'deepseek' || provider === 'qwencloud') {
+    client = aiProviderSettingsService.createOpenAiCompatibleProviderClient(provider, providerSettings);
+  } else {
+    client = require('./openaiProxy').createOpenAIClient(providerSettings, { timeout });
+  }
   const response = await client.chat.completions.create({
     model,
     temperature,
@@ -426,12 +429,13 @@ async function summarizeWithLlm(settings, crawl) {
       maxTokens: settings.max_tokens,
       timeoutMs: settings.timeout_ms
     });
-  } else if (provider === 'openai' || provider === 'google') {
+  } else if (provider === 'openai' || provider === 'google' || provider === 'deepseek' || provider === 'qwencloud') {
     const providerSettings = await aiProviderSettingsService.getProviderSettings(provider);
     if (!providerSettings?.api_key) {
       throw new Error(`API-ключ для ${provider} не настроен в Settings → AI`);
     }
     raw = await callOpenAICompatible({
+      provider,
       providerSettings,
       model,
       systemPrompt,

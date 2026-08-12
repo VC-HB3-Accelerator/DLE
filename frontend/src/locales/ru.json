@@ -1965,9 +1965,12 @@
       "agent": {
         "title": "ИИ-агент презентации",
         "description": "Провайдер, промпт и RAG-таблицы для аудио-презентации и ответов по документам.",
-        "infoAlert": "Агент говорит на языке клиента и опирается на выбранные RAG-таблицы. Ключ OpenAI берётся из настроек AI.",
+        "infoAlert": "Агент говорит на языке клиента и опирается на выбранные RAG-таблицы. Ключ провайдера — в Настройки → AI.",
         "openaiConfigured": "Ключ OpenAI задан в настройках провайдера.",
         "openaiMissing": "Ключ OpenAI не задан — укажите его в Настройки → AI → OpenAI.",
+        "providerConfigured": "Ключ {provider} задан в настройках провайдера.",
+        "providerMissing": "Ключ {provider} не задан — укажите его в Настройки → AI.",
+        "realtimeNeedsOpenai": "Live Realtime (голос) пока работает через OpenAI API. DeepSeek / Qwen Cloud доступны для выбора моделей и настроек; для live-сессии нужен ключ OpenAI.",
         "enabled": "Агент включён",
         "enabledOn": "Вкл",
         "enabledOff": "Выкл",

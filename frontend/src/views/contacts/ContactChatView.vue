@@ -334,6 +334,8 @@ watch(broadcastCampaignId, async () => {
   height: calc(100dvh - 200px);
   min-height: 480px;
   max-height: calc(100dvh - 200px);
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -367,6 +369,7 @@ watch(broadcastCampaignId, async () => {
     height: auto;
     max-height: none;
     border-radius: 0;
+    overflow: hidden;
   }
 }
 

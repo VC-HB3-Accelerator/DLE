@@ -21,10 +21,35 @@ const blancVpnService = require('./blancVpnService');
 const TABLE = 'ai_providers_settings';
 const TIMEOUTS = ollamaConfig.getTimeouts();
 const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com';
+const QWENCLOUD_DEFAULT_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+
+/** DashScope часто не отдаёт /models — запасной список для UI. */
+const QWENCLOUD_FALLBACK_MODELS = [
+  'qwen-plus',
+  'qwen-turbo',
+  'qwen-max',
+  'qwen-flash',
+  'qwen3.5-plus',
+  'qwen3-max',
+  'qwen3.7-plus'
+];
 
 function resolveDeepseekBaseUrl(base_url) {
   const trimmed = String(base_url || '').trim();
   return trimmed || DEEPSEEK_DEFAULT_BASE_URL;
+}
+
+function resolveQwenCloudBaseUrl(base_url) {
+  const trimmed = String(base_url || '').trim();
+  return trimmed || QWENCLOUD_DEFAULT_BASE_URL;
+}
+
+function mapOpenAiModelsList(res) {
+  return res?.data ? res.data.map((m) => ({ id: m.id, ...m })) : [];
+}
+
+function qwenCloudFallbackModels() {
+  return QWENCLOUD_FALLBACK_MODELS.map((id) => ({ id }));
 }
 
 /** DeepSeek — OpenAI-compatible API, без openai proxy/Blanc. */
@@ -39,6 +64,26 @@ function createDeepseekClient(settings) {
     apiKey: settings.api_key,
     baseURL: resolveDeepseekBaseUrl(settings.base_url)
   });
+}
+
+/** Qwen Cloud / DashScope — OpenAI-compatible API, без openai proxy/Blanc. */
+function createQwenCloudClient(settings) {
+  if (!settings?.api_key) {
+    const err = new Error('Qwen Cloud API key не настроен');
+    err.status = 400;
+    err.code = 'QWENCLOUD_KEY_MISSING';
+    throw err;
+  }
+  return new OpenAI({
+    apiKey: settings.api_key,
+    baseURL: resolveQwenCloudBaseUrl(settings.base_url)
+  });
+}
+
+function createOpenAiCompatibleProviderClient(provider, settings) {
+  if (provider === 'deepseek') return createDeepseekClient(settings);
+  if (provider === 'qwencloud') return createQwenCloudClient(settings);
+  throw new Error(`Неизвестный OpenAI-compatible провайдер: ${provider}`);
 }
 
 async function getProviderSettings(provider) {
@@ -152,7 +197,19 @@ async function getProviderModels(provider, settings = {}) {
     if (provider === 'deepseek') {
       const client = createDeepseekClient(settings);
       const res = await client.models.list();
-      return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
+      return mapOpenAiModelsList(res);
+    }
+    if (provider === 'qwencloud') {
+      const client = createQwenCloudClient(settings);
+      try {
+        const res = await client.models.list();
+        const listed = mapOpenAiModelsList(res);
+        if (listed.length) return listed;
+      } catch (listErr) {
+        const logger = require('../utils/logger');
+        logger.warn(`[aiProviderSettings] qwencloud models.list fallback: ${listErr.message}`);
+      }
+      return qwenCloudFallbackModels();
     }
     if (provider === 'anthropic') {
       const client = new Anthropic({ apiKey: settings.api_key, baseURL: settings.base_url });
@@ -214,6 +271,22 @@ async function verifyProviderKey(provider, settings = {}) {
       const client = createDeepseekClient(settings);
       await client.models.list();
       return { success: true };
+    }
+    if (provider === 'qwencloud') {
+      const client = createQwenCloudClient(settings);
+      try {
+        await client.models.list();
+        return { success: true };
+      } catch (listErr) {
+        // /models у DashScope часто недоступен — проверяем ключ мини-chat
+        const model = String(settings.selected_model || QWENCLOUD_FALLBACK_MODELS[0]).trim();
+        await client.chat.completions.create({
+          model,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1
+        });
+        return { success: true };
+      }
     }
     if (provider === 'anthropic') {
       const client = new Anthropic({ apiKey: settings.api_key, baseURL: settings.base_url });
@@ -302,6 +375,38 @@ async function getAllLLMModels() {
       // Если не удалось проверить Ollama, добавляем базовые модели
       allModels.push({ id: 'qwen2.5:1.5b', provider: 'ollama' });
     }
+
+    // DeepSeek: список моделей из API (OpenAI-compatible)
+    try {
+      const deepseekSettings = await getProviderSettings('deepseek');
+      if (deepseekSettings?.api_key) {
+        const deepseekModels = await getProviderModels('deepseek', deepseekSettings);
+        for (const model of deepseekModels) {
+          const id = model.id || model.name;
+          if (!id) continue;
+          allModels.push({ id: String(id), provider: 'deepseek' });
+        }
+      }
+    } catch (deepseekError) {
+      const logger = require('../utils/logger');
+      logger.warn('[aiProviderSettings] getAllLLMModels deepseek:', deepseekError.message);
+    }
+
+    // Qwen Cloud / DashScope: список моделей из API (OpenAI-compatible)
+    try {
+      const qwenSettings = await getProviderSettings('qwencloud');
+      if (qwenSettings?.api_key) {
+        const qwenModels = await getProviderModels('qwencloud', qwenSettings);
+        for (const model of qwenModels) {
+          const id = model.id || model.name;
+          if (!id) continue;
+          allModels.push({ id: String(id), provider: 'qwencloud' });
+        }
+      }
+    } catch (qwenError) {
+      const logger = require('../utils/logger');
+      logger.warn('[aiProviderSettings] getAllLLMModels qwencloud:', qwenError.message);
+    }
     
     // Убираем дубликаты
     const uniqueModels = [];
@@ -383,6 +488,9 @@ async function getAllEmbeddingModels() {
 }
 
 module.exports = {
+  createDeepseekClient,
+  createQwenCloudClient,
+  createOpenAiCompatibleProviderClient,
   getProviderSettings,
   upsertProviderSettings,
   deleteProviderSettings,

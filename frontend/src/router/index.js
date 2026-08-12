@@ -184,6 +184,12 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
+    path: '/settings/ai/qwencloud',
+    name: 'qwencloud-settings',
+    component: () => import('@/views/settings/AI/QwenCloudSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
+  },
+  {
     path: '/settings/ai/vpn',
     name: 'vpn-settings',
     component: () => import('@/views/settings/AI/VpnSettingsView.vue'),

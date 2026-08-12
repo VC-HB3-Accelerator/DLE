@@ -1,5 +1,5 @@
 /**
- * Роутинг LLM для Live-чата: Ollama (локально) vs DeepSeek (OpenAI-compatible API).
+ * Роутинг LLM для Live-чата: Ollama (локально) vs DeepSeek / Qwen Cloud (OpenAI-compatible API).
  * Embeddings / vector-search не трогает.
  */
 
@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const { getProviderSettings } = require('./aiProviderSettingsService');
 
 const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com';
+const QWENCLOUD_DEFAULT_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 
 function isDeepseekModelName(modelName) {
   const name = String(modelName || '').trim().toLowerCase();
@@ -15,8 +16,18 @@ function isDeepseekModelName(modelName) {
 }
 
 /**
+ * Cloud Qwen (DashScope): qwen-plus, qwen-max, qwen3.5-plus и т.п.
+ * Локальный Ollama обычно с тегом `name:tag` (двоеточие) — его сюда не пускаем.
+ */
+function isQwenCloudModelName(modelName) {
+  const name = String(modelName || '').trim().toLowerCase();
+  if (!name || name.includes(':')) return false;
+  return name.startsWith('qwen') || name.startsWith('qwq');
+}
+
+/**
  * @param {string|null|undefined} modelName
- * @returns {Promise<{ provider: 'deepseek'|'ollama', model: string|null, settings?: object }>}
+ * @returns {Promise<{ provider: 'deepseek'|'qwencloud'|'ollama', model: string|null, settings?: object }>}
  */
 async function resolveChatLlmRoute(modelName) {
   const model = String(modelName || '').trim() || null;
@@ -26,6 +37,10 @@ async function resolveChatLlmRoute(modelName) {
   if (isDeepseekModelName(model)) {
     const settings = await getProviderSettings('deepseek');
     return { provider: 'deepseek', model, settings };
+  }
+  if (isQwenCloudModelName(model)) {
+    const settings = await getProviderSettings('qwencloud');
+    return { provider: 'qwencloud', model, settings };
   }
   return { provider: 'ollama', model };
 }
@@ -38,6 +53,17 @@ function createDeepseekClient(settings) {
     throw err;
   }
   const baseURL = String(settings.base_url || '').trim() || DEEPSEEK_DEFAULT_BASE_URL;
+  return new OpenAI({ apiKey: settings.api_key, baseURL });
+}
+
+function createQwenCloudClient(settings) {
+  if (!settings?.api_key) {
+    const err = new Error('Qwen Cloud API key не настроен (Settings → AI → Qwen Cloud)');
+    err.status = 400;
+    err.code = 'QWENCLOUD_KEY_MISSING';
+    throw err;
+  }
+  const baseURL = String(settings.base_url || '').trim() || QWENCLOUD_DEFAULT_BASE_URL;
   return new OpenAI({ apiKey: settings.api_key, baseURL });
 }
 
@@ -71,20 +97,21 @@ function toOpenAiToolMessage(toolCall, result) {
 }
 
 /**
- * Один/два раунда chat.completions для DeepSeek (thinking выключен — иначе пустой content).
+ * Один/два раунда chat.completions для OpenAI-compatible cloud (DeepSeek / Qwen Cloud).
  * @returns {Promise<string>}
  */
-async function generateDeepseekChatResponse({
+async function generateOpenAiCompatibleChatResponse({
+  providerLabel,
+  client,
   messages,
   model,
-  settings,
   tools = null,
   tool_choice = 'auto',
   llmParameters = {},
   userId = null,
-  executeToolCall
+  executeToolCall,
+  extraPayload = {}
 }) {
-  const client = createDeepseekClient(settings);
   const temperature = Number.isFinite(Number(llmParameters.temperature))
     ? Number(llmParameters.temperature)
     : 0.3;
@@ -97,8 +124,7 @@ async function generateDeepseekChatResponse({
     messages,
     temperature,
     max_tokens: maxTokens,
-    // V4: без этого reasoning съедает токены, content часто пустой
-    thinking: { type: 'disabled' }
+    ...extraPayload
   };
 
   if (tools && Array.isArray(tools) && tools.length > 0) {
@@ -106,14 +132,14 @@ async function generateDeepseekChatResponse({
     basePayload.tool_choice = tool_choice || 'auto';
   }
 
-  logger.info(`[chatLlmRouter] DeepSeek chat model=${model} messages=${messages.length} tools=${tools ? tools.length : 0}`);
+  logger.info(`[chatLlmRouter] ${providerLabel} chat model=${model} messages=${messages.length} tools=${tools ? tools.length : 0}`);
 
   const first = await client.chat.completions.create(basePayload);
   const firstMsg = first.choices?.[0]?.message || {};
   const toolCalls = firstMsg.tool_calls;
 
   if (toolCalls && toolCalls.length > 0 && typeof executeToolCall === 'function' && userId) {
-    logger.info(`[chatLlmRouter] DeepSeek tool_calls: ${toolCalls.length}`);
+    logger.info(`[chatLlmRouter] ${providerLabel} tool_calls: ${toolCalls.length}`);
     const toolResults = [];
     for (const tc of toolCalls) {
       const normalized = normalizeToolCallForExecute(tc);
@@ -136,7 +162,7 @@ async function generateDeepseekChatResponse({
       messages: followMessages,
       temperature,
       max_tokens: maxTokens,
-      thinking: { type: 'disabled' }
+      ...extraPayload
     });
     return second.choices?.[0]?.message?.content || '';
   }
@@ -144,8 +170,32 @@ async function generateDeepseekChatResponse({
   return firstMsg.content || '';
 }
 
+/**
+ * DeepSeek: thinking выключен — иначе пустой content на V4.
+ */
+async function generateDeepseekChatResponse(opts) {
+  const client = createDeepseekClient(opts.settings);
+  return generateOpenAiCompatibleChatResponse({
+    ...opts,
+    providerLabel: 'DeepSeek',
+    client,
+    extraPayload: { thinking: { type: 'disabled' } }
+  });
+}
+
+async function generateQwenCloudChatResponse(opts) {
+  const client = createQwenCloudClient(opts.settings);
+  return generateOpenAiCompatibleChatResponse({
+    ...opts,
+    providerLabel: 'QwenCloud',
+    client
+  });
+}
+
 module.exports = {
   isDeepseekModelName,
+  isQwenCloudModelName,
   resolveChatLlmRoute,
-  generateDeepseekChatResponse
+  generateDeepseekChatResponse,
+  generateQwenCloudChatResponse
 };

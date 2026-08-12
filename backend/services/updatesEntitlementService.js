@@ -4,7 +4,7 @@
  *
  * Entitlement обновлений ОС (hub HB3):
  * license ERC-20 из auth_tokens на балансе TreasuryModule клиентского DLE.
- * См. docs.ru/tz-updates-license-check.ru.md
+ * См. docs.ru/back-docs/archive/tz-updates-license-check.ru.md
  */
 
 const { ethers } = require('ethers');

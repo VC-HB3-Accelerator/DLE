@@ -23,8 +23,8 @@
 - **base.css** — сброс, типографика, безопасный viewport (`width: 100%`, без `100vw`)
 - **layout.css** — legacy/fallback оболочки; живой shell — `BaseLayout` + Header/Sidebar
 - **global.css** — примитивы UI: `.page-container`, `.btn*`, `.form-*`, `.card`/`.panel`, `.alert*`, `.table-scroll`, утилиты
-- Контракт и обход страниц: `docs.ru/back-docs/TZ_UI_STYLE_FOUNDATION.md`
-- FIXED ≠ единый визуал: `docs.ru/back-docs/NOTE_STYLE_FIXED_VS_VISUAL.ru.md`
+- Контракт и обход страниц: `docs.ru/back-docs/archive/TZ_UI_STYLE_FOUNDATION.md`
+- FIXED ≠ единый визуал: `docs.ru/back-docs/archive/NOTE_STYLE_FIXED_VS_VISUAL.ru.md`
 - Унификация кнопок/форм/блоков: классы из `global.css` + токены; scoped — только layout, не свои `#007bff` / Bootstrap grey
 
 В `@media` — только литералы из контракта (`768px`, `480px`, …), не `var(--bp-*)`.

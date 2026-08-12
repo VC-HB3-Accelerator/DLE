@@ -460,8 +460,12 @@ function copyEmail(email) {
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-lg);
   max-width: 75%;
+  min-width: 0;
   word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   position: relative;
+  box-sizing: border-box;
 }
 
 .user-message {
@@ -478,7 +482,9 @@ function copyEmail(email) {
   margin-right: auto;
   margin-left: var(--spacing-sm);
   word-break: break-word;
+  overflow-wrap: anywhere;
   max-width: 70%;
+  min-width: 0;
   border-bottom-left-radius: 2px;
 }
 
@@ -549,8 +555,11 @@ function copyEmail(email) {
   margin-bottom: var(--spacing-xs);
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   font-size: var(--font-size-md);
   line-height: 1.5;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .message-content :deep(p) {
@@ -565,9 +574,32 @@ function copyEmail(email) {
     padding: 0.5em;
     border-radius: 4px;
     overflow-x: auto;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 .message-content :deep(code) {
     font-family: monospace;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+.message-content :deep(pre code) {
+    word-break: normal;
+    white-space: pre;
+}
+.message-content :deep(img),
+.message-content :deep(video) {
+    max-width: 100%;
+    height: auto;
+}
+.message-content :deep(table) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.message-content :deep(a) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .message-meta {

@@ -42,7 +42,8 @@ router.get(
       const settings = await conferenceAiAgentService.getSettings();
       const defaults = conferenceAiAgentService.getDefaults();
       const openai = await conferenceAiAgentService.getOpenAiKeyStatus();
-      res.json({ success: true, settings, defaults, openai });
+      const provider_key = await conferenceAiAgentService.getProviderKeyStatus(settings.provider);
+      res.json({ success: true, settings, defaults, openai, provider_key });
     } catch (error) {
       logger.error('[conference] ai-agent settings get:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -60,7 +61,8 @@ router.put(
       const settings = await conferenceAiAgentService.saveSettings(req.body || {}, actorId(req));
       const defaults = conferenceAiAgentService.getDefaults();
       const openai = await conferenceAiAgentService.getOpenAiKeyStatus();
-      res.json({ success: true, settings, defaults, openai });
+      const provider_key = await conferenceAiAgentService.getProviderKeyStatus(settings.provider);
+      res.json({ success: true, settings, defaults, openai, provider_key });
     } catch (error) {
       logger.error('[conference] ai-agent settings put:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -77,7 +79,10 @@ router.get(
     try {
       const provider = req.query.provider || null;
       const models = await conferenceAiAgentService.listAvailableModels(provider);
-      res.json({ success: true, models });
+      const provider_key = await conferenceAiAgentService.getProviderKeyStatus(
+        provider || (await conferenceAiAgentService.getSettings()).provider
+      );
+      res.json({ success: true, models, provider_key });
     } catch (error) {
       logger.error('[conference] ai-agent models:', error);
       res.status(500).json({ success: false, error: error.message });

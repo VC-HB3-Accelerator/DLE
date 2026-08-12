@@ -214,7 +214,7 @@ Template install, license, and run — in [README.md](../README.md).
 
 - [AI agents](./ai-assistant.md)
 - [Service terms](../legal.en/service-terms.md)
-- [Blockchain technical documentation](./back-docs/blockchain-integration-technical.md)
+- [Blockchain technical documentation](./back-docs/archive/blockchain-integration-technical.md)
 
 ---
 

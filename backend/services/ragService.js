@@ -24,7 +24,7 @@ const profileAnalysisService = require('./profileAnalysisService');
 const { buildOllamaRequest } = require('../utils/ollamaRequestBuilder');
 const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
 const { toOllamaToolMessage } = require('../utils/ollamaToolMessages');
-const { resolveChatLlmRoute, generateDeepseekChatResponse } = require('./chatLlmRouter');
+const { resolveChatLlmRoute, generateDeepseekChatResponse, generateQwenCloudChatResponse } = require('./chatLlmRouter');
 const logger = require('../utils/logger');
 const db = require('../db');
 
@@ -840,7 +840,7 @@ async function generateLLMResponse({
     const resolvedModel = model || ollamaConfig_data.defaultModel;
     const chatRoute = await resolveChatLlmRoute(resolvedModel);
 
-    // DeepSeek (и др. cloud OpenAI-compatible): мимо Ollama-очереди — не грузит локальный RAM.
+    // DeepSeek / Qwen Cloud (OpenAI-compatible): мимо Ollama-очереди — не грузит локальный RAM.
     if (chatRoute.provider === 'deepseek') {
       try {
         if (!chatRoute.settings?.api_key) {
@@ -867,6 +867,35 @@ async function generateLLMResponse({
           return answer;
         }
         return 'Извините, произошла ошибка при генерации ответа (DeepSeek). Проверьте ключ API и выбранную модель.';
+      }
+    }
+
+    if (chatRoute.provider === 'qwencloud') {
+      try {
+        if (!chatRoute.settings?.api_key) {
+          throw new Error('Qwen Cloud API key не настроен (Settings → AI → Qwen Cloud)');
+        }
+        const tools = (userId && enableTools) ? getFunctionDefinitions(userId) : null;
+        logger.info(`[RAG] Роутинг чата → Qwen Cloud model=${chatRoute.model}`);
+        const qwenText = await generateQwenCloudChatResponse({
+          messages,
+          model: chatRoute.model,
+          settings: chatRoute.settings,
+          tools,
+          tool_choice: tools ? 'auto' : undefined,
+          llmParameters,
+          userId,
+          executeToolCall
+        });
+        console.log('[RAG] LLM response from Qwen Cloud:', qwenText ? String(qwenText).substring(0, 100) + '...' : 'null');
+        return finalizeAssistantReply(qwenText, answer);
+      } catch (qwenErr) {
+        logger.error('[RAG] Qwen Cloud chat error:', qwenErr.message);
+        if (answer) {
+          logger.info('[RAG] Возврат прямого ответа из RAG (ошибка Qwen Cloud)');
+          return answer;
+        }
+        return 'Извините, произошла ошибка при генерации ответа (Qwen Cloud). Проверьте ключ API и выбранную модель.';
       }
     }
     

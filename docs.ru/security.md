@@ -1377,8 +1377,8 @@ UI: `/content/templates` (шаблоны) и `/content/published` (опубли�
 
 ### Следующие шаги
 
-1. [Изучите техническую документацию](./back-docs/blockchain-integration-technical.md)
-2. [Настройте безопасное окружение](./back-docs/setup-instruction.md)
+1. [Изучите техническую документацию](./back-docs/archive/blockchain-integration-technical.md)
+2. [Настройте безопасное окружение](./back-docs/archive/setup-instruction.md)
 3. [Прочитайте FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)
 4. [Получите поддержку](https://hb3-accelerator.com/)
 ---

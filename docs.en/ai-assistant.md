@@ -352,9 +352,9 @@ DLE:
 
 ## Additional materials
 
-- [Multi-agent AI architecture](./back-docs/multi-agent-architecture.md) — detailed technical specification
-- [AI assistant setup](./back-docs/setup-ai-assistant.md) — step-by-step deployment guide
-- [Spreadsheet system](./back-docs/tables-system.md) — how RAG tables work
+- [Multi-agent AI architecture](./back-docs/archive/multi-agent-architecture.md) — detailed technical specification
+- [AI assistant setup](./back-docs/archive/setup-ai-assistant.md) — step-by-step deployment guide
+- [Spreadsheet system](./back-docs/archive/tables-system.md) — how RAG tables work
 - [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) — frequently asked questions
 
 ---

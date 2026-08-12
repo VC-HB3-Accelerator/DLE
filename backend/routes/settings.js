@@ -571,7 +571,7 @@ router.get('/ai-settings/:provider/models', requireAdmin, async (req, res, next)
 router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next) => {
   try {
     const { provider } = req.params;
-    const { api_key, base_url, proxy_url, proxy_enabled, blanc_subscription_url, proxy_openai, proxy_telegram } = req.body;
+    const { api_key, base_url, selected_model, proxy_url, proxy_enabled, blanc_subscription_url, proxy_openai, proxy_telegram } = req.body;
     if (provider === 'openai' && proxy_enabled && blanc_subscription_url) {
       const blancVpnService = require('../services/blancVpnService');
       await blancVpnService.applySubscription(blanc_subscription_url);
@@ -581,6 +581,7 @@ router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next
     const result = await aiProviderSettingsService.verifyProviderKey(provider, {
       api_key,
       base_url,
+      selected_model,
       proxy_url,
       proxy_enabled,
       blanc_subscription_url,

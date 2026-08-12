@@ -251,14 +251,20 @@
   .home-management {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
     max-height: calc(100dvh - var(--header-height, 65px) - 16px);
     height: auto;
     padding: 16px;
     padding-bottom: 0;
+    overflow: hidden;
   }
   
   .chat-wrapper {
     border-radius: 8px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 }
 

@@ -214,7 +214,7 @@
 
 - [ИИ-агенты](./ai-assistant.md)
 - [Условия обслуживания](../legal.ru/service-terms.md)
-- [Техническая документация по блокчейну](./back-docs/blockchain-integration-technical.md)
+- [Техническая документация по блокчейну](./back-docs/archive/blockchain-integration-technical.md)
 
 ---
 

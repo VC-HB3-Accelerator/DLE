@@ -1964,9 +1964,12 @@
       "agent": {
         "title": "Presentation AI agent",
         "description": "Provider, prompt and RAG tables for audio presentation and doc-based answers.",
-        "infoAlert": "The agent speaks the client language and uses selected RAG tables. OpenAI key comes from AI provider settings.",
+        "infoAlert": "The agent speaks the client language and uses selected RAG tables. Provider keys come from Settings → AI.",
         "openaiConfigured": "OpenAI key is configured in provider settings.",
         "openaiMissing": "OpenAI key is missing — set it in Settings → AI → OpenAI.",
+        "providerConfigured": "{provider} key is configured in provider settings.",
+        "providerMissing": "{provider} key is missing — set it in Settings → AI.",
+        "realtimeNeedsOpenai": "Live Realtime (voice) still uses the OpenAI API. DeepSeek / Qwen Cloud are available for model selection; a live session still needs an OpenAI key.",
         "enabled": "Agent enabled",
         "enabledOn": "On",
         "enabledOff": "Off",

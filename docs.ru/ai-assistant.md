@@ -352,9 +352,9 @@ DLE:
 
 ## Дополнительные материалы
 
-- [Архитектура множественных ИИ-агентов](./back-docs/multi-agent-architecture.md) — детальная техническая спецификация
-- [Настройка AI-ассистента](./back-docs/setup-ai-assistant.md) — пошаговая инструкция по развёртыванию
-- [Система электронных таблиц](./back-docs/tables-system.md) — как устроены RAG-таблицы
+- [Архитектура множественных ИИ-агентов](./back-docs/archive/multi-agent-architecture.md) — детальная техническая спецификация
+- [Настройка AI-ассистента](./back-docs/archive/setup-ai-assistant.md) — пошаговая инструкция по развёртыванию
+- [Система электронных таблиц](./back-docs/archive/tables-system.md) — как устроены RAG-таблицы
 - [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md) — частые вопросы
 
 ---

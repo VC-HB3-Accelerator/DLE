@@ -77,13 +77,15 @@ Install goes to the WSL home directory (`~/DLE`), not the `C:` drive.
 
 ## What it is
 
-**DLE** is a personal operating system template for a legal entity: install on your own infrastructure (including a local device **in the country of activity**); the technology core is EVM and AI. Perpetual license; the installed instance and the right to use it are your asset (see [LICENSE](LICENSE)). The template includes mechanisms for depersonalization, encryption, processing, and storage of personal data — aligned with the applicable data-protection regulator’s requirements in the country where you operate, including the ability to keep personal data localized on your own site (see [security.md — personal data](docs.en/security.md#personal-data-regulatory-alignment)).
+**DLE** is a personal operating system template for a legal entity. Install on your own infrastructure (including locally **in the country of activity**); the core is **EVM** and **AI**. Perpetual license: the installed instance is **your asset**, not renting someone else’s cabinet ([LICENSE](LICENSE)). Data and operations stay with you; the template includes depersonalization, encryption, and personal-data storage aligned with your country’s regulator, including localization on your site ([security.md](docs.en/security.md#personal-data-regulatory-alignment)).
 
 ## Why
 
-The usual path — after registering a business you start taking out paid subscriptions to services for automation, control, accounting, and payments. In practice that means vendor dependency, manual data transfer between services, rising costs, and no full control over your own assets.
+The usual path after registering a business is a stack of paid subscriptions for automation, accounting, and payments: vendor lock-in, manual data transfer, rising costs, and weak control over your assets.
 
-If you need a business on **one OS you own** for automation — a system that becomes a **digital asset**, not a stack of subscriptions — download the template and sign an agreement with an authorized contributor to get the license, updates, and support (baseline 5 years under the service terms).
+If you want a business on **one OS you own** — a system that becomes a **digital asset**, not a pile of services — download the template and sign with an authorized contributor: license, updates, and support (baseline 5 years).
+
+Full narrative for owners and operators: [DLE OS presentation](docs.en/os-dle-presentation.md).
 
 ### Case studies
 
@@ -118,6 +120,7 @@ Illustrative DLE application scenarios. Mentions of well-known companies and bra
 | [contributor-client-agreement.md](legal.en/templates/contributor-client-agreement.md) | Contributor agreement template |
 | [contributor-client-specification.md](legal.en/templates/contributor-client-specification.md) | Specification / invoice |
 | [contributor-client-acceptance-act.md](legal.en/templates/contributor-client-acceptance-act.md) | Acceptance act and token recording |
+| [os-dle-presentation.md](docs.en/os-dle-presentation.md) | DLE OS — business presentation (framework) |
 | [ai-assistant.md](docs.en/ai-assistant.md) | AI agents: architecture, examples, setup |
 | [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Blockchain for business and practical cases |
 | [security.md](docs.en/security.md) | Security and regulatory alignment |

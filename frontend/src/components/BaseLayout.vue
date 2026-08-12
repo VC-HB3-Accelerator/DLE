@@ -358,6 +358,9 @@ onBeforeUnmount(() => {
     padding-left: var(--spacing-sm);
     padding-right: var(--spacing-sm);
     padding-bottom: var(--spacing-sm);
+    overflow-x: hidden;
+    /* стабильная ширина при появлении/исчезновении вертикального скролла */
+    scrollbar-gutter: stable;
   }
 }
 

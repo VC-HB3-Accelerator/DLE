@@ -306,6 +306,8 @@ const preview = reactive({
 
 const providerOptions = [
   { value: 'ollama', label: 'Ollama' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'qwencloud', label: 'Qwen Cloud' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'google', label: 'Google' }

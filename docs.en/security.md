@@ -1389,8 +1389,8 @@ Client and staff personal data are processed **on the operator’s infrastructur
 
 ### Next Steps
 
-1. [Read the technical documentation](./back-docs/blockchain-integration-technical.md)
-2. [Set up a secure environment](./back-docs/setup-instruction.md)
+1. [Read the technical documentation](./back-docs/archive/blockchain-integration-technical.md)
+2. [Set up a secure environment](./back-docs/archive/setup-instruction.md)
 3. [Read the FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
 4. [Get support](https://hb3-accelerator.com/)
 ---

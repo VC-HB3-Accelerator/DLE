@@ -15,16 +15,26 @@
     </el-alert>
 
     <el-alert
-      :type="openai.configured ? 'success' : 'warning'"
+      :type="providerKey.configured ? 'success' : 'warning'"
       :closable="false"
       show-icon
       class="agent-alert"
     >
       <template #title>
-        {{ openai.configured
-          ? t('contacts.conference.agent.openaiConfigured')
-          : t('contacts.conference.agent.openaiMissing') }}
+        {{ providerKey.configured
+          ? t('contacts.conference.agent.providerConfigured', { provider: providerLabel })
+          : t('contacts.conference.agent.providerMissing', { provider: providerLabel }) }}
       </template>
+    </el-alert>
+
+    <el-alert
+      v-if="form.provider !== 'openai'"
+      type="info"
+      :closable="false"
+      show-icon
+      class="agent-alert"
+    >
+      <template #title>{{ t('contacts.conference.agent.realtimeNeedsOpenai') }}</template>
     </el-alert>
 
     <el-form class="agent-form" label-position="top" @submit.prevent>
@@ -39,8 +49,12 @@
       <div class="settings-grid">
         <el-form-item :label="t('contacts.conference.agent.provider')">
           <el-select v-model="form.provider" style="width: 100%" @change="onProviderChange">
-            <el-option label="OpenAI" value="openai" />
-            <el-option label="Ollama" value="ollama" />
+            <el-option
+              v-for="item in providerOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
 
@@ -145,7 +159,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
@@ -161,7 +175,16 @@ const loading = ref(false);
 const saving = ref(false);
 const models = ref([]);
 const ragTables = ref([]);
-const openai = reactive({ configured: false, selected_model: null });
+const providerKey = reactive({ configured: false, selected_model: null, provider: 'openai' });
+
+const providerOptions = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'qwencloud', label: 'Qwen Cloud' },
+  { value: 'ollama', label: 'Ollama' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google' }
+];
 
 const form = reactive({
   enabled: false,
@@ -189,16 +212,34 @@ const limits = reactive({
   timeoutMsMax: 600000
 });
 
-function applySettings(settings, defs, openaiStatus) {
+const providerLabel = computed(() => {
+  const found = providerOptions.find((item) => item.value === form.provider);
+  return found?.label || form.provider || 'OpenAI';
+});
+
+function applyProviderKey(providerStatus, fallbackOpenai, settingsProvider) {
+  if (providerStatus) {
+    providerKey.configured = Boolean(providerStatus.configured);
+    providerKey.selected_model = providerStatus.selected_model || null;
+    providerKey.provider = providerStatus.provider || settingsProvider || 'openai';
+    return;
+  }
+  if (fallbackOpenai) {
+    providerKey.configured = Boolean(fallbackOpenai.configured);
+    providerKey.selected_model = fallbackOpenai.selected_model || null;
+    providerKey.provider = settingsProvider || 'openai';
+  }
+}
+
+function applySettings(settings, defs, openaiStatus, providerStatus) {
   if (defs) {
     defaults.system_prompt = defs.system_prompt || '';
     if (defs.limits) Object.assign(limits, defs.limits);
   }
-  if (openaiStatus) {
-    openai.configured = Boolean(openaiStatus.configured);
-    openai.selected_model = openaiStatus.selected_model || null;
+  if (!settings) {
+    applyProviderKey(providerStatus, openaiStatus, 'openai');
+    return;
   }
-  if (!settings) return;
   form.enabled = Boolean(settings.enabled);
   form.provider = settings.provider || 'openai';
   form.model = settings.model || '';
@@ -209,13 +250,19 @@ function applySettings(settings, defs, openaiStatus) {
   form.rag_table_ids = Array.isArray(settings.rag_table_ids) ? [...settings.rag_table_ids] : [];
   form.search_rag_first = settings.search_rag_first !== false;
   form.generate_if_no_rag = Boolean(settings.generate_if_no_rag);
+  applyProviderKey(providerStatus, openaiStatus, form.provider);
 }
 
 async function loadModels() {
   try {
     const data = await conferenceService.getAgentModels(form.provider);
     models.value = data.models || [];
-    if (!models.value.length && form.provider === 'openai' && openai.configured) {
+    if (data.provider_key) {
+      providerKey.configured = Boolean(data.provider_key.configured);
+      providerKey.selected_model = data.provider_key.selected_model || null;
+      providerKey.provider = data.provider_key.provider || form.provider;
+    }
+    if (!models.value.length && providerKey.configured && form.provider !== 'ollama') {
       ElMessage.warning(t('contacts.conference.agent.modelsEmpty'));
     }
   } catch (e) {
@@ -237,7 +284,7 @@ async function loadSettings() {
   loading.value = true;
   try {
     const data = await conferenceService.getAgentSettings();
-    applySettings(data.settings, data.defaults, data.openai);
+    applySettings(data.settings, data.defaults, data.openai, data.provider_key);
     await Promise.all([loadModels(), loadRagTables()]);
   } catch (e) {
     ElMessage.error(e?.response?.data?.error || t('contacts.conference.agent.loadError'));
@@ -247,6 +294,7 @@ async function loadSettings() {
 }
 
 async function onProviderChange() {
+  form.model = '';
   await loadModels();
 }
 
@@ -269,7 +317,7 @@ async function saveSettings() {
       search_rag_first: form.search_rag_first,
       generate_if_no_rag: form.generate_if_no_rag
     });
-    applySettings(data.settings, data.defaults, data.openai);
+    applySettings(data.settings, data.defaults, data.openai, data.provider_key);
     ElMessage.success(t('contacts.conference.agent.saved'));
   } catch (e) {
     ElMessage.error(e?.response?.data?.error || t('contacts.conference.agent.saveError'));

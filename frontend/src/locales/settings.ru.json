@@ -189,6 +189,13 @@
       "label": "DeepSeek API Key",
       "providerDescription": "Введите DeepSeek API Key и (при необходимости) Base URL. По умолчанию: https://api.deepseek.com"
     },
+    "qwencloud": {
+      "title": "Qwen Cloud",
+      "description": "Интеграция с Qwen Cloud / DashScope (OpenAI-совместимый).",
+      "pageTitle": "Qwen Cloud: интеграция и настройки",
+      "label": "Qwen Cloud API Key",
+      "providerDescription": "Введите DashScope / Qwen Cloud API Key и (при необходимости) Base URL. По умолчанию: https://dashscope-intl.aliyuncs.com/compatible-mode/v1 (для региона Beijing — https://dashscope.aliyuncs.com/compatible-mode/v1)."
+    },
     "vpn": {
       "title": "VPN / BlancVPN",
       "cardDescription": "Общий исходящий SOCKS для OpenAI и Telegram-бота (обход блокировок API).",

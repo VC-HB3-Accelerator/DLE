@@ -69,6 +69,16 @@
           </option>
         </select>
       </div>
+      <div v-else-if="showApiKey" class="form-group">
+        <label class="form-label">{{ $t('settings.ai.providerSettings.llmModel') }}</label>
+        <input
+          type="text"
+          v-model="selectedModel"
+          class="form-control"
+          :placeholder="provider === 'qwencloud' ? 'qwen-plus' : (provider === 'deepseek' ? 'deepseek-chat' : 'model-id')"
+          autocomplete="off"
+        />
+      </div>
       <div v-if="embeddingModels.length" class="form-group">
         <label class="form-label">{{ $t('settings.ai.providerSettings.embeddingModel') }}</label>
         <select v-model="selectedEmbeddingModel" class="form-control">
@@ -248,6 +258,7 @@ async function onVerify() {
       const body = {
         api_key: apiKey.value,
         base_url: baseUrl.value,
+        selected_model: selectedModel.value,
       };
       if (props.showProxy) {
         body.proxy_url = proxyUrl.value;
