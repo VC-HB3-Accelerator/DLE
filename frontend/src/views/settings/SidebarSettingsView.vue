@@ -4,9 +4,11 @@
 -->
 
 <template>
-  <div class="sidebar-settings settings-panel page-with-close">
-    <PageCloseButton fallback="/settings" />
-    <h2>{{ t('settings.sidebar.pageTitle') }}</h2>
+  <AdminPageShell
+    :title="t('settings.sidebar.pageTitle')"
+    :show-close="true"
+    fallback="/settings"
+  >
     <p class="sidebar-settings__intro">{{ t('settings.sidebar.intro') }}</p>
 
     <nav class="sidebar-settings__tabs">
@@ -48,37 +50,30 @@
     </nav>
 
     <router-view />
-  </div>
+  </AdminPageShell>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 
 const { t } = useI18n();
 </script>
 
 <style scoped>
-.sidebar-settings {
-  position: relative;
-  padding: var(--block-padding, 1.5rem);
-  background-color: var(--color-light, #f8f9fa);
-  border-radius: var(--radius-md, 12px);
-  margin-top: var(--spacing-lg, 1.5rem);
-}
-
 .sidebar-settings__intro {
   margin: 0 0 1.25rem;
-  color: #6c757d;
+  color: var(--theme-text-muted);
   line-height: 1.5;
   max-width: 720px;
 }
 
 .sidebar-settings__tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 0.5rem;
 }
 
@@ -86,27 +81,19 @@ const { t } = useI18n();
   padding: 0.5rem 1rem;
   border-radius: 8px 8px 0 0;
   text-decoration: none;
-  color: #6c757d;
+  color: var(--theme-text-muted);
   font-weight: 500;
   font-size: 0.95rem;
 }
 
 .sidebar-settings__tab:hover {
   color: var(--color-primary);
-  background: rgba(0, 0, 0, 0.03);
+  background: color-mix(in srgb, var(--color-border) 35%, transparent);
 }
 
 .sidebar-settings__tab.is-active {
   color: var(--color-primary);
-  background: #fff;
+  background: var(--color-white);
   box-shadow: inset 0 -2px 0 var(--color-primary);
-}
-
-/* TZ package S */
-@media (max-width: 768px) {
-  .sidebar-settings.settings-panel {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
 }
 </style>

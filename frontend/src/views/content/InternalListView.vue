@@ -56,7 +56,10 @@
           >
             <button type="button" class="internal-page__item-main" @click="openInternal(page.id)">
               <span class="internal-page__item-title">{{ page.title }}</span>
-              <span v-if="page.summary" class="internal-page__item-summary">{{ page.summary }}</span>
+              <span
+                v-if="page.summary && page.summary.trim() !== (page.title || '').trim()"
+                class="internal-page__item-summary"
+              >{{ page.summary }}</span>
               <span class="internal-page__item-meta">
                 <span v-if="page.category" class="internal-page__item-cat">
                   {{ formatCategoryName(page.category) }}
@@ -457,7 +460,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 40px);
-  background: #fafafa;
+  background: transparent;
 }
 
 .internal-page__list-wrap {
@@ -530,15 +533,15 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  background: #fff;
-  border: 1px solid #e9ecef;
+  background: var(--theme-bg, #fff);
+  border: 1px solid var(--color-border, #e9ecef);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .internal-page__item:hover {
-  border-color: rgba(45, 114, 217, 0.35);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border, #e9ecef));
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 
@@ -587,7 +590,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   padding: 8px 10px;
-  border-left: 1px solid #f0f0f0;
+  border-left: 1px solid var(--color-border, #f0f0f0);
 }
 
 .internal-page__action {

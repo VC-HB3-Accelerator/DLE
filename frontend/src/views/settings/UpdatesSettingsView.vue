@@ -4,9 +4,11 @@
 -->
 
 <template>
-  <div class="updates-settings settings-panel panel page-with-close">
-    <PageCloseButton fallback="/settings" />
-    <h2>{{ t('settings.updates.pageTitle') }}</h2>
+  <AdminPageShell
+    :title="t('settings.updates.pageTitle')"
+    :show-close="true"
+    fallback="/settings"
+  >
     <p class="updates-settings__intro">{{ t('settings.updates.intro') }}</p>
 
     <div v-if="loadError" class="alert alert-danger">{{ loadError }}</div>
@@ -129,13 +131,13 @@
         {{ isSavingHub ? t('settings.updates.saving') : t('settings.updates.saveHubSettings') }}
       </button>
     </section>
-  </div>
+  </AdminPageShell>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { getAllDLEs } from '@/services/dleV2Service';
@@ -316,15 +318,9 @@ onMounted(loadPage);
 </script>
 
 <style scoped>
-.updates-settings {
-  position: relative;
-  margin-top: var(--spacing-lg);
-  background-color: var(--color-light);
-}
-
 .updates-settings__intro {
   margin: 0 0 var(--spacing-lg);
-  color: var(--color-text-light);
+  color: var(--theme-text-muted);
   line-height: 1.5;
   max-width: 720px;
 }
@@ -332,11 +328,12 @@ onMounted(loadPage);
 .updates-settings__card {
   max-width: 720px;
   margin-bottom: var(--spacing-md);
+  background: var(--color-white);
 }
 
 .updates-settings__card h3 {
   margin: 0 0 var(--spacing-md);
-  color: var(--color-primary);
+  color: var(--color-dark);
   font-size: var(--font-size-lg);
 }
 
@@ -348,7 +345,7 @@ onMounted(loadPage);
 
 .updates-settings__meta dt {
   font-size: var(--font-size-xs);
-  color: var(--color-text-light);
+  color: var(--theme-text-muted);
 }
 
 .updates-settings__meta dd {
@@ -379,17 +376,7 @@ onMounted(loadPage);
   font-weight: 500;
 }
 
-.page-with-close {
-  position: relative;
-}
-
 @media (max-width: 768px) {
-  .updates-settings,
-  .updates-settings.settings-panel {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
   .updates-settings__card {
     max-width: 100%;
   }

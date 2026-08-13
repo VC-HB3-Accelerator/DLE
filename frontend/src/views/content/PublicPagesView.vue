@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="public-pages-page">
+    <div class="public-pages-page page-with-close">
+      <PageCloseButton :fallback="{ name: 'content-list' }" />
 
       <!-- Основной контент -->
       <div class="content-block">
@@ -90,6 +91,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import pagesService from '../../services/pagesService';
 import UiGlyph from '../../components/UiGlyph.vue';
 
@@ -240,10 +242,10 @@ onMounted(() => {
 }
 
 .content-block {
-  background: #f8f9fa;
-  border-radius: var(--radius-lg);
-  padding: 25px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .section-header {

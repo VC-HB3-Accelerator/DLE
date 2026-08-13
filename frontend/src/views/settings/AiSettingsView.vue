@@ -11,242 +11,106 @@
 -->
 
 <template>
-  <div class="ai-settings settings-panel page-with-close">
-    <PageCloseButton fallback="/settings" />
-    <h2>{{ t('settings.ai.integrations') }}</h2>
-    <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings && !showDbSettings">
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.openai.title') }}</h3>
-        <p>{{ t('settings.ai.openai.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/openai')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.deepseek.title') }}</h3>
-        <p>{{ t('settings.ai.deepseek.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/deepseek')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.qwencloud.title') }}</h3>
-        <p>{{ t('settings.ai.qwencloud.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/qwencloud')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.vpn.title') }}</h3>
-        <p>{{ t('settings.ai.vpn.cardDescription') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/vpn')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.ollama.title') }}</h3>
-        <p>{{ t('settings.ai.ollama.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/ollama')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.telegram.title') }}</h3>
-        <p>{{ t('settings.ai.telegram.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/telegram')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.email.title') }}</h3>
-        <p>{{ t('settings.ai.email.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/email')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.database.title') }}</h3>
-        <p>{{ t('settings.ai.database.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/database')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.rag.title') }}</h3>
-        <p>{{ t('settings.ai.rag.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/rag')">{{ t('common.details') }}</button>
-      </div>
-      <div class="integration-block">
-        <h3>{{ t('settings.ai.assistant.title') }}</h3>
-        <p>{{ t('settings.ai.assistant.description') }}</p>
-        <button class="details-btn" @click="goTo('/settings/ai/assistant')">{{ t('common.details') }}</button>
-      </div>
-    </div>
-    <AIProviderSettings
-      v-if="showProvider"
-      :provider="showProvider"
-      :label="providerLabels[showProvider].label"
-      :description="providerLabels[showProvider].description"
-      :apiKeyPlaceholder="providerLabels[showProvider].apiKeyPlaceholder"
-      :baseUrlPlaceholder="providerLabels[showProvider].baseUrlPlaceholder"
-      :showApiKey="providerLabels[showProvider].showApiKey"
-      :showBaseUrl="providerLabels[showProvider].showBaseUrl"
-      @cancel="showProvider = null"
-    />
-    <NoAccessModal 
-      :show="showNoAccessModal" 
+  <AdminPageShell
+    :title="t('settings.ai.integrations')"
+    :show-close="true"
+    fallback="/settings"
+  >
+    <HubGrid>
+      <HubCard
+        :title="t('settings.ai.openai.title')"
+        :description="t('settings.ai.openai.description')"
+        @open="goTo('/settings/ai/openai')"
+      />
+      <HubCard
+        :title="t('settings.ai.deepseek.title')"
+        :description="t('settings.ai.deepseek.description')"
+        @open="goTo('/settings/ai/deepseek')"
+      />
+      <HubCard
+        :title="t('settings.ai.qwencloud.title')"
+        :description="t('settings.ai.qwencloud.description')"
+        @open="goTo('/settings/ai/qwencloud')"
+      />
+      <HubCard
+        :title="t('settings.ai.vpn.title')"
+        :description="t('settings.ai.vpn.cardDescription')"
+        @open="goTo('/settings/ai/vpn')"
+      />
+      <HubCard
+        :title="t('settings.ai.ollama.title')"
+        :description="t('settings.ai.ollama.description')"
+        @open="goTo('/settings/ai/ollama')"
+      />
+      <HubCard
+        :title="t('settings.ai.telegram.title')"
+        :description="t('settings.ai.telegram.description')"
+        @open="goTo('/settings/ai/telegram')"
+      />
+      <HubCard
+        :title="t('settings.ai.email.title')"
+        :description="t('settings.ai.email.description')"
+        @open="goTo('/settings/ai/email')"
+      />
+      <HubCard
+        :title="t('settings.ai.database.title')"
+        :description="t('settings.ai.database.description')"
+        @open="goTo('/settings/ai/database')"
+      />
+      <HubCard
+        :title="t('settings.ai.rag.title')"
+        :description="t('settings.ai.rag.description')"
+        @open="goTo('/settings/ai/rag')"
+      />
+      <HubCard
+        :title="t('settings.ai.assistant.title')"
+        :description="t('settings.ai.assistant.description')"
+        @open="goTo('/settings/ai/assistant')"
+      />
+    </HubGrid>
+
+    <NoAccessModal
+      :show="showNoAccessModal"
       :title="t('settings.accessRestricted')"
       :message="t('settings.ai.adminOnly')"
-      @close="closeNoAccessModal" 
+      @close="showNoAccessModal = false"
     />
-  </div>
+  </AdminPageShell>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import AIProviderSettings from './AIProviderSettings.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import NoAccessModal from '@/components/NoAccessModal.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
+import HubGrid from '@/components/admin/HubGrid.vue';
+import HubCard from '@/components/admin/HubCard.vue';
 
 const { t } = useI18n();
 const router = useRouter();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
+const { canManageSettings } = usePermissions();
+const showNoAccessModal = ref(false);
 
 onMounted(async () => {
   await checkAuth();
   if (isAuthenticated.value && address.value) {
     await checkUserAccessLevel(address.value);
   }
-
-  window.addEventListener('clear-application-data', () => {
-    console.log('[AiSettingsView] Clearing AI settings data');
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[AiSettingsView] Refreshing AI settings data');
-  });
 });
-
-const showProvider = ref(null);
-const showTelegramSettings = ref(false);
-const showEmailSettings = ref(false);
-const showDbSettings = ref(false);
-const showNoAccessModal = ref(false);
-
-const { canManageSettings } = usePermissions();
-
-const providerLabels = computed(() => ({
-  openai: {
-    label: t('settings.ai.openai.label'),
-    description: t('settings.ai.openai.providerDescription'),
-    apiKeyPlaceholder: 'sk-...',
-    baseUrlPlaceholder: 'https://api.openai.com/v1',
-    showApiKey: true,
-    showBaseUrl: true,
-  },
-  deepseek: {
-    label: t('settings.ai.deepseek.label'),
-    description: t('settings.ai.deepseek.providerDescription'),
-    apiKeyPlaceholder: 'sk-...',
-    baseUrlPlaceholder: 'https://api.deepseek.com',
-    showApiKey: true,
-    showBaseUrl: true,
-  },
-  qwencloud: {
-    label: t('settings.ai.qwencloud.label'),
-    description: t('settings.ai.qwencloud.providerDescription'),
-    apiKeyPlaceholder: 'sk-...',
-    baseUrlPlaceholder: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-    showApiKey: true,
-    showBaseUrl: true,
-  },
-  anthropic: {
-    label: 'Anthropic API Key',
-    description: 'Enter Anthropic API Key and (optional) Base URL.',
-    apiKeyPlaceholder: '...',
-    baseUrlPlaceholder: 'https://api.anthropic.com/v1',
-    showApiKey: true,
-    showBaseUrl: true,
-  },
-  google: {
-    label: 'Google Gemini API Key',
-    description: 'Enter Google Gemini API Key and (optional) Base URL.',
-    apiKeyPlaceholder: '...',
-    baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
-    showApiKey: true,
-    showBaseUrl: true,
-  },
-  ollama: {
-    label: t('settings.ai.ollama.label'),
-    description: t('settings.ai.ollama.providerDescription'),
-    apiKeyPlaceholder: '',
-    baseUrlPlaceholder: 'http://localhost:11434',
-    showApiKey: false,
-    showBaseUrl: true,
-  },
-}));
 
 async function goTo(path) {
   await checkAuth();
   if (isAuthenticated.value && address.value) {
     await checkUserAccessLevel(address.value);
   }
-
   if (!canManageSettings.value) {
     showNoAccessModal.value = true;
     return;
   }
   router.push(path);
 }
-
-function closeNoAccessModal() {
-  showNoAccessModal.value = false;
-}
 </script>
-
-<style scoped>
-.settings-panel {
-  padding: var(--block-padding);
-  background-color: var(--color-light);
-  border-radius: var(--radius-md);
-  margin-top: var(--spacing-lg);
-  animation: fadeIn var(--transition-normal);
-}
-.integration-blocks {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
-}
-.integration-block {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  padding: 2rem;
-  min-width: 260px;
-  flex: 1 1 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-.details-btn {
-  margin-top: 1.5rem;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
-}
-.details-btn:hover {
-  background: var(--color-primary-dark);
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.page-with-close {
-  position: relative;
-}
-
-/* TZ package S */
-@media (max-width: 768px) {
-  .ai-settings.settings-panel,
-  .settings-panel {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-  .provider-cards, .cards, .row {
-    flex-direction: column;
-  }
-}
-</style>

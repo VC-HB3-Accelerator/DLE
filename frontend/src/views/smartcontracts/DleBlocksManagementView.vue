@@ -165,9 +165,9 @@ onMounted(() => {
 .dle-blocks-management {
   position: relative;
   padding: 20px;
-  background-color: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
-  min-height: 100vh;
+  
 }
 
 .management-header {

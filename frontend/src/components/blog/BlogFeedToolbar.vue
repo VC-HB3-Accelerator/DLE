@@ -142,7 +142,7 @@ onBeforeUnmount(() => {
   padding: 0 14px;
   border: 1px solid var(--color-grey-light);
   border-radius: var(--radius-lg);
-  background: var(--color-light);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark);
   font-size: var(--font-size-sm);
   cursor: pointer;
@@ -152,7 +152,7 @@ onBeforeUnmount(() => {
 
 .blog-feed-toolbar__btn:hover,
 .blog-feed-toolbar__btn--open {
-  background: var(--color-grey-light);
+  background: color-mix(in srgb, var(--color-light, #f3f4f6) 55%, white);
 }
 
 .blog-feed-toolbar__btn-label {

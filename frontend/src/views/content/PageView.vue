@@ -436,29 +436,29 @@ onMounted(() => {
 }
 
 .page-content-block {
-  background: #f8f9fa;
-  border-radius: var(--radius-lg);
-  padding: 25px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   width: 100%;
   max-width: 100%;
 }
 
 .page-content {
-  background: white;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm);
   padding: 25px;
-  border: 1px solid #e9ecef;
+  border: 1px solid transparent;
   width: 100%;
   max-width: 100%;
 }
 
 .content-section {
-  background: white;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm);
   padding: 25px;
   margin-bottom: 20px;
-  border: 1px solid #e9ecef;
+  border: 1px solid transparent;
   width: 100%;
   max-width: 100%;
 }

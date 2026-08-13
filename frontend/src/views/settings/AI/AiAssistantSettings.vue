@@ -12,9 +12,12 @@
 
 <template>
   <BaseLayout>
-    <div class="ai-assistant-settings-block panel page-with-close">
-      <PageCloseButton fallback="/settings/ai" />
-      <h2>{{ $t('settings.ai.assistant.pageTitle') }}</h2>
+    <AdminPageShell
+      :title="$t('settings.ai.assistant.pageTitle')"
+      :show-close="true"
+      fallback="/settings/ai"
+      variant="panel"
+    >
       <div class="assistant-status panel">
         <h3>{{ $t('settings.ai.assistant.channelManagement') }}</h3>
         <div class="status-list">
@@ -49,7 +52,7 @@
           </div>
         </div>
       </div>
-      <div class="ai-assistant-settings settings-panel">
+      <div class="ai-assistant-settings">
         <form @submit.prevent="saveSettings">
           <label class="form-label">{{ $t('settings.ai.assistant.systemPrompt') }}</label>
           <div class="prompt-actions">
@@ -190,19 +193,19 @@
         <RuleEditor v-if="showRuleEditor" :rule="editingRule" @close="onRuleEditorClose" />
       </div>
       
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 <script setup>
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { useRouter } from 'vue-router';
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
 import RuleEditor from '@/components/ai-assistant/RuleEditor.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
 import { resolveModelCapabilities, hasMultimodalInput, hasMultimodalOutput } from '@/shared/modelCapabilities.js';
 import { ACCEPT_INPUT_KEYS, cloneDefaultAcceptInput, normalizeAcceptInput } from '@/shared/assistantAcceptInput.js';
 const router = useRouter();
@@ -870,7 +873,7 @@ h2 {
 }
 
 .rules-json {
-  background: var(--color-light);
+  background: var(--theme-bg, #fff);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-sm);
@@ -899,7 +902,7 @@ h2 {
 
 .placeholders-block {
   margin: var(--spacing-xl) 0;
-  background: var(--color-light);
+  background: transparent;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
@@ -935,7 +938,7 @@ h2 {
   color: var(--color-text-light);
   margin-bottom: var(--spacing-md);
   padding: var(--spacing-md);
-  background: var(--color-light);
+  background: transparent;
   border-radius: var(--radius-sm);
   border-left: 3px solid var(--color-secondary);
 }

@@ -12,11 +12,13 @@
 
 <template>
   <BaseLayout>
-    <div class="db-settings-block page-with-close">
-      <PageCloseButton fallback="/settings/ai" />
-      <h2>{{ $t('settings.ai.database.pageTitle') }}</h2>
-      <div class="db-settings settings-panel">
-        <form v-if="editMode" @submit.prevent="saveDbSettings" class="settings-form">
+    <AdminPageShell
+      :title="$t('settings.ai.database.pageTitle')"
+      :show-close="true"
+      fallback="/settings/ai"
+      variant="panel"
+    >
+              <form v-if="editMode" @submit.prevent="saveDbSettings" class="settings-form">
           <div class="form-group">
             <label for="dbHost">Host</label>
             <input id="dbHost" v-model="form.dbHost" type="text" required />
@@ -71,8 +73,7 @@
           </div>
           <button type="button" class="edit-btn" @click="editMode = true">{{ $t('common.edit') }}</button>
         </div>
-      </div>
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
@@ -80,7 +81,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { reactive, ref, onMounted, nextTick, computed, watch } from 'vue';
 import api from '@/api/axios';
 
@@ -302,7 +303,7 @@ h2 {
   justify-content: space-between;
   align-items: center;
   font-size: 1rem;
-  background: #f8f8f8;
+  background: transparent;
   border-radius: 4px;
   padding: 0.5rem 1rem;
 }

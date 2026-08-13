@@ -1267,9 +1267,9 @@ onUnmounted(() => {
 <style scoped>
 .modules-management {
   padding: 20px;
-  background-color: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
   margin-top: 20px;
   margin-bottom: 20px;
 }
@@ -1331,7 +1331,7 @@ onUnmounted(() => {
 
 /* Блоки для деплоя стандартных модулей */
 .standard-modules {
-  background: #f8f9fa;
+  background: transparent;
   border-radius: var(--radius-md);
   padding: 20px;
   margin-bottom: 30px;
@@ -1443,7 +1443,7 @@ onUnmounted(() => {
 
 /* Форма добавления модуля */
 .add-module-form {
-  background: #f8f9fa;
+  background: transparent;
   border-radius: var(--radius-md);
   padding: 20px;
   margin-bottom: 30px;
@@ -2056,7 +2056,7 @@ onUnmounted(() => {
 .log-container {
   max-height: 150px;
   overflow-y: auto;
-  background: #f8f9fa;
+  background: transparent;
   border-radius: var(--radius-sm);
   padding: 10px;
   border: 1px solid #e9ecef;

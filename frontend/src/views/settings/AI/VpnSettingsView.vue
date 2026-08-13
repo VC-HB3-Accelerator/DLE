@@ -12,9 +12,12 @@
 
 <template>
   <BaseLayout>
-    <div class="vpn-settings-block panel page-with-close">
-      <PageCloseButton fallback="/settings/ai" />
-      <h2>{{ t('settings.ai.vpn.pageTitle') }}</h2>
+    <AdminPageShell
+      :title="t('settings.ai.vpn.pageTitle')"
+      :show-close="true"
+      fallback="/settings/ai"
+      variant="panel"
+    >
       <p class="desc">{{ t('settings.ai.vpn.description') }}</p>
 
       <form class="vpn-form" @submit.prevent="onSave">
@@ -81,7 +84,7 @@
           {{ t('settings.ai.providerSettings.errorPrefix') }} {{ verifyError }}
         </div>
       </form>
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
@@ -90,7 +93,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 import BaseLayout from '@/components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 
 const { t } = useI18n();
 

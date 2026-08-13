@@ -447,9 +447,9 @@ function getChainName(chainId) {
 <style scoped>
 .create-proposal-page {
   padding: 20px;
-  background-color: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
   margin-top: 20px;
   margin-bottom: 20px;
 }

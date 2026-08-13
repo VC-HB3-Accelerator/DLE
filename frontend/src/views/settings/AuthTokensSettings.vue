@@ -402,7 +402,7 @@ function getAccessLevelDescription(level) {
 .access-settings {
   margin: var(--spacing-lg, 20px) 0;
   padding: var(--spacing-md, 15px);
-  background: var(--theme-surface, #f8f9fa);
+  background: transparent;
   border-radius: var(--radius-md, 8px);
   border: 1px solid var(--theme-border, #e9ecef);
 }
@@ -428,7 +428,7 @@ function getAccessLevelDescription(level) {
 .access-level-info {
   margin-bottom: var(--spacing-lg, 20px);
   padding: var(--spacing-md, 15px);
-  background-color: var(--color-light, #f8f9fa);
+  background-color: transparent;
   border-radius: var(--radius-lg, 8px);
   border-left: 3px solid var(--color-secondary, #2196f3);
 }

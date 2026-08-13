@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="dle-management">
+    <div class="dle-management page-with-close">
+      <PageCloseButton fallback="/management" />
       <!-- Форма добавления DLE -->
       <div class="add-dle-form">
         <div class="form-header">
@@ -135,6 +136,7 @@
 import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import UiGlyph from '../../components/UiGlyph.vue';
 
 const { t, locale } = useI18n();
@@ -283,7 +285,7 @@ onMounted(() => {
 }
 
 .add-dle-form {
-  background: #f8f9fa;
+  background: transparent;
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 2rem;

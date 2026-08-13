@@ -523,7 +523,7 @@ const viewOnExplorer = (event) => {
 .history-container {
   position: relative;
   padding: 20px;
-  background-color: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
@@ -570,7 +570,7 @@ const viewOnExplorer = (event) => {
 }
 
 .filters-form {
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   padding: 20px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-grey-light, #e9ecef);
@@ -620,7 +620,7 @@ const viewOnExplorer = (event) => {
 }
 
 .stat-card {
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   padding: 18px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-grey-light, #e9ecef);
@@ -666,7 +666,7 @@ const viewOnExplorer = (event) => {
 
 .btn-action {
   height: 40px;
-  background-color: var(--color-light, #f8f9fa);
+  background-color: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   border: 1px solid var(--color-grey-light, #e4e7ed);
   border-radius: var(--radius-lg);
@@ -730,7 +730,7 @@ const viewOnExplorer = (event) => {
   border-radius: var(--radius-lg);
   font-size: 0.8rem;
   font-weight: 500;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   border: 1px solid var(--color-grey-light, #e4e7ed);
   white-space: nowrap;
@@ -879,7 +879,7 @@ const viewOnExplorer = (event) => {
   display: flex;
   gap: 12px;
   padding: 10px;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-grey-light, #e9ecef);
 }
@@ -888,7 +888,7 @@ const viewOnExplorer = (event) => {
   text-align: center;
   padding: 48px 24px;
   color: var(--color-grey-dark, #666);
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-md);
   border: 1px dashed var(--color-grey, #ced4da);
 }

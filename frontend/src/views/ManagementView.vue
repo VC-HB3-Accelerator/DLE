@@ -18,23 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="management-container">
-      <nav class="management-top-nav">
-        <router-link
-          to="/management"
-          class="management-top-nav__link"
-          active-class="is-active"
-        >
-          {{ t('nav.management') }}
-        </router-link>
-        <router-link
-          to="/crm"
-          class="management-top-nav__link"
-          active-class="is-active"
-        >
-          {{ t('nav.crm') }}
-        </router-link>
-      </nav>
+    <AdminPageShell :show-close="true" fallback="/">
+      <AdminSectionTabs />
 
       <!-- Деплоированные DLE -->
       <div class="deployed-dles-section">
@@ -154,14 +139,7 @@
           </div>
         </div>
       </div>
-
-
-
-
-
-    </div>
-
-
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
@@ -170,6 +148,8 @@ import { defineProps, defineEmits, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
+import AdminSectionTabs from '../components/admin/AdminSectionTabs.vue';
 import api from '@/api/axios';
 import UiGlyph from '../components/UiGlyph.vue';
 
@@ -408,49 +388,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.management-container {
+.deployed-dles-section {
   width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  padding: 20px;
-  background-color: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-top: 20px;
-  margin-bottom: 20px;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-.management-top-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.management-top-nav__link {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 16px;
-  border-radius: var(--block-radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-white);
-  color: var(--color-grey);
-  text-decoration: none;
-  font-size: var(--font-size-md);
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.management-top-nav__link:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.management-top-nav__link.is-active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-white);
+  margin-top: 0;
 }
 
 .management-header {
@@ -459,27 +399,20 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 40px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid var(--color-border, #f0f0f0);
 }
 
 .management-header h1 {
-  color: var(--color-primary);
+  color: var(--color-dark);
   font-size: 2.5rem;
   margin: 0;
 }
-
-
-/* Секция деплоированных DLE */
-.deployed-dles-section {
-  margin-top: 3rem;
-}
-
 
 .loading-dles,
 .no-dles {
   text-align: center;
   padding: 2rem;
-  color: #666;
+  color: var(--theme-text-muted, #666);
 }
 
 .no-dles .link {
@@ -501,12 +434,6 @@ onMounted(() => {
 
 /* Мобильная адаптивность для сетки */
 @media (max-width: 768px) {
-  .management-container {
-    padding: 12px;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
   .dles-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 1rem;

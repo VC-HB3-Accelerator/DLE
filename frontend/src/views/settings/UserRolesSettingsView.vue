@@ -11,8 +11,7 @@
 -->
 
 <template>
-  <div class="panel settings-subpage page-with-close">
-    <PageCloseButton fallback="/settings/security" />
+  <AdminPageShell :show-close="true" fallback="/settings/security" variant="plain">
     <h2>{{ t('settings.security.roles.title') }}</h2>
     <p class="page-lead">{{ t('settings.security.roles.description') }}</p>
     <p v-if="!loaded" class="page-state">{{ t('common.loading') }}</p>
@@ -28,7 +27,7 @@
         {{ saving ? t('common.saving') : t('common.save') }}
       </button>
     </form>
-  </div>
+  </AdminPageShell>
 </template>
 
 <script setup>
@@ -36,7 +35,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import api from '@/api/axios';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { CHAT_CAP_KEYS, CHAT_CAP_ROLES } from '@/shared/chatRoleCaps.js';
 
 const { t } = useI18n();

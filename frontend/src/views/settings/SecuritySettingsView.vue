@@ -11,68 +11,44 @@
 -->
 
 <template>
-  <div class="security-settings page-with-close">
-    <PageCloseButton fallback="/settings" />
-
-    <div class="management-blocks">
-      <div class="blocks-column">
-        <div class="management-block">
-          <h3>{{ $t('settings.rpc.title') }}</h3>
-          <p>
-            {{
-              securitySettings.rpcConfigs.length > 0
-                ? t('settings.security.providersConfigured', { count: securitySettings.rpcConfigs.length })
-                : t('settings.security.providersNotConfigured')
-            }}
-          </p>
-          <button type="button" class="details-btn" @click="handleRpcDetailsClick">
-            {{ $t('common.details') }}
-          </button>
-        </div>
-
-        <div class="management-block">
-          <h3>{{ $t('settings.security.roles.hubCard') }}</h3>
-          <p>{{ $t('settings.security.roles.hubCardText') }}</p>
-          <button type="button" class="details-btn" @click="handleRolesDetailsClick">
-            {{ $t('common.details') }}
-          </button>
-        </div>
-      </div>
-
-      <div class="blocks-column">
-        <div class="management-block">
-          <h3>{{ $t('settings.security.authentication') }}</h3>
-          <p>
-            {{
-              securitySettings.authTokens.length > 0
-                ? t('settings.security.tokensConfigured', { count: securitySettings.authTokens.length })
-                : t('settings.security.tokensNotConfigured')
-            }}
-          </p>
-          <button type="button" class="details-btn" @click="goAuthDetails">
-            {{ $t('common.details') }}
-          </button>
-        </div>
-      </div>
-    </div>
+  <AdminPageShell :show-close="true" fallback="/settings">
+    <HubGrid>
+      <HubCard
+        :title="$t('settings.rpc.title')"
+        :description="rpcDesc"
+        @open="handleRpcDetailsClick"
+      />
+      <HubCard
+        :title="$t('settings.security.authentication')"
+        :description="authDesc"
+        @open="goAuthDetails"
+      />
+      <HubCard
+        :title="$t('settings.security.roles.hubCard')"
+        :description="$t('settings.security.roles.hubCardText')"
+        @open="handleRolesDetailsClick"
+      />
+    </HubGrid>
 
     <NoAccessModal
       :show="showNoAccessModal"
       :title="$t('settings.accessRestricted')"
       :message="t('settings.security.rpcAdminOnly')"
-      @close="closeNoAccessModal"
+      @close="showNoAccessModal = false"
     />
-  </div>
+  </AdminPageShell>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/api/axios';
 import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
+import HubGrid from '@/components/admin/HubGrid.vue';
+import HubCard from '@/components/admin/HubCard.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -83,6 +59,18 @@ const securitySettings = reactive({
   rpcConfigs: [],
   authTokens: [],
 });
+
+const rpcDesc = computed(() =>
+  securitySettings.rpcConfigs.length > 0
+    ? t('settings.security.providersConfigured', { count: securitySettings.rpcConfigs.length })
+    : t('settings.security.providersNotConfigured')
+);
+
+const authDesc = computed(() =>
+  securitySettings.authTokens.length > 0
+    ? t('settings.security.tokensConfigured', { count: securitySettings.authTokens.length })
+    : t('settings.security.tokensNotConfigured')
+);
 
 async function loadSettings() {
   try {
@@ -95,162 +83,38 @@ async function loadSettings() {
         chainId: rpc.chain_id,
       }));
     }
-
     const authResponse = await api.get('/settings/auth-tokens');
     if (authResponse.data?.success) {
-      securitySettings.authTokens = (authResponse.data.data || []).map((token) => ({
-        name: token.name,
-        address: token.address,
-        network: token.network,
-        minBalance: token.min_balance,
-        readonlyThreshold: token.readonly_threshold ?? 1,
-        editorThreshold: token.editor_threshold ?? 1,
-      }));
+      securitySettings.authTokens = authResponse.data.data || [];
     }
-  } catch (error) {
-    console.error('[SecuritySettingsView] Ошибка при загрузке настроек:', error);
-    securitySettings.rpcConfigs = [];
-    securitySettings.authTokens = [];
+  } catch (_) {
+    /* ignore */
   }
 }
 
 function handleRpcDetailsClick() {
-  if (canManageSettings.value) {
-    router.push({ name: 'settings-security-rpc' });
+  if (!canManageSettings.value) {
+    showNoAccessModal.value = true;
     return;
   }
-  showNoAccessModal.value = true;
-}
-
-function handleRolesDetailsClick() {
-  if (canManageSettings.value) {
-    router.push({ name: 'settings-security-roles' });
-    return;
-  }
-  showNoAccessModal.value = true;
+  router.push({ name: 'settings-security-rpc' });
 }
 
 function goAuthDetails() {
+  if (!canManageSettings.value) {
+    showNoAccessModal.value = true;
+    return;
+  }
   router.push({ name: 'settings-security-auth' });
 }
 
-function closeNoAccessModal() {
-  showNoAccessModal.value = false;
+function handleRolesDetailsClick() {
+  if (!canManageSettings.value) {
+    showNoAccessModal.value = true;
+    return;
+  }
+  router.push({ name: 'settings-security-roles' });
 }
 
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    securitySettings.rpcConfigs = [];
-    securitySettings.authTokens = [];
-  });
-  window.addEventListener('refresh-application-data', loadSettings);
-  loadSettings();
-});
+onMounted(loadSettings);
 </script>
-
-<style scoped>
-.security-settings {
-  position: relative;
-}
-
-.management-blocks {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 2rem;
-}
-
-.blocks-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  align-items: stretch;
-}
-
-.management-block {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 250px;
-}
-
-.management-block:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-  border-color: var(--color-primary);
-}
-
-.management-block h3 {
-  margin: 0 0 1rem 0;
-  color: var(--color-primary);
-  font-size: 1.5rem;
-  font-weight: 600;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.management-block p {
-  margin: 0 0 1.5rem 0;
-  color: #666;
-  font-size: 1rem;
-  line-height: 1.5;
-  flex-grow: 1;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
-.details-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.2s;
-  min-width: 120px;
-  flex-shrink: 0;
-  margin-top: auto;
-  white-space: nowrap;
-}
-
-.details-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
-.page-with-close {
-  position: relative;
-}
-
-@media (max-width: 1024px) {
-  .management-blocks {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .management-blocks {
-    grid-template-columns: 1fr;
-  }
-
-  .management-block {
-    height: auto;
-    min-height: 0;
-  }
-
-  .security-settings {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-}
-</style>

@@ -18,89 +18,55 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="crm-management">
-      <nav class="crm-top-nav">
-        <router-link
-          to="/management"
-          class="crm-top-nav__link"
-          active-class="is-active"
-        >
-          {{ t('nav.management') }}
-        </router-link>
-        <router-link
-          to="/crm"
-          class="crm-top-nav__link"
-          active-class="is-active"
-        >
-          {{ t('nav.crm') }}
-        </router-link>
-      </nav>
-
-      <!-- Блоки CRM -->
-      <div class="management-blocks">        <!-- Столбец 1 -->
-        <div class="blocks-column">
-          <div class="management-block panel">
-            <h3>{{ t('crm.contacts') }}</h3>
-            <p>{{ t('crm.contactsDesc') }}</p>
-            <button type="button" class="btn btn-primary" @click="goToContactsList">
-              {{ t('common.details') }}
-            </button>
-          </div>
-          
-          <div class="management-block panel">
-            <h3>{{ t('crm.tables') }}</h3>
-            <p>{{ t('crm.tablesDesc') }}</p>
-            <button type="button" class="btn btn-primary" @click="goToTables">{{ t('common.details') }}</button>
-          </div>
-        </div>
-
-        <!-- Столбец 2 -->
-        <div class="blocks-column">
-          <div class="management-block panel">
-            <h3>{{ t('crm.content') }}</h3>
-            <p>{{ t('crm.contentDesc') }}</p>
-            <button type="button" class="btn btn-primary" @click="goToContent">{{ t('common.details') }}</button>
-          </div>
-
-          <div class="management-block panel">
-            <h3>{{ t('crm.settings') }}</h3>
-            <p>{{ t('crm.settingsDesc') }}</p>
-            <button type="button" class="btn btn-primary" @click="goToSettings">{{ t('common.details') }}</button>
-          </div>
-        </div>
-
-        <!-- Столбец 3 -->
-        <div class="blocks-column">
-          <div class="management-block panel">
-            <h3>{{ t('crm.vds') }}</h3>
-            <p>{{ t('crm.vdsDesc') }}</p>
-            <button type="button" class="btn btn-primary" @click="goToWeb3App">{{ t('common.details') }}</button>
-          </div>
-          
-          <div class="management-block panel">
-            <h3>{{ t('crm.groups') }}</h3>
-            <p>{{ t('crm.groupsDesc') }}</p>
-            <button type="button" class="btn btn-primary" @click="goToAcceleratorRegistration">{{ t('common.details') }}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AdminPageShell :show-close="true" fallback="/management">
+      <AdminSectionTabs />
+      <HubGrid>
+        <HubCard
+          :title="t('crm.contacts')"
+          :description="t('crm.contactsDesc')"
+          :to="{ name: 'contacts-list' }"
+        />
+        <HubCard
+          :title="t('crm.content')"
+          :description="t('crm.contentDesc')"
+          :to="{ name: 'content-list' }"
+        />
+        <HubCard
+          :title="t('crm.vds')"
+          :description="t('crm.vdsDesc')"
+          :to="{ name: 'vds-management' }"
+        />
+        <HubCard
+          :title="t('crm.tables')"
+          :description="t('crm.tablesDesc')"
+          :to="{ name: 'tables-list' }"
+        />
+        <HubCard
+          :title="t('crm.settings')"
+          :description="t('crm.settingsDesc')"
+          :to="{ name: 'settings-index' }"
+        />
+        <HubCard
+          :title="t('crm.groups')"
+          :description="t('crm.groupsDesc')"
+          :to="{ name: 'groups' }"
+        />
+      </HubGrid>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, defineProps, defineEmits, computed, watch } from 'vue';
+import { onMounted, onBeforeUnmount, defineProps, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAuthContext } from '../composables/useAuth';
-import { useRouter } from 'vue-router';
-import { setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
+import AdminSectionTabs from '../components/admin/AdminSectionTabs.vue';
+import HubGrid from '../components/admin/HubGrid.vue';
+import HubCard from '../components/admin/HubCard.vue';
 import eventBus from '../utils/eventBus';
-import ContactTable from '../components/ContactTable.vue';
-import contactsService from '../services/contactsService.js';
 import { getAllDLEs } from '../services/dleV2Service.js';
 
-// Определяем props
 const props = defineProps({
   isAuthenticated: Boolean,
   identities: Array,
@@ -108,322 +74,37 @@ const props = defineProps({
   isLoadingTokens: Boolean
 });
 
-// Определяем emits
-const emit = defineEmits(['auth-action-completed']);
+defineEmits(['auth-action-completed']);
 
 const { t } = useI18n();
-const auth = useAuthContext();
-const router = useRouter();
-const isLoading = ref(true);
-
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[CrmView] Clearing CRM data');
-    // Очищаем данные при выходе из системы
-    contacts.value = [];
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[CrmView] Refreshing CRM data');
-    loadContacts(); // Обновляем данные при входе в систему
-  });
-});
-const dleList = ref([]);
-const selectedDleIndex = ref(null);
-
-const showDleManagement = ref(false);
-const showContacts = ref(false);
-const contacts = ref([]);
-const isLoadingContacts = ref(false);
-const selectedContact = ref(null);
-const showContactDetails = ref(false);
-const showTables = ref(false);
 
 let ws = null;
-
-function connectWebSocket() {
-  if (ws) ws.close();
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
-  ws.onopen = () => {
-    // console.log('[CRM] WebSocket соединение установлено');
-  };
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.type === 'contacts-updated') {
-        // console.log('[CRM] Получено событие contacts-updated, обновляем контакты');
-        loadContacts();
-      }
-    } catch (e) {
-      // console.error('[CRM] Ошибка обработки сообщения WebSocket:', e);
-    }
-  };
-  ws.onclose = () => {
-    // console.log('[CRM] WebSocket соединение закрыто');
-  };
-  ws.onerror = (e) => {
-    // console.error('[CRM] WebSocket ошибка:', e);
-  };
-}
-
-// Функция для перехода на домашнюю страницу и открытия боковой панели
-const goToHomeAndShowSidebar = () => {
-  router.push({ name: 'home' });
-};
-
-// Функция для перехода на страницу настроек блокчейна
-const goToBlockchainSettings = () => {
-  router.push({ name: 'settings-blockchain' });
-};
-
-// Загрузка списка DLE
-const loadDLEs = async () => {
-  isLoading.value = true;
-  try {
-    const result = await getAllDLEs();
-    dleList.value = result || [];
-    
-    // Выбираем первый DLE, если есть
-    if (dleList.value.length > 0) {
-      selectedDleIndex.value = 0;
-    }
-  } catch (error) {
-    // console.error('Ошибка при загрузке списка DLE:', error);
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-// Обработчик события изменения авторизации
-const handleAuthEvent = (eventData) => {
-  // console.log('[CrmView] Получено событие изменения авторизации:', eventData);
-  if (eventData.isAuthenticated) {
-    loadDLEs();
-  }
-};
-
-// Регистрация и очистка обработчика событий
 let unsubscribe = null;
 
+async function loadDLEs() {
+  try {
+    await getAllDLEs();
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function connectWebSocket() {
+  /* reserved — CRM list hub no longer embeds live tables */
+}
+
+const handleAuthEvent = (eventData) => {
+  if (eventData.isAuthenticated) loadDLEs();
+};
+
 onMounted(() => {
-  // console.log('[CrmView] Компонент загружен');
-  
-  // Загружаем DLE для всех пользователей (авторизованных и неавторизованных)
   loadDLEs();
-  
-  // Подписка на события авторизации
   unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
-  
   connectWebSocket();
 });
 
 onBeforeUnmount(() => {
-  // Отписка от события при удалении компонента
-  if (unsubscribe) {
-    unsubscribe();
-  }
-  
+  if (unsubscribe) unsubscribe();
   if (ws) ws.close();
 });
-
-async function loadContacts() {
-  isLoadingContacts.value = true;
-  try {
-    const result = await contactsService.getContacts({ limit: 1000, offset: 0 });
-    contacts.value = result.contacts || [];
-  } catch (e) {
-    contacts.value = [];
-    alert(t('crm.loadContactsError'));
-  } finally {
-    isLoadingContacts.value = false;
-  }
-}
-
-watch(showContacts, (val) => {
-  if (val) loadContacts();
-});
-
-function openContactDetails(contact) {
-  selectedContact.value = contact;
-  showContactDetails.value = true;
-}
-
-function onContactDeleted() {
-  showContactDetails.value = false;
-  loadContacts();
-}
-
-function goToTables() {
-  router.push({ name: 'tables-list' });
-}
-
-
-
-function goToContactsList() {
-  router.push({ name: 'contacts-list' });
-}
-
-function goToContent() {
-  router.push({ name: 'content-list' });
-}
-
-function goToSettings() {
-  router.push({ name: 'settings-index' });
-}
-
-function goToWeb3App() {
-  router.push({ name: 'vds-management' });
-}
-
-function goToAcceleratorRegistration() {
-  router.push({ name: 'groups' });
-}
 </script>
-
-<style scoped>
-.crm-management {
-  padding: 20px;
-  background-color: var(--color-white);
-  border-radius: var(--radius-lg);
-  min-height: 100vh;
-}
-
-.crm-top-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.crm-top-nav__link {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 16px;
-  border-radius: var(--block-radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-white);
-  color: var(--color-grey);
-  text-decoration: none;
-  font-size: var(--font-size-md);
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.crm-top-nav__link:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.crm-top-nav__link.is-active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-white);
-}
-
-.management-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid var(--theme-border);
-}
-
-.header-content h1 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 2rem;
-  font-weight: 700;
-}
-
-.crm-description {
-  margin: 0.5rem 0 0 0;
-  color: var(--theme-text-muted);
-  font-size: 1.1rem;
-}
-
-.management-blocks {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
-}
-
-.blocks-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  align-items: stretch;
-}
-
-.management-block {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 250px;
-  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
-}
-
-.management-block:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-  border-color: var(--color-primary);
-}
-
-.management-block h3 {
-  margin: 0 0 1rem 0;
-  color: var(--color-primary);
-  font-size: 1.5rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.management-block p {
-  margin: 0 0 1.5rem 0;
-  color: var(--theme-text-muted);
-  font-size: 1rem;
-  line-height: 1.5;
-  flex-grow: 1;
-}
-
-.management-block .btn {
-  margin-top: auto;
-  align-self: center;
-  min-width: 120px;
-}
-
-/* Адаптивность */
-@media (max-width: 1024px) {
-  .management-blocks {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .management-blocks {
-    grid-template-columns: 1fr;
-  }
-  
-  .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  
-  .header-content h1 {
-    font-size: 1.5rem;
-  }
-}
-
-
-/* TZ package R stack */
-@media (max-width: 768px) {
-  [class*="grid"], .form-row, .management-blocks, .cards-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .row, .actions, .toolbar, .filters, .form-actions {
-    flex-wrap: wrap;
-  }
-}
-</style> 

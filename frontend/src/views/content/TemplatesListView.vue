@@ -114,16 +114,21 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.list-page { padding: 20px; width: 100%; }
+.list-page {
+  position: relative;
+  padding: 0 20px 20px;
+  width: 100%;
+  background: transparent;
+}
 .page-header { display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; }
-.header-content h1 { color: var(--color-primary); font-size: 2.2rem; margin: 0 0 8px 0; }
+.header-content h1 { color: var(--theme-text, #262626); font-size: 2.2rem; margin: 0 0 8px 0; }
 .header-content p { color: var(--color-grey-dark); margin: 0; }
 .list-page.page-with-close { position: relative; }
 
 /* Переиспользуем стили из ContentListView */
-.content-block { background: #f8f9fa; border-radius: var(--radius-lg); padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.content-block { background: transparent; border-radius: 0; padding: 0; box-shadow: none; }
 .section-header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 20px; }
-.section-header h2 { color: var(--color-primary); margin: 0; }
+.section-header h2 { color: var(--theme-text, #262626); margin: 0; }
 .filters { display: flex; gap: 20px; align-items: center; }
 .filter-group { display: flex; align-items: center; gap: 8px; }
 .filter-group label { color: var(--color-grey-dark); font-weight: 500; }
@@ -132,8 +137,8 @@ onMounted(async () => {
 .search-input { width: 100%; padding: 10px 40px 10px 15px; border: 1px solid #e9ecef; border-radius: var(--radius-sm); font-size: 1rem; }
 .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: var(--color-grey-dark); }
 .pages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; margin-top: 10px; }
-.page-card { background: #fff; border: 1px solid #e9ecef; border-radius: var(--radius-sm); padding: 16px; cursor: pointer; transition: all 0.2s; }
-.page-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
+.page-card { background: var(--theme-bg, #fff); border: 1px solid var(--color-border, #e9ecef); border-radius: var(--radius-sm); padding: 16px; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+.page-card:hover { border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border, #e9ecef)); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 .page-card-header h3 { margin: 0; color: var(--color-primary); font-size: 1.2rem; }
 .page-summary { color: var(--color-grey-dark); margin: 8px 0 12px; }
 .page-meta { display:flex; gap: 12px; font-size: 0.9rem; color: var(--color-grey-dark); align-items: center; flex-wrap: wrap; }

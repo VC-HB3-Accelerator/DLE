@@ -12,18 +12,17 @@
 
 <template>
   <BaseLayout>
-    <div class="panel tables-list-block page-with-close">
-      <PageCloseButton :fallback="{ name: 'crm' }" />
+    <AdminPageShell :show-close="true" :fallback="{ name: 'crm' }" variant="panel">
       <h2 class="tables-list-title">{{ t('tables.list.title') }}</h2>
       <UserTablesList v-if="canViewData" />
       <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
 <script setup>
 import BaseLayout from '../../components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import UserTablesList from '../../components/tables/UserTablesList.vue';
 import { useI18n } from 'vue-i18n';
 import { usePermissions } from '@/composables/usePermissions';
@@ -33,34 +32,15 @@ const { canViewData } = usePermissions();
 </script>
 
 <style scoped>
-.tables-list-block {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin-top: var(--spacing-xl);
-  position: relative;
-  overflow-x: auto;
-}
-
 .tables-list-title {
   margin: 0 0 var(--spacing-lg);
-  padding-right: calc(var(--button-height) + var(--spacing-sm));
-  color: var(--theme-text);
-}
-
-.page-with-close {
-  position: relative;
+  padding-right: 2.5rem;
+  color: var(--color-dark);
 }
 
 .empty-table-placeholder {
   text-align: center;
   padding: var(--spacing-xl);
   color: var(--theme-text-muted);
-}
-
-@media (max-width: 768px) {
-  .tables-list-block {
-    margin-top: var(--spacing-lg);
-  }
 }
 </style>

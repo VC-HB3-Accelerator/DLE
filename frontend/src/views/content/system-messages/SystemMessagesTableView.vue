@@ -502,10 +502,10 @@ function showNotification(type, message) {
 }
 
 .table-section {
-  background: #f8f9fa;
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   gap: 16px;

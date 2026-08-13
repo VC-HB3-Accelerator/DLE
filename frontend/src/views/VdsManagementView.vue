@@ -18,7 +18,8 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="vds-management-container">
+    <div class="vds-management-container page-with-close">
+      <PageCloseButton :fallback="{ name: 'crm' }" />
       <div class="vds-header">
         <div class="status-badge" :class="{ online: isOnline }">
           <div class="status-indicator" :class="{ online: isOnline }"></div>
@@ -548,6 +549,7 @@ import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 import axios from 'axios';
 import Chart from 'chart.js/auto';
 import { usePermissions } from '../composables/usePermissions';
@@ -1533,12 +1535,15 @@ onUnmounted(() => {
 
 <style scoped>
 .vds-management-container {
+  position: relative;
   padding: var(--block-padding, 20px);
-  background-color: var(--color-white);
+  padding-top: calc(var(--block-padding, 20px) + 0.5rem);
+  background: transparent;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md, 0 2px 10px rgba(0, 0, 0, 0.1));
-  margin-top: 20px;
-  margin-bottom: 20px;
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+  margin-top: 0;
+  margin-bottom: var(--spacing-lg);
   max-width: 1400px;
   margin-left: auto;
   margin-right: auto;
@@ -1589,11 +1594,11 @@ onUnmounted(() => {
 
 .settings-section {
   margin-bottom: 30px;
-  background: white;
-  border: 1px solid #e9ecef;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--radius-lg, 12px);
-  padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  padding: 8px 0 24px;
+  box-shadow: none;
 }
 
 .settings-display {
@@ -1608,9 +1613,9 @@ onUnmounted(() => {
 
 .setting-item {
   padding: 16px;
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm, 8px);
-  border: 1px solid #e9ecef;
+  border: 1px solid transparent;
 }
 
 .setting-item label {
@@ -1645,7 +1650,7 @@ onUnmounted(() => {
   padding: 40px;
   color: var(--color-grey-dark, #666);
   font-size: 1.1rem;
-  background: #f8f9fa;
+  background: transparent;
   border-radius: var(--radius-sm, 8px);
   border: 1px dashed #e9ecef;
 }

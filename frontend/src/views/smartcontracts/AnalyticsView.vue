@@ -572,7 +572,7 @@ onMounted(() => {
 .analytics-container {
   position: relative;
   padding: 20px;
-  background-color: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
@@ -639,7 +639,7 @@ onMounted(() => {
 .modules-card,
 .multichain-card,
 .holders-card {
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   padding: 18px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-grey-light, #e9ecef);
@@ -723,7 +723,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-grey-light, #e9ecef);
 }
@@ -755,7 +755,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-grey-light, #e9ecef);
 }
@@ -794,7 +794,7 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   font-size: 0.8rem;
   font-weight: 500;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   border: 1px solid var(--color-grey-light, #e4e7ed);
 }

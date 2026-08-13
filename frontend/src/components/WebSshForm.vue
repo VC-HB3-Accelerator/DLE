@@ -399,7 +399,7 @@ const resetForm = () => {
   gap: 1rem;
   margin-bottom: 2rem;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border-radius: 8px;
   border: 1px solid #e9ecef;
 }
@@ -499,7 +499,7 @@ const resetForm = () => {
 
 .form-group input:disabled,
 .form-group textarea:disabled {
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   color: #6c757d;
   cursor: not-allowed;
 }
@@ -664,7 +664,7 @@ const resetForm = () => {
 .log-container {
   max-height: 400px;
   overflow-y: auto;
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border-radius: 8px;
   padding: 1rem;
 }

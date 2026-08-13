@@ -4,9 +4,8 @@
 -->
 <template>
   <BaseLayout>
-    <div class="ai-rag-settings panel page-with-close">
-      <PageCloseButton fallback="/settings/ai" />
-      <h2>{{ $t('settings.ai.rag.pageTitle') }}</h2>
+    <AdminPageShell :show-close="true" fallback="/settings/ai" variant="panel">
+      <h2 class="rag-page-title">{{ $t('settings.ai.rag.pageTitle') }}</h2>
       <p class="page-desc">{{ $t('settings.ai.rag.pageDesc') }}</p>
 
       <div v-if="loading" class="form-hint">{{ $t('common.loading') }}…</div>
@@ -90,14 +89,14 @@
           @save="onSave"
         />
       </div>
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import BaseLayout from '@/components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { useAiConfig } from '@/composables/useAiConfig';
 import RagOverviewTab from './rag/RagOverviewTab.vue';
 import RagSearchTab from './rag/RagSearchTab.vue';
@@ -138,13 +137,19 @@ async function onSave(payload) {
 </script>
 
 <style scoped>
-.ai-rag-settings { padding: 1rem 1.25rem 2rem; }
-.page-desc { color: var(--text-muted, #666); margin-bottom: 1rem; }
+.rag-page-title {
+  margin: 0 0 0.5rem 0;
+  padding-right: 2.5rem;
+  color: var(--color-dark);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+}
+.page-desc { color: var(--theme-text-muted, #666); margin-bottom: 1rem; }
 .rag-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  border-bottom: 1px solid var(--border, #e5e7eb);
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -157,11 +162,11 @@ async function onSave(payload) {
   font: inherit;
 }
 .rag-tab.active {
-  background: var(--surface-2, #f1f5f9);
-  border-color: var(--border, #e5e7eb);
+  background: var(--theme-surface, #f1f5f9);
+  border-color: var(--color-border, #e5e7eb);
   font-weight: 600;
 }
 .error-banner { background: #fee2e2; color: #991b1b; padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; }
 .ok-banner { background: #dcfce7; color: #166534; padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; }
-.form-hint { color: var(--text-muted, #666); }
+.form-hint { color: var(--theme-text-muted, #666); }
 </style>

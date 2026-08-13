@@ -378,7 +378,7 @@ onMounted(() => {
   gap: 15px;
   margin-bottom: 20px;
   padding: 15px;
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-md);
 }
 
@@ -403,7 +403,7 @@ onMounted(() => {
   font-style: italic;
   padding: 20px;
   text-align: center;
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-md);
 }
 
@@ -499,7 +499,7 @@ onMounted(() => {
 }
 
 .clear-memory-btn {
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border: 1px solid #ced4da;
   color: #212529;
 }
@@ -516,7 +516,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 15px;
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-md);
   border: 1px solid #e9ecef;
 }
@@ -622,7 +622,7 @@ onMounted(() => {
 }
 
 .instructions {
-  background: #f8f9fa;
+  background: var(--theme-bg, #fff);
   border: 1px solid #e9ecef;
   border-radius: var(--radius-md);
   padding: 20px;

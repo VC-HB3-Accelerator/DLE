@@ -247,6 +247,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
+import PageCloseButton from '../components/PageCloseButton.vue';
 import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import pagesService from '../services/pagesService';
 import blogFeedService from '../services/blogFeedService';
@@ -746,6 +747,7 @@ onMounted(async () => {
   position: relative;
   padding: 20px;
   width: 100%;
+  background: transparent;
 }
 
 .page-header {
@@ -776,17 +778,17 @@ onMounted(async () => {
 
 
 .content-block {
-  background: #f8f9fa;
-  border-radius: var(--radius-lg);
-  padding: 25px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .content-form {
-  background: white;
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-sm);
   padding: 30px;
-  border: 1px solid #e9ecef;
+  border: 1px solid transparent;
   max-width: 1000px;
   margin: 0 auto;
   width: 100%;

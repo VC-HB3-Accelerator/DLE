@@ -481,15 +481,15 @@ onMounted(loadData);
 }
 
 .feed-settings__panel {
-  background: var(--color-light);
+  background: transparent;
   border-radius: var(--radius-lg);
   padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .feed-settings__panel h2 {
   margin: 0 0 8px;
-  color: var(--color-primary);
+  color: var(--theme-text, #262626);
   font-size: 1.4rem;
 }
 

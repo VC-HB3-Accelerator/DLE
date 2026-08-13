@@ -282,6 +282,7 @@ import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { useProposals } from '@/composables/useProposals';
 import BaseLayout from '@/components/BaseLayout.vue';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 export default {
   name: 'DleProposalsView',
@@ -421,7 +422,7 @@ export default {
   max-width: 100%;
   min-width: 0;
   padding: 20px;
-  background-color: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
@@ -461,12 +462,12 @@ export default {
   padding: 14px 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-grey-light, #e4e7ed);
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
 }
 
 .alert-info {
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-color: var(--color-grey-light, #e4e7ed);
   color: var(--color-dark, #333);
 }
@@ -536,7 +537,7 @@ export default {
 .empty-state {
   text-align: center;
   padding: 48px 24px;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-md);
   border: 1px dashed var(--color-grey, #ced4da);
 }
@@ -590,7 +591,7 @@ export default {
   border-radius: var(--radius-lg);
   font-size: 0.8rem;
   font-weight: 500;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   border: 1px solid var(--color-grey-light, #e4e7ed);
   white-space: nowrap;
@@ -602,7 +603,7 @@ export default {
 .status-executed,
 .status-cancelled,
 .status-ready {
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   border: 1px solid var(--color-grey-light, #e4e7ed);
 }
@@ -631,7 +632,7 @@ export default {
 }
 
 .multichain-info {
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   padding: 4px 10px;
   border-radius: var(--radius-lg);
@@ -674,7 +675,7 @@ export default {
 .vote-count {
   font-size: 0.8rem;
   color: var(--color-dark, #333);
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-grey-light, #e9ecef);
@@ -688,7 +689,7 @@ export default {
 
 .btn-action {
   height: 40px;
-  background-color: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   color: var(--color-dark, #333);
   border: 1px solid var(--color-grey-light, #e4e7ed);
   border-radius: var(--radius-lg);
@@ -712,7 +713,7 @@ export default {
 .chains-details {
   margin-top: 12px;
   padding: 12px;
-  background: var(--color-light, #f8f9fa);
+  background: var(--theme-bg, #fff);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-grey-light, #e9ecef);
 }

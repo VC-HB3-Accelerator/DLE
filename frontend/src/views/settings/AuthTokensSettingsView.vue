@@ -11,8 +11,7 @@
 -->
 
 <template>
-  <div class="panel settings-subpage page-with-close">
-    <PageCloseButton fallback="/settings/security" />
+  <AdminPageShell :show-close="true" fallback="/settings/security" variant="plain">
     <h2>{{ $t('settings.security.authentication') }}</h2>
     <p v-if="isLoading" class="page-state">{{ $t('common.loading') }}</p>
     <AuthTokensSettings
@@ -20,14 +19,14 @@
       :authTokens="authTokens"
       @update="loadAuthTokens"
     />
-  </div>
+  </AdminPageShell>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '@/api/axios';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import AuthTokensSettings from './AuthTokensSettings.vue';
 
 const { t } = useI18n();

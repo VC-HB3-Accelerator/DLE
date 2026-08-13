@@ -11,7 +11,8 @@
 -->
 
 <template>
-  <div class="dle-form-container">
+  <div class="dle-form-container page-with-close">
+    <PageCloseButton fallback="/settings" />
     <!-- Форма -->
     <div class="form-content">
       <!-- Выбор страны -->
@@ -920,6 +921,7 @@ import { usePermissions } from '@/composables/usePermissions';
 import api from '@/api/axios';
 import DeploymentWizard from '@/components/deployment/DeploymentWizard.vue';
 import eventBus from '@/utils/eventBus';
+import PageCloseButton from '@/components/PageCloseButton.vue';
 
 const router = useRouter();
 // Нормализация приватного ключа: убираем пробелы/"0x", посторонние символы,
@@ -2997,10 +2999,10 @@ async function submitDeploy() {
 }
 
 .settings-block {
-  background: white;
+  background: transparent;
   border-radius: 12px; /* Согласуем с основными блоками */
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); /* Согласуем тень */
-  border: 1px solid #e9ecef; /* Добавляем границу как у основных блоков */
+  box-shadow: none; /* Согласуем тень */
+  border: 1px solid transparent; /* Добавляем границу как у основных блоков */
   padding: 2rem; /* Увеличиваем отступы */
   margin-top: 2rem; /* Увеличиваем отступ сверху */
   margin-bottom: 2rem; /* Увеличиваем отступ снизу */
@@ -3128,7 +3130,7 @@ async function submitDeploy() {
 }
 
 .activity-codes-section {
-  background: #f8f9fa;
+  background: transparent;
   padding: 1rem;
   border-radius: 6px;
 }
@@ -3376,7 +3378,9 @@ async function submitDeploy() {
 
 /* Простой вертикальный layout */
 .dle-form-container {
+  position: relative;
   max-width: 100%;
+  padding-top: 0.5rem;
 }
 
 .form-content {
@@ -3390,7 +3394,7 @@ async function submitDeploy() {
 }
 
 .data-preview {
-  background: #f8f9fa;
+  background: transparent;
   border: 1px solid #dee2e6;
   border-radius: 8px;
   padding: 1.5rem;
@@ -4240,7 +4244,7 @@ async function submitDeploy() {
   .predicted-address-section {
     margin: 1.5rem 0;
     padding: 1rem;
-    background: #f8f9fa;
+    background: transparent;
     border-radius: 8px;
     border-left: 4px solid #007bff;
   }

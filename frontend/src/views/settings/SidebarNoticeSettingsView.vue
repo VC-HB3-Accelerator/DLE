@@ -4,7 +4,7 @@
 -->
 
 <template>
-  <div class="sidebar-notice-settings settings-panel page-with-close">
+  <div class="sidebar-notice-settings page-with-close">
     <PageCloseButton fallback="/settings" />
     <h2>{{ t('settings.sidebarNotice.pageTitle') }}</h2>
     <p class="sidebar-notice-settings__intro">{{ t('settings.sidebarNotice.intro') }}</p>
@@ -120,9 +120,9 @@ onMounted(initPage);
 .sidebar-notice-settings {
   position: relative;
   padding: var(--block-padding, 1.5rem);
-  background-color: var(--color-light, #f8f9fa);
-  border-radius: var(--radius-md, 12px);
-  margin-top: var(--spacing-lg, 1.5rem);
+  background-color: transparent;
+  border-radius: 0;
+  margin-top: 0;
 }
 
 .sidebar-notice-settings__intro {

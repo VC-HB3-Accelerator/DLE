@@ -109,7 +109,7 @@ async function onFilePicked(event) {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 40px);
-  background: #fafafa;
+  background: transparent;
 }
 
 .media-library-page__wrap {

@@ -113,7 +113,7 @@ onMounted(async () => {
 .docs-main {
   flex: 1;
   overflow-y: auto;
-  background: #fafafa;
+  background: transparent;
 }
 
 .loading-state {

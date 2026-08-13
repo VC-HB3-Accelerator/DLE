@@ -11,7 +11,7 @@
 -->
 
 <template>
-  <div class="ai-provider-settings settings-panel">
+  <div class="ai-provider-settings">
     <h2 v-if="showHeading">{{ label }}</h2>
     <p v-if="description" class="desc">{{ description }}</p>
     <form class="provider-form" @submit.prevent="onSave">
@@ -96,7 +96,6 @@
         <button type="button" class="btn btn-danger" v-if="hasSettings" @click="onDelete">
           {{ $t('settings.ai.providerSettings.deleteKey') }}
         </button>
-        <button type="button" class="btn btn-ghost" @click="$emit('cancel')">{{ $t('common.close') }}</button>
       </div>
       <div v-if="saveStatus === true" class="alert alert-success">{{ $t('settings.ai.providerSettings.saved') }}</div>
       <div v-if="saveStatus === false" class="alert alert-danger">
@@ -120,7 +119,7 @@ const props = defineProps({
   showApiKey: { type: Boolean, default: true },
   showBaseUrl: { type: Boolean, default: true },
   showProxy: { type: Boolean, default: false },
-  showHeading: { type: Boolean, default: true },
+  showHeading: { type: Boolean, default: false },
   apiKeyPlaceholder: { type: String, default: '' },
   baseUrlPlaceholder: { type: String, default: '' },
 });
@@ -352,15 +351,16 @@ watch([apiKey, baseUrl, proxyUrl, proxyEnabled, blancSubscriptionUrl], () => {
 </script>
 
 <style scoped>
-.ai-provider-settings.settings-panel {
-  padding: var(--block-padding);
-  margin-top: var(--spacing-lg);
+.ai-provider-settings {
+  padding: 0;
+  margin: 0;
   max-width: 640px;
+  background: transparent;
   color: var(--color-text);
 }
 
 .desc {
-  color: var(--color-text-light);
+  color: var(--theme-text-muted, var(--color-text-light));
   margin: 0 0 var(--spacing-lg);
   line-height: 1.4;
 }
@@ -418,7 +418,7 @@ watch([apiKey, baseUrl, proxyUrl, proxyEnabled, blancSubscriptionUrl], () => {
 }
 
 @media (max-width: 768px) {
-  .ai-provider-settings.settings-panel {
+  .ai-provider-settings {
     max-width: 100%;
     box-sizing: border-box;
   }

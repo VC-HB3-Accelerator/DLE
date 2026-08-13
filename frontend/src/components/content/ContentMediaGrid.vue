@@ -349,12 +349,13 @@ defineExpose({ reload });
 }
 
 .media-card {
-  background: #fff;
-  border: 1px solid #e9ecef;
+  background: var(--theme-bg, #fff);
+  border: 1px solid var(--color-border, #e9ecef);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .media-card--pick {

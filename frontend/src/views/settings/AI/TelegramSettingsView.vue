@@ -12,11 +12,13 @@
 
 <template>
   <BaseLayout>
-    <div class="telegram-settings-block panel page-with-close">
-      <PageCloseButton fallback="/settings/ai" />
-      <h2>{{ $t('settings.ai.telegram.pageTitle') }}</h2>
-      <div class="telegram-settings settings-panel">
-        <form v-if="editMode" @submit.prevent="saveTelegramSettings" class="settings-form">
+    <AdminPageShell
+      :title="$t('settings.ai.telegram.pageTitle')"
+      :show-close="true"
+      fallback="/settings/ai"
+      variant="panel"
+    >
+      <form v-if="editMode" @submit.prevent="saveTelegramSettings" class="settings-form">
           <div class="form-group">
             <label class="form-label" for="botToken">Bot Token</label>
             <input id="botToken" v-model="form.botToken" type="text" class="form-control" required />
@@ -38,8 +40,7 @@
             <button type="button" class="btn btn-danger" @click="clearTelegramSettings">{{ $t('settings.ai.email.clear') }}</button>
           </div>
         </div>
-      </div>
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
@@ -47,7 +48,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { reactive, ref, onMounted, watch } from 'vue';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
@@ -191,7 +192,7 @@ h2 {
   justify-content: space-between;
   align-items: center;
   font-size: var(--font-size-md);
-  background: var(--color-light);
+  background: transparent;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: var(--spacing-sm) var(--spacing-lg);

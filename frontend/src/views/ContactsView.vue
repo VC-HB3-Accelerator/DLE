@@ -12,13 +12,11 @@
 
 <template>
   <BaseLayout>
-    <div class="contacts-page">
-      <div class="contacts-page-header">
-        <h1>
-          {{ t('contacts.title') }}
-          <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
-        </h1>
-      </div>
+    <AdminPageShell :show-close="true" :fallback="{ name: 'crm' }" variant="panel">
+      <h1 class="contacts-page-header">
+        {{ t('contacts.title') }}
+        <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
+      </h1>
       <ContactTable
         :contacts="contacts"
         :new-contacts="newContacts"
@@ -27,7 +25,7 @@
         :markMessagesAsReadForUser="markMessagesAsReadForUser"
         :markContactAsRead="markContactAsRead"
       />
-    </div>
+    </AdminPageShell>
   </BaseLayout>
 </template>
 
@@ -35,6 +33,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import ContactTable from '../components/ContactTable.vue';
 import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
 import { useAuthContext } from '@/composables/useAuth';
@@ -72,15 +71,12 @@ watch(canViewContacts, (newValue, oldValue) => {
 </script>
 
 <style scoped>
-.contacts-page {
-  width: 100%;
-}
-
-.contacts-page-header h1 {
+.contacts-page-header {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 0 20px;
+  padding-right: 2.5rem;
   font-size: var(--font-size-xxl);
   font-weight: 600;
   color: var(--color-dark);
@@ -97,7 +93,7 @@ watch(canViewContacts, (newValue, oldValue) => {
 }
 
 @media (max-width: 768px) {
-  .contacts-page-header h1 {
+  .contacts-page-header {
     font-size: var(--font-size-xl);
     margin-bottom: 16px;
   }

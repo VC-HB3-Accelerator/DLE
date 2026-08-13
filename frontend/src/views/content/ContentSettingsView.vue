@@ -572,7 +572,7 @@ async function onGenerate() {
 .pack-page {
   position: relative;
   min-height: calc(100vh - 40px);
-  background: #fafafa;
+  background: transparent;
 }
 
 .pack-page__inner {
@@ -594,8 +594,8 @@ async function onGenerate() {
 }
 
 .pack-block {
-  background: #fff;
-  border: 1px solid #e9ecef;
+  background: var(--theme-bg, #fff);
+  border: 1px solid var(--color-border, #e9ecef);
   border-radius: 12px;
   padding: 16px 18px;
   margin-bottom: 14px;

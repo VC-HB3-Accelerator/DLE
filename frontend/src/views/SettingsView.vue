@@ -19,10 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="settings-view-container">
-      <div v-if="route.name === 'settings-blockchain-dle-deploy' || route.name === 'settings-dle-v2-deploy'" class="page-header page-with-close">
-        <PageCloseButton fallback="/settings" />
-      </div>
-      <!-- Router view для отображения дочерних компонентов настроек -->
       <router-view></router-view>
     </div>
   </BaseLayout>
@@ -36,7 +32,6 @@ import { useAuthContext } from '../composables/useAuth';
 import { useRouter, useRoute } from 'vue-router';
 import { getFromStorage, setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
 import eventBus from '../utils/eventBus';
 
 // Определяем props
@@ -115,13 +110,14 @@ onBeforeUnmount(() => {
 <style scoped>
 /* Основной контейнер */
 .settings-view-container {
-  padding: var(--block-padding);
-  background-color: var(--color-white);
-  border-radius: var(--block-radius);
-  box-shadow: var(--shadow-md);
-  margin-top: 20px;
-  margin-bottom: 20px; /* Уменьшаем отступ, так как он уже есть в BaseLayout */
-  min-height: auto; /* Убираем фиксированную высоту */
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  min-height: auto;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Заголовки */

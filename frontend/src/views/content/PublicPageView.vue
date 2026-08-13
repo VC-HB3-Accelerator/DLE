@@ -434,10 +434,10 @@ onMounted(() => {
 }
 
 .content-block {
-  background: #f8f9fa;
-  border-radius: var(--radius-lg);
-  padding: 30px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .page-summary,

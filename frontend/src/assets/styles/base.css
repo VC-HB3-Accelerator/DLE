@@ -87,3 +87,31 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+/* TZ_ADMIN_UI_SHELL_CLOSE: родитель для absolute PageCloseButton */
+.page-with-close {
+  position: relative;
+}
+
+/* Reserved top zone for × when not using AdminPageShell */
+.page-with-close:not(.admin-page-shell):has(> .page-close-btn) {
+  padding-top: 2.75rem;
+  box-sizing: border-box;
+}
+
+/*
+ * Единый фон админ-листьев: layout (--theme-bg) + контент,
+ * без серой «коробки» на корне page-with-close / legacy content-block.
+ */
+.main-content .page-with-close,
+.main-content .admin-page-shell {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.main-content .content-block {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
