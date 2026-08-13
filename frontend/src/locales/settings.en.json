@@ -305,6 +305,19 @@
       "llmForAssistant": "LLM model for AI assistant",
       "useDefaultOllama": "Use default Ollama model",
       "willUseLlm": "Will use: {model}",
+      "modelUnderstands": "Model understands: {caps}",
+      "modelReplies": "Model replies: {caps}",
+      "modelTextOnlyHint": "Text-only model: chat media is stored, the reply will be text.",
+      "acceptInputTitle": "Assistant processes in incoming messages",
+      "acceptInputHint": "A disabled type is not sent to the model; the chat message is still stored. Do not confuse with role permissions: Settings → Security → Roles.",
+      "acceptKeys": {
+        "text": "Text",
+        "file": "Files",
+        "video": "Video",
+        "audio": "Audio"
+      },
+      "loadFailed": "Could not load assistant settings. Save is disabled so defaults are not written over live values.",
+      "saveFailed": "Could not save assistant settings.",
       "embeddingForAssistant": "Embedding model for AI assistant",
       "willUseEmbedding": "Will use: {model}",
       "ragTables": "Selected RAG tables",
@@ -509,7 +522,24 @@
     "rpcConnectionError": "Connection error for {networkId}: {error}",
     "rpcTestError": "RPC test error: {error}",
     "tokenExists": "Error: Token with address '{address}' already added.",
-    "fillTokenFields": "Please fill in the token name and address."
+    "fillTokenFields": "Please fill in the token name and address.",
+    "roles": {
+      "title": "User role settings",
+      "description": "Which message types guest, reader, and editor may send in chat. Not the same as AI agent access.",
+      "hubCard": "User role settings",
+      "hubCardText": "Guest, reader, and editor rights for text, files, video, audio, and calls in chat.",
+      "guest": "Guest",
+      "readonly": "Reader",
+      "editor": "Editor",
+      "send_text": "Send text messages",
+      "send_file": "Send files",
+      "send_video": "Send video",
+      "send_audio": "Send audio",
+      "send_call": "Calls",
+      "saved": "Role permissions saved",
+      "loadFailed": "Could not load role permissions. Save is disabled so defaults are not written over live flags.",
+      "saveFailed": "Could not save role permissions."
+    }
   },
   "rpc": {
     "title": "RPC Providers",

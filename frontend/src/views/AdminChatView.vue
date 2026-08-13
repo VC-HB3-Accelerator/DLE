@@ -139,19 +139,23 @@ async function loadMessages() {
   }
 }
 
-async function handleSendMessage({ message }) {
-  if (!message.trim() || !adminId.value) return;
+async function handleSendMessage({ message, attachments = [] }) {
+  const files = Array.isArray(attachments) ? attachments.slice(0, 1) : [];
+  if ((!String(message || '').trim() && files.length === 0) || !adminId.value) return;
   
   try {
     await sendPrivateMessage({
       recipientId: parseInt(adminId.value),
-      content: message
+      content: message,
+      attachments: files
     });
     chatNewMessage.value = '';
     chatAttachments.value = [];
     await loadMessages();
   } catch (error) {
     console.error('[AdminChatView] Ошибка отправки сообщения:', error);
+    const code = error?.response?.data?.code;
+    ElMessage.error(code === 'CHAT_CAP_DENIED' ? t('chat.capDenied') : t('chat.sendMessageError'));
   }
 }
 

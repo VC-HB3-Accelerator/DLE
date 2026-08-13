@@ -8,7 +8,7 @@
  * - legacy: <iframe class="ql-video" src=".../api/uploads/media/{id}/file">
  */
 
-const UPLOAD_MEDIA_RE = /\/api\/uploads\/media\/\d+\/file/i;
+const UPLOAD_MEDIA_RE = /\/api\/uploads\/media\/\d+\/file|\/api\/v\/[A-Za-z0-9_-]+|(?:^|[^a-zA-Z0-9])\/v\/[A-Za-z0-9_-]+/i;
 
 function normalizeCoverUrl(src) {
   if (!src || typeof src !== 'string') return null;

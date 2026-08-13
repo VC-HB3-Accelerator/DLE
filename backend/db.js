@@ -17,18 +17,14 @@ const axios = require('axios');
 // Настройка парсера для BYTEA - возвращаем Buffer напрямую без конвертации в строку
 // OID для BYTEA в PostgreSQL: 17
 types.setTypeParser(17, (value) => {
-  // value уже является Buffer при использовании binary формата
-  // Но если это строка, конвертируем её в Buffer
-  if (Buffer.isBuffer(value)) {
-    return value;
-  }
-  // Если это строка (hex или base64), конвертируем
+  if (Buffer.isBuffer(value)) return value;
   if (typeof value === 'string') {
-    // Проверяем, является ли это hex строка
-    if (/^[0-9a-fA-F]+$/.test(value)) {
+    if (value.startsWith('\\x')) {
+      return Buffer.from(value.slice(2), 'hex');
+    }
+    if (/^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0) {
       return Buffer.from(value, 'hex');
     }
-    // Иначе считаем binary строкой
     return Buffer.from(value, 'binary');
   }
   return value;

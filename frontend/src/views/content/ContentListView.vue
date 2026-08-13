@@ -36,6 +36,12 @@
                 <p>{{ t('content.list.templates.description') }}</p>
                 <button class="details-btn" @click="goToTemplates">{{ t('common.details') }}</button>
               </div>
+
+              <div v-if="isEditor" class="management-block">
+                <h3>{{ t('content.list.media.title') }}</h3>
+                <p>{{ t('content.list.media.description') }}</p>
+                <button class="details-btn" @click="goToMedia">{{ t('common.details') }}</button>
+              </div>
             </div>
 
             <div class="blocks-column">
@@ -107,7 +113,7 @@ const emit = defineEmits(['auth-action-completed']);
 const router = useRouter();
 const { t } = useI18n();
 const { address } = useAuthContext();
-const { canEditData } = usePermissions();
+const { canEditData, isEditor } = usePermissions();
 
 // Методы
 function goToCreate() {
@@ -116,6 +122,10 @@ function goToCreate() {
 
 function goToTemplates() {
   router.push({ name: 'content-templates' });
+}
+
+function goToMedia() {
+  router.push({ name: 'content-media' });
 }
 
 function goToPublished() {

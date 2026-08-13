@@ -124,7 +124,8 @@ class AIAssistant {
       conversationHistory = [],
       conversationId,
       ragTableId = null,
-      metadata = {}
+      metadata = {},
+      media = null
     } = options;
 
     try {
@@ -162,7 +163,7 @@ class AIAssistant {
       }
 
       // 0. Проверяем язык сообщения (только русский)
-      const languageCheck = await shouldProcessWithAI(userQuestion);
+      const languageCheck = await shouldProcessWithAI(userQuestion, { hasMedia: Boolean(media?.data) });
       if (!languageCheck.shouldProcess) {
         logger.info(`[AIAssistant] ⚠️ Пропуск обработки: ${languageCheck.reason} (user: ${userId}, channel: ${channel})`);
         return {
@@ -267,6 +268,39 @@ class AIAssistant {
           channel: normalizedChannel
         };
       }
+
+      const {
+        parseAcceptInputForGenerate,
+        filterMediaForLlm,
+        FAIL_CLOSED_MEDIA
+      } = (() => {
+        try { return require('/app/shared/assistantAcceptInput'); }
+        catch (_) { return require('../../shared/assistantAcceptInput'); }
+      })();
+      let acceptInput;
+      try {
+        acceptInput = parseAcceptInputForGenerate(aiSettings?.accept_input);
+      } catch (acceptErr) {
+        logger.warn(`[AIAssistant] accept_input unreadable, fail-closed media: ${acceptErr.message}`);
+        acceptInput = { ...FAIL_CLOSED_MEDIA };
+      }
+      const filteredIngest = filterMediaForLlm({
+        accept: acceptInput,
+        media,
+        text: userQuestion
+      });
+      if (filteredIngest.reason) {
+        logger.info(`[AIAssistant] accept_input skip kind=${media?.kind || 'text'} reason=${filteredIngest.reason}`);
+      }
+      if (filteredIngest.skipGenerate) {
+        return {
+          success: false,
+          skipped: true,
+          reason: 'accept_input_skipped'
+        };
+      }
+      const ingestMedia = filteredIngest.media;
+      const ingestQuestion = filteredIngest.promptText;
       
       // Правила: по тегам пользователя + опциональный базовый набор из настроек
       let rules = { byTags: [], global: null };
@@ -316,12 +350,20 @@ class AIAssistant {
       const ragBehavior = await aiConfigService.getRAGBehavior();
       const searchInDocuments = ragBehavior.searchInDocuments !== false;
 
-      if (tableIds.length > 0 || searchInDocuments) {
+      const { mediaRagQuery } = (() => {
+        try { return require('/app/shared/mediaLimits'); }
+        catch (_) { return require('../../shared/mediaLimits'); }
+      })();
+      const ragQuery = ingestMedia
+        ? mediaRagQuery(ingestMedia.kind, ingestQuestion)
+        : ingestQuestion;
+
+      if (ragQuery && (tableIds.length > 0 || searchInDocuments)) {
         try {
-          logger.info(`[AIAssistant] Вызов multiSourceSearchService.search для запроса: "${userQuestion.substring(0, 50)}..."`);
+          logger.info(`[AIAssistant] Вызов multiSourceSearchService.search для запроса: "${String(ragQuery).substring(0, 50)}..."`);
           const searchStartTime = Date.now();
           searchResults = await multiSourceSearchService.search({
-            query: userQuestion,
+            query: ragQuery,
             tableIds: tableIds,
             searchInDocuments,
             searchMethod: ragConfig.searchMethod || 'hybrid', // 'semantic', 'keyword', 'hybrid'
@@ -471,7 +513,7 @@ class AIAssistant {
         link: profileLink
       };
 
-      const normalizedQuestion = String(userQuestion || '').toLowerCase();
+      const normalizedQuestion = String(ingestQuestion || '').toLowerCase();
       const needsProfileTools = /меня\s+з[ао]вут|меня\s+звать|зовут\s+меня|зови(?:те)?\s+меня|по\s+имени|мо[её]\s+имя|мое\s+имя|с\s+уважением|представлю|представляюсь|как меня зовут|как меня звать|мой профиль|профиль|мои теги|какие у меня теги|комментар|кто я|переимен|тег|лиценз|vip|клиент|холдер|держател|^я\s+[а-яёа-я-]{2,20}\s*[.!,]?$/i.test(normalizedQuestion);
 
       const conversationMemoryService = require('./conversationMemoryService');
@@ -485,7 +527,7 @@ class AIAssistant {
 
       logger.info(`[AIAssistant] Вызов generateLLMResponse для пользователя ${userId}...`);
       const aiResponse = await generateLLMResponse({
-        userQuestion,
+        userQuestion: ingestQuestion,
         context: ragResult?.context || '',
         answer: ragResult?.answer || '',
         systemPrompt: aiSettings ? aiSettings.system_prompt : '',
@@ -498,29 +540,61 @@ class AIAssistant {
         userTags: (Array.isArray(userTags) && userTags.length) ? userTags : (assignTagNames.length ? assignTagNames : null),
         userProfile,
         enableTools: needsProfileTools && userId && !userContextService.isGuestId(userId),
-        conversationMemory
+        conversationMemory,
+        media: ingestMedia,
+        acceptInput
       });
 
-      logger.info(`[AIAssistant] generateLLMResponse вернул ответ типа: ${typeof aiResponse}, длина: ${aiResponse ? (typeof aiResponse === 'string' ? aiResponse.length : JSON.stringify(aiResponse).length) : 0}`);
+      logger.info(`[AIAssistant] generateLLMResponse вернул ответ типа: ${typeof aiResponse}`);
+
+      if (typeof aiResponse === 'object' && aiResponse !== null && aiResponse.skipped) {
+        return {
+          success: false,
+          skipped: true,
+          reason: aiResponse.reason || 'accept_input_skipped'
+        };
+      }
 
       if (!aiResponse) {
         logger.warn(`[AIAssistant] Пустой ответ от AI для пользователя ${userId}`);
         return { success: false, reason: 'empty_response' };
       }
 
-      if (memoryKey && typeof aiResponse === 'string') {
+      let responseText = typeof aiResponse === 'object' && aiResponse !== null && 'text' in aiResponse
+        ? aiResponse.text
+        : aiResponse;
+      const responseMedia = typeof aiResponse === 'object' && aiResponse !== null ? aiResponse.media : null;
+      let multimodalUsed = typeof aiResponse === 'object' && aiResponse !== null ? aiResponse.multimodalUsed : undefined;
+      let multimodalReason = typeof aiResponse === 'object' && aiResponse !== null ? aiResponse.multimodalReason : undefined;
+      if (ingestMedia?.data && multimodalUsed === undefined) {
+        multimodalUsed = false;
+        multimodalReason = multimodalReason || 'model_text_only';
+      }
+
+      if (metadata.isGuest && ingestMedia?.data && !responseMedia && multimodalUsed === false) {
+        const { fallbackGuestCopy } = require('./chatMultimodalService');
+        const extra = fallbackGuestCopy();
+        if (typeof responseText === 'string' && !responseText.includes(extra)) {
+          responseText = `${responseText}\n\n${extra}`;
+        }
+      }
+
+      if (memoryKey && typeof responseText === 'string') {
         conversationMemoryService.scheduleUpdate({
           memoryKey,
           userMessage: userQuestion,
-          assistantMessage: aiResponse
+          assistantMessage: responseText
         });
       }
 
-      logger.info(`[AIAssistant] AI ответ успешно сгенерирован для пользователя ${userId}, длина: ${typeof aiResponse === 'string' ? aiResponse.length : JSON.stringify(aiResponse).length} символов`);
-      
+      logger.info(`[AIAssistant] AI ответ успешно сгенерирован для пользователя ${userId}`);
+
       return {
         success: true,
-        response: aiResponse,
+        response: responseText,
+        media: responseMedia || null,
+        multimodalUsed,
+        multimodalReason,
         ragData: ragResult,
         messageId: messageId,
         conversationId: conversationId

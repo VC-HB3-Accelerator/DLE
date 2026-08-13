@@ -61,12 +61,17 @@ function isRussianMessage(message, minCyrillicPercent = 10) {
  * @param {string} message - текст сообщения
  * @returns {Object} { shouldProcess: boolean, reason: string }
  */
-async function shouldProcessWithAI(message) {
+async function shouldProcessWithAI(message, options = {}) {
+  const hasMedia = Boolean(options.hasMedia);
+  const cleanMessage = typeof message === 'string' ? message.trim() : '';
+
+  if (hasMedia && (!cleanMessage || /^\[(audio|video|video_note|image|file)\]$/i.test(cleanMessage))) {
+    return { shouldProcess: true, reason: 'media_only' };
+  }
+
   if (!message || typeof message !== 'string') {
     return { shouldProcess: false, reason: 'Empty message' };
   }
-  
-  const cleanMessage = message.trim();
 
   let minCyrillicPercent = 10;
   let maxMessageLength = 10000;

@@ -84,6 +84,12 @@ const routes = [
         component: () => import('../views/settings/AuthTokensSettingsView.vue'),
       },
       {
+        path: 'security/roles',
+        name: 'settings-security-roles',
+        component: () => import('../views/settings/UserRolesSettingsView.vue'),
+        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-security' },
+      },
+      {
         path: 'security',
         name: 'settings-security',
         component: SettingsSecurityView,
@@ -406,6 +412,12 @@ const routes = [
     path: '/content',
     name: 'content-list',
     component: () => import('../views/content/ContentListView.vue'),
+  },
+  {
+    path: '/content/media',
+    name: 'content-media',
+    component: () => import('../views/content/ContentMediaLibraryView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, permissionFallback: 'content-list' },
   },
   {
     path: '/content/templates',

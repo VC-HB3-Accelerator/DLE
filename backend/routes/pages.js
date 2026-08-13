@@ -1714,46 +1714,16 @@ router.delete('/:id', async (req, res) => {
   // Находим все медиа-файлы, связанные с этой страницей
   try {
     const mediaResult = await db.getQuery()(
-      `SELECT id, file_hash FROM content_media WHERE page_id = $1`,
+      `SELECT id FROM content_media WHERE page_id = $1`,
       [pageId]
     );
     
     const deletedMediaCount = mediaResult.rows.length;
     console.log(`[pages] Найдено ${deletedMediaCount} медиа-файлов, связанных со страницей ${pageId}`);
     
-    // Для каждого медиа-файла проверяем, используется ли он в других местах
+    const contentMediaStore = require('../services/contentMediaStore');
     for (const media of mediaResult.rows) {
-      if (media.file_hash) {
-        // Проверяем, сколько раз используется этот файл (по file_hash)
-        const usageResult = await db.getQuery()(
-          `SELECT COUNT(*) as count FROM content_media WHERE file_hash = $1`,
-          [media.file_hash]
-        );
-        const usageCount = parseInt(usageResult.rows[0].count);
-        
-        // Если файл используется только один раз (только в этой странице), удаляем его полностью
-        if (usageCount === 1) {
-          await db.getQuery()(
-            `DELETE FROM content_media WHERE id = $1`,
-            [media.id]
-          );
-          console.log(`[pages] Удален медиа-файл ID ${media.id} (file_hash: ${media.file_hash}), использовался только в удаляемой странице`);
-        } else {
-          // Если файл используется в других местах, просто убираем связь со страницей
-          await db.getQuery()(
-            `UPDATE content_media SET page_id = NULL WHERE id = $1`,
-            [media.id]
-          );
-          console.log(`[pages] Убрана связь медиа-файла ID ${media.id} со страницей ${pageId} (файл используется в ${usageCount} местах)`);
-        }
-      } else {
-        // Если file_hash отсутствует, просто удаляем файл
-        await db.getQuery()(
-          `DELETE FROM content_media WHERE id = $1`,
-          [media.id]
-        );
-        console.log(`[pages] Удален медиа-файл ID ${media.id} (без file_hash)`);
-      }
+      await contentMediaStore.deleteMediaById(media.id);
     }
     
     if (deletedMediaCount > 0) {

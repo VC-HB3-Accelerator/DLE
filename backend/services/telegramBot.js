@@ -331,6 +331,16 @@ class TelegramBot {
       await this.handleMessage(ctx);
     });
 
+    this.bot.on('voice', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получен voice');
+      await this.handleMessage(ctx);
+    });
+
+    this.bot.on('video_note', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получен video_note');
+      await this.handleMessage(ctx);
+    });
+
     // Обработчик видео
     this.bot.on('video', async (ctx) => {
       logger.info('[TelegramBot] 📨 Получено видео');
@@ -360,18 +370,16 @@ class TelegramBot {
     try {
       const telegramId = ctx.from.id.toString();
       let content = '';
-      let contentData = null;
-
-      // Текст сообщения
       if (ctx.message.text) {
         content = ctx.message.text.trim();
       } else if (ctx.message.caption) {
         content = ctx.message.caption.trim();
       }
 
-      // Обработка медиа через UniversalMediaProcessor
       const mediaFiles = [];
       let fileId, fileName, mimeType, fileSize, fileData;
+      let kindHint = '';
+      const { MEDIA_MAX_BYTES, detectAttachmentKind, mediaPlaceholder, isMediaTooLarge } = require('../utils/chatMedia');
 
         if (ctx.message.document) {
           fileId = ctx.message.document.file_id;
@@ -389,6 +397,18 @@ class TelegramBot {
           fileName = ctx.message.audio.file_name || 'audio.ogg';
           mimeType = ctx.message.audio.mime_type || 'audio/ogg';
           fileSize = ctx.message.audio.file_size;
+        } else if (ctx.message.voice) {
+          fileId = ctx.message.voice.file_id;
+          fileName = 'voice.ogg';
+          mimeType = ctx.message.voice.mime_type || 'audio/ogg';
+          fileSize = ctx.message.voice.file_size;
+          kindHint = 'audio';
+        } else if (ctx.message.video_note) {
+          fileId = ctx.message.video_note.file_id;
+          fileName = 'video_note.mp4';
+          mimeType = 'video/mp4';
+          fileSize = ctx.message.video_note.file_size;
+          kindHint = 'video_note';
         } else if (ctx.message.video) {
           fileId = ctx.message.video.file_id;
           fileName = ctx.message.video.file_name || 'video.mp4';
@@ -399,68 +419,49 @@ class TelegramBot {
       // Если есть файл, загружаем его и обрабатываем
       if (fileId) {
         try {
-          // Скачиваем файл из Telegram
+          if (isMediaTooLarge(fileSize || 0)) {
+            await ctx.reply(`Файл слишком большой (лимит ${Math.round(MEDIA_MAX_BYTES / (1024 * 1024))} МБ).`);
+            return {
+              channel: 'telegram',
+              identifier: `telegram:${telegramId}`,
+              content: content || mediaPlaceholder(kindHint || 'document'),
+              attachments: [],
+              metadata: { mediaRejected: 'MEDIA_TOO_LARGE', maxBytes: MEDIA_MAX_BYTES }
+            };
+          }
           const file = await ctx.telegram.getFile(fileId);
           const fileUrl = `https://api.telegram.org/file/bot${this.settings.token}/${file.file_path}`;
-          
-          // Загружаем данные файла
           const response = await fetch(fileUrl);
           fileData = Buffer.from(await response.arrayBuffer());
-          
-          // Обрабатываем через медиа-процессор
-          const processedFile = await universalMediaProcessor.processFile(
-            fileData, 
-            fileName, 
-            {
-              telegramFileId: fileId,
-              mimeType: mimeType,
-              originalSize: fileSize
-            }
-          );
-          
-          mediaFiles.push(processedFile);
+          if (isMediaTooLarge(fileData.length)) {
+            await ctx.reply(`Файл слишком большой (лимит ${Math.round(MEDIA_MAX_BYTES / (1024 * 1024))} МБ).`);
+            return {
+              channel: 'telegram',
+              identifier: `telegram:${telegramId}`,
+              content: content || '[file]',
+              attachments: [],
+              metadata: { mediaRejected: 'MEDIA_TOO_LARGE' }
+            };
+          }
+          const kind = detectAttachmentKind({ filename: fileName, mimetype: mimeType, hint: kindHint });
+          mediaFiles.push({
+            filename: fileName,
+            mimetype: mimeType,
+            size: fileData.length,
+            data: fileData,
+            kind
+          });
         } catch (fileError) {
           logger.error('[TelegramBot] Ошибка загрузки файла:', fileError);
-          // Fallback: сохраняем как есть
-          mediaFiles.push({
-            type: 'telegram_file',
-            content: `[Файл: ${fileName}]`,
-            processed: false,
-            error: fileError.message,
-            file: {
-              fileId: fileId,
-              filename: fileName,
-              mimetype: mimeType,
-              size: fileSize
-            }
-          });
         }
       }
 
-      // Создаем структурированные данные контента
-      if (mediaFiles.length > 0) {
-        contentData = {
-          text: content,
-          files: mediaFiles.map(file => ({
-            data: file.file?.data || null,
-            filename: file.file?.originalName || file.file?.filename,
-            metadata: {
-              type: file.type,
-              processed: file.processed,
-              telegramFileId: file.file?.telegramFileId,
-              mimeType: file.file?.mimetype,
-              originalSize: file.file?.size
-            }
-          }))
-        };
-      }
-
+      const firstAtt = mediaFiles[0] || null;
       return {
         channel: 'telegram',
-        identifier: `telegram:${telegramId}`, // Формируем identifier с префиксом provider
-        content: content,
-        contentData: contentData,
-        attachments: mediaFiles, // Обратная совместимость
+        identifier: `telegram:${telegramId}`,
+        content: content || (firstAtt ? mediaPlaceholder(firstAtt.kind) : ''),
+        attachments: mediaFiles,
         metadata: {
           telegramUsername: ctx.from.username,
           telegramFirstName: ctx.from.first_name,
@@ -468,7 +469,7 @@ class TelegramBot {
           messageId: ctx.message.message_id,
           chatId: ctx.chat.id,
           hasMedia: mediaFiles.length > 0,
-          mediaTypes: mediaFiles.map(f => f.type)
+          attachment_kind: firstAtt?.kind || null
         }
       };
     } catch (error) {
@@ -504,15 +505,53 @@ class TelegramBot {
       
       // Извлекаем данные из сообщения
       const messageData = await this.extractMessageData(ctx);
-      
+
+      if (messageData?.metadata?.mediaRejected) {
+        return;
+      }
+
+      try {
+        const chatRoleCapabilitiesService = require('./chatRoleCapabilitiesService');
+        const identityService = require('./identity-service');
+        const telegramId = ctx.from?.id != null ? String(ctx.from.id) : '';
+        let tgRole = 'guest';
+        if (telegramId) {
+          const linked = await identityService.findUserByIdentity('telegram', telegramId);
+          if (linked?.role) tgRole = linked.role;
+        }
+        let caps;
+        try {
+          caps = await chatRoleCapabilitiesService.getCaps(tgRole);
+        } catch (capErr) {
+          logger.warn('[TelegramBot] caps unavailable:', capErr.message);
+          await ctx.reply('Права чата временно недоступны. Попробуйте позже.');
+          return;
+        }
+        const firstAtt = (messageData.attachments || [])[0] || null;
+        const check = chatRoleCapabilitiesService.assertChatCap(caps, {
+          text: messageData.content,
+          mimetype: firstAtt?.mimetype || '',
+          filename: firstAtt?.filename || '',
+          hint: firstAtt?.kind === 'video_note' ? 'video_note' : ''
+        });
+        if (!check.ok) {
+          await ctx.reply('Этот тип сообщения недоступен.');
+          return;
+        }
+      } catch (capGateErr) {
+        logger.warn('[TelegramBot] cap gate:', capGateErr.message);
+        await ctx.reply('Этот тип сообщения недоступен.');
+        return;
+      }
+
       logger.info(`[TelegramBot] Обработка сообщения от пользователя: ${messageData.identifier}`);
 
       // Загружаем вложения если есть
-      for (const attachment of messageData.attachments) {
+      for (const attachment of messageData.attachments || []) {
+        if (attachment.data) continue;
         const buffer = await this.downloadAttachment(attachment);
         if (buffer) {
           attachment.data = buffer;
-          // Удаляем ctx из вложения
           delete attachment.ctx;
         }
       }
@@ -532,7 +571,31 @@ class TelegramBot {
       // Отправляем ответ пользователю
       // Системное сообщение о согласиях уже включено в ответ ИИ (если нужно)
       if (result.success && result.aiResponse) {
-        await ctx.reply(result.aiResponse.response);
+        const text = result.aiResponse.response || '';
+        const aiMedia = result.aiMedia;
+        if (aiMedia?.kind === 'audio' && (aiMedia.buffer || aiMedia.data)) {
+          try {
+            await ctx.replyWithVoice({ source: aiMedia.buffer || aiMedia.data, filename: aiMedia.filename || 'voice.wav' });
+            if (text) await ctx.reply(text);
+          } catch (voiceErr) {
+            logger.warn('[TelegramBot] sendVoice fallback text:', voiceErr.message);
+            if (text) await ctx.reply(text);
+          }
+        } else if ((aiMedia?.kind === 'video_note' || aiMedia?.kind === 'video') && (aiMedia.buffer || aiMedia.data)) {
+          try {
+            if (aiMedia.kind === 'video_note') {
+              await ctx.replyWithVideoNote({ source: aiMedia.buffer || aiMedia.data });
+            } else {
+              await ctx.replyWithVideo({ source: aiMedia.buffer || aiMedia.data });
+            }
+            if (text) await ctx.reply(text);
+          } catch (vnErr) {
+            logger.warn('[TelegramBot] video out fallback text:', vnErr.message);
+            if (text) await ctx.reply(text);
+          }
+        } else if (text) {
+          await ctx.reply(text);
+        }
       } else if (result.success) {
         await ctx.reply('Сообщение получено');
       } else {

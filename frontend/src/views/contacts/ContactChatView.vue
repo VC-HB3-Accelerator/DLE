@@ -43,8 +43,8 @@
       :newMessage="chatNewMessage"
       :canSend="broadcastDraftMode ? true : (canSendToUsers && !!address)"
       :canAttach="!broadcastDraftMode"
-      :canGenerateAI="canGenerateAI && !broadcastDraftMode"
-      :canSelectMessages="canGenerateAI && !broadcastDraftMode"
+      :canGenerateAI="canGenerateAI && !broadcastDraftMode && !isGuestContact"
+      :canSelectMessages="canGenerateAI && !broadcastDraftMode && !isGuestContact"
       :clearOnSend="!broadcastDraftMode"
       :currentUserId="currentUserId"
       @send-message="handleSendMessage"
@@ -62,7 +62,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import ChatInterface from '@/components/ChatInterface.vue';
 import messagesService from '@/services/messagesService.js';
-import { getConversationByUserId, getMessagesByConversationId, sendMessage } from '@/services/messagesService.js';
+import { getConversationByUserId, getMessagesByConversationId } from '@/services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { useContactDetailsContext } from '@/composables/useContactDetails';
@@ -92,6 +92,7 @@ const broadcastCampaignId = computed(() => {
 });
 
 const broadcastDraftMode = computed(() => Boolean(broadcastCampaignId.value && contact.value?.id));
+const isGuestContact = computed(() => String(contact.value?.id || '').startsWith('guest_'));
 
 async function saveBroadcastDraft() {
   if (!broadcastDraftMode.value) return;
@@ -127,8 +128,9 @@ async function loadMessages() {
 
   isLoadingMessages.value = true;
   try {
-    if (String(contact.value.id).startsWith('guest_')) {
-      messages.value = [];
+    if (isGuestContact.value) {
+      const data = await messagesService.getMessagesByUserId(contact.value.id);
+      messages.value = data?.messages || [];
       conversationId.value = null;
       return;
     }
@@ -212,7 +214,7 @@ function saveDraftSoon() {
   }, 600);
 }
 
-async function handleSendMessage({ message }) {
+async function handleSendMessage({ message, attachments = [] }) {
   if (!contact.value?.id) return;
 
   if (broadcastDraftMode.value) {
@@ -230,17 +232,27 @@ async function handleSendMessage({ message }) {
   }
 
   const hasAnyId = contact.value.email || contact.value.telegram || contact.value.wallet;
-  if (!hasAnyId) {
+  if (!isGuestContact.value && !hasAnyId) {
     ElMessageBox.alert(t('contacts.details.noIdentifiers'), t('common.error'), { type: 'warning' });
     return;
   }
 
+  const files = Array.isArray(attachments) ? attachments.slice(0, 1) : [];
+  if (!String(message || '').trim() && files.length === 0) return;
+
   try {
-    const result = await sendMessage({
-      recipientId: contact.value.id,
-      content: message,
-      messageType: 'public',
-    });
+    const result = isGuestContact.value
+      ? await messagesService.sendToGuestContact({
+        toUserId: contact.value.id,
+        message,
+        attachments: files
+      })
+      : await messagesService.sendMessage({
+        conversationId: conversationId.value,
+        message,
+        attachments: files,
+        toUserId: contact.value.id
+      });
 
     if (result?.success) {
       chatNewMessage.value = '';
@@ -250,8 +262,11 @@ async function handleSendMessage({ message }) {
       throw new Error(result?.message || t('common.unknownError'));
     }
   } catch (e) {
+    const code = e?.response?.data?.code;
     ElMessageBox.alert(
-      t('contacts.details.sendError', { error: e?.response?.data?.error || e?.message || e }),
+      code === 'CHAT_CAP_DENIED'
+        ? t('chat.capDenied')
+        : t('contacts.details.sendError', { error: e?.response?.data?.error || e?.message || e }),
       t('common.error'),
       { type: 'error' }
     );
@@ -331,9 +346,10 @@ watch(broadcastCampaignId, async () => {
   background: var(--color-white);
   box-shadow: none;
   overflow: hidden;
-  height: calc(100dvh - 200px);
-  min-height: 480px;
-  max-height: calc(100dvh - 200px);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
   max-width: 100%;
   min-width: 0;
   display: flex;

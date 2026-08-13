@@ -33,11 +33,37 @@ export default {
     const formData = new FormData();
     if (conversationId) formData.append('conversationId', conversationId);
     if (message) formData.append('message', message);
-    if (toUserId) formData.append('toUserId', toUserId);
-    attachments.forEach(file => {
+    if (toUserId) {
+      formData.append('toUserId', toUserId);
+      formData.append('recipientId', toUserId);
+    }
+    if (attachments[0]?.attachmentKind) {
+      formData.append('attachment_kind', attachments[0].attachmentKind);
+    }
+    attachments.slice(0, 1).forEach(file => {
       formData.append('attachments', file);
     });
     const { data } = await api.post('/chat/message', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      withCredentials: true
+    });
+    return data;
+  },
+  async sendToGuestContact({ toUserId, message, attachments = [] }) {
+    const formData = new FormData();
+    formData.append('recipientId', toUserId);
+    formData.append('messageType', 'public');
+    if (message) {
+      formData.append('content', message);
+      formData.append('message', message);
+    }
+    if (attachments[0]?.attachmentKind) {
+      formData.append('attachment_kind', attachments[0].attachmentKind);
+    }
+    attachments.slice(0, 1).forEach((file) => {
+      formData.append('attachments', file);
+    });
+    const { data } = await api.post('/messages/send', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       withCredentials: true
     });
@@ -448,10 +474,19 @@ export async function getPrivateMessages(conversationId) {
   return data;
 }
 
-export async function sendPrivateMessage({ recipientId, content }) {
-  const { data } = await api.post('/messages/private/send', {
-    recipientId,
-    content
+export async function sendPrivateMessage({ recipientId, content, attachments = [] }) {
+  const formData = new FormData();
+  formData.append('recipientId', recipientId);
+  if (content) formData.append('content', content);
+  if (attachments[0]?.attachmentKind) {
+    formData.append('attachment_kind', attachments[0].attachmentKind);
+  }
+  attachments.slice(0, 1).forEach((file) => {
+    formData.append('attachments', file);
+  });
+  const { data } = await api.post('/messages/private/send', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    withCredentials: true
   });
   return data;
 }

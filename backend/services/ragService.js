@@ -24,7 +24,7 @@ const profileAnalysisService = require('./profileAnalysisService');
 const { buildOllamaRequest } = require('../utils/ollamaRequestBuilder');
 const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
 const { toOllamaToolMessage } = require('../utils/ollamaToolMessages');
-const { resolveChatLlmRoute, generateDeepseekChatResponse, generateQwenCloudChatResponse } = require('./chatLlmRouter');
+const { resolveChatLlmRoute, generateDeepseekChatResponse, generateQwenCloudChatResponse, generateOpenAiChatResponse } = require('./chatLlmRouter');
 const logger = require('../utils/logger');
 const db = require('../db');
 
@@ -655,7 +655,9 @@ async function generateLLMResponse({
   multiSourceResults = null, // Результаты мульти-источникового поиска
   userProfile = null,
   enableTools = false,
-  conversationMemory = null
+  conversationMemory = null,
+  media = null,
+  acceptInput = null
 }) {
   console.log(`[RAG] generateLLMResponse called with:`, {
     userQuestion,
@@ -676,6 +678,43 @@ async function generateLLMResponse({
   });
 
   try {
+    const acceptMod = (() => {
+      try { return require('/app/shared/assistantAcceptInput'); }
+      catch (_) { return require('../../shared/assistantAcceptInput'); }
+    })();
+    let resolvedAccept;
+    if (acceptInput != null) {
+      resolvedAccept = acceptMod.normalizeAcceptInput(acceptInput);
+    } else {
+      try {
+        const aiAssistantSettingsService = require('./aiAssistantSettingsService');
+        const liveSettings = await aiAssistantSettingsService.getSettings();
+        resolvedAccept = acceptMod.parseAcceptInputForGenerate(liveSettings?.accept_input);
+      } catch (acceptErr) {
+        logger.warn(`[RAG] accept_input unreadable, fail-closed media: ${acceptErr.message}`);
+        resolvedAccept = acceptMod.cloneFailClosedMedia();
+      }
+    }
+    const filteredIngest = acceptMod.filterMediaForLlm({
+      accept: resolvedAccept,
+      media,
+      text: userQuestion
+    });
+    if (filteredIngest.reason) {
+      logger.info(`[RAG] accept_input skip kind=${media?.kind || 'text'} reason=${filteredIngest.reason}`);
+    }
+    if (filteredIngest.skipGenerate) {
+      return {
+        text: null,
+        media: null,
+        skipped: true,
+        reason: 'accept_input_skipped',
+        multimodalUsed: false
+      };
+    }
+    media = filteredIngest.media;
+    userQuestion = filteredIngest.promptText;
+
     const aiAssistant = require('./ai-assistant');
     
     // Создаем контекст беседы с RAG данными
@@ -850,6 +889,37 @@ async function generateLLMResponse({
     }
     messages.push({ role: 'user', content: prompt });
 
+    const {
+      buildUserContentParts,
+      extraPayloadForAudioOut,
+      extractAudioFromMessage,
+      fallbackGuestCopy,
+      resolveModelCapabilities
+    } = require('./chatMultimodalService');
+    const caps = resolveModelCapabilities(model || '');
+    let multimodalUsed = false;
+    let multimodalReason = media?.data ? 'model_text_only' : 'no_media';
+    if (media?.data) {
+      const built = buildUserContentParts({
+        promptText: prompt,
+        media: { ...media, capabilities: caps, model }
+      });
+      multimodalUsed = built.used;
+      multimodalReason = built.reason;
+      if (built.used) {
+        messages[messages.length - 1] = { role: 'user', content: built.parts };
+      } else {
+        const textPart = Array.isArray(built.parts)
+          ? built.parts.find((p) => p.type === 'text')?.text
+          : prompt;
+        messages[messages.length - 1] = {
+          role: 'user',
+          content: textPart || prompt
+        };
+        logger.info(`[RAG] multimodal in skipped: ${built.reason}`);
+      }
+    }
+
     // Загружаем параметры LLM и qwen из настроек
     const llmParameters = await aiConfigService.getLLMParameters();
     const qwenParametersRaw = await aiConfigService.getQwenSpecificParameters();
@@ -861,65 +931,88 @@ async function generateLLMResponse({
     const resolvedModel = model || ollamaConfig_data.defaultModel;
     const chatRoute = await resolveChatLlmRoute(resolvedModel);
 
-    // DeepSeek / Qwen Cloud (OpenAI-compatible): мимо Ollama-очереди — не грузит локальный RAM.
-    if (chatRoute.provider === 'deepseek') {
-      try {
-        if (!chatRoute.settings?.api_key) {
-          throw new Error('DeepSeek API key не настроен (Settings → AI → DeepSeek)');
-        }
-        const tools = (userId && enableTools) ? getFunctionDefinitions(userId) : null;
-        logger.info(`[RAG] Роутинг чата → DeepSeek model=${chatRoute.model}`);
-        const deepseekText = await generateDeepseekChatResponse({
-          messages,
-          model: chatRoute.model,
-          settings: chatRoute.settings,
-          tools,
-          tool_choice: tools ? 'auto' : undefined,
-          llmParameters,
-          userId,
-          executeToolCall
-        });
-        console.log('[RAG] LLM response from DeepSeek:', deepseekText ? String(deepseekText).substring(0, 100) + '...' : 'null');
-        return finalizeAssistantReply(deepseekText, answer);
-      } catch (deepseekErr) {
-        logger.error('[RAG] DeepSeek chat error:', deepseekErr.message);
-        if (answer) {
-          logger.info('[RAG] Возврат прямого ответа из RAG (ошибка DeepSeek)');
-          return answer;
-        }
-        return 'Извините, произошла ошибка при генерации ответа (DeepSeek). Проверьте ключ API и выбранную модель.';
+    async function runCompatibleProvider(provider, generateFn) {
+      const tools = (userId && enableTools) ? getFunctionDefinitions(userId) : null;
+      const extra = multimodalUsed ? extraPayloadForAudioOut(caps, media?.kind) : {};
+      logger.info(`[RAG] Роутинг чата → ${provider} model=${chatRoute.model} multimodalIn=${multimodalUsed}`);
+      const raw = await generateFn({
+        messages,
+        model: chatRoute.model,
+        settings: chatRoute.settings,
+        tools,
+        tool_choice: tools ? 'auto' : undefined,
+        llmParameters,
+        userId,
+        executeToolCall,
+        extraPayload: extra,
+        returnMeta: true
+      });
+      const text = typeof raw === 'string' ? raw : (raw.text || '');
+      const audio = typeof raw === 'object' ? extractAudioFromMessage(raw.message) : null;
+      const finalized = finalizeAssistantReply(text, answer);
+      if (audio) {
+        logger.info('[RAG] multimodalUsed=true reason=audio_out');
+        return { text: finalized, media: audio, multimodalUsed: true, multimodalReason: 'audio_out' };
       }
+      logger.info(`[RAG] multimodalUsed=${multimodalUsed} reason=${multimodalReason}`);
+      return { text: finalized, media: null, multimodalUsed, multimodalReason };
     }
 
-    if (chatRoute.provider === 'qwencloud') {
+    if (chatRoute.provider === 'deepseek' || chatRoute.provider === 'qwencloud' || chatRoute.provider === 'openai') {
+      const generateFn = chatRoute.provider === 'deepseek'
+        ? generateDeepseekChatResponse
+        : (chatRoute.provider === 'qwencloud' ? generateQwenCloudChatResponse : generateOpenAiChatResponse);
       try {
         if (!chatRoute.settings?.api_key) {
-          throw new Error('Qwen Cloud API key не настроен (Settings → AI → Qwen Cloud)');
+          throw new Error(`${chatRoute.provider} API key не настроен`);
         }
-        const tools = (userId && enableTools) ? getFunctionDefinitions(userId) : null;
-        logger.info(`[RAG] Роутинг чата → Qwen Cloud model=${chatRoute.model}`);
-        const qwenText = await generateQwenCloudChatResponse({
-          messages,
-          model: chatRoute.model,
-          settings: chatRoute.settings,
-          tools,
-          tool_choice: tools ? 'auto' : undefined,
-          llmParameters,
-          userId,
-          executeToolCall
-        });
-        console.log('[RAG] LLM response from Qwen Cloud:', qwenText ? String(qwenText).substring(0, 100) + '...' : 'null');
-        return finalizeAssistantReply(qwenText, answer);
-      } catch (qwenErr) {
-        logger.error('[RAG] Qwen Cloud chat error:', qwenErr.message);
+        return await runCompatibleProvider(chatRoute.provider, generateFn);
+      } catch (cloudErr) {
+        logger.error(`[RAG] ${chatRoute.provider} chat error:`, cloudErr.message);
+        if (multimodalUsed) {
+          try {
+            messages[messages.length - 1] = {
+              role: 'user',
+              content: `${prompt}\n\n[Пользователь прислал медиа; модель не приняла файл]`
+            };
+            logger.info(`[RAG] multimodal retry text-only after error`);
+            const retry = await generateFn({
+              messages,
+              model: chatRoute.model,
+              settings: chatRoute.settings,
+              llmParameters,
+              returnMeta: false
+            });
+            const retryText = finalizeAssistantReply(typeof retry === 'string' ? retry : retry?.text, answer);
+            return { text: retryText, media: null, multimodalUsed: false, multimodalReason: 'api_error' };
+          } catch (retryErr) {
+            logger.error(`[RAG] ${chatRoute.provider} text retry error:`, retryErr.message);
+          }
+        }
         if (answer) {
-          logger.info('[RAG] Возврат прямого ответа из RAG (ошибка Qwen Cloud)');
-          return answer;
+          return { text: answer, media: null, multimodalUsed: false, multimodalReason: 'api_error' };
         }
-        return 'Извините, произошла ошибка при генерации ответа (Qwen Cloud). Проверьте ключ API и выбранную модель.';
+        return {
+          text: 'Извините, произошла ошибка при генерации ответа. Проверьте ключ API и выбранную модель.',
+          media: null,
+          multimodalUsed: false,
+          multimodalReason: 'api_error'
+        };
       }
     }
     
+    if (Array.isArray(messages[messages.length - 1]?.content)) {
+      const parts = messages[messages.length - 1].content;
+      const textPart = parts.find((p) => p.type === 'text');
+      messages[messages.length - 1] = {
+        role: 'user',
+        content: `${textPart?.text || prompt}\n[Пользователь прислал медиа]`
+      };
+      multimodalUsed = false;
+      multimodalReason = 'model_text_only';
+      logger.info('[RAG] multimodalUsed=false reason=model_text_only (ollama)');
+    }
+
     // Формируем тело запроса для Ollama API (используем утилиту)
     const requestBodyOptions = {
       messages: messages,

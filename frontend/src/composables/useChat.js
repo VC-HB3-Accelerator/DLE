@@ -17,6 +17,7 @@ import { generateUniqueId } from '../utils/helpers';
 import websocketModule from '../services/websocketService';
 import systemMessagesService from '../services/systemMessagesService';
 import { i18n } from '@/locales/index.js';
+import { detectAttachmentKind } from '@/shared/mediaLimits.js';
 
 const t = (key, params) => i18n.global.t(key, params);
 
@@ -285,7 +286,7 @@ export function useChat(auth) {
     // --- КОНЕЦ ДОБАВЛЕННЫХ ЛОГОВ ---
 
     const { message: text, attachments: files, assign_tags: assignTags } = payload; // files - массив File объектов
-    const userMessageContent = text.trim();
+    const userMessageContent = String(text || '').trim();
 
     // Проверка на пустое сообщение (если нет ни текста, ни файлов)
     if (!userMessageContent && (!files || files.length === 0)) {
@@ -307,11 +308,16 @@ export function useChat(auth) {
         isGuest: isGuestMessage,
         timestamp: new Date().toISOString(),
         // Генерируем инфо для отображения в Message.vue (без File объектов)
-        attachments: files ? files.map(f => ({ 
+        attachments: files ? files.slice(0, 1).map(f => ({
             originalname: f.name,
             size: f.size,
             mimetype: f.type,
-            // url: URL.createObjectURL(f) // Можно создать временный URL для превью, если Message.vue его использует
+            kind: f.attachmentKind || detectAttachmentKind({
+              filename: f.name,
+              mimetype: f.type,
+              hint: f.attachmentKind || ''
+            }),
+            url: URL.createObjectURL(f)
         })) : [],
         hasError: false
     };
@@ -330,9 +336,11 @@ export function useChat(auth) {
         }
 
         if (files && files.length > 0) {
-            files.forEach((file) => {
-                formData.append('attachments', file, file.name);
-            });
+            const file = files[0];
+            formData.append('attachments', file, file.name);
+            if (file.attachmentKind) {
+                formData.append('attachment_kind', file.attachmentKind);
+            }
         }
 
         let apiUrl = '/chat/message';
@@ -346,9 +354,8 @@ export function useChat(auth) {
         }
 
         const response = await api.post(apiUrl, formData, {
-            headers: {
-                // Content-Type устанавливается браузером для FormData
-            }
+            headers: { 'Content-Type': 'multipart/form-data' },
+            withCredentials: true
         });
 
         const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
@@ -358,10 +365,16 @@ export function useChat(auth) {
              // Обновляем локальное сообщение данными с сервера
              if (userMsgIndex !== -1) {
                 const serverUserMessage = response.data.userMessage || { id: response.data.messageId };
-                messages.value[userMsgIndex].id = serverUserMessage.id || tempId; // Используем серверный ID
+                messages.value[userMsgIndex].id = serverUserMessage.id || tempId;
                 messages.value[userMsgIndex].isLocal = false;
                 messages.value[userMsgIndex].timestamp = serverUserMessage.created_at || new Date().toISOString();
-                // Опционально: обновить content/attachments с сервера, если они отличаются
+                if (serverUserMessage.attachments?.length) {
+                  const guestQs = isGuestMessage && guestId.value ? `?guestId=${encodeURIComponent(guestId.value)}` : '';
+                  messages.value[userMsgIndex].attachments = serverUserMessage.attachments.map((att) => ({
+                    ...att,
+                    url: att.url ? `${att.url}${guestQs}` : att.url
+                  }));
+                }
              }
 
             // Добавляем ответ ИИ, если есть
@@ -381,7 +394,12 @@ export function useChat(auth) {
                     isLocal: false,
                     isGuest: isGuestMessage,
                     suggestWalletLogin,
-                    // Добавляем информацию о согласиях, если есть
+                    attachments: (response.data.aiResponse.attachments || []).map((att) => {
+                      const guestQs = isGuestMessage && guestId.value && att.url && att.url.includes('guest-attachment') && !att.url.includes('guestId=')
+                        ? `${att.url.includes('?') ? '&' : '?'}guestId=${encodeURIComponent(guestId.value)}`
+                        : '';
+                      return guestQs ? { ...att, url: `${att.url}${guestQs}` } : att;
+                    }),
                     consentRequired: response.data.consentRequired || false,
                     missingConsents: response.data.missingConsents || [],
                     consentDocuments: response.data.consentDocuments || [],
@@ -397,7 +415,8 @@ export function useChat(auth) {
                         role: 'assistant',
                         isGuest: true,
                         suggestWalletLogin,
-                        timestamp: aiMessage.timestamp
+                        timestamp: aiMessage.timestamp,
+                        attachments: aiMessage.attachments
                     };
                 }
             }
@@ -427,7 +446,7 @@ export function useChat(auth) {
                         role: 'user',
                         isGuest: true,
                         timestamp: messages.value[userMsgIndex].timestamp,
-                        attachmentsInfo: messages.value[userMsgIndex].attachments
+                        attachments: messages.value[userMsgIndex].attachments
                     });
                     if (guestAiForStorage) {
                         storedMessages.push(guestAiForStorage);
@@ -446,16 +465,21 @@ export function useChat(auth) {
         }
 
     } catch (error) {
-        // console.error('[useChat] Ошибка отправки сообщения:', error);
         const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
         if (userMsgIndex !== -1) {
             messages.value[userMsgIndex].hasError = true;
-            messages.value[userMsgIndex].isLocal = false; // Убираем статус "отправка"
+            messages.value[userMsgIndex].isLocal = false;
         }
-        // Добавляем системное сообщение об ошибке
+        const code = error?.response?.data?.code;
+        const serverError = error?.response?.data?.error;
+        const errText = code === 'CHAT_CAP_DENIED'
+          ? t('chat.capDenied')
+          : (code === 'MEDIA_TOO_LARGE'
+            ? t('chat.mediaTooLarge', { max: 20 })
+            : (serverError || t('chat.sendMessageError')));
         messages.value.push({
             id: `error-${Date.now()}`,
-            content: t('chat.sendMessageError'),
+            content: errText,
             sender_type: 'system',
             role: 'system',
             timestamp: new Date().toISOString(),
@@ -474,7 +498,19 @@ export function useChat(auth) {
                   // console.log(`[useChat] Найдено ${storedMessages.length} сохраненных гостевых сообщений`);
                   // Добавляем только если текущий список пуст (чтобы не дублировать при HMR)
                   if(messages.value.length === 0) {
-                     messages.value = storedMessages.map(m => ({ ...m, isGuest: true })); // Помечаем как гостевые
+                     messages.value = storedMessages.map(m => ({
+                       ...m,
+                       isGuest: true,
+                       attachments: Array.isArray(m.attachments)
+                         ? m.attachments.map((att) => {
+                             if (!att?.url || att.url.startsWith('blob:')) return att;
+                             if (att.url.includes('guest-attachment') && !att.url.includes('guestId=') && guestId.value) {
+                               return { ...att, url: `${att.url}${att.url.includes('?') ? '&' : '?'}guestId=${encodeURIComponent(guestId.value)}` };
+                             }
+                             return att;
+                           })
+                         : (m.attachmentsInfo || null)
+                     }));
                      hasUserSentMessage.value = true;
                   }
               }

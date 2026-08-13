@@ -19,8 +19,48 @@ const fs = require('fs');
 const multer = require('multer');
 const crypto = require('crypto');
 const auth = require('../middleware/auth');
+const contentMediaLimits = require('../services/contentMediaLimits');
+const contentMediaStore = require('../services/contentMediaStore');
+const { fixUtf8Filename, fixMulterFile } = require('../utils/utf8Filename');
 
 const router = express.Router();
+
+async function requireCmsEditor(req, res) {
+  const isAuthenticated = req.session.authenticated
+    || req.session.userId
+    || req.session.address;
+  if (!isAuthenticated) {
+    res.status(403).json({ success: false, message: 'Требуется аутентификация' });
+    return false;
+  }
+  let level = req.session.userAccessLevel && req.session.userAccessLevel.level;
+  if (req.session.address) {
+    const authService = require('../services/auth-service');
+    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+    level = userAccessLevel && userAccessLevel.level;
+  } else if (req.session.userId && level !== 'editor') {
+    const db = require('../db');
+    const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+    if (userResult.rows[0]) level = userResult.rows[0].role;
+  }
+  if (level !== 'editor') {
+    res.status(403).json({ success: false, message: 'Требуются права редактора' });
+    return false;
+  }
+  return true;
+}
+
+function sendStoreError(res, e, fallbackMessage) {
+  const status = e.status || 500;
+  if (e.payload) {
+    return res.status(status).json(e.payload);
+  }
+  return res.status(status).json({
+    success: false,
+    code: e.code,
+    message: e.message || fallbackMessage,
+  });
+}
 
 // Хранилище на диске: uploads/logos
 const storage = multer.diskStorage({
@@ -60,196 +100,195 @@ router.post('/logo', auth.requireAuth, auth.requireAdmin, upload.single('logo'),
   }
 });
 
-// Хранилище для медиа-файлов контента в памяти (для сохранения в БД)
-// Ограничение по размеру не установлено - база данных масштабируется
+const mediaIncomingDir = path.join(__dirname, '..', 'uploads', 'content', 'tmp', 'incoming');
 const mediaUpload = multer({
-  storage: multer.memoryStorage(), // Храним в памяти для сохранения в БД
-  // limits: { fileSize: ... } - убрано, нет ограничений по размеру
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      try { fs.mkdirSync(mediaIncomingDir, { recursive: true }); } catch (_) {}
+      cb(null, mediaIncomingDir);
+    },
+    filename: (req, file, cb) => {
+      cb(null, `in-${crypto.randomUUID()}`);
+    }
+  }),
+  limits: { fileSize: contentMediaLimits.MAX_VIDEO_BYTES },
   fileFilter: (req, file, cb) => {
-    // Разрешаем изображения и видео
-    const isImage = /^image\/(png|jpg|jpeg|gif|webp|svg)$/i.test(file.mimetype || '');
-    const isVideo = /^video\/(mp4|webm|ogg|mov|avi)$/i.test(file.mimetype || '');
-    if (!isImage && !isVideo) {
-      return cb(new Error('Разрешены только изображения (PNG, JPG, GIF, WEBP, SVG) и видео (MP4, WEBM, OGG, MOV, AVI)'));
+    const kind = contentMediaLimits.isAllowedCmsMime(file.mimetype, file.originalname);
+    if (!kind) {
+      return cb(new Error('Разрешены изображения (PNG, JPG, GIF, WEBP, SVG), видео (MP4, WEBM, OGG, MOV, AVI) и аудио (MP3, WAV, OGG, M4A, AAC, WEBM)'));
     }
     cb(null, true);
   }
 });
 
-// POST /api/uploads/media  (form field: media) - для загрузки изображений и видео для контента
-// Используем те же права, что и для создания страниц (требуется аутентификация и права редактора/админа)
+// POST /api/uploads/media/init — чанковая сессия
+router.post('/media/init', auth.requireAuth, async (req, res) => {
+  try {
+    if (!(await requireCmsEditor(req, res))) return;
+    const { fileName, mimeType, size, pageId } = req.body || {};
+    const data = await contentMediaStore.initChunkedUpload({
+      fileName: fixUtf8Filename(fileName),
+      mimeType,
+      size,
+      pageId: pageId ? parseInt(pageId, 10) : null,
+      authorAddress: req.session.address,
+    });
+    return res.status(201).json({ success: true, data });
+  } catch (e) {
+    console.error('[uploads/media/init]', e.message);
+    return sendStoreError(res, e, 'Ошибка инициализации загрузки');
+  }
+});
+
+router.put(
+  '/media/:uploadId/parts/:partNumber',
+  auth.requireAuth,
+  express.raw({ type: '*/*', limit: contentMediaLimits.PART_SIZE + 1024 }),
+  async (req, res) => {
+    try {
+      if (!(await requireCmsEditor(req, res))) return;
+      const data = await contentMediaStore.putPart({
+        uploadId: req.params.uploadId,
+        partNumber: req.params.partNumber,
+        body: req.body,
+      });
+      return res.json({ success: true, ...data });
+    } catch (e) {
+      console.error('[uploads/media/parts]', e.message);
+      return sendStoreError(res, e, 'Ошибка записи части');
+    }
+  }
+);
+
+router.get('/media/:uploadId/status', auth.requireAuth, async (req, res) => {
+  try {
+    if (!(await requireCmsEditor(req, res))) return;
+    const data = await contentMediaStore.getUploadStatus(req.params.uploadId);
+    return res.json({ success: true, data });
+  } catch (e) {
+    return sendStoreError(res, e, 'Ошибка статуса загрузки');
+  }
+});
+
+router.post('/media/:uploadId/complete', auth.requireAuth, async (req, res) => {
+  try {
+    if (!(await requireCmsEditor(req, res))) return;
+    const { row, isDuplicate } = await contentMediaStore.completeUpload(
+      req.params.uploadId,
+      req.body && req.body.parts
+    );
+    return res.json({
+      success: true,
+      data: contentMediaStore.uploadResponse(row, { isDuplicate }),
+    });
+  } catch (e) {
+    console.error('[uploads/media/complete]', e.message);
+    return sendStoreError(res, e, 'Ошибка сборки файла');
+  }
+});
+
+router.post('/media/:uploadId/abort', auth.requireAuth, async (req, res) => {
+  try {
+    if (!(await requireCmsEditor(req, res))) return;
+    await contentMediaStore.abortUpload(req.params.uploadId);
+    return res.status(204).end();
+  } catch (e) {
+    return sendStoreError(res, e, 'Ошибка отмены загрузки');
+  }
+});
+
+// POST /api/uploads/media — one-shot на диск (картинки / мелкие файлы)
 router.post('/media', auth.requireAuth, async (req, res) => {
-  // Проверяем права доступа (редактор или админ)
-  if (!req.session.address) {
-    return res.status(403).json({ success: false, message: 'Требуется подключение кошелька' });
-  }
-  
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ success: false, message: 'Требуются права редактора или админа' });
-  }
-  
-  // Используем middleware для загрузки файла
+  if (!(await requireCmsEditor(req, res))) return;
+
   mediaUpload.single('media')(req, res, async (err) => {
     if (err) {
       console.error('[uploads/media] Ошибка multer:', err);
-      // Формируем понятное сообщение об ошибке
-      let errorMessage = err.message || 'Ошибка загрузки файла';
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        errorMessage = 'Файл слишком большой';
-      } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        errorMessage = 'Неожиданный файл';
-      }
-      return res.status(400).json({ success: false, message: errorMessage });
+      const tooLarge = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(tooLarge ? 413 : 400).json({
+        success: false,
+        code: tooLarge ? 'MEDIA_TOO_LARGE' : undefined,
+        message: tooLarge ? 'Файл слишком большой' : (err.message || 'Ошибка загрузки файла'),
+      });
     }
-    
+
+    const tmpPath = req.file && req.file.path;
     try {
-      if (!req.file) {
-        console.error('[uploads/media] Файл не получен в req.file');
+      if (!req.file || !tmpPath) {
         return res.status(400).json({ success: false, message: 'Файл не получен' });
       }
-      
-      if (!req.file.buffer) {
-        console.error('[uploads/media] Буфер файла отсутствует');
-        return res.status(400).json({ success: false, message: 'Буфер файла отсутствует' });
-      }
-      
+      fixMulterFile(req.file);
       if (!req.file.mimetype) {
-        console.error('[uploads/media] MIME тип отсутствует');
         return res.status(400).json({ success: false, message: 'MIME тип файла не определен' });
       }
-      
-      const db = require('../db');
-      const mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
-      
-      console.log('[uploads/media] Начало обработки файла:', {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        mediaType: mediaType
-      });
-      
-      // Вычисляем SHA-256 хеш файла для дедупликации
-      const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
-      console.log('[uploads/media] Хеш файла вычислен:', fileHash.substring(0, 16) + '...');
-      
-      // Проверяем, не загружен ли уже такой файл
-      const existingFile = await db.getQuery()(
-        'SELECT id, file_name FROM content_media WHERE file_hash = $1',
-        [fileHash]
-      );
-      
-      let mediaId;
-      let fileName;
-      
-      if (existingFile.rows.length > 0) {
-        // Файл уже существует - возвращаем существующую запись
-        console.log('[uploads/media] Файл уже существует, используем существующую запись:', existingFile.rows[0].id);
-        mediaId = existingFile.rows[0].id;
-        fileName = existingFile.rows[0].file_name;
-      } else {
-        // Сохраняем новый файл в базу данных
-        console.log('[uploads/media] Сохранение нового файла в БД...');
-        
-        // Нормализуем page_id: преобразуем в число или null
-        let pageId = null;
-        if (req.body.page_id) {
-          const parsedPageId = parseInt(req.body.page_id);
-          if (!isNaN(parsedPageId) && parsedPageId > 0) {
-            pageId = parsedPageId;
-          }
-        }
-        
-        const { rows } = await db.getQuery()(`
-          INSERT INTO content_media (
-            file_data,
-            file_name,
-            mime_type,
-            file_size,
-            file_hash,
-            media_type,
-            author_address,
-            page_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          RETURNING id, file_name
-        `, [
-          req.file.buffer, // BYTEA данные
-          req.file.originalname || 'unnamed',
-          req.file.mimetype,
-          req.file.size,
-          fileHash,
-          mediaType,
-          req.session.address,
-          pageId
-        ]);
-        
-        mediaId = rows[0].id;
-        fileName = rows[0].file_name;
-        console.log('[uploads/media] Файл успешно сохранен в БД, ID:', mediaId);
+
+      let pageId = null;
+      if (req.body && req.body.page_id) {
+        const parsedPageId = parseInt(req.body.page_id, 10);
+        if (!Number.isNaN(parsedPageId) && parsedPageId > 0) pageId = parsedPageId;
       }
-      
-      // URL для доступа к файлу через API
-      const fileUrl = `/api/uploads/media/${mediaId}/file`;
-      // Используем относительный URL, чтобы frontend сам формировал полный URL
-      // Это позволяет работать с разными портами (frontend на 9000, backend на 8000)
-      const fullUrl = fileUrl;
-      
-      console.log('[uploads/media] Успешная загрузка, возвращаем ответ');
-      return res.json({ 
-        success: true, 
-        data: { 
-          id: mediaId,
-          url: fullUrl,
-          type: mediaType,
-          filename: fileName,
-          originalName: req.file.originalname || 'unnamed',
-          mimeType: req.file.mimetype,
-          size: req.file.size,
-          hash: fileHash,
-          isDuplicate: existingFile.rows.length > 0
-        } 
+
+      const { row, isDuplicate } = await contentMediaStore.ingestOneShotFromPath({
+        tmpPath,
+        originalName: fixUtf8Filename(req.file.originalname || 'unnamed'),
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        authorAddress: req.session.address,
+        pageId,
+      });
+
+      return res.json({
+        success: true,
+        data: contentMediaStore.uploadResponse(row, {
+          isDuplicate,
+          originalName: fixUtf8Filename(req.file.originalname || 'unnamed'),
+        }),
       });
     } catch (e) {
-      console.error('[uploads/media] Ошибка сохранения медиа в БД:', {
+      if (tmpPath) {
+        try { fs.unlinkSync(tmpPath); } catch (_) {}
+      }
+      console.error('[uploads/media] Ошибка сохранения медиа:', {
         message: e.message,
         stack: e.stack,
-        name: e.name,
         code: e.code,
-        detail: e.detail,
-        constraint: e.constraint,
-        table: e.table,
-        column: e.column
       });
-      
-      // Проверяем, можно ли отправлять ответ
-      if (res.headersSent || res.destroyed) {
-        console.error('[uploads/media] Ответ уже отправлен или соединение закрыто, пропускаем отправку ошибки');
-        return;
-      }
-      
-      // Формируем понятное сообщение об ошибке
+      if (res.headersSent || res.destroyed) return;
+      if (e.payload) return res.status(e.status || 500).json(e.payload);
       let errorMessage = e.message || 'Внутренняя ошибка сервера';
-      let statusCode = 500;
-      
-      // Обработка ошибок подключения к БД
+      let statusCode = e.status || 500;
       if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
         errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
-        statusCode = 503; // Service Unavailable
-      } else if (e.detail) {
-      // Если есть детали ошибки PostgreSQL, добавляем их к сообщению
-        errorMessage += `: ${e.detail}`;
-      } else if (e.constraint) {
-        errorMessage += ` (нарушение ограничения: ${e.constraint})`;
+        statusCode = 503;
       }
-      
-      return res.status(statusCode).json({ 
-        success: false, 
-        message: errorMessage
-        // Убираем объект error, чтобы фронтенд не получал [object Object]
-      });
+      return res.status(statusCode).json({ success: false, code: e.code, message: errorMessage });
     }
   });
+});
+
+// Превью вложений чата/гостя для редактора — ДО /media/:id/file (иначе id=chat)
+router.get('/media/chat/:id/file', auth.requireAuth, async (req, res) => {
+  try {
+    if (!(await requireCmsEditor(req, res))) return;
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, message: 'Неверный ID' });
+    return contentMediaStore.streamChatAttachmentForEditor(req, res, { table: 'messages', id });
+  } catch (e) {
+    console.error('[uploads/media/chat/file]', e.message);
+    if (!res.headersSent) return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+router.get('/media/guest/:id/file', auth.requireAuth, async (req, res) => {
+  try {
+    if (!(await requireCmsEditor(req, res))) return;
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, message: 'Неверный ID' });
+    return contentMediaStore.streamChatAttachmentForEditor(req, res, { table: 'unified_guest_messages', id });
+  } catch (e) {
+    console.error('[uploads/media/guest/file]', e.message);
+    if (!res.headersSent) return res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 // Middleware для логирования всех запросов к медиа-файлам
@@ -366,7 +405,7 @@ router.get('/media/:id/file', async (req, res) => {
     let metaResult;
     try {
       metaResult = await client.query(
-      'SELECT file_name, mime_type, file_size FROM content_media WHERE id = $1',
+      'SELECT file_name, mime_type, file_size, storage, file_path, status FROM content_media WHERE id = $1',
       [mediaId]
     );
     } catch (queryErr) {
@@ -393,8 +432,27 @@ router.get('/media/:id/file', async (req, res) => {
     }
     
     const media = metaResult.rows[0];
+    if (media.status && media.status !== 'ready') {
+      releaseClient();
+      cleanup();
+      if (!res.headersSent && !res.destroyed) {
+        return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
+      }
+      return;
+    }
     const fileSize = parseInt(media.file_size) || 0;
     console.log(`[uploads/media/:id/file] Файл найден: ID ${mediaId}, размер: ${fileSize} bytes, тип: ${media.mime_type}`);
+
+    if ((media.storage || 'bytea') === 'disk' && media.file_path) {
+      releaseClient();
+      cleanup();
+      return contentMediaStore.streamDiskToResponse(req, res, {
+        filePath: media.file_path,
+        mimeType: media.mime_type,
+        fileName: media.file_name,
+        fileSize,
+      });
+    }
 
     // Проверяем, не закрыто ли соединение перед установкой заголовков
     if (res.destroyed || res.headersSent) {
@@ -645,104 +703,34 @@ router.get('/media/:id/file', async (req, res) => {
   }
 });
 
-// GET /api/uploads/media - получить список медиа-файлов
+// GET /api/uploads/media - список медиатеки (без file_data, относительный url)
+// scope=cms (пикер) | scope=all (очистка: CMS+чат+гости)
 router.get('/media', auth.requireAuth, async (req, res) => {
   try {
-    if (!req.session.address) {
-      return res.status(403).json({ success: false, message: 'Требуется подключение кошелька' });
-    }
-    
-    const authService = require('../services/auth-service');
-    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    if (!userAccessLevel.hasAccess) {
-      return res.status(403).json({ success: false, message: 'Требуются права редактора или админа' });
-    }
-    
-    const db = require('../db');
-    const { page_id, media_type, limit = 50, offset = 0 } = req.query;
-    
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramIndex = 1;
-    
-    if (page_id) {
-      whereClause += ` AND page_id = $${paramIndex}`;
-      params.push(parseInt(page_id));
-      paramIndex++;
-    }
-    
-    if (media_type) {
-      whereClause += ` AND media_type = $${paramIndex}`;
-      params.push(media_type);
-      paramIndex++;
-    }
-    
-    params.push(parseInt(limit));
-    params.push(parseInt(offset));
-    
-    const { rows } = await db.getQuery()(`
-      SELECT 
-        id,
-        page_id,
-        file_name,
-        mime_type,
-        file_size,
-        file_hash,
-        media_type,
-        alt_text,
-        title,
-        description,
-        author_address,
-        created_at,
-        updated_at
-      FROM content_media
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, params);
-    
-    // Добавляем URL для каждого файла
-    const protocol = req.protocol || 'http';
-    const host = req.get('host') || 'localhost:8000';
-    const mediaWithUrls = rows.map(media => ({
-      ...media,
-      url: `${protocol}://${host}/api/uploads/media/${media.id}/file`
-    }));
-    
-    const { rows: countRows } = await db.getQuery()(`
-      SELECT COUNT(*) as total
-      FROM content_media
-      ${whereClause}
-    `, params.slice(0, -2));
-    
-    return res.json({
-      success: true,
-      data: mediaWithUrls,
-      total: parseInt(countRows[0].total),
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+    if (!(await requireCmsEditor(req, res))) return;
+    const { page_id, media_type, q, limit, offset, scope, source } = req.query;
+    const result = await contentMediaStore.listMedia({
+      mediaType: media_type,
+      pageId: page_id,
+      q,
+      limit,
+      offset,
+      scope: scope || 'cms',
+      source,
     });
+    return res.json({ success: true, ...result });
   } catch (e) {
     console.error('[uploads/media GET] Ошибка получения списка медиа:', {
       message: e.message,
       stack: e.stack
     });
-    
-    // Проверяем, можно ли отправлять ответ
-    if (res.headersSent || res.destroyed) {
-      console.error('[uploads/media GET] Ответ уже отправлен или соединение закрыто');
-      return;
-    }
-    
-    // Обработка ошибок подключения к БД
+    if (res.headersSent || res.destroyed) return;
     let statusCode = 500;
     let errorMessage = e.message || 'Внутренняя ошибка сервера';
-    
     if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
       errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
       statusCode = 503;
     }
-    
     return res.status(statusCode).json({ success: false, message: errorMessage });
   }
 });
@@ -750,15 +738,7 @@ router.get('/media', auth.requireAuth, async (req, res) => {
 // PATCH /api/uploads/media/:id - обновить метаданные медиа (например, связать с документом)
 router.patch('/media/:id', auth.requireAuth, async (req, res) => {
   try {
-    if (!req.session.address) {
-      return res.status(403).json({ success: false, message: 'Требуется подключение кошелька' });
-    }
-    
-    const authService = require('../services/auth-service');
-    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    if (!userAccessLevel.hasAccess) {
-      return res.status(403).json({ success: false, message: 'Требуются права редактора или админа' });
-    }
+    if (!(await requireCmsEditor(req, res))) return;
     
     const db = require('../db');
     const mediaId = parseInt(req.params.id);
@@ -802,7 +782,7 @@ router.patch('/media/:id', auth.requireAuth, async (req, res) => {
       UPDATE content_media
       SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
       WHERE id = $${paramIndex}
-      RETURNING *
+      RETURNING ${contentMediaStore.META_COLUMNS}
     `, params);
     
     if (rows.length === 0) {
@@ -836,54 +816,19 @@ router.patch('/media/:id', auth.requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/uploads/media/:id - удалить медиа-файл
+// DELETE /api/uploads/media/:id - удалить медиа (CMS) или байты вложения чата/гостя
+// query/body source=cms|chat|guest (по умолчанию cms)
 router.delete('/media/:id', auth.requireAuth, async (req, res) => {
   try {
-    if (!req.session.address) {
-      return res.status(403).json({ success: false, message: 'Требуется подключение кошелька' });
-    }
-    
-    const authService = require('../services/auth-service');
-    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    if (!userAccessLevel.hasAccess) {
-      return res.status(403).json({ success: false, message: 'Требуются права редактора или админа' });
-    }
-    
-    const db = require('../db');
-    const mediaId = parseInt(req.params.id);
-    
-    // Проверяем существование файла
-    const { rows: mediaRows } = await db.getQuery()(
-      'SELECT id, file_hash FROM content_media WHERE id = $1',
-      [mediaId]
-    );
-    
-    if (mediaRows.length === 0) {
+    if (!(await requireCmsEditor(req, res))) return;
+    const mediaId = parseInt(req.params.id, 10);
+    const source = (req.query && req.query.source)
+      || (req.body && req.body.source)
+      || 'cms';
+    const result = await contentMediaStore.deleteLibraryItem(mediaId, source);
+    if (!result.deleted) {
       return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
     }
-    
-    // Проверяем, используется ли файл в других документах (если есть file_hash)
-    const fileHash = mediaRows[0].file_hash;
-    if (fileHash) {
-      const { rows: usageRows } = await db.getQuery()(
-        'SELECT COUNT(*) as count FROM content_media WHERE file_hash = $1',
-        [fileHash]
-      );
-      
-      // Если файл используется в нескольких местах, не удаляем данные, только связь
-      if (parseInt(usageRows[0].count) > 1) {
-        // Просто удаляем связь с документом, но оставляем файл
-        await db.getQuery()(
-          'UPDATE content_media SET page_id = NULL WHERE id = $1',
-          [mediaId]
-        );
-        return res.json({ success: true, message: 'Связь с документом удалена, файл сохранен (используется в других местах)' });
-      }
-    }
-    
-    // Удаляем запись из БД (файл удалится вместе с записью)
-    await db.getQuery()('DELETE FROM content_media WHERE id = $1', [mediaId]);
-    
     return res.json({ success: true, message: 'Медиа-файл удален' });
   } catch (e) {
     console.error('[uploads/media/:id DELETE] Ошибка удаления медиа:', {
@@ -891,25 +836,25 @@ router.delete('/media/:id', auth.requireAuth, async (req, res) => {
       stack: e.stack,
       mediaId: parseInt(req.params.id)
     });
-    
-    // Проверяем, можно ли отправлять ответ
-    if (res.headersSent || res.destroyed) {
-      console.error('[uploads/media/:id DELETE] Ответ уже отправлен или соединение закрыто');
-      return;
-    }
-    
-    // Обработка ошибок подключения к БД
+    if (res.headersSent || res.destroyed) return;
     let statusCode = 500;
     let errorMessage = e.message || 'Внутренняя ошибка сервера';
-    
     if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
       errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
       statusCode = 503;
     }
-    
     return res.status(statusCode).json({ success: false, message: errorMessage });
   }
 });
+
+setInterval(() => {
+  contentMediaStore.gcExpiredUploads().catch((err) => {
+    console.warn('[content-media] gc:', err.message);
+  });
+}, 60 * 60 * 1000);
+setTimeout(() => {
+  contentMediaStore.gcExpiredUploads().catch(() => {});
+}, 20000);
 
 module.exports = router;
 

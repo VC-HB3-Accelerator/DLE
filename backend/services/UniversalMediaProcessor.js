@@ -22,8 +22,8 @@ const crypto = require('crypto');
 class UniversalMediaProcessor {
   constructor() {
     // Реальные поддерживаемые форматы из frontend/src/components/ChatInterface.vue
-    this.supportedAudioFormats = ['.mp3', '.wav'];
-    this.supportedVideoFormats = ['.mp4', '.avi'];
+    this.supportedAudioFormats = ['.mp3', '.wav', '.webm', '.ogg', '.m4a', '.aac'];
+    this.supportedVideoFormats = ['.mp4', '.avi', '.webm', '.mov', '.ogg'];
     this.supportedImageFormats = ['.jpg', '.jpeg', '.png', '.gif'];
     this.supportedDocumentFormats = ['.txt', '.pdf', '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp'];
     this.supportedArchiveFormats = ['.zip', '.rar', '.7z'];
@@ -32,8 +32,8 @@ class UniversalMediaProcessor {
     // - uploads.js: 5MB для изображений
     // - emailBot.js: 10MB для вложений
     // - frontend: без ограничений (но браузер обычно ограничивает)
-    this.maxFileSize = 10 * 1024 * 1024; // 10MB (как в emailBot)
-    this.maxImageSize = 5 * 1024 * 1024; // 5MB (как в uploads.js)
+    this.maxFileSize = 20 * 1024 * 1024;
+    this.maxImageSize = 20 * 1024 * 1024;
     
     this.uploadPath = path.join(__dirname, '../uploads');
     this.ensureUploadDir();

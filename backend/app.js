@@ -347,6 +347,10 @@ const rpcSettingsLimiter = rateLimit({
 });
 
 // Статическая раздача загруженных файлов (для dev и prod)
+// Каталог CMS media не отдаём напрямую — только через GET-хендлер (Range / auth-мета).
+app.use('/uploads/content/media', (req, res) => {
+  res.status(404).end();
+});
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // НЕ используем /api/uploads для статики, так как там роутер для медиа-файлов из БД
 // app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -363,7 +367,7 @@ app.use(
         connectSrc: ["'self'", "ws:", "wss:"],
         fontSrc: ["'self'"],
         objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
+        mediaSrc: ["'self'", "blob:", "data:"],
         frameSrc: ["'none'"],
       },
     } : false, // Отключаем CSP для разработки
@@ -418,6 +422,14 @@ app.get('/favicon.ico', (req, res) => {
 
 // Подключаем роутер страниц
 app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы) - ДОЛЖНО БЫТЬ ПЕРЕД статической раздачей
+app.get('/api/v/:publicId', (req, res) => {
+  const contentMediaStore = require('./services/contentMediaStore');
+  return contentMediaStore.sendPublicFile(req, res);
+});
+app.head('/api/v/:publicId', (req, res) => {
+  const contentMediaStore = require('./services/contentMediaStore');
+  return contentMediaStore.sendPublicFile(req, res);
+});
 app.use('/api/consent', consentRoutes); // Добавляем маршрут согласий
 app.use('/api/system-messages', systemMessagesRoutes);
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга

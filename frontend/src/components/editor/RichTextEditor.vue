@@ -12,16 +12,34 @@
 
 <template>
   <div class="rich-text-editor">
+    <p v-if="uploadProgress" class="rte-progress">{{ uploadProgress }}</p>
     <div ref="editorContainer" class="editor-container"></div>
+    <ContentMediaPickerModal
+      :open="pickerKind !== null"
+      :kind="pickerKind || 'image'"
+      @cancel="closePicker"
+      @device="onPickerDevice"
+      @select="onPickerSelect"
+      @url="onPickerUrl"
+    />
+    <input
+      ref="hiddenFileInput"
+      type="file"
+      class="rte-hidden-file"
+      :accept="pickerAccept"
+      @change="onHiddenFile"
+    >
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
-import api from '../../api/axios';
+import ContentMediaPickerModal from '../content/ContentMediaPickerModal.vue';
+import { uploadContentMedia } from '../../composables/useChunkedMediaUpload';
+import { isLocalCmsMediaUrl, toRelativeCmsMediaUrl } from '../../utils/cmsMediaUrl';
 
 const { t } = useI18n();
 
@@ -56,7 +74,32 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 const editorContainer = ref(null);
+const hiddenFileInput = ref(null);
+const pickerKind = ref(null);
+const pendingKind = ref('image');
+const uploadProgress = ref('');
+let savedRange = null;
 let quill = null;
+
+const pickerAccept = ref('image/*');
+
+function rememberRange() {
+  if (!quill) {
+    savedRange = { index: 0, length: 0 };
+    return;
+  }
+  savedRange = quill.getSelection() || { index: Math.max(quill.getLength() - 1, 0), length: 0 };
+}
+
+function closePicker() {
+  pickerKind.value = null;
+}
+
+function currentRange() {
+  if (savedRange) return savedRange;
+  if (!quill) return { index: 0, length: 0 };
+  return quill.getSelection() || { index: Math.max(quill.getLength() - 1, 0), length: 0 };
+}
 
 function getUploadErrorMessage(error) {
   const extractMessage = (obj) => {
@@ -200,7 +243,7 @@ function wrapExistingVideos() {
     
     // Проверяем, является ли это локальный файл
     const src = video.getAttribute('src');
-    if (src && src.includes('/api/uploads/media/') && src.includes('/file')) {
+    if (src && isLocalCmsMediaUrl(src)) {
       // Создаем обертку
       const wrapper = document.createElement('div');
       wrapper.className = 'video-wrapper';
@@ -221,142 +264,95 @@ function wrapExistingVideos() {
   });
 }
 
-// Обработка вставки изображения
-function handleImageClick() {
-  const input = document.createElement('input');
-  input.setAttribute('type', 'file');
-  input.setAttribute('accept', 'image/*');
-  input.click();
-
-  input.onchange = async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('media', file);
-
-      const response = await api.post('/uploads/media', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      if (response.data && response.data.success && response.data.data && response.data.data.url) {
-        let range = quill.getSelection();
-        if (!range) {
-          const length = quill.getLength();
-          range = { index: length - 1, length: 0 };
-        }
-        
-        let fullUrl = response.data.data.url;
-        if (!fullUrl.startsWith('http')) {
-          fullUrl = `${window.location.origin}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
-        }
-        
-        quill.insertEmbed(range.index, 'image', fullUrl);
-        quill.setSelection(range.index + 1, 0);
-        
-        const html = quill.root.innerHTML;
-        emit('update:modelValue', html);
-      } else {
-        alert(t('editor.invalidResponse'));
-      }
-    } catch (error) {
-      const errorMessage = getUploadErrorMessage(error);
-      alert(t('editor.imageUploadError', { message: errorMessage }));
-    }
-  };
+function insertImageAtRange(url) {
+  const range = currentRange();
+  const rel = toRelativeCmsMediaUrl(url);
+  quill.insertEmbed(range.index, 'image', rel);
+  quill.setSelection(range.index + 1, 0);
+  emit('update:modelValue', quill.root.innerHTML);
 }
 
-// Обработка вставки видео
-function handleVideoClick() {
-  const choice = confirm(t('editor.videoChoice'));
-  
-  if (choice) {
-    const input = document.createElement('input');
-    input.setAttribute('type', 'file');
-    input.setAttribute('accept', 'video/*');
-    input.click();
-
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-
-      try {
-        const formData = new FormData();
-        formData.append('media', file);
-
-        const response = await api.post('/uploads/media', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        if (response.data && response.data.success && response.data.data && response.data.data.url) {
-          let range = quill.getSelection();
-          if (!range) {
-            const length = quill.getLength();
-            range = { index: length - 1, length: 0 };
-          }
-          
-          let fullUrl = response.data.data.url;
-          if (!fullUrl.startsWith('http')) {
-            fullUrl = `${window.location.origin}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
-          }
-          
-          const isLocalFile = fullUrl.includes('/api/uploads/media/') && fullUrl.includes('/file');
-          
-          if (isLocalFile) {
-            quill.clipboard.dangerouslyPasteHTML(range.index, getVideoLoadingHtml(fullUrl));
-            setupVideoLoadingHandlers();
-            setTimeout(() => {
-              setupVideoLoadingHandlers();
-            }, 50);
-            setTimeout(() => {
-              setupVideoLoadingHandlers();
-            }, 200);
-          } else {
-            quill.insertEmbed(range.index, 'video', fullUrl);
-          }
-          
-          quill.setSelection(range.index + 1, 0);
-          
-          const html = quill.root.innerHTML;
-          emit('update:modelValue', html);
-        } else {
-          alert(t('editor.invalidResponse'));
-        }
-      } catch (error) {
-        const errorMessage = getUploadErrorMessage(error);
-        alert(t('editor.videoUploadError', { message: errorMessage }));
-      }
-    };
+function insertVideoAtRange(url) {
+  const range = currentRange();
+  const rel = toRelativeCmsMediaUrl(url);
+  if (isLocalCmsMediaUrl(rel)) {
+    quill.clipboard.dangerouslyPasteHTML(range.index, getVideoLoadingHtml(rel));
+    setupVideoLoadingHandlers();
+    setTimeout(() => setupVideoLoadingHandlers(), 50);
+    setTimeout(() => setupVideoLoadingHandlers(), 200);
   } else {
-    const url = prompt(t('editor.videoUrlPrompt'));
-    if (url) {
-      let range = quill.getSelection();
-      if (!range) {
-        const length = quill.getLength();
-        range = { index: length - 1, length: 0 };
-      }
-      
-      const isLocalFile = url.includes('/api/uploads/media/') && url.includes('/file');
-      
-      if (isLocalFile) {
-        quill.clipboard.dangerouslyPasteHTML(range.index, getVideoLoadingHtml(url));
-        setupVideoLoadingHandlers();
-        setTimeout(() => {
-          setupVideoLoadingHandlers();
-        }, 50);
-        setTimeout(() => {
-          setupVideoLoadingHandlers();
-        }, 200);
-      } else {
-        quill.insertEmbed(range.index, 'video', url);
-      }
-      
-      quill.setSelection(range.index + 1, 0);
-      
-      const html = quill.root.innerHTML;
-      emit('update:modelValue', html);
+    quill.insertEmbed(range.index, 'video', rel);
+  }
+  quill.setSelection(range.index + 1, 0);
+  emit('update:modelValue', quill.root.innerHTML);
+}
+
+function handleImageClick() {
+  rememberRange();
+  pendingKind.value = 'image';
+  pickerAccept.value = 'image/*';
+  pickerKind.value = 'image';
+}
+
+function handleVideoClick() {
+  rememberRange();
+  pendingKind.value = 'video';
+  pickerAccept.value = 'video/*';
+  pickerKind.value = 'video';
+}
+
+function onPickerDevice() {
+  closePicker();
+  nextTick(() => {
+    if (hiddenFileInput.value) hiddenFileInput.value.click();
+  });
+}
+
+function onPickerSelect(item) {
+  closePicker();
+  if (!item || !item.url) return;
+  if (pendingKind.value === 'video') insertVideoAtRange(item.url);
+  else insertImageAtRange(item.url);
+}
+
+function onPickerUrl() {
+  closePicker();
+  const url = prompt(t('editor.videoUrlPrompt'));
+  if (url) insertVideoAtRange(url);
+}
+
+async function onHiddenFile(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const data = await uploadContentMedia(file, {
+      onProgress: ({ percent, phase, part, totalParts }) => {
+        if (phase === 'parts') {
+          uploadProgress.value = t('editor.chunkedProgress', {
+            percent,
+            part: part || 0,
+            total: totalParts || 0,
+          });
+        } else if (percent < 100) {
+          uploadProgress.value = t('content.media.uploadProgress', { percent });
+        } else {
+          uploadProgress.value = '';
+        }
+      },
+    });
+    uploadProgress.value = '';
+    if (!data || !data.url) {
+      alert(t('editor.invalidResponse'));
+      return;
     }
+    if (pendingKind.value === 'video' || data.type === 'video') insertVideoAtRange(data.url);
+    else insertImageAtRange(data.url);
+  } catch (error) {
+    uploadProgress.value = '';
+    const errorMessage = getUploadErrorMessage(error);
+    const key = pendingKind.value === 'video' ? 'editor.videoUploadError' : 'editor.imageUploadError';
+    alert(t(key, { message: errorMessage }));
   }
 }
 
@@ -467,6 +463,16 @@ defineExpose({
 <style scoped>
 .rich-text-editor {
   width: 100%;
+}
+
+.rte-hidden-file {
+  display: none;
+}
+
+.rte-progress {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #495057;
 }
 
 .editor-container {

@@ -319,6 +319,8 @@ async function processMessage(messageData) {
     let attachment_mimetype = null;
     let attachment_size = null;
     let attachment_data = null;
+    let attachmentKind = metadata.attachment_kind || null;
+    let messageContent = content;
 
     if (attachments && attachments.length > 0) {
       const firstAttachment = attachments[0];
@@ -326,7 +328,17 @@ async function processMessage(messageData) {
       attachment_mimetype = firstAttachment.mimetype;
       attachment_size = firstAttachment.size;
       attachment_data = firstAttachment.data;
+      attachmentKind = firstAttachment.kind || attachmentKind;
+      if (!String(messageContent || '').trim()) {
+        const { mediaPlaceholder } = require('../utils/chatMedia');
+        messageContent = mediaPlaceholder(attachmentKind || 'document');
+      }
     }
+
+    const messageMetadata = {
+      ...(metadata || {}),
+      ...(attachmentKind ? { attachment_kind: attachmentKind } : {})
+    };
 
     // 7. Сохраняем входящее сообщение пользователя
     // encryptionKey уже объявлен выше
@@ -348,6 +360,7 @@ async function processMessage(messageData) {
         user_id,
         role,
         direction,
+        metadata,
         created_at
       ) VALUES (
         $1, $2,
@@ -360,13 +373,14 @@ async function processMessage(messageData) {
         $9,
         $10, $11, $12,
         $13, $14, $15,
+        $17::jsonb,
         NOW()
       ) RETURNING id`,
       [
         conversationId,
         userId, // sender_id
         isAdmin ? 'editor' : 'user',
-        content,
+        messageContent,
         channel,
         'user',
         'incoming',
@@ -378,7 +392,8 @@ async function processMessage(messageData) {
         recipientId || userId, // user_id (получатель для публичных сообщений)
         'user', // role (незашифрованное)
         'incoming', // direction (незашифрованное)
-        encryptionKey
+        encryptionKey,
+        JSON.stringify(messageMetadata)
       ]
     );
     
@@ -414,28 +429,45 @@ async function processMessage(messageData) {
       }));
 
       logger.info('[UnifiedMessageProcessor] Генерация AI ответа...');
-      
-      aiResponse = await aiAssistant.generateResponse({
-        channel,
-        messageId: userMessageId,
-        userId: userId,
-        userQuestion: content,
-        conversationHistory,
-        conversationId,
-        metadata: {
-          hasAttachments: attachments.length > 0,
+      try {
+        aiResponse = await aiAssistant.generateResponse({
           channel,
-          isAdmin,
-          assign_tags: Array.isArray(metadata?.assign_tags)
-            ? metadata.assign_tags
-            : (Array.isArray(messageData?.assign_tags) ? messageData.assign_tags : [])
-        }
-      });
+          messageId: userMessageId,
+          userId: userId,
+          userQuestion: messageContent,
+          conversationHistory,
+          conversationId,
+          media: attachment_data ? {
+            kind: attachmentKind,
+            mimetype: attachment_mimetype,
+            data: attachment_data,
+            filename: attachment_filename,
+            size: attachment_size
+          } : null,
+          metadata: {
+            hasAttachments: attachments.length > 0,
+            channel,
+            isAdmin,
+            assign_tags: Array.isArray(metadata?.assign_tags)
+              ? metadata.assign_tags
+              : (Array.isArray(messageData?.assign_tags) ? messageData.assign_tags : []),
+            attachment_kind: attachmentKind
+          }
+        });
+      } catch (aiErr) {
+        logger.error('[UnifiedMessageProcessor] AI после сохранения сообщения:', aiErr);
+        aiResponse = {
+          success: true,
+          response: 'Сообщение принято. Ответ ассистента сейчас недоступен — напишите текстом или повторите позже.'
+        };
+      }
 
       if (aiResponse && aiResponse.success && aiResponse.response) {
         // Формируем финальный ответ ИИ
         finalAiResponse = aiResponse.response;
+        const aiMedia = aiResponse.media || null;
 
+        try {
         // Сохраняем ответ AI
         const { rows: aiMessageRows } = await db.getQuery()(
           `INSERT INTO messages (
@@ -450,6 +482,11 @@ async function processMessage(messageData) {
             user_id,
             role,
             direction,
+            attachment_filename,
+            attachment_mimetype,
+            attachment_size,
+            attachment_data,
+            metadata,
             created_at
           ) VALUES (
             $1, $2,
@@ -459,28 +496,46 @@ async function processMessage(messageData) {
             encrypt_text($6, $12),
             encrypt_text($7, $12),
             $8, $9, $10, $11,
+            $13, $14, $15, $16,
+            $17::jsonb,
             NOW()
           ) RETURNING id`,
           [
             conversationId,
-            userId, // sender_id
+            userId,
             'assistant',
             finalAiResponse,
             channel,
             'assistant',
             'outgoing',
             messageType,
-            userId, // user_id
-            'assistant', // role (незашифрованное)
-            'outgoing', // direction (незашифрованное)
-            encryptionKey
+            userId,
+            'assistant',
+            'outgoing',
+            encryptionKey,
+            aiMedia?.filename || null,
+            aiMedia?.mimetype || null,
+            aiMedia?.buffer?.length || aiMedia?.size || null,
+            aiMedia?.buffer || aiMedia?.data || null,
+            JSON.stringify({
+              ...(aiMedia ? { attachment_kind: aiMedia.kind } : {}),
+              ...(aiResponse.multimodalUsed === false ? { multimodalUsed: false, multimodalReason: aiResponse.multimodalReason } : {})
+            })
           ]
         );
 
         logger.info('[UnifiedMessageProcessor] Ответ AI сохранен:', aiMessageRows[0].id);
+        if (aiMedia) {
+          aiResponse.mediaUrl = `/api/chat/attachment/${aiMessageRows[0].id}`;
+        }
+        } catch (aiSaveErr) {
+          logger.error('[UnifiedMessageProcessor] Не удалось сохранить ответ AI:', aiSaveErr);
+        }
       } else if (aiResponse && aiResponse.disabled) {
         aiResponseDisabled = true;
         logger.info('[UnifiedMessageProcessor] AI ассистент отключен для текущего канала — ответ не генерируется.');
+      } else if (aiResponse && aiResponse.skipped) {
+        logger.info('[UnifiedMessageProcessor] AI ingest skipped:', aiResponse.reason);
       } else {
         logger.warn('[UnifiedMessageProcessor] AI не вернул ответ:', aiResponse?.reason);
       }
@@ -499,16 +554,42 @@ async function processMessage(messageData) {
     }
 
     // 11. Возвращаем результат
+    const { attachmentMetaFromRow } = require('../utils/chatMedia');
+    const userMessage = {
+      id: userMessageId,
+      created_at: new Date().toISOString(),
+      attachments: attachment_filename
+        ? [attachmentMetaFromRow({
+          id: userMessageId,
+          attachment_filename,
+          attachment_mimetype,
+          attachment_size,
+          metadata: messageMetadata
+        })]
+        : null
+    };
+
     const result = {
       success: true,
       userMessageId,
       conversationId,
+      userMessage,
       aiResponse: aiResponse && aiResponse.success ? {
         response: finalAiResponse || (aiResponse?.response || ''),
-        ragData: aiResponse.ragData
+        ragData: aiResponse.ragData,
+        attachments: aiResponse.media
+          ? [{
+            originalname: aiResponse.media.filename,
+            mimetype: aiResponse.media.mimetype,
+            size: aiResponse.media.buffer?.length || aiResponse.media.size,
+            kind: aiResponse.media.kind,
+            url: aiResponse.mediaUrl || null
+          }]
+          : null
       } : null,
       noAiResponse: !shouldGenerateAi || aiResponseDisabled,
-      assistantDisabled: aiResponseDisabled
+      assistantDisabled: aiResponseDisabled,
+      aiMedia: aiResponse?.media || null
     };
 
     return result;

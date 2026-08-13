@@ -12,12 +12,22 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin, requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('/app/shared/permissions');
 const logger = require('../utils/logger');
 const { ethers } = require('ethers');
 const db = require('../db');
 const rpcProviderService = require('../services/rpcProviderService');
 const encryptedDb = require('../services/encryptedDatabaseService');
+
+function loadAcceptInput() {
+  try {
+    return require('/app/shared/assistantAcceptInput');
+  } catch (_) {
+    return require('../../shared/assistantAcceptInput');
+  }
+}
 
 // Функция для получения информации о сети по chain_id
 function getNetworkInfo(chainId) {
@@ -602,17 +612,28 @@ router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next
   }
 });
 
-router.get('/ai-assistant', requireAdmin, async (req, res, next) => {
+router.get('/ai-assistant', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const settings = await aiAssistantSettingsService.getSettings();
+    const { parseAcceptInputForGenerate } = loadAcceptInput();
+    if (settings) {
+      settings.accept_input = parseAcceptInputForGenerate(settings.accept_input);
+    }
     res.json({ success: true, settings });
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/ai-assistant', requireAdmin, async (req, res, next) => {
+router.put('/ai-assistant', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
+    const { validateAcceptInput } = loadAcceptInput();
+    const acceptCheck = validateAcceptInput(req.body?.accept_input);
+    if (!acceptCheck.ok) {
+      return res.status(400).json({ success: false, code: 'INVALID_ACCEPT_INPUT' });
+    }
+
     let { selected_rag_tables, ...rest } = req.body;
     // Приведение к массиву чисел
     if (typeof selected_rag_tables === 'string') {
@@ -629,6 +650,7 @@ router.put('/ai-assistant', requireAdmin, async (req, res, next) => {
 
     const updated = await aiAssistantSettingsService.upsertSettings({
       ...rest,
+      accept_input: acceptCheck.data,
       selected_rag_tables,
       updated_by: req.session.userId || null
     });
@@ -1460,6 +1482,34 @@ router.post('/encryption-key/recover', requireAdmin, async (req, res) => {
   } catch (error) {
     logger.error('Ошибка восстановления ключа шифрования:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/chat-role-capabilities', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
+    const data = await chatRoleCapabilitiesService.getMatrix();
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] chat-role-capabilities GET:', error);
+    res.status(500).json({ success: false, error: 'Не удалось загрузить права ролей чата' });
+  }
+});
+
+router.put('/chat-role-capabilities', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
+    const matrix = req.body?.guest ? req.body : req.body?.data;
+    const data = await chatRoleCapabilitiesService.saveMatrix(matrix, req.session?.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    if (error.code === 'INVALID_CHAT_CAPS') {
+      return res.status(400).json({ success: false, code: 'INVALID_CHAT_CAPS', error: 'Неполная матрица прав чата' });
+    }
+    logger.error('[Settings] chat-role-capabilities PUT:', error);
+    res.status(500).json({ success: false, error: 'Не удалось сохранить права ролей чата' });
   }
 });
 

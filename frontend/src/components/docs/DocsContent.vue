@@ -214,6 +214,7 @@ import { useAuthContext } from '../../composables/useAuth';
 import BlogEngagementBar from '../blog/BlogEngagementBar.vue';
 import UiGlyph from '../UiGlyph.vue';
 import { PERMISSIONS } from '../../composables/permissions';
+import { isLocalCmsMediaUrl } from '../../utils/cmsMediaUrl';
 
 const props = defineProps({
   pageId: {
@@ -712,7 +713,7 @@ const formatContent = computed(() => {
     // Quill вставляет видео как iframe, но для локальных файлов нужен тег video
     sanitizedHtml = sanitizedHtml.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
       // Проверяем, является ли это видео-файл из нашей системы (по URL)
-      if (url.includes('/api/uploads/media/') && url.includes('/file')) {
+      if (isLocalCmsMediaUrl(url)) {
         // Преобразуем в тег video для локальных видео-файлов
         return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
       }
@@ -743,7 +744,7 @@ const formatContent = computed(() => {
     // Quill вставляет видео как iframe, но для локальных файлов нужен тег video
     sanitizedHtml = sanitizedHtml.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
       // Проверяем, является ли это видео-файл из нашей системы (по URL)
-      if (url.includes('/api/uploads/media/') && url.includes('/file')) {
+      if (isLocalCmsMediaUrl(url)) {
         // Преобразуем в тег video для локальных видео-файлов
         return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
       }

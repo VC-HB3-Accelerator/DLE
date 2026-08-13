@@ -85,43 +85,43 @@ class UniversalGuestService {
         content,
         channel,
         metadata = {},
-        attachment_filename,
-        attachment_mimetype,
-        attachment_size,
-        attachment_data,
-        contentData = null // Новый параметр для структурированного контента
+        contentData = null
       } = messageData;
 
+      const firstAtt = Array.isArray(messageData.attachments) ? messageData.attachments[0] : null;
+      const attachment_filename = firstAtt?.filename || messageData.attachment_filename || null;
+      const attachment_mimetype = firstAtt?.mimetype || messageData.attachment_mimetype || null;
+      const attachment_size = firstAtt?.size || messageData.attachment_size || null;
+      const attachment_data = firstAtt?.data || messageData.attachment_data || null;
+      const attachmentKind = firstAtt?.kind || metadata.attachment_kind || null;
+
+      const { mediaPlaceholder, contentTypeForKind } = require('../utils/chatMedia');
       const encryptionKey = encryptionUtils.getEncryptionKey();
 
-      // Обработка контента через UniversalMediaProcessor
       let processedContent = null;
       let finalContent = content;
       let finalMetadata = { ...metadata };
+      if (attachmentKind) {
+        finalMetadata.attachment_kind = attachmentKind;
+      }
 
-      if (contentData) {
+      if (attachment_data) {
+        if (!String(finalContent || '').trim()) {
+          finalContent = mediaPlaceholder(attachmentKind || 'document');
+        }
+      } else if (contentData) {
         processedContent = await universalMediaProcessor.processCombinedContent(contentData);
-        // Если есть и текст, и файлы - объединяем их
         if (content && processedContent.summary) {
           finalContent = `${content}\n\n[Прикрепленные файлы: ${processedContent.summary}]`;
         } else if (processedContent.summary) {
-          // Только файлы без текста
           finalContent = processedContent.summary;
         }
         finalMetadata.mediaSummary = processedContent.summary;
-      } else if (attachment_data) {
-        // Если есть только одно вложение без contentData, обрабатываем его
-        processedContent = await universalMediaProcessor.processFile(
-          attachment_data,
-          attachment_filename,
-          {
-            mimeType: attachment_mimetype,
-            originalSize: attachment_size
-          }
-        );
-        finalContent = content || processedContent.content;
-        finalMetadata.mediaSummary = processedContent.content;
       }
+
+      const dbContentType = processedContent
+        ? processedContent.type
+        : contentTypeForKind(attachmentKind);
 
       const { rows } = await db.getQuery()(
         `INSERT INTO unified_guest_messages (
@@ -163,7 +163,7 @@ class UniversalGuestService {
           attachment_mimetype || null,
           attachment_size || null,
           attachment_data || null,
-          processedContent ? processedContent.type : 'text',
+          processedContent ? processedContent.type : dbContentType,
           processedContent ? JSON.stringify(processedContent.parts) : null,
           encryptionKey,
           JSON.stringify(finalMetadata)
@@ -237,10 +237,13 @@ class UniversalGuestService {
         identifier,
         content,
         channel,
-        metadata = {}
+        metadata = {},
+        attachments = []
       } = responseData;
 
+      const firstAtt = attachments[0] || null;
       const encryptionKey = encryptionUtils.getEncryptionKey();
+      const { contentTypeForKind } = require('../utils/chatMedia');
 
       const { rows } = await db.getQuery()(
         `INSERT INTO unified_guest_messages (
@@ -249,21 +252,36 @@ class UniversalGuestService {
           content_encrypted,
           is_ai,
           metadata,
+          attachment_filename_encrypted,
+          attachment_mimetype_encrypted,
+          attachment_size,
+          attachment_data,
+          content_type,
           created_at
         ) VALUES (
-          encrypt_text($1, $6),
+          encrypt_text($1, $11),
           $2,
-          encrypt_text($3, $6),
+          encrypt_text($3, $11),
           $4,
           $5,
+          encrypt_text($6, $11),
+          encrypt_text($7, $11),
+          $8,
+          $9,
+          $10,
           NOW()
         ) RETURNING id, created_at`,
         [
           identifier,
           channel,
           content,
-          true, // is_ai = true (это ответ AI)
+          true,
           JSON.stringify(metadata),
+          firstAtt?.filename || null,
+          firstAtt?.mimetype || null,
+          firstAtt?.buffer?.length || firstAtt?.size || null,
+          firstAtt?.buffer || firstAtt?.data || null,
+          firstAtt ? contentTypeForKind(firstAtt.kind) : 'text',
           encryptionKey
         ]
       );
@@ -493,6 +511,7 @@ class UniversalGuestService {
       // 1. Сохраняем сообщение гостя
       const saveResult = await this.saveMessage(messageData);
       const processedContent = saveResult.processedContent;
+      const firstAtt = Array.isArray(messageData.attachments) ? messageData.attachments[0] : null;
 
       // 1.5. Имя гостя — в фоне, не блокируем первый ответ ИИ
       this.extractAndSaveGuestName(identifier, content, channel).catch(error => {
@@ -504,44 +523,74 @@ class UniversalGuestService {
 
       // 3. Генерируем AI ответ
       const aiAssistant = require('./ai-assistant');
-      
-      // Формируем полное описание сообщения для AI
+      const { mediaPlaceholder } = require('../utils/chatMedia');
+
       let fullMessageContent = content;
-      if (processedContent && processedContent.summary) {
-        // Если есть медиа, добавляем информацию о них
+      if (firstAtt?.kind && !String(content || '').trim()) {
+        fullMessageContent = mediaPlaceholder(firstAtt.kind);
+      } else if (processedContent && processedContent.summary) {
         fullMessageContent = content ? `${content}\n\n[Прикрепленные файлы: ${processedContent.summary}]` : processedContent.summary;
       }
-      
-      const aiResponse = await aiAssistant.generateResponse({
-        channel: channel,
-        messageId: `guest_${identifier}_${Date.now()}`,
-        userId: null, // Для гостей передаем null, чтобы не использовать identifier как user_id
-        userQuestion: fullMessageContent,
-        conversationHistory: conversationHistory,
-        metadata: { 
-          isGuest: true,
-          hasMedia: !!processedContent,
-          mediaSummary: processedContent?.summary,
-          guestIdentifier: identifier, // Сохраняем identifier в metadata для логирования
-          assign_tags: Array.isArray(assignTags) ? assignTags : []
-        }
-      });
 
-      if (aiResponse && aiResponse.disabled) {
-        logger.info(`[UniversalGuestService] AI ассистент отключен для канала ${channel}. Ответ не формируется.`);
+      let aiResponse;
+      try {
+        aiResponse = await aiAssistant.generateResponse({
+          channel: channel,
+          messageId: `guest_${identifier}_${Date.now()}`,
+          userId: null,
+          userQuestion: fullMessageContent,
+          conversationHistory: conversationHistory,
+          media: firstAtt ? {
+            kind: firstAtt.kind,
+            mimetype: firstAtt.mimetype,
+            data: firstAtt.data,
+            filename: firstAtt.filename,
+            size: firstAtt.size
+          } : null,
+          metadata: {
+            isGuest: true,
+            hasMedia: Boolean(firstAtt || processedContent),
+            mediaSummary: processedContent?.summary,
+            guestIdentifier: identifier,
+            assign_tags: Array.isArray(assignTags) ? assignTags : [],
+            attachment_kind: firstAtt?.kind || null
+          }
+        });
+      } catch (aiErr) {
+        logger.error(`[UniversalGuestService] AI после сохранения сообщения:`, aiErr);
+        aiResponse = null;
+      }
+
+      if (aiResponse && (aiResponse.disabled || aiResponse.reason === 'accept_input_skipped')) {
+        logger.info(`[UniversalGuestService] AI ассистент пропущен для ${identifier}: ${aiResponse.reason}`);
         return {
           success: true,
           identifier,
+          userMessage: {
+            id: saveResult.messageId,
+            created_at: saveResult.created_at,
+            attachments: firstAtt ? [{
+              originalname: firstAtt.filename,
+              mimetype: firstAtt.mimetype,
+              size: firstAtt.size,
+              kind: firstAtt.kind,
+              url: `/api/chat/guest-attachment/${saveResult.messageId}`
+            }] : null
+          },
           aiResponse: null,
-          assistantDisabled: true
+          assistantDisabled: Boolean(aiResponse.disabled),
+          ingestSkipped: aiResponse.reason === 'accept_input_skipped'
         };
       }
 
       if (!aiResponse || !aiResponse.success) {
         logger.warn(`[UniversalGuestService] AI не вернул ответ для ${identifier}`);
-        return {
-          success: false,
-          reason: aiResponse?.reason || 'no_ai_response'
+        const { fallbackGuestCopy } = require('./chatMultimodalService');
+        aiResponse = {
+          success: true,
+          response: fallbackGuestCopy(),
+          multimodalUsed: false,
+          multimodalReason: aiResponse?.reason || 'no_ai_response'
         };
       }
 
@@ -551,27 +600,58 @@ class UniversalGuestService {
       const hadAiReply = previousHistory.some((m) => m.role === 'assistant');
       const suggestWalletLogin = channel === 'web' && !hadAiReply;
 
-      await this.saveAiResponse({
+      const aiSave = await this.saveAiResponse({
         identifier,
-        content: finalAiResponse,
+        content: typeof finalAiResponse === 'string' ? finalAiResponse : (finalAiResponse?.text || ''),
         channel,
+        attachments: aiResponse.media ? [aiResponse.media] : [],
         metadata: {
           ...(messageData.metadata || {}),
-          ...(suggestWalletLogin ? { suggestWalletLogin: true } : {})
+          ...(suggestWalletLogin ? { suggestWalletLogin: true } : {}),
+          ...(aiResponse.multimodalUsed === false ? { multimodalUsed: false, multimodalReason: aiResponse.multimodalReason } : {}),
+          ...(aiResponse.media ? { attachment_kind: aiResponse.media.kind } : {})
         }
+      }).catch((aiSaveErr) => {
+        logger.error('[UniversalGuestService] Не удалось сохранить ответ AI:', aiSaveErr);
+        return { messageId: null };
       });
 
       logger.info(`[UniversalGuestService] Сообщение гостя ${identifier} обработано успешно`);
+
+      const userAttachment = firstAtt
+        ? [{
+          originalname: firstAtt.filename,
+          mimetype: firstAtt.mimetype,
+          size: firstAtt.size,
+          kind: firstAtt.kind,
+          url: `/api/chat/guest-attachment/${saveResult.messageId}`
+        }]
+        : null;
 
       const result = {
         success: true,
         identifier,
         suggestWalletLogin,
+        userMessage: {
+          id: saveResult.messageId,
+          created_at: saveResult.created_at,
+          attachments: userAttachment
+        },
         aiResponse: {
-          response: finalAiResponse,
+          response: typeof finalAiResponse === 'string' ? finalAiResponse : (finalAiResponse?.text || ''),
           ragData: aiResponse.ragData,
-          suggestWalletLogin
-        }
+          suggestWalletLogin,
+          attachments: aiResponse.media
+            ? [{
+              originalname: aiResponse.media.filename,
+              mimetype: aiResponse.media.mimetype,
+              size: aiResponse.media.buffer?.length || aiResponse.media.size,
+              kind: aiResponse.media.kind,
+              url: `/api/chat/guest-attachment/${aiSave.messageId}`
+            }]
+            : null
+        },
+        aiMedia: aiResponse.media || null
       };
 
       return result;

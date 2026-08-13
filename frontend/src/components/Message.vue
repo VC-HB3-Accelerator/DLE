@@ -129,19 +129,28 @@
     <!-- Блок для отображения прикрепленного файла (теперь с плеерами/изображением/ссылкой) -->
     <div v-if="attachment" class="message-attachments">
       <div class="attachment-item">
-        <!-- Изображение -->
-        <img v-if="isImage" :src="objectUrl" :alt="attachment.originalname" class="attachment-preview image-preview"/>
-
-        <!-- Аудио -->
-        <audio v-else-if="isAudio" :src="objectUrl" controls class="attachment-preview audio-preview" />
-
-        <!-- Видео -->
-        <video v-else-if="isVideo" :src="objectUrl" controls class="attachment-preview video-preview" />
-
-        <!-- Другие типы файлов (ссылка на скачивание) -->
+        <img v-if="isImage" :src="mediaSrc" :alt="attachment.originalname" class="attachment-preview image-preview"/>
+        <VoiceMessageBubble
+          v-else-if="isAudio && mediaSrc"
+          :src="mediaSrc"
+          :play-label="t('chat.playVoice')"
+        />
+        <VideoNoteBubble
+          v-else-if="isVideoNote && mediaSrc"
+          :src="mediaSrc"
+          :play-label="t('chat.playVideoNote')"
+        />
+        <video
+          v-else-if="isVideo"
+          :src="mediaSrc"
+          controls
+          playsinline
+          webkit-playsinline
+          class="attachment-preview video-preview"
+        />
         <div v-else class="attachment-info file-preview">
           <span class="attachment-icon">📄</span>
-          <a :href="objectUrl" :download="attachment.originalname" class="attachment-name">
+          <a :href="mediaSrc" :download="attachment.originalname" class="attachment-name">
             {{ attachment.originalname }}
           </a>
           <span class="attachment-size">({{ formatFileSize(attachment.size) }})</span>
@@ -177,7 +186,10 @@ import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import eventBus from '../utils/eventBus';
+import VideoNoteBubble from './chat/VideoNoteBubble.vue';
+import VoiceMessageBubble from './chat/VoiceMessageBubble.vue';
 import { useAuthContext } from '../composables/useAuth';
+import { detectAttachmentKind } from '@/shared/mediaLimits.js';
 
 const { t, locale: i18nLocale } = useI18n();
 const auth = useAuthContext();
@@ -336,16 +348,29 @@ const replyLink = computed(() => {
 
 // --- Работа с вложениями --- 
 const attachment = computed(() => {
-    // Ожидаем массив attachments, даже если там только один элемент
-    return props.message.attachments && props.message.attachments.length > 0
+    const raw = props.message.attachments && props.message.attachments.length > 0
       ? props.message.attachments[0]
       : null;
+    if (!raw) return null;
+    return {
+      ...raw,
+      originalname: raw.originalname || raw.filename || raw.name,
+      mimetype: raw.mimetype || raw.type,
+      url: raw.url || (raw.id ? `/api/chat/attachment/${raw.id}` : '')
+    };
 });
 
 const objectUrl = ref(null);
 const isImage = ref(false);
 const isAudio = ref(false);
 const isVideo = ref(false);
+const isVideoNote = ref(false);
+
+const mediaSrc = computed(() => {
+  if (attachment.value?.url) return attachment.value.url;
+  if (objectUrl.value) return objectUrl.value;
+  return '';
+});
 
 // Функция для преобразования Base64 в Blob
 const base64ToBlob = (base64, mimetype) => {
@@ -365,33 +390,45 @@ const base64ToBlob = (base64, mimetype) => {
 
 // Наблюдаем за изменением вложения в сообщении
 watch(attachment, (newAttachment) => {
-  // Очищаем предыдущий URL, если он был
   if (objectUrl.value) {
     URL.revokeObjectURL(objectUrl.value);
     objectUrl.value = null;
   }
-  // Сбрасываем типы
   isImage.value = false;
   isAudio.value = false;
   isVideo.value = false;
+  isVideoNote.value = false;
 
-  if (newAttachment && newAttachment.data_base64 && newAttachment.mimetype) {
-    const blob = base64ToBlob(newAttachment.data_base64, newAttachment.mimetype);
-    if (blob) {
-      objectUrl.value = URL.createObjectURL(blob);
+  if (!newAttachment) return;
 
-      // Определяем тип для условного рендеринга
-      const mimetype = newAttachment.mimetype.toLowerCase();
-      if (mimetype.startsWith('image/')) {
-        isImage.value = true;
-      } else if (mimetype.startsWith('audio/')) {
-        isAudio.value = true;
-      } else if (mimetype.startsWith('video/')) {
-        isVideo.value = true;
-      }
-    }
+  const mimetype = String(newAttachment.mimetype || newAttachment.type || '').toLowerCase();
+  const filename = String(newAttachment.originalname || newAttachment.filename || newAttachment.name || '');
+  const metaKind = props.message?.metadata?.attachment_kind
+    || props.message?.attachment_kind
+    || '';
+  const kind = detectAttachmentKind({
+    filename,
+    mimetype,
+    hint: newAttachment.kind || newAttachment.attachmentKind || metaKind,
+  });
+
+  if (kind === 'video_note') {
+    isVideoNote.value = true;
+  } else if (kind === 'audio') {
+    isAudio.value = true;
+  } else if (kind === 'video') {
+    isVideo.value = true;
+  } else if (kind === 'image') {
+    isImage.value = true;
   }
-}, { immediate: true }); // Выполняем сразу при монтировании
+
+  if (newAttachment.url) return;
+
+  if (newAttachment.data_base64 && newAttachment.mimetype) {
+    const blob = base64ToBlob(newAttachment.data_base64, newAttachment.mimetype);
+    if (blob) objectUrl.value = URL.createObjectURL(blob);
+  }
+}, { immediate: true });
 
 // Очистка при размонтировании
 onUnmounted(() => {
@@ -649,6 +686,11 @@ function copyEmail(email) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+}
+
+.attachment-item :deep(.video-note),
+.attachment-item :deep(.voice) {
+  margin-bottom: var(--spacing-xs);
 }
 
 .attachment-preview {

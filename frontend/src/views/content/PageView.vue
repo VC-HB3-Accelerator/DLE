@@ -159,6 +159,7 @@ import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 import UiGlyph from '../../components/UiGlyph.vue';
+import { isLocalCmsMediaUrl } from '../../utils/cmsMediaUrl';
 
 // Props
 const props = defineProps({
@@ -263,7 +264,7 @@ function formatContent(content) {
     // Quill может преобразовывать video в iframe, но для локальных файлов нужен тег video
     content = content.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
       // Проверяем, является ли это видео-файл из нашей системы
-      if (url.includes('/api/uploads/media/') && url.includes('/file')) {
+      if (isLocalCmsMediaUrl(url)) {
         // Преобразуем в тег video для локальных видео-файлов
         return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
       }

@@ -29,6 +29,12 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     config.withCredentials = true; // Важно для каждого запроса
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (config.headers) {
+        delete config.headers['Content-Type'];
+        delete config.headers['content-type'];
+      }
+    }
     
     // DEBUG: логируем все исходящие запросы
     console.log('🌐 [AXIOS] Отправляем запрос:', {

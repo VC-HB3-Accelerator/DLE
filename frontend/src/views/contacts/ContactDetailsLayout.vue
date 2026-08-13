@@ -115,6 +115,11 @@ onUnmounted(() => {
 .contact-details-page {
   width: 100%;
   position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .page-state {
@@ -127,6 +132,13 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--spacing-lg);
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.contact-details-content:has(.contact-chat-panel) {
+  overflow: hidden;
+  gap: 10px;
 }
 
 .contact-details-header {
@@ -134,6 +146,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 16px;
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .header-top {

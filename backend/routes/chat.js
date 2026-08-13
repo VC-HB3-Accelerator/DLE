@@ -19,45 +19,37 @@ const encryptedDb = require('../services/encryptedDatabaseService');
 const logger = require('../utils/logger');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
-const { PERMISSIONS } = require('../shared/permissions');
+const { PERMISSIONS, hasPermission } = require('../shared/permissions');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botManager = require('../services/botManager');
-const universalMediaProcessor = require('../services/UniversalMediaProcessor');
 const consentService = require('../services/consentService');
 const { DOCUMENT_CONSENT_MAP } = consentService;
+const {
+  MEDIA_MAX_BYTES,
+  chatUploadMiddleware,
+  prepareChatAttachment,
+  attachmentMetaFromRow,
+  mediaTooLargePayload,
+  byteaToBuffer
+} = require('../utils/chatMedia');
+const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
+const { getUserRole } = require('../middleware/permissions');
 
-// Настройка multer для обработки файлов в памяти с лимитами для чата
 const storage = multer.memoryStorage();
-
-// Multer с лимитами для чата:
-// - Изображения: до 100 МБ
-// - Видео, аудио и другие файлы: до 300 МБ
 const upload = multer({
-  storage: storage,
+  storage,
   limits: {
-    fileSize: 300 * 1024 * 1024, // Максимальный лимит (300 МБ для видео, аудио и файлов)
-    files: 10 // Максимальное количество файлов за раз
-  },
-  fileFilter: (req, file, cb) => {
-    const isImage = /^image\/(png|jpg|jpeg|gif|webp|svg)$/i.test(file.mimetype || '');
-    const isVideo = /^video\/(mp4|webm|ogg|mov|avi)$/i.test(file.mimetype || '');
-    const isAudio = /^audio\/(mp3|wav|ogg|m4a|aac|flac|wma)$/i.test(file.mimetype || '');
-    
-    // Разрешаем изображения, видео, аудио и другие файлы
-    if (isImage || isVideo || isAudio) {
-      cb(null, true);
-    } else {
-      // Разрешаем и другие файлы (документы и т.д.)
-      cb(null, true);
-    }
+    fileSize: MEDIA_MAX_BYTES,
+    files: 1
   }
 });
+const chatUpload = chatUploadMiddleware(upload.array('attachments', 1));
 
 // Функция processGuestMessages заменена на UniversalGuestService.migrateToUser()
 
 // Обработчик для гостевых сообщений (НОВАЯ ВЕРСИЯ)
-router.post('/guest-message', upload.array('attachments'), async (req, res) => {
+router.post('/guest-message', chatUpload, async (req, res) => {
   try {
     // Frontend отправляет FormData, поэтому читаем из req.body
     const content = req.body.message;
@@ -100,6 +92,14 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       });
     }
 
+    if (await chatRoleCapabilitiesService.rejectIfChatCapDenied(
+      res,
+      'guest',
+      chatRoleCapabilitiesService.payloadFromUpload(req)
+    )) {
+      return;
+    }
+
     const universalGuestService = require('../services/UniversalGuestService');
     const unifiedMessageProcessor = require('../services/unifiedMessageProcessor');
 
@@ -118,91 +118,30 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       }
     }
 
-    // Обработка вложений через медиа-процессор
-    let contentData = null;
-    if (files && files.length > 0) {
-      const mediaFiles = [];
-      
-      for (const file of files) {
-        try {
-          // Проверяем размер файла перед обработкой
-          const isImage = /^image\//i.test(file.mimetype || '');
-          const isVideo = /^video\//i.test(file.mimetype || '');
-          const isAudio = /^audio\//i.test(file.mimetype || '');
-          
-          // Лимиты: изображения - 100 МБ, видео/аудио/файлы - 300 МБ
-          const maxSize = isImage ? 100 * 1024 * 1024 : 300 * 1024 * 1024;
-          
-          if (file.size > maxSize) {
-            const maxSizeMB = Math.round(maxSize / (1024 * 1024));
-            const fileType = isImage ? 'изображений' : (isVideo ? 'видео' : (isAudio ? 'аудио' : 'файлов'));
-            throw new Error(`Размер файла "${file.originalname}" (${Math.round(file.size / (1024 * 1024))} МБ) превышает максимально допустимый размер (${maxSizeMB} МБ) для ${fileType}`);
-          }
-          
-          const processedFile = await universalMediaProcessor.processFile(
-            file.buffer,
-            file.originalname,
-            {
-              webUpload: true,
-              originalSize: file.size,
-              mimeType: file.mimetype
-            }
-          );
-          
-          mediaFiles.push(processedFile);
-        } catch (fileError) {
-          logger.error('[Chat] Ошибка обработки файла:', fileError);
-          // Fallback: сохраняем как есть
-          mediaFiles.push({
-            type: 'document',
-            content: `[Файл: ${file.originalname}]`,
-            processed: false,
-            error: fileError.message,
-            file: {
-              filename: file.originalname,
-              mimetype: file.mimetype,
-              size: file.size,
-              data: file.buffer
-            }
-          });
+    let attachments = [];
+    let messageContent = content;
+    try {
+      if (files && files.length > 0) {
+        const prepared = prepareChatAttachment(files[0], req.body.attachment_kind);
+        attachments = [prepared];
+        if (!String(messageContent || '').trim()) {
+          messageContent = prepared.placeholder;
         }
       }
-      
-      // Создаем contentData только если есть обработанные файлы
-      if (mediaFiles.length > 0) {
-        contentData = {
-          text: content,
-          files: mediaFiles.map(file => ({
-            data: file.file?.data || file.file?.buffer,
-            filename: file.file?.originalName || file.file?.filename,
-            metadata: {
-              type: file.type,
-              processed: file.processed,
-              webUpload: true,
-              mimeType: file.file?.mimetype,
-              originalSize: file.file?.size,
-              size: file.file?.size
-            }
-          }))
-        };
+    } catch (prepErr) {
+      if (prepErr.code === 'MEDIA_TOO_LARGE') {
+        return res.status(413).json(prepErr.payload || mediaTooLargePayload(files[0]?.originalname, files[0]?.size));
       }
+      throw prepErr;
     }
-
-    // Обратная совместимость - старый формат attachments
-    const attachments = (files || []).map(file => ({
-      filename: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      data: file.buffer
-    }));
 
     const messageData = {
       identifier: identifier,
-      content: content,
+      content: messageContent,
       channel: 'web',
-      attachments: attachments,
-      contentData: contentData,
-      assign_tags: assignTags
+      attachments,
+      assign_tags: assignTags,
+      metadata: attachments[0] ? { attachment_kind: attachments[0].kind } : {}
     };
 
     // Обработка через unified processor
@@ -220,9 +159,11 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     const response = {
       success: true,
       guestId: webGuestId,
+      userMessage: result.userMessage || null,
       aiResponse: result.aiResponse ? {
         response: result.aiResponse.response,
-        suggestWalletLogin: Boolean(result.aiResponse.suggestWalletLogin || result.suggestWalletLogin)
+        suggestWalletLogin: Boolean(result.aiResponse.suggestWalletLogin || result.suggestWalletLogin),
+        attachments: result.aiResponse.attachments || null
       } : null
     };
 
@@ -252,11 +193,12 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
 // Старая логика удалена - используется guestService.js);
 
 // Обработчик для сообщений аутентифицированных пользователей (НОВАЯ ВЕРСИЯ)
-router.post('/message', requireAuth, upload.array('attachments'), async (req, res) => {
+router.post('/message', requireAuth, chatUpload, async (req, res) => {
   try {
     // Frontend отправляет FormData, поэтому читаем из req.body
     const content = req.body.message;
-    const { conversationId, recipientId } = req.body;
+    const { conversationId } = req.body;
+    const recipientId = req.body.recipientId || req.body.toUserId;
     const userId = req.session.userId;
     const files = req.files || [];
     let assignTags = [];
@@ -271,10 +213,11 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       }
     }
 
-    if (!content) {
+    if (!String(content || '').trim() && (!files || files.length === 0)) {
       return res.status(400).json({
         success: false,
-        error: 'Текст сообщения обязателен'
+        error: 'Текст сообщения или файлы обязательны',
+        code: 'EMPTY_MESSAGE'
       });
     }
 
@@ -291,6 +234,15 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         success: false,
         error: 'Система ботов не готова. Попробуйте позже.'
       });
+    }
+
+    const senderRole = req.session.userAccessLevel?.level || 'user';
+    if (await chatRoleCapabilitiesService.rejectIfChatCapDenied(
+      res,
+      senderRole,
+      chatRoleCapabilitiesService.payloadFromUpload(req)
+    )) {
+      return;
     }
 
     const encryptedDb = require('../services/encryptedDatabaseService');
@@ -341,43 +293,33 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     // Создаем identifier для пользователя
     const identifier = `wallet:${walletIdentity.provider_id}`;
 
-    // Обработка вложений с проверкой размера
-    const attachments = [];
-    for (const file of files) {
-      // Проверяем размер файла перед обработкой
-      const isImage = /^image\//i.test(file.mimetype || '');
-      const isVideo = /^video\//i.test(file.mimetype || '');
-      const isAudio = /^audio\//i.test(file.mimetype || '');
-      
-      // Лимиты: изображения - 100 МБ, видео/аудио/файлы - 300 МБ
-      const maxSize = isImage ? 100 * 1024 * 1024 : 300 * 1024 * 1024;
-      
-      if (file.size > maxSize) {
-        const maxSizeMB = Math.round(maxSize / (1024 * 1024));
-        const fileType = isImage ? 'изображений' : (isVideo ? 'видео' : (isAudio ? 'аудио' : 'файлов'));
-        return res.status(400).json({
-          success: false,
-          error: `Размер файла "${file.originalname}" (${Math.round(file.size / (1024 * 1024))} МБ) превышает максимально допустимый размер (${maxSizeMB} МБ) для ${fileType}`
-        });
+    let attachments = [];
+    let messageContent = content;
+    try {
+      if (files && files.length > 0) {
+        const prepared = prepareChatAttachment(files[0], req.body.attachment_kind);
+        attachments = [prepared];
+        if (!String(messageContent || '').trim()) {
+          messageContent = prepared.placeholder;
+        }
       }
-      
-      attachments.push({
-        filename: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        data: file.buffer
-      });
+    } catch (prepErr) {
+      if (prepErr.code === 'MEDIA_TOO_LARGE') {
+        return res.status(413).json(prepErr.payload || mediaTooLargePayload(files[0]?.originalname, files[0]?.size));
+      }
+      throw prepErr;
     }
 
     const messageData = {
       identifier: identifier,
-      content: content,
+      content: messageContent,
       channel: 'web',
-      attachments: attachments,
+      attachments,
       conversationId: conversationId || null,
       recipientId: recipientId || null,
       userId: userId,
-      assign_tags: assignTags
+      assign_tags: assignTags,
+      metadata: attachments[0] ? { attachment_kind: attachments[0].kind } : {}
     };
 
     // Обработка через unified processor
@@ -389,8 +331,10 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       success: true,
       userMessageId: result.userMessageId,
       conversationId: result.conversationId,
+      userMessage: result.userMessage || null,
       aiResponse: result.aiResponse ? {
-        response: result.aiResponse.response
+        response: result.aiResponse.response,
+        attachments: result.aiResponse.attachments || null
       } : null,
       noAiResponse: result.noAiResponse
     };
@@ -416,6 +360,31 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
 
 // Старая логика полностью удалена - используется только BotManager
 // Маршрут /message-queued удален - дублировал логику и не использовал централизованные сервисы
+
+router.get('/capabilities', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const role = await getUserRole(req);
+    const caps = await chatRoleCapabilitiesService.getCapsForUi(role);
+    res.json({
+      success: true,
+      data: {
+        role: chatRoleCapabilitiesService.roleKeyForChatCaps(role),
+        ...caps
+      }
+    });
+  } catch (error) {
+    logger.warn('[Chat] capabilities fallback defaults:', error.message);
+    const caps = await chatRoleCapabilitiesService.getCapsForUi('guest');
+    res.json({
+      success: true,
+      data: {
+        role: chatRoleCapabilitiesService.roleKeyForChatCaps('guest'),
+        ...caps
+      }
+    });
+  }
+});
 
 // Добавьте этот маршрут для проверки доступных моделей
 router.get('/models', async (req, res) => {
@@ -479,7 +448,9 @@ router.get('/history', requireAuth, async (req, res) => {
               decrypt_text(m.channel_encrypted, $2) as channel,
               decrypt_text(m.role_encrypted, $2) as role,
               decrypt_text(m.direction_encrypted, $2) as direction,
-              m.message_type, m.created_at
+              m.message_type, m.created_at,
+              m.attachment_filename, m.attachment_mimetype, m.attachment_size,
+              m.metadata
        FROM messages m
        ${listWhere}
        ORDER BY m.created_at DESC
@@ -503,13 +474,9 @@ router.get('/history', requireAuth, async (req, res) => {
         attachments: null
       };
 
-      if (msg.attachment_data) {
-        formatted.attachments = [{
-          originalname: msg.attachment_filename,
-          mimetype: msg.attachment_mimetype,
-          size: msg.attachment_size,
-          data_base64: msg.attachment_data.toString('base64')
-        }];
+      if (msg.attachment_filename || msg.attachment_mimetype || Number(msg.attachment_size) > 0) {
+        const meta = attachmentMetaFromRow(msg, { guest: false });
+        formatted.attachments = meta ? [meta] : null;
       }
 
       return formatted;
@@ -668,6 +635,103 @@ router.post('/restart-bot', requireAdmin, async (req, res) => {
       success: false,
       error: 'Ошибка перезапуска бота'
     });
+  }
+});
+
+async function streamMessageAttachment({ table, id, userFilterSql, userFilterParams, res, guest = false }) {
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+  let sql;
+  let params;
+  if (table === 'messages') {
+    sql = `SELECT id, attachment_filename, attachment_mimetype, attachment_size, attachment_data
+           FROM messages WHERE id = $1 ${userFilterSql || ''}`;
+    params = [id, ...(userFilterParams || [])];
+  } else {
+    sql = `SELECT id, attachment_size, attachment_data,
+                   decrypt_text(identifier_encrypted, $2) as identifier,
+                   decrypt_text(attachment_filename_encrypted, $2) as attachment_filename,
+                   decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype
+            FROM unified_guest_messages
+            WHERE id = $1`;
+    params = [id, encryptionKey];
+  }
+  const { rows } = await db.getQuery()(sql, params);
+  const row = rows[0];
+  if (!row || !row.attachment_data) {
+    return res.status(404).json({ success: false, error: 'Вложение не найдено', code: 'ATTACHMENT_NOT_FOUND' });
+  }
+  if (guest) {
+    const expected = userFilterParams?.[0];
+    if (!expected || row.identifier !== expected) {
+      return res.status(403).json({ success: false, error: 'Нет доступа', code: 'ATTACHMENT_FORBIDDEN' });
+    }
+  }
+  const buf = byteaToBuffer(row.attachment_data);
+  if (!buf || !buf.length) {
+    return res.status(404).json({ success: false, error: 'Вложение не найдено', code: 'ATTACHMENT_NOT_FOUND' });
+  }
+  const filename = row.attachment_filename || 'attachment';
+  const mime = row.attachment_mimetype || 'application/octet-stream';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.setHeader('Content-Length', String(buf.length));
+  return res.end(buf);
+}
+
+router.get('/attachment/:messageId', requireAuth, async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.messageId, 10);
+    const userId = req.session.userId;
+    if (!messageId || !userId) {
+      return res.status(400).json({ success: false, error: 'Некорректный запрос' });
+    }
+    await streamMessageAttachment({
+      table: 'messages',
+      id: messageId,
+      userFilterSql: 'AND (user_id = $2 OR sender_id = $2)',
+      userFilterParams: [userId],
+      res
+    });
+  } catch (error) {
+    logger.error('[Chat] attachment GET:', error);
+    res.status(500).json({ success: false, error: 'Ошибка чтения вложения' });
+  }
+});
+
+router.get('/guest-attachment/:messageId', async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.messageId, 10);
+    if (!messageId) {
+      return res.status(400).json({ success: false, error: 'Некорректный запрос' });
+    }
+    const role = await getUserRole(req);
+    if (req.session?.userId && hasPermission(role, PERMISSIONS.SEND_TO_USERS)) {
+      await streamMessageAttachment({
+        table: 'unified_guest_messages',
+        id: messageId,
+        res,
+        guest: false
+      });
+      return;
+    }
+    const guestId = String(req.query.guestId || req.session?.guestId || '').trim();
+    if (!guestId) {
+      return res.status(400).json({ success: false, error: 'guestId обязателен', code: 'GUEST_ID_REQUIRED' });
+    }
+    const universalGuestService = require('../services/UniversalGuestService');
+    const identifier = universalGuestService.createIdentifier('web', guestId);
+    await streamMessageAttachment({
+      table: 'unified_guest_messages',
+      id: messageId,
+      userFilterParams: [identifier],
+      res,
+      guest: true
+    });
+  } catch (error) {
+    logger.error('[Chat] guest-attachment GET:', error);
+    res.status(500).json({ success: false, error: 'Ошибка чтения вложения' });
   }
 });
 

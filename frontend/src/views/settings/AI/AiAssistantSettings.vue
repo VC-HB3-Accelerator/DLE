@@ -32,7 +32,7 @@
               <button
                 type="button"
                 class="btn btn-primary btn-sm"
-                :disabled="channelStatusLoading[channel.key] || settings.enabled_channels?.[channel.key]"
+                :disabled="!settingsLoaded || channelStatusLoading[channel.key] || settings.enabled_channels?.[channel.key]"
                 @click="setChannelStatus(channel.key, true)"
               >
                 {{ $t('settings.ai.assistant.enable') }}
@@ -40,7 +40,7 @@
               <button
                 type="button"
                 class="btn btn-ghost btn-sm status-disable"
-                :disabled="channelStatusLoading[channel.key] || !settings.enabled_channels?.[channel.key]"
+                :disabled="!settingsLoaded || channelStatusLoading[channel.key] || !settings.enabled_channels?.[channel.key]"
                 @click="setChannelStatus(channel.key, false)"
               >
                 {{ $t('settings.ai.assistant.disable') }}
@@ -119,6 +119,20 @@
           </select>
           <input v-else v-model="settings.model" class="form-control" placeholder="qwen2.5" />
             <small v-if="!settings.model" class="form-hint">{{ $t('settings.ai.assistant.willUseLlm', { model: ollamaConfig.llmModel }) }}</small>
+            <div v-if="modelCapsLabel" class="model-caps">
+              <span class="model-caps__badge">{{ $t('settings.ai.assistant.modelUnderstands', { caps: modelCapsLabel.input }) }}</span>
+              <span class="model-caps__badge">{{ $t('settings.ai.assistant.modelReplies', { caps: modelCapsLabel.output }) }}</span>
+              <p v-if="modelCapsLabel.textOnly" class="form-hint">{{ $t('settings.ai.assistant.modelTextOnlyHint') }}</p>
+            </div>
+
+            <fieldset class="accept-input" :disabled="!settingsLoaded">
+              <legend>{{ $t('settings.ai.assistant.acceptInputTitle') }}</legend>
+              <label v-for="key in acceptInputKeys" :key="key" class="accept-input__row">
+                <input v-model="settings.accept_input[key]" type="checkbox">
+                <span>{{ $t(`settings.ai.assistant.acceptKeys.${key}`) }}</span>
+              </label>
+              <p class="form-hint">{{ $t('settings.ai.assistant.acceptInputHint') }}</p>
+            </fieldset>
             
             <label class="form-label">{{ $t('settings.ai.assistant.embeddingForAssistant') }}</label>
           <select v-if="filteredEmbeddingModels.length" v-model="settings.embedding_model" class="form-control">
@@ -168,7 +182,9 @@
           </select>
           
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary">{{ $t('common.save') }}</button>
+            <button type="submit" class="btn btn-primary" :disabled="!settingsLoaded || saving">
+              {{ saving ? $t('common.saving') : $t('common.save') }}
+            </button>
           </div>
         </form>
         <RuleEditor v-if="showRuleEditor" :rule="editingRule" @close="onRuleEditorClose" />
@@ -184,8 +200,11 @@ import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import axios from 'axios';
+import { ElMessage } from 'element-plus';
 import RuleEditor from '@/components/ai-assistant/RuleEditor.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import { resolveModelCapabilities, hasMultimodalInput, hasMultimodalOutput } from '@/shared/modelCapabilities.js';
+import { ACCEPT_INPUT_KEYS, cloneDefaultAcceptInput, normalizeAcceptInput } from '@/shared/assistantAcceptInput.js';
 const router = useRouter();
 function goBack() {
   router.push('/settings/ai');
@@ -196,8 +215,12 @@ const settings = ref({
   model: '',
   selected_rag_tables: [],
   rules_id: null,
-  enabled_channels: { ...defaultEnabledChannels }
+  enabled_channels: { ...defaultEnabledChannels },
+  accept_input: cloneDefaultAcceptInput()
 });
+const settingsLoaded = ref(false);
+const saving = ref(false);
+const acceptInputKeys = ACCEPT_INPUT_KEYS;
 const userTables = ref([]);
 const ragTables = computed(() => userTables.value.filter(t => t.is_rag_source_id === 1));
 const rulesList = ref([]);
@@ -209,6 +232,18 @@ const llmModels = ref([]);
 const embeddingModels = ref([]);
 const selectedRule = computed(() => rulesList.value.find(r => r.id === settings.value.rules_id) || null);
 const selectedLLM = computed(() => llmModels.value.find(m => m.id === settings.value.model));
+const modelCapsLabel = computed(() => {
+  const modelId = settings.value.model || ollamaConfig.value?.llmModel || '';
+  if (!modelId) return null;
+  const caps = resolveModelCapabilities(modelId);
+  const input = ['text', caps.input.audio && 'audio', caps.input.video && 'video', caps.input.image && 'image'].filter(Boolean).join(' / ');
+  const output = ['text', caps.output.audio && 'audio', caps.output.video && 'video'].filter(Boolean).join(' / ');
+  return {
+    input,
+    output,
+    textOnly: !hasMultimodalInput(caps) && !hasMultimodalOutput(caps)
+  };
+});
 const filteredEmbeddingModels = computed(() => {
   if (!selectedLLM.value) return embeddingModels.value;
   return embeddingModels.value.filter(m => m.provider === selectedLLM.value.provider);
@@ -329,15 +364,18 @@ async function loadRules() {
   rulesList.value = data.rules || [];
 }
 async function loadSettings() {
-  const { data } = await axios.get('/settings/ai-assistant');
-  if (data.success && data.settings) {
-    // Обрабатываем selected_rag_tables - если это массив, берем первый элемент для single select
-    const settingsData = { ...data.settings };
+  settingsLoaded.value = false;
+  try {
+    const { data } = await axios.get('/settings/ai-assistant', {
+      headers: { 'Cache-Control': 'no-store' }
+    });
+    if (!data.success) {
+      throw new Error('load failed');
+    }
+    const settingsData = data.settings ? { ...data.settings } : {};
     if (Array.isArray(settingsData.selected_rag_tables) && settingsData.selected_rag_tables.length > 0) {
-      // Для single select берем первый элемент массива
       settingsData.selected_rag_tables = settingsData.selected_rag_tables[0];
     } else if (!Array.isArray(settingsData.selected_rag_tables)) {
-      // Если это не массив, устанавливаем пустое значение
       settingsData.selected_rag_tables = '';
     }
 
@@ -351,14 +389,18 @@ async function loadSettings() {
       }
     }
     settingsData.enabled_channels = normalizeEnabledChannels(incomingChannels);
+    settingsData.accept_input = normalizeAcceptInput(settingsData.accept_input);
 
     settings.value = settingsData;
-    
-    // Загружаем настройки RAG из ai_config (централизованные настройки)
+    settingsLoaded.value = true;
+
     await loadRAGSettings();
-    
+
     console.log('[AiAssistantSettings] Loaded settings:', settings.value);
     console.log('[AiAssistantSettings] Loaded RAG settings:', ragSettings.value);
+  } catch (error) {
+    console.error('[AiAssistantSettings] Не удалось загрузить настройки:', error);
+    ElMessage.error(t('settings.ai.assistant.loadFailed'));
   }
 }
 
@@ -587,10 +629,19 @@ onBeforeUnmount(() => {
   window.removeEventListener('placeholders-updated', loadPlaceholders);
 });
 async function saveSettings() {
+  if (!settingsLoaded.value || saving.value) return;
   const settingsToSave = buildSettingsPayload();
-  console.log('[AiAssistantSettings] Saving settings:', settingsToSave);
-  await axios.put('/settings/ai-assistant', settingsToSave);
-  goBack();
+  saving.value = true;
+  try {
+    console.log('[AiAssistantSettings] Saving settings:', settingsToSave);
+    await axios.put('/settings/ai-assistant', settingsToSave);
+    goBack();
+  } catch (error) {
+    console.error('[AiAssistantSettings] Save failed:', error);
+    ElMessage.error(t('settings.ai.assistant.saveFailed'));
+  } finally {
+    saving.value = false;
+  }
 }
 
 function buildSettingsPayload(overrides = {}) {
@@ -609,6 +660,7 @@ function buildSettingsPayload(overrides = {}) {
     .filter(value => !Number.isNaN(value));
 
   payload.enabled_channels = normalizeEnabledChannels(payload.enabled_channels);
+  payload.accept_input = normalizeAcceptInput(payload.accept_input);
 
   return payload;
 }
@@ -636,6 +688,9 @@ function normalizeEnabledChannels(channels) {
 }
 
 async function setChannelStatus(channelKey, isEnabled) {
+  if (!settingsLoaded.value) {
+    return;
+  }
   if (!assistantChannels.some(channel => channel.key === channelKey)) {
     return;
   }
@@ -970,5 +1025,55 @@ h2 {
   .form-control--narrow {
     max-width: 100%;
   }
+}
+
+.model-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.model-caps__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-muted, #f1f5f9);
+  font-size: var(--font-size-sm, 13px);
+}
+
+.accept-input {
+  margin: 1rem 0 0.25rem;
+  padding: 0.85rem 1rem 0.5rem;
+  border: 1px solid var(--color-border, #e9ecef);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-surface, #fff);
+}
+
+.accept-input legend {
+  padding: 0 0.4rem;
+  font-weight: 600;
+  color: var(--theme-text, #222);
+}
+
+.accept-input__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.45rem 0;
+  cursor: pointer;
+  color: #334155;
+}
+
+.accept-input__row input {
+  width: 16px;
+  height: 16px;
+}
+
+.accept-input:disabled,
+.accept-input:disabled .accept-input__row {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 </style> 

@@ -15,6 +15,14 @@ const db = require('../db');
 const TABLE = 'ai_assistant_settings';
 const logger = require('../utils/logger');
 
+function loadAcceptInput() {
+  try {
+    return require('/app/shared/assistantAcceptInput');
+  } catch (_) {
+    return require('../../shared/assistantAcceptInput');
+  }
+}
+
 async function getSettings() {
   try {
     logger.info('[aiAssistantSettingsService] getSettings called');
@@ -83,6 +91,9 @@ async function getSettings() {
     }
     setting.enabled_channels = enabledChannels;
 
+    const { parseAcceptInputForGenerate } = loadAcceptInput();
+    setting.accept_input = parseAcceptInputForGenerate(setting.accept_input);
+
     logger.info(`[aiAssistantSettingsService] Final settings result:`, {
       id: setting.id,
       selected_rag_tables: setting.selected_rag_tables,
@@ -90,7 +101,8 @@ async function getSettings() {
       hasSupportEmail: setting.hasSupportEmail,
       hasTelegramBot: setting.hasTelegramBot,
       timestamp: setting.timestamp,
-      enabled_channels: setting.enabled_channels
+      enabled_channels: setting.enabled_channels,
+      accept_input: setting.accept_input
     });
 
     return setting;
@@ -110,7 +122,8 @@ async function upsertSettings({
   telegram_settings_id,
   email_settings_id,
   system_message,
-  enabled_channels
+  enabled_channels,
+  accept_input
 }) {
   const defaultChannelState = { web: true, telegram: true, email: true };
   let channelsPayload = enabled_channels;
@@ -126,6 +139,9 @@ async function upsertSettings({
     };
   }
 
+  const { normalizeAcceptInput } = loadAcceptInput();
+  const acceptPayload = normalizeAcceptInput(accept_input);
+
   const data = {
     id: 1,
     system_prompt,
@@ -139,7 +155,8 @@ async function upsertSettings({
     telegram_settings_id,
     email_settings_id,
     system_message,
-    enabled_channels: channelsPayload
+    enabled_channels: channelsPayload,
+    accept_input: acceptPayload
   };
 
   const existing = await encryptedDb.getData(TABLE, { id: 1 }, 1);

@@ -23,6 +23,8 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
+const { attachmentMetaFromRow, chatUploadMiddleware, prepareChatAttachment, mediaTooLargePayload, MEDIA_MAX_BYTES } = require('../utils/chatMedia');
+const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
 const broadcastService = require('../services/broadcastService');
 const broadcastQueueService = require('../services/broadcastQueueService');
 const broadcastSendService = require('../services/broadcastSendService');
@@ -34,6 +36,10 @@ const broadcastUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 10 }
 });
+const chatUpload = chatUploadMiddleware(multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MEDIA_MAX_BYTES, files: 1 }
+}).array('attachments', 1));
 
 async function saveBroadcastOutgoingMessage({
   conversationId,
@@ -232,13 +238,14 @@ router.get('/public', requireAuth, async (req, res) => {
         };
 
         if (row.attachment_filename || row.attachment_mimetype || row.attachment_size) {
-          baseMessage.attachments = [
-            {
-              filename: row.attachment_filename,
-              mimetype: row.attachment_mimetype,
-              size: row.attachment_size
-            }
-          ];
+          const meta = attachmentMetaFromRow({
+            id: row.id,
+            attachment_filename: row.attachment_filename,
+            attachment_mimetype: row.attachment_mimetype,
+            attachment_size: row.attachment_size,
+            metadata
+          }, { guest: true });
+          if (meta) baseMessage.attachments = [meta];
         }
 
         if (metadata.consentRequired !== undefined) {
@@ -298,6 +305,7 @@ router.get('/public', requireAuth, async (req, res) => {
               decrypt_text(m.role_encrypted, $2) as role, 
               decrypt_text(m.direction_encrypted, $2) as direction, 
               m.created_at, m.message_type,
+              m.attachment_filename, m.attachment_mimetype, m.attachment_size, m.metadata,
               arm.last_read_at
        FROM messages m
        LEFT JOIN admin_read_messages arm ON arm.user_id = m.user_id AND arm.admin_id = $5
@@ -320,10 +328,18 @@ router.get('/public', requireAuth, async (req, res) => {
       [targetUserId, currentUserId]
     );
     const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    const publicMessages = result.rows.map((row) => {
+      const meta = attachmentMetaFromRow(row, { guest: false });
+      return {
+        ...row,
+        attachments: meta ? [meta] : null
+      };
+    });
     
     res.json({
       success: true,
-      messages: result.rows,
+      messages: publicMessages,
       total: totalCount,
       limit,
       offset,
@@ -1378,11 +1394,23 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
   }
 });
 
+function maybeChatUpload(req, res, next) {
+  const ct = String(req.headers['content-type'] || '');
+  if (ct.includes('multipart/form-data')) {
+    return chatUpload(req, res, next);
+  }
+  return next();
+}
+
 // POST /api/messages/send - новый эндпоинт для отправки сообщений с проверкой ролей
-router.post('/send', requireAuth, async (req, res) => {
-  const { recipientId, content, messageType = 'public', markAsRead = false } = req.body;
+router.post('/send', requireAuth, maybeChatUpload, async (req, res) => {
+  const recipientId = req.body.recipientId;
+  let content = req.body.content || req.body.message;
+  const messageType = req.body.messageType || 'public';
+  const markAsRead = req.body.markAsRead === true || req.body.markAsRead === 'true';
+  const files = req.files || [];
   
-  if (!recipientId || !content) {
+  if (!recipientId || (!String(content || '').trim() && files.length === 0)) {
     return res.status(400).json({ error: 'recipientId и content обязательны' });
   }
   
@@ -1395,6 +1423,13 @@ router.post('/send', requireAuth, async (req, res) => {
   const isGuestRecipient = typeof recipientId === 'string' && recipientId.startsWith('guest_');
 
   try {
+    if (await chatRoleCapabilitiesService.rejectIfChatCapDenied(
+      res,
+      senderRole,
+      chatRoleCapabilitiesService.payloadFromUpload(req, ['message', 'content'])
+    )) {
+      return;
+    }
     if (isGuestRecipient) {
       if (!hasPermission(senderRole, PERMISSIONS.SEND_TO_USERS)) {
         return res.status(403).json({ error: 'Недостаточно прав для отправки сообщений гостям' });
@@ -1435,18 +1470,37 @@ router.post('/send', requireAuth, async (req, res) => {
 
       const guestIdentifier = guestIdentifierResult.rows[0].guest_identifier;
       const guestChannel = guestIdentifierResult.rows[0].channel;
+      let guestAttachments = [];
+      try {
+        if (files.length > 0) {
+          const prepared = prepareChatAttachment(files[0], req.body.attachment_kind);
+          guestAttachments = [prepared];
+          if (!String(content || '').trim()) {
+            content = prepared.placeholder;
+          }
+        }
+      } catch (prepErr) {
+        if (prepErr.code === 'MEDIA_TOO_LARGE') {
+          return res.status(413).json(prepErr.payload || mediaTooLargePayload(files[0]?.originalname, files[0]?.size));
+        }
+        throw prepErr;
+      }
+
       const deliveryMeta = {
         sentBy: 'admin_panel',
         senderId,
         senderRole,
         originalRecipientId: recipientId,
-        messageType
+        messageType,
+        ...(guestAttachments[0] ? { attachment_kind: guestAttachments[0].kind } : {})
       };
 
       let deliveryStatus = { success: true };
 
       try {
-        if (guestChannel === 'telegram') {
+        if (guestAttachments.length) {
+          logger.info(`[messages/send] Медиа гостю ${guestIdentifier} сохраняем в историю без live-доставки`);
+        } else if (guestChannel === 'telegram') {
           const telegramBot = botManager.getBot('telegram');
           if (telegramBot && telegramBot.isInitialized) {
             await telegramBot.getBot().telegram.sendMessage(guestIdentifier, content);
@@ -1474,7 +1528,8 @@ router.post('/send', requireAuth, async (req, res) => {
         identifier: guestIdentifier,
         channel: guestChannel,
         content,
-        metadata: deliveryMeta
+        metadata: deliveryMeta,
+        attachments: guestAttachments
       });
 
       broadcastMessagesUpdate();
@@ -1492,7 +1547,16 @@ router.post('/send', requireAuth, async (req, res) => {
           direction: 'out',
           created_at: saveResult.created_at,
           message_type: 'public',
-          metadata: deliveryMeta
+          metadata: deliveryMeta,
+          attachments: guestAttachments[0]
+            ? [attachmentMetaFromRow({
+              id: saveResult.messageId,
+              attachment_filename: guestAttachments[0].filename,
+              attachment_mimetype: guestAttachments[0].mimetype,
+              attachment_size: guestAttachments[0].size,
+              metadata: deliveryMeta
+            }, { guest: true })]
+            : null
         },
         delivery: deliveryStatus
       });
@@ -1754,16 +1818,26 @@ router.post('/send', requireAuth, async (req, res) => {
 });
 
 // POST /api/messages/private/send - отправка приватного сообщения
-router.post('/private/send', requireAuth, async (req, res) => {
-  const { recipientId, content } = req.body;
+router.post('/private/send', requireAuth, chatUpload, async (req, res) => {
+  const recipientId = req.body.recipientId;
+  const content = req.body.content || req.body.message || '';
   const senderId = req.user.id;
+  const files = req.files || [];
   
-  if (!recipientId || !content) {
-    return res.status(400).json({ error: 'recipientId и content обязательны' });
+  if (!recipientId || (!String(content).trim() && files.length === 0)) {
+    return res.status(400).json({ error: 'recipientId и текст или файл обязательны' });
   }
   
   try {
     const senderRole = req.user.role || req.user.userAccessLevel?.level || 'user';
+
+    if (await chatRoleCapabilitiesService.rejectIfChatCapDenied(
+      res,
+      senderRole,
+      chatRoleCapabilitiesService.payloadFromUpload(req, ['content', 'message'])
+    )) {
+      return;
+    }
     
     // Получаем информацию о получателе
     const recipientResult = await db.getQuery()(
@@ -1800,18 +1874,35 @@ router.post('/private/send', requireAuth, async (req, res) => {
     }
     
     const identifier = `wallet:${walletIdentity.provider_id}`;
+
+    let attachments = [];
+    let messageContent = content;
+    try {
+      if (files.length > 0) {
+        const prepared = prepareChatAttachment(files[0], req.body.attachment_kind);
+        attachments = [prepared];
+        if (!String(messageContent || '').trim()) {
+          messageContent = prepared.placeholder;
+        }
+      }
+    } catch (prepErr) {
+      if (prepErr.code === 'MEDIA_TOO_LARGE') {
+        return res.status(413).json(prepErr.payload || mediaTooLargePayload(files[0]?.originalname, files[0]?.size));
+      }
+      throw prepErr;
+    }
     
     // Обрабатываем через unifiedMessageProcessor
     // Для приватных сообщений recipientId всегда = 1 (редактор)
     const result = await unifiedMessageProcessor.processMessage({
       identifier: identifier,
-      content: content,
+      content: messageContent,
       channel: 'web',
-      attachments: [],
+      attachments,
       conversationId: null, // unifiedMessageProcessor сам найдет/создаст беседу
       recipientId: 1, // Приватные сообщения всегда к редактору
       userId: senderId,
-      metadata: {}
+      metadata: attachments[0] ? { attachment_kind: attachments[0].kind } : {}
     });
     
     res.json({ 
@@ -1973,16 +2064,28 @@ router.get('/private/:conversationId', requireAuth, async (req, res) => {
          decrypt_text(m.role_encrypted, $2) as role,
          decrypt_text(m.direction_encrypted, $2) as direction,
          m.message_type,
-         m.created_at
+         m.created_at,
+         m.attachment_filename,
+         m.attachment_mimetype,
+         m.attachment_size,
+         m.metadata
        FROM messages m
        WHERE m.conversation_id = $1 AND m.message_type = 'admin_chat'
        ORDER BY m.created_at ASC`,
       [conversationId, encryptionKey]
     );
+
+    const mapped = result.rows.map((row) => {
+      const meta = attachmentMetaFromRow(row, { guest: false });
+      return {
+        ...row,
+        attachments: meta ? [meta] : null
+      };
+    });
     
     res.json({
       success: true,
-      messages: result.rows
+      messages: mapped
     });
     
   } catch (error) {
@@ -2038,7 +2141,8 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req, r
               decrypt_text(m.channel_encrypted, $2) as channel,
               decrypt_text(m.role_encrypted, $2) as role,
               decrypt_text(m.direction_encrypted, $2) as direction,
-              m.message_type, m.created_at
+              m.message_type, m.created_at,
+              m.attachment_filename, m.attachment_mimetype, m.attachment_size, m.metadata
        FROM messages m
        WHERE m.conversation_id = $1
        ORDER BY m.created_at ASC
@@ -2046,9 +2150,17 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req, r
       [conversationId, encryptionKey, limit, offset]
     );
 
+    const mapped = result.rows.map((row) => {
+      const meta = attachmentMetaFromRow(row, { guest: false });
+      return {
+        ...row,
+        attachments: meta ? [meta] : null
+      };
+    });
+
     res.json({
       success: true,
-      messages: result.rows,
+      messages: mapped,
       total,
       limit,
       offset

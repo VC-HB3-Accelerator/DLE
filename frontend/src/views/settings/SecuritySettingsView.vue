@@ -29,6 +29,14 @@
             {{ $t('common.details') }}
           </button>
         </div>
+
+        <div class="management-block">
+          <h3>{{ $t('settings.security.roles.hubCard') }}</h3>
+          <p>{{ $t('settings.security.roles.hubCardText') }}</p>
+          <button type="button" class="details-btn" @click="handleRolesDetailsClick">
+            {{ $t('common.details') }}
+          </button>
+        </div>
       </div>
 
       <div class="blocks-column">
@@ -109,6 +117,14 @@ async function loadSettings() {
 function handleRpcDetailsClick() {
   if (canManageSettings.value) {
     router.push({ name: 'settings-security-rpc' });
+    return;
+  }
+  showNoAccessModal.value = true;
+}
+
+function handleRolesDetailsClick() {
+  if (canManageSettings.value) {
+    router.push({ name: 'settings-security-roles' });
     return;
   }
   showNoAccessModal.value = true;
