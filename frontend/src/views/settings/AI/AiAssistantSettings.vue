@@ -101,40 +101,10 @@
               </div>
             </div>
           </div>
-          <!-- Настройки Ollama (инфраструктура) -->
-          <div class="ollama-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.ollamaInfra') }}</h3>
-            <p class="section-description">{{ $t('settings.ai.assistant.ollamaInfraDesc') }}</p>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.ollamaBaseUrl') }}</label>
-              <input type="text" v-model="ollamaConfig.baseUrl" class="form-control" placeholder="http://ollama:11434" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.ollamaBaseUrlHelp') }}</small>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.llmModelDefault') }}</label>
-                <input type="text" v-model="ollamaConfig.llmModel" class="form-control" placeholder="qwen2.5:1.5b" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.llmModelDefaultHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.embeddingModelDefault') }}</label>
-                <input type="text" v-model="ollamaConfig.embeddingModel" class="form-control" placeholder="mxbai-embed-large:latest" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.embeddingModelDefaultHelp') }}</small>
-              </div>
-            </div>
-          </div>
-
-          <!-- Настройки Vector Search -->
-          <div class="vector-search-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.vectorSearchTitle') }}</h3>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.vectorSearchUrl') }}</label>
-              <input type="text" v-model="vectorSearchConfig.url" class="form-control" placeholder="http://vector-search:8001" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.vectorSearchUrlHelp') }}</small>
-            </div>
+          <div class="rag-infra-link settings-section panel">
+            <h3>{{ $t('settings.ai.rag.linkFromAssistantTitle') }}</h3>
+            <p class="section-description">{{ $t('settings.ai.rag.linkFromAssistantDesc') }}</p>
+            <router-link class="btn btn-outline btn-sm" to="/settings/ai/rag">{{ $t('settings.ai.rag.openPage') }}</router-link>
           </div>
 
           <!-- Выбор модели для AI ассистента -->
@@ -197,309 +167,6 @@
             </option>
           </select>
           
-          <!-- Настройки RAG поиска -->
-          <div class="rag-search-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.ragSearchTitle') }}</h3>
-            
-            <!-- Порог расстояния (threshold) -->
-            <label class="form-label">{{ $t('settings.ai.assistant.ragThreshold') }}</label>
-            <input type="number" v-model.number="ragSettings.threshold" class="form-control form-control--narrow" min="0" max="1000" step="10" />
-            <small class="form-hint">{{ $t('settings.ai.assistant.ragThresholdHelp') }}</small>
-            
-            <!-- Метод поиска -->
-            <label class="form-label">{{ $t('settings.ai.assistant.searchMethod') }}</label>
-            <select v-model="ragSettings.searchMethod" class="form-control">
-              <option value="semantic">{{ $t('settings.ai.assistant.searchSemantic') }}</option>
-              <option value="keyword">{{ $t('settings.ai.assistant.searchKeyword') }}</option>
-              <option value="hybrid">{{ $t('settings.ai.assistant.searchHybrid') }}</option>
-            </select>
-            
-            <!-- Количество результатов -->
-            <label class="form-label">{{ $t('settings.ai.assistant.maxResults') }}</label>
-            <input type="number" v-model.number="ragSettings.maxResults" class="form-control form-control--narrow" min="1" max="20" />
-            
-            <!-- Порог релевантности -->
-            <label class="form-label">{{ $t('settings.ai.assistant.relevanceThreshold', { value: ragSettings.relevanceThreshold }) }}</label>
-            <input type="range" v-model.number="ragSettings.relevanceThreshold" 
-                   min="0.01" max="1.0" step="0.01" />
-            
-            <!-- Настройки извлечения ключевых слов -->
-            <div class="keyword-settings">
-              <h4>{{ $t('settings.ai.assistant.keywordExtraction') }}</h4>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="ragSettings.keywordExtraction.enabled" />
-                {{ $t('settings.ai.assistant.enableKeywordExtraction') }}
-              </label>
-              
-              <label class="form-label">{{ $t('settings.ai.assistant.minWordLength') }}</label>
-              <input type="number" v-model="ragSettings.keywordExtraction.minWordLength" class="form-control form-control--narrow"
-                     min="2" max="10" />
-              
-              <label class="form-label">{{ $t('settings.ai.assistant.maxKeywords') }}</label>
-              <input type="number" v-model="ragSettings.keywordExtraction.maxKeywords" class="form-control form-control--narrow"
-                     min="5" max="20" />
-              
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="ragSettings.keywordExtraction.removeStopWords" />
-                {{ $t('settings.ai.assistant.removeStopWords') }}
-              </label>
-            </div>
-            
-            <!-- Веса для гибридного поиска -->
-            <div v-if="ragSettings.searchMethod === 'hybrid'" class="search-weights">
-              <h4>{{ $t('settings.ai.assistant.searchWeights') }}</h4>
-              <label class="form-label">{{ $t('settings.ai.assistant.semanticWeight', { value: ragSettings.searchWeights.semantic }) }}</label>
-              <input type="range" v-model="ragSettings.searchWeights.semantic" 
-                     min="0" max="100" />
-              
-              <label class="form-label">{{ $t('settings.ai.assistant.keywordWeight', { value: ragSettings.searchWeights.keyword }) }}</label>
-              <input type="range" v-model="ragSettings.searchWeights.keyword" 
-                     min="0" max="100" />
-            </div>
-            
-            <!-- Дополнительные настройки -->
-            <div class="advanced-settings">
-              <h4>{{ $t('settings.ai.assistant.advancedSettings') }}</h4>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="ragSettings.advanced.enableFuzzySearch" />
-                {{ $t('settings.ai.assistant.fuzzySearch') }}
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="ragSettings.advanced.enableStemming" />
-                {{ $t('settings.ai.assistant.stemming') }}
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="ragSettings.advanced.enableSynonyms" />
-                {{ $t('settings.ai.assistant.synonyms') }}
-              </label>
-            </div>
-          </div>
-
-          <!-- Настройки LLM параметров -->
-          <div class="llm-parameters-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.llmParamsTitle') }}</h3>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.temperature') }}</label>
-                <input type="number" v-model.number="llmParameters.temperature" class="form-control form-control--narrow" min="0" max="2" step="0.1" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.temperatureHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.maxTokens') }}</label>
-                <input type="number" v-model.number="llmParameters.maxTokens" class="form-control form-control--narrow" min="1" max="4000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.maxTokensHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.topP') }}</label>
-                <input type="number" v-model.number="llmParameters.top_p" class="form-control form-control--narrow" min="0" max="1" step="0.01" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.topPHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.topK') }}</label>
-                <input type="number" v-model.number="llmParameters.top_k" class="form-control form-control--narrow" min="1" max="100" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.topKHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.repeatPenalty') }}</label>
-              <input type="number" v-model.number="llmParameters.repeat_penalty" class="form-control form-control--narrow" min="1.0" max="2.0" step="0.1" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.repeatPenaltyHelp') }}</small>
-            </div>
-          </div>
-
-          <!-- Настройки Qwen -->
-          <div class="qwen-parameters-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.qwenParamsTitle') }}</h3>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.format') }}</label>
-              <select v-model="qwenParameters.format" class="form-control">
-                <option :value="null">{{ $t('settings.ai.assistant.formatAuto') }}</option>
-                <option value="json">{{ $t('settings.ai.assistant.formatJson') }}</option>
-              </select>
-              <small class="form-hint">{{ $t('settings.ai.assistant.formatHelp') }}</small>
-            </div>
-          </div>
-
-          <!-- Настройки Embedding -->
-          <div class="embedding-parameters-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.embeddingParamsTitle') }}</h3>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.batchSize') }}</label>
-                <input type="number" v-model.number="embeddingParameters.batch_size" class="form-control form-control--narrow" min="1" max="128" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.batchSizeHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.dimension') }}</label>
-                <input type="number" v-model.number="embeddingParameters.dimension" class="form-control form-control--narrow" min="0" :placeholder="$t('settings.ai.assistant.dimensionPlaceholder')" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.dimensionHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.pooling') }}</label>
-                <select v-model="embeddingParameters.pooling" class="form-control">
-                  <option value="mean">{{ $t('settings.ai.assistant.poolingMean') }}</option>
-                  <option value="max">{{ $t('settings.ai.assistant.poolingMax') }}</option>
-                  <option value="cls">{{ $t('settings.ai.assistant.poolingCls') }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="embeddingParameters.normalize" />
-                  {{ $t('settings.ai.assistant.normalizeVectors') }}
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Настройки кэша -->
-          <div class="cache-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.cacheTitle') }}</h3>
-            
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="cacheSettings.enabled" />
-              {{ $t('settings.ai.assistant.enableCache') }}
-            </label>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.llmTtl') }}</label>
-                <input type="number" v-model.number="cacheSettings.llmTTL" class="form-control form-control--narrow" min="0" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.llmTtlHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.ragTtl') }}</label>
-                <input type="number" v-model.number="cacheSettings.ragTTL" class="form-control form-control--narrow" min="0" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.ragTtlHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.cacheMaxSize') }}</label>
-              <input type="number" v-model.number="cacheSettings.maxSize" class="form-control form-control--narrow" min="1" max="10000" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.cacheMaxSizeHelp') }}</small>
-            </div>
-          </div>
-
-          <!-- Настройки очереди -->
-          <div class="queue-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.queueTitle') }}</h3>
-            
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="queueSettings.enabled" />
-              {{ $t('settings.ai.assistant.enableQueue') }}
-            </label>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.queueTimeout') }}</label>
-                <input type="number" v-model.number="queueSettings.timeout" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.queueTimeoutHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.queueMaxSize') }}</label>
-                <input type="number" v-model.number="queueSettings.maxSize" class="form-control form-control--narrow" min="1" max="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.queueMaxSizeHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.queueInterval') }}</label>
-              <input type="number" v-model.number="queueSettings.interval" class="form-control form-control--narrow" min="10" step="10" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.queueIntervalHelp') }}</small>
-            </div>
-          </div>
-
-          <!-- Настройки дедупликации -->
-          <div class="deduplication-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.dedupTitle') }}</h3>
-            
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="deduplicationSettings.enabled" />
-              {{ $t('settings.ai.assistant.enableDedup') }}
-            </label>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.dedupTtl') }}</label>
-              <input type="number" v-model.number="deduplicationSettings.ttl" class="form-control form-control--narrow" min="1000" step="1000" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.dedupTtlHelp') }}</small>
-            </div>
-          </div>
-
-          <!-- Настройки RAG поведения -->
-          <div class="rag-behavior-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.ragBehaviorTitle') }}</h3>
-            
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="ragBehavior.upsertOnQuery" />
-              {{ $t('settings.ai.assistant.upsertOnQuery') }}
-            </label>
-            
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="ragBehavior.autoIndexOnTableChange" />
-              {{ $t('settings.ai.assistant.autoIndexOnChange') }}
-            </label>
-          </div>
-
-          <!-- Настройки таймаутов -->
-          <div class="timeouts-settings settings-section panel">
-            <h3>{{ $t('settings.ai.assistant.timeoutsTitle') }}</h3>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaChat') }}</label>
-                <input type="number" v-model.number="timeouts.ollamaChat" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaChatHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaEmbedding') }}</label>
-                <input type="number" v-model.number="timeouts.ollamaEmbedding" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaEmbeddingHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorSearch') }}</label>
-                <input type="number" v-model.number="timeouts.vectorSearch" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutVectorSearchHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorUpsert') }}</label>
-                <input type="number" v-model.number="timeouts.vectorUpsert" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutVectorUpsertHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorHealth') }}</label>
-                <input type="number" v-model.number="timeouts.vectorHealth" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutVectorHealthHelp') }}</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaHealth') }}</label>
-                <input type="number" v-model.number="timeouts.ollamaHealth" class="form-control form-control--narrow" min="1000" step="1000" />
-                <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaHealthHelp') }}</small>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaTags') }}</label>
-              <input type="number" v-model.number="timeouts.ollamaTags" class="form-control form-control--narrow" min="1000" step="1000" />
-              <small class="form-hint">{{ $t('settings.ai.assistant.timeoutOllamaTagsHelp') }}</small>
-            </div>
-          </div>
-          
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">{{ $t('common.save') }}</button>
           </div>
@@ -507,8 +174,6 @@
         <RuleEditor v-if="showRuleEditor" :rule="editingRule" @close="onRuleEditorClose" />
       </div>
       
-      <!-- Системный мониторинг -->
-      <SystemMonitoring />
     </div>
   </BaseLayout>
 </template>
@@ -520,7 +185,6 @@ import { useRouter } from 'vue-router';
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import RuleEditor from '@/components/ai-assistant/RuleEditor.vue';
-import SystemMonitoring from '@/components/ai-assistant/SystemMonitoring.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 const router = useRouter();
 function goBack() {
@@ -924,28 +588,8 @@ onBeforeUnmount(() => {
 });
 async function saveSettings() {
   const settingsToSave = buildSettingsPayload();
-
   console.log('[AiAssistantSettings] Saving settings:', settingsToSave);
   await axios.put('/settings/ai-assistant', settingsToSave);
-  
-  // Сохраняем все настройки в ai_config (централизованные настройки)
-  console.log('[AiAssistantSettings] Saving all settings to ai_config');
-  await axios.put('/settings/ai-config', {
-    ollama_base_url: ollamaConfig.value.baseUrl,
-    ollama_llm_model: ollamaConfig.value.llmModel,
-    ollama_embedding_model: ollamaConfig.value.embeddingModel,
-    vector_search_url: vectorSearchConfig.value.url,
-    rag_settings: ragSettings.value,
-    llm_parameters: llmParameters.value,
-    qwen_specific_parameters: qwenParameters.value,
-    embedding_parameters: embeddingParameters.value,
-    cache_settings: cacheSettings.value,
-    queue_settings: queueSettings.value,
-    deduplication_settings: deduplicationSettings.value,
-    rag_behavior: ragBehavior.value,
-    timeouts: timeouts.value
-  });
-  
   goBack();
 }
 

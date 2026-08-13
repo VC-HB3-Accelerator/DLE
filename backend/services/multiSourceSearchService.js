@@ -18,7 +18,7 @@ const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const logger = require('../utils/logger');
 
-const DOCUMENT_SNIPPET_LENGTH = 350;
+const DOCUMENT_SNIPPET_LENGTH_DEFAULT = 350;
 
 function resolveDocumentIdFromResult(result) {
   if (!result) {
@@ -79,7 +79,7 @@ function extractPlainText(content, format = 'text') {
   return plain;
 }
 
-function buildSnippet(text, maxLength = DOCUMENT_SNIPPET_LENGTH) {
+function buildSnippet(text, maxLength = DOCUMENT_SNIPPET_LENGTH_DEFAULT) {
   if (!text || typeof text !== 'string') {
     return '';
   }
@@ -455,9 +455,9 @@ class MultiSourceSearchService {
       this.keywordSearchInTable(tableId, query, userId, maxResults * 2)
     ]);
 
-    // Объединяем результаты с весами
-    const semanticWeight = 0.7;
-    const keywordWeight = 0.3;
+    const ragConfig = await aiConfigService.getRAGConfig();
+    const { semantic: semanticWeight, keyword: keywordWeight } =
+      aiConfigService.resolveHybridWeights(ragConfig);
 
     const combined = this.combineSearchResults(
       semanticResults.results,
@@ -496,6 +496,13 @@ class MultiSourceSearchService {
     const startTime = Date.now();
 
     const tableId = 'legal_docs';
+    let docSnippetLength = DOCUMENT_SNIPPET_LENGTH_DEFAULT;
+    try {
+      const dialog = await aiConfigService.getDialogSettings();
+      if (dialog && Number(dialog.docSnippetLength) > 0) {
+        docSnippetLength = Number(dialog.docSnippetLength);
+      }
+    } catch (_) { /* default */ }
 
     try {
       // Векторный поиск в документах
@@ -510,18 +517,25 @@ class MultiSourceSearchService {
       }
 
       const documentSnippets = new Map();
+      const documentAudiences = new Map();
       if (documentIds.size > 0) {
         const idsArray = Array.from(documentIds);
         try {
           const queryFn = db.getQuery();
           const { rows } = await queryFn(
-            `SELECT id, content, format FROM admin_pages_simple WHERE id = ANY($1::int[])`,
+            `SELECT id, content, format, seo FROM admin_pages_simple WHERE id = ANY($1::int[])`,
             [idsArray]
           );
 
           for (const row of rows) {
-            const snippet = buildSnippet(extractPlainText(row.content, row.format));
+            const snippet = buildSnippet(extractPlainText(row.content, row.format), docSnippetLength);
             documentSnippets.set(String(row.id), snippet);
+            let audience = [];
+            const seo = row.seo && typeof row.seo === 'object' ? row.seo : null;
+            if (Array.isArray(seo?.corpus_audience)) {
+              audience = seo.corpus_audience.map((a) => String(a).toLowerCase());
+            }
+            documentAudiences.set(String(row.id), audience);
           }
         } catch (dbError) {
           logger.warn(`[MultiSourceSearch] Не удалось загрузить содержимое документов: ${dbError.message}`);
@@ -534,11 +548,12 @@ class MultiSourceSearchService {
         const docId = resolveDocumentIdFromResult(result);
         const docKey = docId !== null ? String(docId) : null;
 
-        const chunkText = buildSnippet(result.text || metadata.content || metadata.text || '');
+        const chunkText = buildSnippet(result.text || metadata.content || metadata.text || '', docSnippetLength);
         const fallbackText = docKey ? documentSnippets.get(docKey) : '';
         const finalText = chunkText || fallbackText || '';
 
         const contextValue = metadata.title || metadata.section || '';
+        const corpusAudience = docKey ? (documentAudiences.get(docKey) || []) : [];
 
         return {
           source: 'document',
@@ -555,6 +570,7 @@ class MultiSourceSearchService {
             visibility: metadata.visibility,
             section: metadata.section,
             chunk_index: metadata.chunk_index,
+            corpus_audience: corpusAudience,
             snippetSource: chunkText ? 'chunk' : (fallbackText ? 'document' : 'unknown')
           }
         };
@@ -565,11 +581,14 @@ class MultiSourceSearchService {
         const keywordResults = await this.keywordSearchInDocuments(query, maxResults);
         
         // Объединяем результаты
+        const ragConfig = await aiConfigService.getRAGConfig();
+        const { semantic: semanticWeight, keyword: keywordWeight } =
+          aiConfigService.resolveHybridWeights(ragConfig);
         const combined = this.combineSearchResults(
           results,
           keywordResults,
-          0.7, // вес для семантического
-          0.3  // вес для ключевых слов
+          semanticWeight,
+          keywordWeight
         );
 
         combined.sort((a, b) => b.combinedScore - a.combinedScore);

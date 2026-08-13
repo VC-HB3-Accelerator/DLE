@@ -694,6 +694,100 @@ router.get('/ai-config', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Фактический runtime vs config (TZ_AI_RAG_SETTINGS_PAGE)
+router.get('/ai-config/runtime-status', requireAdmin, async (req, res, next) => {
+  try {
+    const aiConfigService = require('../services/aiConfigService');
+    const aiCache = require('../services/ai-cache');
+    const aiQueue = require('../services/ai-queue');
+    const config = await aiConfigService.getConfig();
+    const ragSettings = config.rag_settings || {};
+    const weights = aiConfigService.resolveHybridWeights(ragSettings);
+    const embedDb = config.ollama_embedding_model || null;
+    const embedEnv = process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || null;
+    const normalizeModel = (m) => String(m || '').replace(/:latest$/i, '').trim().toLowerCase();
+
+    let vectorHealthy = null;
+    try {
+      const vectorSearchClient = require('../services/vectorSearchClient');
+      if (typeof vectorSearchClient.health === 'function') {
+        vectorHealthy = !!(await vectorSearchClient.health());
+      } else if (typeof vectorSearchClient.ping === 'function') {
+        vectorHealthy = !!(await vectorSearchClient.ping());
+      }
+    } catch (_) {
+      vectorHealthy = false;
+    }
+
+    res.json({
+      success: true,
+      runtime: {
+        rag: {
+          effectiveHybridWeights: {
+            semantic: weights.semantic,
+            keyword: weights.keyword
+          },
+          configHybridWeights: ragSettings.searchWeights || null,
+          weightsMatchConfig: (() => {
+            const raw = ragSettings.searchWeights || {};
+            const eff = { semantic: weights.semantic, keyword: weights.keyword };
+            const toUnit = (n) => {
+              const x = Number(n);
+              if (!Number.isFinite(x)) return null;
+              return x > 1 ? x / 100 : x;
+            };
+            const rs = toUnit(raw.semantic);
+            const rk = toUnit(raw.keyword);
+            if (rs == null || rk == null) return false;
+            return Math.abs(rs - eff.semantic) < 0.02 && Math.abs(rk - eff.keyword) < 0.02;
+          })()
+        },
+        vectorSearch: {
+          url: config.vector_search_url || null,
+          healthy: vectorHealthy,
+          embedModelInDb: embedDb,
+          embedModelInVectorContainer: embedEnv,
+          modelsMatch: normalizeModel(embedDb) === normalizeModel(embedEnv)
+            || (!embedEnv && !!embedDb)
+        },
+        ollama: {
+          baseUrl: config.ollama_base_url || null,
+          llmModel: config.ollama_llm_model || null,
+          embeddingModel: embedDb
+        },
+        envOverrides: {
+          USE_AI_CACHE: process.env.USE_AI_CACHE !== 'false',
+          USE_AI_QUEUE: process.env.USE_AI_QUEUE !== 'false'
+        },
+        cache: {
+          dbEnabled: (config.cache_settings || {}).enabled !== false,
+          effectiveEnabled: typeof aiCache.isEnabled === 'function' ? aiCache.isEnabled() : null,
+          stats: typeof aiCache.getStats === 'function' ? aiCache.getStats() : null
+        },
+        queue: {
+          dbEnabled: (config.queue_settings || {}).enabled !== false,
+          effectiveEnabled: typeof aiQueue.isEnabled === 'function' ? aiQueue.isEnabled() : null,
+          maxQueueSize: aiQueue.maxQueueSize,
+          checkInterval: aiQueue.checkInterval,
+          priorities: require('../services/ai-queue').PRIORITY || null
+        },
+        dockerHints: {
+          OLLAMA_NUM_PARALLEL: process.env.OLLAMA_NUM_PARALLEL || null,
+          OLLAMA_KEEP_ALIVE: process.env.OLLAMA_KEEP_ALIVE || null,
+          OLLAMA_MAX_LOADED_MODELS: process.env.OLLAMA_MAX_LOADED_MODELS || null,
+          OLLAMA_NUM_GPU: process.env.OLLAMA_NUM_GPU || null
+        },
+        dialog: config.dialog_settings || null,
+        chunking: config.chunking_settings || null,
+        ragBehavior: config.rag_behavior || null
+      }
+    });
+  } catch (error) {
+    logger.error('Ошибка runtime-status AI Config:', error);
+    next(error);
+  }
+});
+
 // Обновить настройки AI Config
 router.put('/ai-config', requireAdmin, async (req, res, next) => {
   try {

@@ -98,13 +98,64 @@ class AIConfigService {
       },
       rag_behavior: {
         upsertOnQuery: false,
-        autoIndexOnTableChange: true
+        autoIndexOnTableChange: true,
+        searchInDocuments: true
       },
       deduplication_settings: {
         enabled: true,
         ttl: 300000
+      },
+      dialog_settings: {
+        historyTurns: 4,
+        ragSnippetLength: 300,
+        memorySnippetLength: 160,
+        docSnippetLength: 350,
+        memoryMaxChars: 900,
+        compressEvery: 4,
+        minCyrillicPercent: 10,
+        maxMessageLength: 10000,
+        languages: ['ru']
+      },
+      chunking_settings: {
+        maxChunkSize: 1500,
+        overlap: 200,
+        llmThreshold: 8000,
+        semanticMaxChunkSize: 1000,
+        semanticMinChunkSize: 100
       }
     };
+    /** @type {Set<Function>} */
+    this._changeListeners = new Set();
+  }
+
+  /**
+   * Deep-merge plain objects (JSONB columns). Arrays/ primitives replace.
+   * @private
+   */
+  _deepMerge(base, patch) {
+    if (patch === null || patch === undefined) return base;
+    if (typeof patch !== 'object' || Array.isArray(patch)) return patch;
+    const out = { ...(base && typeof base === 'object' && !Array.isArray(base) ? base : {}) };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v && typeof v === 'object' && !Array.isArray(v)
+          && out[k] && typeof out[k] === 'object' && !Array.isArray(out[k])) {
+        out[k] = this._deepMerge(out[k], v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+
+  onChange(listener) {
+    if (typeof listener === 'function') this._changeListeners.add(listener);
+    return () => this._changeListeners.delete(listener);
+  }
+
+  _emitChange(config) {
+    for (const fn of this._changeListeners) {
+      try { fn(config); } catch (e) { logger.warn('[aiConfigService] listener error:', e.message); }
+    }
   }
 
   /**
@@ -147,8 +198,10 @@ class AIConfigService {
         cache_settings: config.cache_settings || this.defaults.cache_settings,
         queue_settings: config.queue_settings || this.defaults.queue_settings,
         timeouts: config.timeouts || this.defaults.timeouts,
-        rag_behavior: config.rag_behavior || this.defaults.rag_behavior,
-        deduplication_settings: config.deduplication_settings || this.defaults.deduplication_settings
+        rag_behavior: { ...this.defaults.rag_behavior, ...(config.rag_behavior || {}) },
+        deduplication_settings: config.deduplication_settings || this.defaults.deduplication_settings,
+        dialog_settings: { ...this.defaults.dialog_settings, ...(config.dialog_settings || {}) },
+        chunking_settings: { ...this.defaults.chunking_settings, ...(config.chunking_settings || {}) }
       };
 
       // Объединяем таймауты с дефолтами и при необходимости обновляем БД
@@ -230,16 +283,26 @@ class AIConfigService {
   async updateConfig(updates, userId = null) {
     try {
       const query = db.getQuery();
+      const current = await this.getConfig();
       const fields = [];
       const values = [];
       let paramIndex = 1;
 
-      // Строим SET часть запроса
+      const jsonbKeys = new Set([
+        'embedding_parameters', 'llm_parameters', 'qwen_specific_parameters',
+        'rag_settings', 'cache_settings', 'queue_settings', 'timeouts',
+        'rag_behavior', 'deduplication_settings', 'dialog_settings', 'chunking_settings'
+      ]);
+
       for (const [key, value] of Object.entries(updates)) {
         if (key === 'id' || key === 'updated_at' || key === 'updated_by') continue;
-        
-        if (typeof value === 'object' && value !== null) {
-          // JSONB поля
+
+        if (typeof value === 'object' && value !== null && !Array.isArray(value) && jsonbKeys.has(key)) {
+          const base = current[key] || this.defaults[key] || {};
+          const merged = this._deepMerge(base, value);
+          fields.push(`${key} = $${paramIndex}::jsonb`);
+          values.push(JSON.stringify(merged));
+        } else if (typeof value === 'object' && value !== null) {
           fields.push(`${key} = $${paramIndex}::jsonb`);
           values.push(JSON.stringify(value));
         } else {
@@ -249,7 +312,6 @@ class AIConfigService {
         paramIndex++;
       }
 
-      // Добавляем updated_at и updated_by
       if (fields.length > 0) {
         fields.push(`updated_at = NOW()`);
         if (userId) {
@@ -260,11 +322,16 @@ class AIConfigService {
         const sql = `UPDATE ai_config SET ${fields.join(', ')} WHERE id = 1`;
         await query(sql, values);
 
-        // Инвалидируем кэш
         this.invalidateCache();
+        const loaded = await this.loadConfig();
+        this._emitChange(loaded);
+        try {
+          const ollamaConfig = require('./ollamaConfig');
+          if (typeof ollamaConfig.clearCache === 'function') ollamaConfig.clearCache();
+        } catch (_) { /* optional */ }
 
         logger.info('[aiConfigService] Настройки обновлены');
-        return await this.loadConfig();
+        return loaded;
       }
 
       return await this.getConfig();
@@ -390,7 +457,35 @@ class AIConfigService {
    */
   async getRAGBehavior() {
     const config = await this.getConfig();
-    return config.rag_behavior || this.defaults.rag_behavior;
+    return { ...this.defaults.rag_behavior, ...(config.rag_behavior || {}) };
+  }
+
+  async getDialogSettings() {
+    const config = await this.getConfig();
+    return { ...this.defaults.dialog_settings, ...(config.dialog_settings || {}) };
+  }
+
+  async getChunkingSettings() {
+    const config = await this.getConfig();
+    return { ...this.defaults.chunking_settings, ...(config.chunking_settings || {}) };
+  }
+
+  /**
+   * Hybrid weights from rag_settings.searchWeights (UI stores 0–100 or 0–1).
+   */
+  resolveHybridWeights(ragSettings = null) {
+    const rs = ragSettings || this.defaults.rag_settings;
+    const sw = (rs && rs.searchWeights) || this.defaults.rag_settings.searchWeights;
+    let semantic = Number(sw.semantic);
+    let keyword = Number(sw.keyword);
+    if (!Number.isFinite(semantic)) semantic = 70;
+    if (!Number.isFinite(keyword)) keyword = 30;
+    if (semantic > 1 || keyword > 1) {
+      const sum = semantic + keyword || 100;
+      return { semantic: semantic / sum, keyword: keyword / sum, raw: sw };
+    }
+    const sum = semantic + keyword || 1;
+    return { semantic: semantic / sum, keyword: keyword / sum, raw: sw };
   }
 }
 

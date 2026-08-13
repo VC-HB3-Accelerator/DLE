@@ -16,6 +16,64 @@ const { shouldProcessWithAI } = require('../utils/languageFilter');
 const userContextService = require('./userContextService');
 
 /**
+ * Разрешённые audience корпуса для RAG (pages / legal_docs).
+ * Гость без тегов → только public-client (продукт + company с этой аудиторией).
+ * investor-a / partner → свой pack + public-client (продукт остаётся доступен).
+ */
+function resolveAllowedCorpusAudiences(assignTagNames = []) {
+  const tags = (Array.isArray(assignTagNames) ? assignTagNames : [])
+    .map((t) => String(t || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!tags.length) {
+    return ['public-client'];
+  }
+
+  const allowed = new Set(['public-client']);
+  for (const tag of tags) {
+    if (tag === 'investor' || tag === 'investor-a' || tag === 'investora') {
+      allowed.add('investor-a');
+    } else if (tag === 'investor-b') {
+      allowed.add('investor-b');
+    } else if (tag === 'partner' || tag === 'contributor') {
+      allowed.add('partner');
+    } else if (tag === 'internal' || tag === 'admin') {
+      allowed.add('internal');
+      allowed.add('partner');
+      allowed.add('investor-a');
+    } else if (tag === 'public-client' || tag === 'client' || tag === 'entrepreneur') {
+      allowed.add('public-client');
+    } else {
+      allowed.add(tag);
+    }
+  }
+  return [...allowed];
+}
+
+function corpusHitAllowedForAudiences(hit, allowedAudiences) {
+  if (!hit) return false;
+  const allowed = new Set((allowedAudiences || []).map((a) => String(a).toLowerCase()));
+  const audiences = hit.metadata?.corpus_audience || hit.corpus_audience || [];
+  if (Array.isArray(audiences) && audiences.length) {
+    return audiences.some((a) => allowed.has(String(a).toLowerCase()));
+  }
+
+  // Fallback по title [Corpus] … пока seo.corpus_audience не backfill
+  const title = String(hit.metadata?.title || hit.context || '');
+  if (title.startsWith('[Corpus]')) {
+    const id = title.replace(/^\[Corpus\]\s*/i, '').toLowerCase();
+    if (id.startsWith('inv-a') || id.includes('investor-a')) return allowed.has('investor-a');
+    if (id.startsWith('inv-b') || id.includes('investor-b')) return allowed.has('investor-b');
+    if (id.startsWith('partner')) return allowed.has('partner');
+    if (id.startsWith('pub-') || id.startsWith('company')) return allowed.has('public-client');
+    return false;
+  }
+
+  // Не-корпусные документы — не режем (юр. шаблоны и т.п.)
+  return true;
+}
+
+/**
  * AI Assistant - тонкая обёртка для работы с Ollama и RAG
  * Основная логика вынесена в отдельные сервисы:
  * - ragService.js - генерация ответов через RAG
@@ -104,7 +162,7 @@ class AIAssistant {
       }
 
       // 0. Проверяем язык сообщения (только русский)
-      const languageCheck = shouldProcessWithAI(userQuestion);
+      const languageCheck = await shouldProcessWithAI(userQuestion);
       if (!languageCheck.shouldProcess) {
         logger.info(`[AIAssistant] ⚠️ Пропуск обработки: ${languageCheck.reason} (user: ${userId}, channel: ${channel})`);
         return {
@@ -244,7 +302,8 @@ class AIAssistant {
       // 4. Выполняем мульти-источниковый поиск (таблицы + документы)
       logger.info(`[AIAssistant] Начало мульти-источникового поиска...`);
       const multiSourceSearchService = require('./multiSourceSearchService');
-      const ragConfig = await (require('./aiConfigService')).getRAGConfig();
+      const aiConfigService = require('./aiConfigService');
+      const ragConfig = await aiConfigService.getRAGConfig();
       logger.info(`[AIAssistant] RAG конфигурация получена, метод поиска: ${ragConfig.searchMethod || 'hybrid'}`);
       
       let searchResults = null;
@@ -254,14 +313,17 @@ class AIAssistant {
       // RAG hit’ы = факты/якоря для LLM, не готовый UX-текст («киоск документов»).
       // См. docs.ru/back-docs/AI-OS-CONFIG/00-product-intent.ru.md
 
-      if (tableIds.length > 0 || true) { // Всегда ищем в документах, если включено
+      const ragBehavior = await aiConfigService.getRAGBehavior();
+      const searchInDocuments = ragBehavior.searchInDocuments !== false;
+
+      if (tableIds.length > 0 || searchInDocuments) {
         try {
           logger.info(`[AIAssistant] Вызов multiSourceSearchService.search для запроса: "${userQuestion.substring(0, 50)}..."`);
           const searchStartTime = Date.now();
           searchResults = await multiSourceSearchService.search({
             query: userQuestion,
             tableIds: tableIds,
-            searchInDocuments: true, // Поиск в документах включен
+            searchInDocuments,
             searchMethod: ragConfig.searchMethod || 'hybrid', // 'semantic', 'keyword', 'hybrid'
             userId: userId,
             maxResultsPerSource: ragConfig.maxResults || 10,
@@ -270,10 +332,32 @@ class AIAssistant {
           const searchDuration = Date.now() - searchStartTime;
           logger.info(`[AIAssistant] Мульти-источниковый поиск завершен за ${searchDuration}ms, найдено результатов: ${searchResults?.results?.length || 0}`);
 
-          // Аудиторный фильтр по assign_tags / welcome (в т.ч. для гостей без профиля)
+          // Аудиторный фильтр корпуса (pages): гость → public-client; теги → свой pack
+          if (searchResults?.results?.length) {
+            const allowedAudiences = resolveAllowedCorpusAudiences(assignTagNames);
+            const before = searchResults.results.length;
+            const scoped = searchResults.results.filter((r) => {
+              if (r.sourceType === 'document' || r.source === 'document' || r.source === 'documents') {
+                return corpusHitAllowedForAudiences(r, allowedAudiences);
+              }
+              return true;
+            });
+            if (scoped.length !== before) {
+              searchResults.results = scoped;
+              logger.info(
+                `[AIAssistant] Фильтр corpus audience [${allowedAudiences.join(',')}]: ${before} → ${scoped.length}`
+              );
+            }
+          }
+
+          // Аудиторный фильтр по assign_tags / welcome (FAQ rows с userTags)
           if (assignTagNames.length && searchResults?.results?.length) {
             const wanted = new Set(assignTagNames.map((t) => String(t).toLowerCase()));
             const filtered = searchResults.results.filter((r) => {
+              // Документы уже отфильтрованы по corpus_audience выше
+              if (r.sourceType === 'document' || r.source === 'document' || r.source === 'documents') {
+                return true;
+              }
               const rowTags = r.metadata?.userTags || r.userTags || [];
               if (!Array.isArray(rowTags) || !rowTags.length) return false;
               return rowTags.some((t) => wanted.has(String(t).toLowerCase()));

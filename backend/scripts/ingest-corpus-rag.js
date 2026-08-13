@@ -21,7 +21,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const ROOT = path.resolve(__dirname, '..', '..');
+const ROOT = process.env.DLE_APP_ROOT
+  || path.resolve(__dirname, '..', '..');
 const MANIFEST_PATH = path.join(ROOT, 'data-room', 'Public_Data_Room', '_meta', 'manifest.json');
 const FAQ_SEED_PATH = path.join(ROOT, 'data-room', 'Public_Data_Room', '_meta', 'B1-FAQ-SEED.ru.md');
 
@@ -193,7 +194,8 @@ async function applyPages(plan) {
       description: summary,
       keywords: 'DLE, corpus, RAG',
       corpus_manifest_id: item.id,
-      corpus_checksum: item.checksum
+      corpus_checksum: item.checksum,
+      corpus_audience: Array.isArray(item.audience) ? item.audience : []
     };
 
     const existing = await db.getQuery()(

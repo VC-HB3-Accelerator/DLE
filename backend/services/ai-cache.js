@@ -22,9 +22,15 @@ const aiConfigService = require('./aiConfigService');
 
 class AICache {
   constructor() {
-    // Загружаем настройки из aiConfigService
     this.cache = new Map();
+    this.maxSize = 1000;
+    this.ttl = 86400000;
+    this.ragTtl = 300000;
+    this.enabled = true;
     this._loadSettings();
+    if (typeof aiConfigService.onChange === 'function') {
+      aiConfigService.onChange(() => { this._loadSettings().catch(() => {}); });
+    }
   }
 
   /**
@@ -35,16 +41,26 @@ class AICache {
     try {
       const cacheConfig = await aiConfigService.getCacheConfig();
       this.maxSize = cacheConfig.maxSize || 1000;
-      this.ttl = cacheConfig.llmTTL || 86400000; // 24 часа
-      this.ragTtl = cacheConfig.ragTTL || 300000; // 5 минут
+      this.ttl = cacheConfig.llmTTL || 86400000;
+      this.ragTtl = cacheConfig.ragTTL || 300000;
+      this.enabled = cacheConfig.enabled !== false;
     } catch (error) {
       logger.warn('[AICache] Ошибка загрузки настроек, используем дефолты:', error.message);
-      // Дефолтные значения
       const timeouts = ollamaConfig.getTimeouts();
       this.maxSize = timeouts.cacheMax || 1000;
       this.ttl = timeouts.cacheLLM || 86400000;
       this.ragTtl = timeouts.cacheRAG || 300000;
+      this.enabled = true;
     }
+  }
+
+  isEnabled() {
+    const envOk = process.env.USE_AI_CACHE !== 'false';
+    return envOk && this.enabled !== false;
+  }
+
+  async reloadFromConfig() {
+    await this._loadSettings();
   }
 
   /**
@@ -100,10 +116,10 @@ class AICache {
    * Получение ответа из кэша (LLM)
    */
   get(key) {
+    if (!this.isEnabled()) return null;
     const cached = this.cache.get(key);
     if (!cached) return null;
 
-    // Проверяем TTL
     if (Date.now() - cached.timestamp > this.ttl) {
       this.cache.delete(key);
       return null;
@@ -117,12 +133,12 @@ class AICache {
    * Получение с учетом типа кэша (RAG или LLM)
    */
   getWithTTL(key, type = 'llm') {
+    if (!this.isEnabled()) return null;
     const cached = this.cache.get(key);
     if (!cached) return null;
 
     const ttl = type === 'rag' ? this.ragTtl : this.ttl;
 
-    // Проверяем TTL
     if (Date.now() - cached.timestamp > ttl) {
       this.cache.delete(key);
       return null;
@@ -136,7 +152,7 @@ class AICache {
    * Сохранение в кэш
    */
   set(key, value, type = 'llm') {
-    // Проверяем размер кэша
+    if (!this.isEnabled()) return;
     if (this.cache.size >= this.maxSize) {
       // Удаляем самую старую запись
       const oldestKey = Array.from(this.cache.keys())[0];

@@ -88,8 +88,20 @@ function generatePlaceholder(name) {
 let RAG_BEHAVIOR = null;
 
 // Флаги для включения/выключения Queue и Cache
-const USE_AI_CACHE = process.env.USE_AI_CACHE !== 'false'; // default: true
-const USE_AI_QUEUE = process.env.USE_AI_QUEUE !== 'false'; // default: true
+const USE_AI_CACHE_ENV = process.env.USE_AI_CACHE !== 'false'; // default: true
+const USE_AI_QUEUE_ENV = process.env.USE_AI_QUEUE !== 'false'; // default: true
+
+function isAiCacheEnabled() {
+  if (!USE_AI_CACHE_ENV) return false;
+  if (aiCache && typeof aiCache.isEnabled === 'function') return aiCache.isEnabled();
+  return true;
+}
+
+function isAiQueueEnabled() {
+  if (!USE_AI_QUEUE_ENV) return false;
+  if (aiQueue && typeof aiQueue.isEnabled === 'function') return aiQueue.isEnabled();
+  return true;
+}
 
 // Глобальный singleton очереди (см. ai-queue.js)
 
@@ -213,7 +225,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = nu
   
   // Проверяем кэш (используем ai-cache вместо ragCache)
   // Включаем tagIds в ключ кэша для учета фильтрации по тегам
-  if (USE_AI_CACHE) {
+  if (isAiCacheEnabled()) {
     const cacheKey = aiCache.generateKeyForRAG(tableId, userQuestion, product, userId, userTagIds);
     const cached = aiCache.getWithTTL(cacheKey, 'rag');
     if (cached) {
@@ -324,7 +336,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = nu
   
   // Кэшируем результат (используем ai-cache вместо ragCache)
   // Используем те же tagIds, что и для проверки кэша
-  if (USE_AI_CACHE) {
+  if (isAiCacheEnabled()) {
     const cacheKey = aiCache.generateKeyForRAG(tableId, userQuestion, product, userId, userTagIds);
     aiCache.setWithType(cacheKey, result, 'rag');
     console.log(`[RAG] Результат сохранен в кэш (userId=${userId}, tagIds=${userTagIds ? userTagIds.join(',') : 'null'})`);
@@ -696,6 +708,11 @@ async function generateLLMResponse({
     
     // Если есть результаты мульти-источникового поиска, используем их
     if (multiSourceResults && multiSourceResults.results && multiSourceResults.results.length > 0) {
+      let snippetLimit = 300;
+      try {
+        const dialog = await aiConfigService.getDialogSettings();
+        if (dialog && Number(dialog.ragSnippetLength) > 0) snippetLimit = Number(dialog.ragSnippetLength);
+      } catch (_) {}
       const sourcesInfo = multiSourceResults.results
         .slice(0, 3) // Берем топ-3 результатов
         .map((r, idx) => {
@@ -707,7 +724,6 @@ async function generateLLMResponse({
             || (r.metadata?.title && String(r.metadata.title).trim())
             || '(текст отсутствует)';
           const sourceText = (r.text && r.text.trim()) || fallbackText;
-          const snippetLimit = 300;
           const truncatedText = sourceText.length > snippetLimit
             ? `${sourceText.slice(0, snippetLimit)}...`
             : sourceText;
@@ -820,7 +836,12 @@ async function generateLLMResponse({
     if (finalSystemPrompt) {
       messages.push({ role: 'system', content: finalSystemPrompt });
     }
-    const historyForLLM = Array.isArray(history) ? history.slice(-4) : [];
+    let historyTurns = 4;
+    try {
+      const dialog = await aiConfigService.getDialogSettings();
+      if (dialog && Number(dialog.historyTurns) > 0) historyTurns = Number(dialog.historyTurns);
+    } catch (_) {}
+    const historyForLLM = Array.isArray(history) ? history.slice(-historyTurns) : [];
     for (const h of historyForLLM) {
       if (h && h.content) {
         const role = h.role === 'assistant' ? 'assistant' : 'user';
@@ -924,7 +945,7 @@ async function generateLLMResponse({
 
     try {
       // Все запросы к Ollama проходят через очередь, чтобы не положить сервер.
-      if (USE_AI_QUEUE) {
+      if (isAiQueueEnabled()) {
         try {
           const queuedResult = await aiQueue.addTask({
             messages,
@@ -1327,7 +1348,7 @@ async function ragAnswerWithConversation({
 
 // ✨ НОВОЕ: Функция для запуска AI Queue Worker
 function startQueueWorker() {
-  if (USE_AI_QUEUE) {
+  if (isAiQueueEnabled()) {
     aiQueue.startWorker();
     logger.info('[RAG] ✅ AI Queue Worker запущен из ragService');
   } else {

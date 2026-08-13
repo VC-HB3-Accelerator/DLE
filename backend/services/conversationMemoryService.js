@@ -11,8 +11,22 @@ const logger = require('../utils/logger');
 const ollamaConfig = require('./ollamaConfig');
 const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
 
-const MAX_SUMMARY_CHARS = 900;
-const COMPRESS_EVERY = 4;
+const MAX_SUMMARY_CHARS_DEFAULT = 900;
+const COMPRESS_EVERY_DEFAULT = 4;
+
+async function getMemoryLimits() {
+  let maxChars = MAX_SUMMARY_CHARS_DEFAULT;
+  let compressEvery = COMPRESS_EVERY_DEFAULT;
+  try {
+    const aiConfigService = require('./aiConfigService');
+    const dialog = await aiConfigService.getDialogSettings();
+    if (dialog) {
+      if (Number(dialog.memoryMaxChars) > 0) maxChars = Number(dialog.memoryMaxChars);
+      if (Number(dialog.compressEvery) > 0) compressEvery = Number(dialog.compressEvery);
+    }
+  } catch (_) { /* defaults */ }
+  return { maxChars, compressEvery };
+}
 
 let schemaReady = false;
 /** @type {Map<string, Array<{userMessage: string, assistantMessage: string}>>} */
@@ -77,7 +91,7 @@ async function getSummaryText(memoryKey) {
   return row?.text || null;
 }
 
-function heuristicMerge({ previousSummary, userMessage, assistantMessage }) {
+function heuristicMerge({ previousSummary, userMessage, assistantMessage, maxChars = MAX_SUMMARY_CHARS_DEFAULT }) {
   const prev = String(previousSummary || '').trim();
   const user = String(userMessage || '').replace(/\s+/g, ' ').trim().slice(0, 220);
   const assistant = String(assistantMessage || '').replace(/\s+/g, ' ').trim().slice(0, 280);
@@ -87,8 +101,8 @@ function heuristicMerge({ previousSummary, userMessage, assistantMessage }) {
   ].filter(Boolean).join('\n');
 
   let merged = prev ? `${prev}\n${chunk}` : chunk;
-  if (merged.length > MAX_SUMMARY_CHARS) {
-    merged = merged.slice(merged.length - MAX_SUMMARY_CHARS);
+  if (merged.length > maxChars) {
+    merged = merged.slice(merged.length - maxChars);
     const cut = merged.indexOf('\n');
     if (cut > 0 && cut < 120) merged = merged.slice(cut + 1);
   }
@@ -147,7 +161,8 @@ async function compressViaQueue(memoryKey, currentSummary, expectedTurnCount) {
     model = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
   }
 
-  const prompt = `Сожми память диалога до ${MAX_SUMMARY_CHARS} символов на русском.
+  const { maxChars } = await getMemoryLimits();
+  const prompt = `Сожми память диалога до ${maxChars} символов на русском.
 Сохрани факты: имя, цели, договорённости, открытые вопросы. Убери повторы и шум.
 Не выдумывай. Ответ — только текст памяти, без JSON и кавычек.
 
@@ -172,8 +187,8 @@ ${currentSummary}`;
 
     let text = sanitizeAssistantText(typeof result === 'string' ? result : result?.response);
     if (!text) return null;
-    if (text.length > MAX_SUMMARY_CHARS) {
-      text = text.slice(0, MAX_SUMMARY_CHARS).trim();
+    if (text.length > maxChars) {
+      text = text.slice(0, maxChars).trim();
     }
 
     const savedTurn = await saveSummaryIfTurnUnchanged(memoryKey, text, expectedTurnCount);
@@ -207,16 +222,18 @@ async function processBuffer(memoryKey) {
       // Всегда свежая память из БД — без устаревшего snapshot
       const current = await getSummary(memoryKey);
       const previousText = current?.text || null;
+      const { maxChars, compressEvery } = await getMemoryLimits();
       const nextSummary = heuristicMerge({
         previousSummary: previousText,
         userMessage: turn.userMessage,
-        assistantMessage: turn.assistantMessage
+        assistantMessage: turn.assistantMessage,
+        maxChars
       });
 
       const turnCount = await saveSummary(memoryKey, nextSummary, true);
       logger.info(`[conversationMemory] Память обновлена (эвристика): ${memoryKey}, ход ${turnCount}, ${nextSummary.length} симв.`);
 
-      if (turnCount > 0 && turnCount % COMPRESS_EVERY === 0) {
+      if (turnCount > 0 && turnCount % compressEvery === 0) {
         // Не ждём сжатие; пишем только если turn_count не ушёл вперёд
         compressViaQueue(memoryKey, nextSummary, turnCount).catch((error) => {
           logger.warn(`[conversationMemory] Фоновое сжатие: ${error.message}`);
@@ -277,7 +294,7 @@ async function migrateGuestToUser(guestIdentifier, userId) {
          summary_text = CASE
            WHEN conversation_memory.summary_text IS NULL OR conversation_memory.summary_text = ''
            THEN EXCLUDED.summary_text
-           ELSE left(conversation_memory.summary_text || E'\\n' || EXCLUDED.summary_text, ${MAX_SUMMARY_CHARS})
+           ELSE left(conversation_memory.summary_text || E'\\n' || EXCLUDED.summary_text, ${MAX_SUMMARY_CHARS_DEFAULT})
          END,
          turn_count = conversation_memory.turn_count + EXCLUDED.turn_count,
          updated_at = NOW()`,

@@ -214,6 +214,12 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
+    path: '/settings/ai/rag',
+    name: 'ai-rag-settings',
+    component: () => import('@/views/settings/AI/AiRagSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
+  },
+  {
     path: '/settings/interface/webssh',
     name: 'webssh-settings',
     component: () => import('@/views/settings/Interface/InterfaceWebSshView.vue'),

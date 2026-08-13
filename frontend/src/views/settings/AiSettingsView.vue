@@ -56,6 +56,11 @@
         <button class="details-btn" @click="goTo('/settings/ai/database')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
+        <h3>{{ t('settings.ai.rag.title') }}</h3>
+        <p>{{ t('settings.ai.rag.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/rag')">{{ t('common.details') }}</button>
+      </div>
+      <div class="integration-block">
         <h3>{{ t('settings.ai.assistant.title') }}</h3>
         <p>{{ t('settings.ai.assistant.description') }}</p>
         <button class="details-btn" @click="goTo('/settings/ai/assistant')">{{ t('common.details') }}</button>

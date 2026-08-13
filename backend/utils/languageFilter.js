@@ -61,27 +61,36 @@ function isRussianMessage(message, minCyrillicPercent = 10) {
  * @param {string} message - текст сообщения
  * @returns {Object} { shouldProcess: boolean, reason: string }
  */
-function shouldProcessWithAI(message) {
+async function shouldProcessWithAI(message) {
   if (!message || typeof message !== 'string') {
     return { shouldProcess: false, reason: 'Empty message' };
   }
   
   const cleanMessage = message.trim();
+
+  let minCyrillicPercent = 10;
+  let maxMessageLength = 10000;
+  try {
+    const aiConfigService = require('../services/aiConfigService');
+    const dialog = await aiConfigService.getDialogSettings();
+    if (dialog) {
+      if (Number(dialog.minCyrillicPercent) >= 0) minCyrillicPercent = Number(dialog.minCyrillicPercent);
+      if (Number(dialog.maxMessageLength) > 0) maxMessageLength = Number(dialog.maxMessageLength);
+    }
+  } catch (_) { /* defaults */ }
   
   // Проверка на русский язык
-  if (!isRussianMessage(cleanMessage)) {
+  if (!isRussianMessage(cleanMessage, minCyrillicPercent)) {
     return { 
       shouldProcess: false, 
       reason: 'Non-Russian message (AI works only with Russian)' 
     };
   }
   
-  // Проверка на максимальный размер (опционально)
-  const MAX_LENGTH = 10000;
-  if (cleanMessage.length > MAX_LENGTH) {
+  if (cleanMessage.length > maxMessageLength) {
     return { 
       shouldProcess: false, 
-      reason: `Message too long (${cleanMessage.length} > ${MAX_LENGTH} chars)` 
+      reason: `Message too long (${cleanMessage.length} > ${maxMessageLength} chars)` 
     };
   }
   

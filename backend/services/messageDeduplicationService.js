@@ -38,6 +38,11 @@ async function loadSettings() {
 
 // Инициализируем настройки при загрузке модуля
 loadSettings().catch(err => logger.warn('[MessageDeduplication] Ошибка инициализации:', err.message));
+if (typeof aiConfigService.onChange === 'function') {
+  aiConfigService.onChange(() => {
+    loadSettings().catch(err => logger.warn('[MessageDeduplication] Ошибка hot-reload:', err.message));
+  });
+}
 
 /**
  * Создать хеш сообщения

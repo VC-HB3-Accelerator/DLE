@@ -41,6 +41,7 @@ class AIQueue extends EventEmitter {
     this.maxQueueSize = timeouts.queueMaxSize;
     this.workerInterval = null;
     this.checkInterval = timeouts.queueInterval;
+    this.enabled = true;
     this.stats = {
       totalAdded: 0,
       totalProcessed: 0,
@@ -49,10 +50,42 @@ class AIQueue extends EventEmitter {
       lastProcessedAt: null,
       initializedAt: Date.now()
     };
+    this._reloadFromConfig().catch(() => {});
+    if (typeof aiConfigService.onChange === 'function') {
+      aiConfigService.onChange(() => { this._reloadFromConfig().catch(() => {}); });
+    }
+  }
+
+  async _reloadFromConfig() {
+    try {
+      const queueConfig = await aiConfigService.getQueueConfig();
+      if (queueConfig) {
+        if (Number.isFinite(Number(queueConfig.maxSize))) {
+          this.maxQueueSize = Number(queueConfig.maxSize);
+        }
+        if (Number.isFinite(Number(queueConfig.interval))) {
+          this.checkInterval = Number(queueConfig.interval);
+        }
+        this.enabled = queueConfig.enabled !== false;
+      }
+    } catch (e) {
+      logger.warn('[AIQueue] reloadFromConfig failed:', e.message);
+    }
+  }
+
+  isEnabled() {
+    return process.env.USE_AI_QUEUE !== 'false' && this.enabled !== false;
+  }
+
+  async reloadFromConfig() {
+    await this._reloadFromConfig();
   }
 
   // Добавление запроса в очередь
   async addRequest(request, priority = 0) {
+    if (!this.isEnabled()) {
+      throw new Error('AI Queue disabled (ENV or queue_settings.enabled)');
+    }
     const requestId = Date.now() + Math.random();
     const queueItem = {
       id: requestId,

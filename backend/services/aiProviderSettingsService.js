@@ -23,7 +23,7 @@ const TIMEOUTS = ollamaConfig.getTimeouts();
 const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const QWENCLOUD_DEFAULT_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 
-/** DashScope часто не отдаёт /models — запасной список для UI. */
+/** DashScope / Model Studio часто не отдаёт полный /models — запасной список для UI. */
 const QWENCLOUD_FALLBACK_MODELS = [
   'qwen-plus',
   'qwen-turbo',
@@ -31,7 +31,8 @@ const QWENCLOUD_FALLBACK_MODELS = [
   'qwen-flash',
   'qwen3.5-plus',
   'qwen3-max',
-  'qwen3.7-plus'
+  'qwen3.7-plus',
+  'qwen3.8-max'
 ];
 
 function resolveDeepseekBaseUrl(base_url) {
@@ -201,15 +202,20 @@ async function getProviderModels(provider, settings = {}) {
     }
     if (provider === 'qwencloud') {
       const client = createQwenCloudClient(settings);
+      let listed = [];
       try {
         const res = await client.models.list();
-        const listed = mapOpenAiModelsList(res);
-        if (listed.length) return listed;
+        listed = mapOpenAiModelsList(res);
       } catch (listErr) {
         const logger = require('../utils/logger');
         logger.warn(`[aiProviderSettings] qwencloud models.list fallback: ${listErr.message}`);
       }
-      return qwenCloudFallbackModels();
+      const merged = listed.length ? listed : qwenCloudFallbackModels();
+      const selected = String(settings.selected_model || '').trim();
+      if (selected && !merged.some((m) => String(m.id) === selected)) {
+        merged.unshift({ id: selected });
+      }
+      return merged;
     }
     if (provider === 'anthropic') {
       const client = new Anthropic({ apiKey: settings.api_key, baseURL: settings.base_url });

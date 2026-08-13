@@ -1270,11 +1270,23 @@ router.post('/:id/reindex', async (req, res) => {
     // Используем Semantic Chunking для разбивки документа
     const semanticChunkingService = require('../services/semanticChunkingService');
     const docLength = text.length;
-    const useLLM = docLength <= 8000;
+    let maxChunkSize = 1500;
+    let overlap = 200;
+    let llmThreshold = 8000;
+    try {
+      const aiConfigService = require('../services/aiConfigService');
+      const chunking = await aiConfigService.getChunkingSettings();
+      if (chunking) {
+        if (Number(chunking.maxChunkSize) > 0) maxChunkSize = Number(chunking.maxChunkSize);
+        if (Number(chunking.overlap) >= 0) overlap = Number(chunking.overlap);
+        if (Number(chunking.llmThreshold) > 0) llmThreshold = Number(chunking.llmThreshold);
+      }
+    } catch (_) { /* defaults */ }
+    const useLLM = docLength <= llmThreshold;
 
     const chunks = await semanticChunkingService.chunkDocument(text, {
-      maxChunkSize: 1500,
-      overlap: 200,
+      maxChunkSize,
+      overlap,
       useLLM
     });
 
