@@ -236,6 +236,8 @@
       "loading": "Загрузка…",
       "forbidden": "Нужны права редактора, чтобы открыть медиатеку",
       "uploadProgress": "Загрузка {percent}%",
+      "uploadCancel": "Отменить загрузку",
+      "uploadAborted": "Загрузка отменена",
       "deleteFailed": "Не удалось удалить файл",
       "preview": "Просмотр",
       "tooLarge": "Файл слишком большой",
@@ -572,6 +574,7 @@
       "seoKeywordsPlaceholder": "Ключевые слова через запятую",
       "seoOgImage": "Картинка для превью (соцсети / мессенджеры)",
       "seoOgImageHint": "Показывается при шаринге ссылки. Для видео-постов загрузите отдельный постер — мессенджеры не берут кадр из видео.",
+      "seoOgImagePick": "Выбрать картинку",
       "seoOgImageClear": "Убрать картинку",
       "seoOgImageUploading": "Загрузка картинки…",
       "seoOgImageInvalid": "Нужен файл изображения (PNG, JPG, WebP)",
@@ -951,7 +954,8 @@
     "pickCancel": "Отмена",
     "chunkedProgress": "Часть {part}/{total} · {percent}%",
     "chunkedResume": "Восстановление после обрыва…",
-    "chunkedError": "Ошибка загрузки частями"
+    "chunkedError": "Ошибка загрузки частями",
+    "uploadCancel": "Отменить"
   },
   "webssh": {
     "resetStatus": "Сбросить статус",

@@ -204,18 +204,20 @@
               <label for="seo-og-image">{{ t('content.editor.seoOgImage') }}</label>
               <p class="form-hint">{{ t('content.editor.seoOgImageHint') }}</p>
               <div class="og-image-row">
-                <input
+                <button
                   id="seo-og-image"
-                  ref="ogImageInputRef"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  class="form-input"
-                  @change="onOgImageChange"
-                />
+                  type="button"
+                  class="btn btn-primary"
+                  :disabled="ogImageUploading"
+                  @click="openOgPicker"
+                >
+                  {{ t('content.editor.seoOgImagePick') }}
+                </button>
                 <button
                   v-if="form.seo.og_image"
                   type="button"
                   class="btn btn-outline og-image-clear"
+                  :disabled="ogImageUploading"
                   @click="clearOgImage"
                 >
                   {{ t('content.editor.seoOgImageClear') }}
@@ -225,6 +227,20 @@
               <div v-if="ogImagePreviewUrl" class="og-image-preview">
                 <img :src="ogImagePreviewUrl" :alt="t('content.editor.seoOgImage')" />
               </div>
+              <ContentMediaPickerModal
+                :open="ogPickerOpen"
+                kind="image"
+                @cancel="closeOgPicker"
+                @device="onOgPickerDevice"
+                @select="onOgPickerSelect"
+              />
+              <input
+                ref="ogImageInputRef"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                class="og-image-hidden-file"
+                @change="onOgImageChange"
+              >
             </div>
           </div>
 
@@ -243,15 +259,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import PageCloseButton from '../components/PageCloseButton.vue';
 import RichTextEditor from '../components/editor/RichTextEditor.vue';
+import ContentMediaPickerModal from '../components/content/ContentMediaPickerModal.vue';
 import pagesService from '../services/pagesService';
 import blogFeedService from '../services/blogFeedService';
-import api from '../api/axios';
+import { uploadContentMedia } from '../composables/useChunkedMediaUpload';
 import { PERMISSIONS } from './permissions.js';
 import { useAuthContext } from '../composables/useAuth';
 import { usePermissions } from '../composables/usePermissions';
@@ -351,6 +368,7 @@ const fileBlob = ref(null);
 const fileName = ref('');
 const ogImageUploading = ref(false);
 const ogImageInputRef = ref(null);
+const ogPickerOpen = ref(false);
 
 const ogImagePreviewUrl = computed(() => {
   const url = form.value.seo?.og_image;
@@ -359,6 +377,27 @@ const ogImagePreviewUrl = computed(() => {
   if (typeof window === 'undefined') return url;
   return `${window.location.origin}${String(url).startsWith('/') ? '' : '/'}${url}`;
 });
+
+function openOgPicker() {
+  ogPickerOpen.value = true;
+}
+
+function closeOgPicker() {
+  ogPickerOpen.value = false;
+}
+
+function onOgPickerDevice() {
+  closeOgPicker();
+  nextTick(() => {
+    if (ogImageInputRef.value) ogImageInputRef.value.click();
+  });
+}
+
+function onOgPickerSelect(item) {
+  closeOgPicker();
+  if (!item || !item.url) return;
+  form.value.seo.og_image = item.url;
+}
 
 async function onOgImageChange(e) {
   const file = e.target?.files?.[0];
@@ -370,12 +409,8 @@ async function onOgImageChange(e) {
   }
   ogImageUploading.value = true;
   try {
-    const fd = new FormData();
-    fd.append('media', file);
-    const response = await api.post('/uploads/media', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    const url = response?.data?.data?.url;
+    const data = await uploadContentMedia(file);
+    const url = data && data.url;
     if (!url) {
       throw new Error(t('content.editor.seoOgImageUploadError'));
     }
@@ -864,12 +899,12 @@ onMounted(async () => {
   align-items: center;
 }
 
-.og-image-row .form-input {
-  flex: 1 1 220px;
-}
-
 .og-image-clear {
   flex: 0 0 auto;
+}
+
+.og-image-hidden-file {
+  display: none;
 }
 
 .og-image-preview {

@@ -32,18 +32,37 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function oneShot(file, pageId) {
+function abortedError() {
+  const err = new Error('aborted');
+  err.code = 'UPLOAD_ABORTED';
+  return err;
+}
+
+function throwIfAborted(signal) {
+  if (signal && signal.aborted) throw abortedError();
+}
+
+function isAbortError(err) {
+  if (!err) return false;
+  if (err.code === 'UPLOAD_ABORTED' || err.code === 'ERR_CANCELED') return true;
+  if (err.name === 'CanceledError' || err.name === 'AbortError') return true;
+  return false;
+}
+
+async function oneShot(file, pageId, signal) {
+  throwIfAborted(signal);
   const formData = new FormData();
   formData.append('media', file);
   if (pageId) formData.append('page_id', String(pageId));
-  const response = await api.post('/uploads/media', formData);
+  const response = await api.post('/uploads/media', formData, { signal });
+  throwIfAborted(signal);
   return response.data && response.data.data;
 }
 
 async function putPartWithRetry({ uploadId, partNumber, blob, signal }) {
   let lastErr;
   for (let attempt = 0; attempt < 5; attempt++) {
-    if (signal && signal.aborted) throw lastErr || new Error('aborted');
+    throwIfAborted(signal);
     try {
       const res = await api.put(
         `/uploads/media/${uploadId}/parts/${partNumber}`,
@@ -56,6 +75,7 @@ async function putPartWithRetry({ uploadId, partNumber, blob, signal }) {
       );
       return res.data;
     } catch (err) {
+      if (isAbortError(err) || (signal && signal.aborted)) throw abortedError();
       lastErr = err;
       const status = err.response && err.response.status;
       const network = !err.response;
@@ -89,95 +109,104 @@ export async function uploadContentMedia(file, { pageId, onProgress, signal } = 
     throw err;
   }
 
-  if (!shouldUseChunked(kind, file.size)) {
-    if (onProgress) onProgress({ percent: 5, phase: 'oneshot' });
-    const data = await oneShot(file, pageId);
-    if (onProgress) onProgress({ percent: 100, phase: 'done' });
-    return data;
-  }
-
-  const key = storageKey(file);
-  let uploadId = null;
-  let totalParts = Math.ceil(file.size / PART_SIZE);
   try {
-    const saved = sessionStorage.getItem(key);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed && parsed.uploadId) uploadId = parsed.uploadId;
+    if (!shouldUseChunked(kind, file.size)) {
+      if (onProgress) onProgress({ percent: 5, phase: 'oneshot' });
+      const data = await oneShot(file, pageId, signal);
+      if (onProgress) onProgress({ percent: 100, phase: 'done' });
+      return data;
     }
-  } catch {
-    /* ignore */
-  }
 
-  let received = [];
-  if (uploadId) {
+    const key = storageKey(file);
+    let uploadId = null;
+    let totalParts = Math.ceil(file.size / PART_SIZE);
     try {
-      const st = await loadStatus(uploadId);
-      received = Array.isArray(st.received) ? st.received : [];
-      totalParts = st.totalParts || totalParts;
+      const saved = sessionStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.uploadId) uploadId = parsed.uploadId;
+      }
     } catch {
-      uploadId = null;
-      received = [];
-      try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+      /* ignore */
     }
-  }
 
-  if (!uploadId) {
-    const initRes = await api.post('/uploads/media/init', {
-      fileName: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      size: file.size,
-      pageId: pageId || undefined,
-    });
-    const init = initRes.data && initRes.data.data;
-    uploadId = init.uploadId;
-    totalParts = init.totalParts;
-    try { sessionStorage.setItem(key, JSON.stringify({ uploadId })); } catch { /* ignore */ }
-  }
-
-  const pending = [];
-  for (let n = 1; n <= totalParts; n++) {
-    if (!received.includes(n)) pending.push(n);
-  }
-
-  let doneCount = received.length;
-  const report = () => {
-    const percent = Math.min(99, Math.round((doneCount / totalParts) * 100));
-    if (onProgress) {
-      onProgress({
-        percent,
-        phase: 'parts',
-        part: doneCount,
-        totalParts,
-      });
+    let received = [];
+    if (uploadId) {
+      try {
+        throwIfAborted(signal);
+        const st = await loadStatus(uploadId);
+        received = Array.isArray(st.received) ? st.received : [];
+        totalParts = st.totalParts || totalParts;
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        uploadId = null;
+        received = [];
+        try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+      }
     }
-  };
-  report();
 
-  let cursor = 0;
-  async function worker() {
-    while (cursor < pending.length) {
-      const n = pending[cursor];
-      cursor += 1;
-      const start = (n - 1) * PART_SIZE;
-      const end = Math.min(start + PART_SIZE, file.size);
-      const blob = file.slice(start, end);
-      await putPartWithRetry({ uploadId, partNumber: n, blob, signal });
-      doneCount += 1;
-      report();
+    if (!uploadId) {
+      throwIfAborted(signal);
+      const initRes = await api.post('/uploads/media/init', {
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        pageId: pageId || undefined,
+      }, { signal });
+      const init = initRes.data && initRes.data.data;
+      uploadId = init.uploadId;
+      totalParts = init.totalParts;
+      try { sessionStorage.setItem(key, JSON.stringify({ uploadId })); } catch { /* ignore */ }
     }
+
+    const pending = [];
+    for (let n = 1; n <= totalParts; n++) {
+      if (!received.includes(n)) pending.push(n);
+    }
+
+    let doneCount = received.length;
+    const report = () => {
+      const percent = Math.min(99, Math.round((doneCount / totalParts) * 100));
+      if (onProgress) {
+        onProgress({
+          percent,
+          phase: 'parts',
+          part: doneCount,
+          totalParts,
+        });
+      }
+    };
+    report();
+
+    let cursor = 0;
+    async function worker() {
+      while (cursor < pending.length) {
+        throwIfAborted(signal);
+        const partNumber = pending[cursor++];
+        const start = (partNumber - 1) * PART_SIZE;
+        const end = Math.min(file.size, start + PART_SIZE);
+        const blob = file.slice(start, end);
+        await putPartWithRetry({ uploadId, partNumber, blob, signal });
+        doneCount += 1;
+        report();
+      }
+    }
+
+    const workers = [];
+    const parallel = Math.min(MAX_PARALLEL_PARTS, pending.length || 1);
+    for (let i = 0; i < parallel; i++) workers.push(worker());
+    if (pending.length) await Promise.all(workers);
+
+    throwIfAborted(signal);
+    if (onProgress) onProgress({ percent: 99, phase: 'complete' });
+    const completeRes = await api.post(`/uploads/media/${uploadId}/complete`, null, { signal });
+    try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+    if (onProgress) onProgress({ percent: 100, phase: 'done' });
+    return completeRes.data && completeRes.data.data;
+  } catch (err) {
+    if (isAbortError(err) || (signal && signal.aborted)) throw abortedError();
+    throw err;
   }
-
-  const workers = [];
-  const parallel = Math.min(MAX_PARALLEL_PARTS, pending.length || 1);
-  for (let i = 0; i < parallel; i++) workers.push(worker());
-  if (pending.length) await Promise.all(workers);
-
-  if (onProgress) onProgress({ percent: 99, phase: 'complete' });
-  const completeRes = await api.post(`/uploads/media/${uploadId}/complete`);
-  try { sessionStorage.removeItem(key); } catch { /* ignore */ }
-  if (onProgress) onProgress({ percent: 100, phase: 'done' });
-  return completeRes.data && completeRes.data.data;
 }
 
 export async function abortContentMediaUpload(file) {
@@ -195,3 +224,5 @@ export async function abortContentMediaUpload(file) {
     /* ignore */
   }
 }
+
+export { isAbortError };

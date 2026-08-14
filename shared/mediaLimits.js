@@ -17,6 +17,59 @@ const ATTACHMENT_KINDS = Object.freeze({
   DOCUMENT: 'document'
 });
 
+function sniffMimeFromBuffer(buf) {
+  if (!buf || !Buffer.isBuffer(buf) || buf.length < 4) return null;
+
+  // PNG
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) {
+    return 'image/png';
+  }
+  // JPEG
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) {
+    return 'image/jpeg';
+  }
+  // GIF
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+    return 'image/gif';
+  }
+  // WEBP / WAV share RIFF
+  if (
+    buf.length >= 12
+    && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
+  ) {
+    if (buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) {
+      return 'image/webp';
+    }
+    if (buf[8] === 0x57 && buf[9] === 0x41 && buf[10] === 0x56 && buf[11] === 0x45) {
+      return 'audio/wav';
+    }
+  }
+  // WebM / Matroska (часто audio/webm из MediaRecorder)
+  if (buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3) {
+    return 'video/webm';
+  }
+  // MP4 / ISO BMFF (….ftyp)
+  if (
+    buf.length >= 8
+    && buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70
+  ) {
+    return 'video/mp4';
+  }
+  // Ogg
+  if (buf[0] === 0x4F && buf[1] === 0x67 && buf[2] === 0x67 && buf[3] === 0x53) {
+    return 'audio/ogg';
+  }
+  // MP3 ID3
+  if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
+    return 'audio/mpeg';
+  }
+  // MP3 frame sync
+  if (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0) {
+    return 'audio/mpeg';
+  }
+  return null;
+}
+
 function detectAttachmentKind({ filename = '', mimetype = '', hint = '' } = {}) {
   const mime = String(mimetype || '').toLowerCase();
   const name = String(filename || '').toLowerCase();
@@ -82,6 +135,7 @@ module.exports = {
   VIDEO_NOTE_MAX_SECONDS,
   AUDIO_MAX_SECONDS,
   ATTACHMENT_KINDS,
+  sniffMimeFromBuffer,
   detectAttachmentKind,
   mediaPlaceholder,
   mediaRagQuery,

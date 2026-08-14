@@ -24,11 +24,25 @@
       <div v-else class="media-library-page__wrap">
         <div class="media-library-page__header">
           <h1>{{ t('content.media.title') }}</h1>
-          <button type="button" class="media-library-page__upload" @click="onUploadClick">
+          <button
+            type="button"
+            class="media-library-page__upload"
+            :disabled="uploading"
+            @click="onUploadClick"
+          >
             {{ t('content.media.upload') }}
           </button>
         </div>
-        <p v-if="progressText" class="media-library-page__progress">{{ progressText }}</p>
+        <div v-if="progressText" class="media-library-page__progress-row">
+          <p class="media-library-page__progress">{{ progressText }}</p>
+          <button
+            type="button"
+            class="media-library-page__cancel"
+            @click="onCancelUpload"
+          >
+            {{ t('content.media.uploadCancel') }}
+          </button>
+        </div>
         <input
           ref="fileInput"
           type="file"
@@ -49,7 +63,11 @@ import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import UiGlyph from '../../components/UiGlyph.vue';
 import ContentMediaGrid from '../../components/content/ContentMediaGrid.vue';
-import { uploadContentMedia } from '../../composables/useChunkedMediaUpload';
+import {
+  uploadContentMedia,
+  abortContentMediaUpload,
+  isAbortError,
+} from '../../composables/useChunkedMediaUpload';
 import { usePermissions } from '../../composables/usePermissions';
 
 defineProps({
@@ -66,19 +84,38 @@ const { isEditor } = usePermissions();
 const fileInput = ref(null);
 const gridRef = ref(null);
 const progressText = ref('');
+const uploading = ref(false);
+const activeFile = ref(null);
+const abortController = ref(null);
 
 const acceptAttr = computed(() => 'image/*,video/*,audio/*');
 
 function onUploadClick() {
+  if (uploading.value) return;
   if (fileInput.value) fileInput.value.click();
+}
+
+async function onCancelUpload() {
+  const file = activeFile.value;
+  if (abortController.value) abortController.value.abort();
+  if (file) await abortContentMediaUpload(file);
+  progressText.value = '';
+  uploading.value = false;
+  activeFile.value = null;
+  abortController.value = null;
 }
 
 async function onFilePicked(event) {
   const file = event.target.files && event.target.files[0];
   event.target.value = '';
-  if (!file) return;
+  if (!file || uploading.value) return;
+  const controller = new AbortController();
+  abortController.value = controller;
+  activeFile.value = file;
+  uploading.value = true;
   try {
     await uploadContentMedia(file, {
+      signal: controller.signal,
       onProgress: ({ percent, phase, part, totalParts }) => {
         if (phase === 'parts') {
           progressText.value = t('editor.chunkedProgress', {
@@ -95,10 +132,17 @@ async function onFilePicked(event) {
     if (gridRef.value && gridRef.value.reload) gridRef.value.reload();
   } catch (err) {
     progressText.value = '';
+    if (isAbortError(err)) {
+      return;
+    }
     const code = err.code || (err.response && err.response.data && err.response.data.code);
     alert(code === 'MEDIA_TOO_LARGE'
       ? t('content.media.tooLarge')
       : t('content.media.uploadFailed'));
+  } finally {
+    uploading.value = false;
+    activeFile.value = null;
+    abortController.value = null;
   }
 }
 </script>
@@ -144,14 +188,36 @@ async function onFilePicked(event) {
   font-weight: 600;
 }
 
+.media-library-page__upload:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .media-library-page__file {
   display: none;
 }
 
-.media-library-page__progress {
+.media-library-page__progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0 0 12px;
+}
+
+.media-library-page__progress {
+  margin: 0;
   color: #495057;
   font-size: 0.9rem;
+}
+
+.media-library-page__cancel {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 8px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
 }
 
 .media-library-page__forbidden {

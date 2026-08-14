@@ -23,7 +23,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
-const { attachmentMetaFromRow, chatUploadMiddleware, prepareChatAttachment, mediaTooLargePayload, MEDIA_MAX_BYTES } = require('../utils/chatMedia');
+const { attachmentMetaFromRow, chatUploadMiddleware, chatMediaRateLimit, prepareChatAttachment, mediaTooLargePayload, MEDIA_MAX_BYTES } = require('../utils/chatMedia');
 const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
 const broadcastService = require('../services/broadcastService');
 const broadcastQueueService = require('../services/broadcastQueueService');
@@ -1397,7 +1397,10 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
 function maybeChatUpload(req, res, next) {
   const ct = String(req.headers['content-type'] || '');
   if (ct.includes('multipart/form-data')) {
-    return chatUpload(req, res, next);
+    return chatUpload(req, res, (err) => {
+      if (err) return next(err);
+      return chatMediaRateLimit(req, res, next);
+    });
   }
   return next();
 }
@@ -1818,7 +1821,7 @@ router.post('/send', requireAuth, maybeChatUpload, async (req, res) => {
 });
 
 // POST /api/messages/private/send - отправка приватного сообщения
-router.post('/private/send', requireAuth, chatUpload, async (req, res) => {
+router.post('/private/send', requireAuth, chatUpload, chatMediaRateLimit, async (req, res) => {
   const recipientId = req.body.recipientId;
   const content = req.body.content || req.body.message || '';
   const senderId = req.user.id;

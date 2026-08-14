@@ -394,20 +394,13 @@ class AIAssistant {
 
           // Аудиторный фильтр по assign_tags / welcome (FAQ rows с userTags)
           if (assignTagNames.length && searchResults?.results?.length) {
-            const wanted = new Set(assignTagNames.map((t) => String(t).toLowerCase()));
-            const filtered = searchResults.results.filter((r) => {
-              // Документы уже отфильтрованы по corpus_audience выше
-              if (r.sourceType === 'document' || r.source === 'document' || r.source === 'documents') {
-                return true;
-              }
-              const rowTags = r.metadata?.userTags || r.userTags || [];
-              if (!Array.isArray(rowTags) || !rowTags.length) return false;
-              return rowTags.some((t) => wanted.has(String(t).toLowerCase()));
-            });
-            if (filtered.length) {
-              searchResults.results = filtered;
-              logger.info(`[AIAssistant] После фильтра assign_tags осталось ${filtered.length} hit(s)`);
-            } else {
+            const { filterHitsByAssignTags } = require('./ragPromptAssembly');
+            const before = searchResults.results.length;
+            const filtered = filterHitsByAssignTags(searchResults.results, assignTagNames);
+            searchResults.results = filtered.results;
+            if (!filtered.emptied && filtered.results.length !== before) {
+              logger.info(`[AIAssistant] После фильтра assign_tags осталось ${filtered.results.length} hit(s)`);
+            } else if (filtered.emptied) {
               logger.warn(`[AIAssistant] Фильтр assign_tags опустошил выдачу — оставляем исходные hit(s)`);
             }
           }

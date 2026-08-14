@@ -236,6 +236,8 @@
       "loading": "Loading…",
       "forbidden": "Editor rights are required to open the media library",
       "uploadProgress": "Uploading {percent}%",
+      "uploadCancel": "Cancel upload",
+      "uploadAborted": "Upload cancelled",
       "deleteFailed": "Could not delete the file",
       "preview": "Preview",
       "tooLarge": "File is too large",
@@ -572,6 +574,7 @@
       "seoKeywordsPlaceholder": "Keywords separated by commas",
       "seoOgImage": "Preview image (social / messengers)",
       "seoOgImageHint": "Shown when the link is shared. For video posts upload a separate poster — messengers do not grab a frame from the video.",
+      "seoOgImagePick": "Choose image",
       "seoOgImageClear": "Remove image",
       "seoOgImageUploading": "Uploading image…",
       "seoOgImageInvalid": "Please choose an image file (PNG, JPG, WebP)",
@@ -951,7 +954,8 @@
     "pickCancel": "Cancel",
     "chunkedProgress": "Part {part}/{total} · {percent}%",
     "chunkedResume": "Resuming after a drop…",
-    "chunkedError": "Chunked upload failed"
+    "chunkedError": "Chunked upload failed",
+    "uploadCancel": "Cancel"
   },
   "webssh": {
     "resetStatus": "Reset status",

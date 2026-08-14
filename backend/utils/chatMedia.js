@@ -19,9 +19,14 @@ const {
   MEDIA_MAX_BYTES,
   ATTACHMENT_KINDS,
   detectAttachmentKind,
+  sniffMimeFromBuffer,
   mediaPlaceholder,
   isMediaTooLarge
 } = loadMediaLimits();
+
+const MEDIA_UPLOAD_WINDOW_MS = 60 * 1000;
+const MEDIA_UPLOAD_MAX = 30;
+const mediaUploadBuckets = new Map();
 
 function mediaTooLargePayload(filename, size) {
   return {
@@ -31,6 +36,35 @@ function mediaTooLargePayload(filename, size) {
     maxBytes: MEDIA_MAX_BYTES,
     size: Number(size) || 0
   };
+}
+
+/** Phase C: лимит только реальных медиа (после multer). Text-only FormData не считает. */
+function chatMediaRateLimit(req, res, next) {
+  const files = req.files;
+  const count = Array.isArray(files) ? files.length : (files ? 1 : 0);
+  if (!count) return next();
+
+  const key = String(
+    (req.session && (req.session.id || req.session.userId))
+    || req.ip
+    || 'anon'
+  );
+  const now = Date.now();
+  let bucket = mediaUploadBuckets.get(key);
+  if (!bucket || now - bucket.start >= MEDIA_UPLOAD_WINDOW_MS) {
+    bucket = { start: now, count: 0 };
+    mediaUploadBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > MEDIA_UPLOAD_MAX) {
+    return res.status(429).json({
+      success: false,
+      error: 'Слишком много загрузок медиа. Подождите минуту.',
+      code: 'MEDIA_RATE_LIMIT',
+      retryAfter: Math.ceil((MEDIA_UPLOAD_WINDOW_MS - (now - bucket.start)) / 1000)
+    });
+  }
+  return next();
 }
 
 function chatUploadMiddleware(multerUpload) {
@@ -67,18 +101,26 @@ function prepareChatAttachment(file, kindHint) {
     err.payload = mediaTooLargePayload(name, size);
     throw err;
   }
+  const sniffed = sniffMimeFromBuffer(file.buffer);
+  const clientMime = String(file.mimetype || '').toLowerCase();
+  // EBML/WebM magic общий для audio/webm и video/webm — не затирать client audio/*
+  let mimetype = sniffed || file.mimetype || 'application/octet-stream';
+  if (sniffed === 'video/webm' && clientMime.startsWith('audio/')) {
+    mimetype = clientMime;
+  }
   const kind = detectAttachmentKind({
     filename: name || file.filename,
-    mimetype: file.mimetype,
+    mimetype,
     hint: kindHint
   });
   return {
     filename: name || file.filename || `${kind}.bin`,
-    mimetype: file.mimetype || 'application/octet-stream',
+    mimetype,
     size,
     data: file.buffer,
     kind,
-    placeholder: mediaPlaceholder(kind)
+    placeholder: mediaPlaceholder(kind),
+    mimeSniffed: Boolean(sniffed) && !(sniffed === 'video/webm' && clientMime.startsWith('audio/'))
   };
 }
 
@@ -135,11 +177,13 @@ module.exports = {
   MEDIA_MAX_BYTES,
   ATTACHMENT_KINDS,
   mediaTooLargePayload,
+  chatMediaRateLimit,
   chatUploadMiddleware,
   prepareChatAttachment,
   attachmentMetaFromRow,
   byteaToBuffer,
   contentTypeForKind,
   detectAttachmentKind,
+  sniffMimeFromBuffer,
   mediaPlaceholder
 };

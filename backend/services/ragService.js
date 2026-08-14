@@ -730,81 +730,27 @@ async function generateLLMResponse({
     
     // Одна «память» в промпте: либо долговременная из БД, либо краткий срез history.
     // Не дублируем оба блока — экономим токены на CPU-моделях.
-    const memoryText = conversationMemory
-      ? String(conversationMemory).trim()
-      : buildConversationSummary(history, {
-          maxMessages: 12,
-          maxChars: 700,
-          snippetLength: 160
-        });
+    const { assembleGenerateUserPrompt } = require('./ragPromptAssembly');
+    let snippetLimit = 300;
+    try {
+      const dialog = await aiConfigService.getDialogSettings();
+      if (dialog && Number(dialog.ragSnippetLength) > 0) snippetLimit = Number(dialog.ragSnippetLength);
+    } catch (_) {}
 
-    const memoryBlock = memoryText
-      ? `Память диалога:\n${memoryText}\n\n`
-      : '';
-
-    // Формируем улучшенный промпт для LLM с учетом найденной информации
-    let prompt = '';
-    
-    // Если есть результаты мульти-источникового поиска, используем их
-    if (multiSourceResults && multiSourceResults.results && multiSourceResults.results.length > 0) {
-      let snippetLimit = 300;
-      try {
-        const dialog = await aiConfigService.getDialogSettings();
-        if (dialog && Number(dialog.ragSnippetLength) > 0) snippetLimit = Number(dialog.ragSnippetLength);
-      } catch (_) {}
-      const sourcesInfo = multiSourceResults.results
-        .slice(0, 3) // Берем топ-3 результатов
-        .map((r, idx) => {
-          // Не светить внутренние id таблиц — модель 1.5b иначе цитирует их пользователю
-          const sourceName = r.sourceType === 'table'
-            ? 'База знаний'
-            : `Документ: ${r.metadata?.title || r.context || 'Без названия'}`;
-          const fallbackText = (r.metadata?.answer && String(r.metadata.answer).trim())
-            || (r.metadata?.title && String(r.metadata.title).trim())
-            || '(текст отсутствует)';
-          const sourceText = (r.text && r.text.trim()) || fallbackText;
-          const truncatedText = sourceText.length > snippetLimit
-            ? `${sourceText.slice(0, snippetLimit)}...`
-            : sourceText;
-          const contextPart = r.context ? `\nКонтекст: ${r.context}` : '';
-          return `[Источник ${idx + 1}: ${sourceName}]\n${truncatedText}${contextPart}`;
-        })
-        .join('\n\n---\n\n');
-      
-      prompt = `${memoryBlock}База знаний содержит следующую информацию из разных источников:\n\n${sourcesInfo}\n\nВопрос пользователя: ${userQuestion}\n\nТы консультант в живом чате, не киоск документов. Используй факты из источников как якоря (цифры, определения), но отвечай своими словами: кратко, по делу, под аудиторию. Задай один уточняющий вопрос или предложи следующий шаг (боль → решение). Не вываливай сырой текст источников целиком. Не выдумывай цифры и условия, которых нет в источниках.\nЖЁСТКИЙ ЗАПРЕТ: ask раунда, %, доля инвестора, токены 8500, $8.5M/$1.9M/$6.6M/«8,5 млн» — только если есть ДОСЛОВНО в источниках выше. Иначе не угадывай: уточни роль или скажи, что условия сделки — с командой после квалификации. Не переводи USD→RUB от себя.`;
-    } else if (answer) {
-      // Формат: делаем RAG ответ главным, вопрос - контекстом
-      prompt = `${memoryBlock}Факт из базы знаний (якорь, не готовый ответ клиенту):\n"${answer}"\n\nВопрос пользователя: ${userQuestion}\n\nСформулируй персональный ответ в диалоге: опирайся на факт, не копируй его слепо, при необходимости задай уточнение или предложи следующий шаг. Не выдумывай то, чего нет в факте.\nЖЁСТКИЙ ЗАПРЕТ: не называй ask/%/долю/8500/$8.5M и т.п., если их нет в факте выше.`;
-    }
-    
-    if (!prompt) {
-      prompt = `${memoryBlock}Вопрос пользователя: ${userQuestion}`;
-    }
-
-    // Без RAG — не выдумывать факты; обычный текст, не JSON
-    if (!answer && !(multiSourceResults && multiSourceResults.results && multiSourceResults.results.length > 0)) {
-      prompt += `\n\nДополнительно: если в контексте нет фактов по вопросу — не придумывай. Ответь обычным связным текстом на русском по системным инструкциям, без JSON, без кавычек вокруг всего ответа, без иероглифов и латиницы внутри русских слов.\nЖЁСТКИЙ ЗАПРЕТ: не выдумывай ask раунда, проценты доли, суммы инвестиций ($8.5M, 25%, 8500 и т.п.). На вопрос про ask/долю без фактов — уточни роль (клиент/партнёр/инвестор) или скажи, что детали сделки обсуждаются с командой.`;
-    }
-    
-    if (context && !multiSourceResults) {
-      prompt += `\n\nДополнительный контекст: ${context}`;
-    }
-    
-    if (product) {
-      prompt += `\n\nПродукт: ${product}`;
-    }
-
-    if (priority) {
-      prompt += `\n\nПриоритет: ${priority}`;
-    }
-
-    if (date) {
-      prompt += `\n\nДата: ${date}`;
-    }
-
-    if (userTags && Array.isArray(userTags) && userTags.length > 0) {
-      prompt += `\n\nТеги пользователя: ${userTags.join(', ')}`;
-    }
+    let prompt = assembleGenerateUserPrompt({
+      userQuestion,
+      answer,
+      context,
+      product,
+      priority,
+      date,
+      userTags,
+      multiSourceResults,
+      conversationMemory,
+      history,
+      snippetLimit,
+      generateIfNoRag: false
+    });
 
     // --- ДОБАВЛЕНО: подстановка плейсхолдеров ---
     let finalSystemPrompt = systemPrompt;
@@ -1482,6 +1428,7 @@ module.exports = {
   getTablePlaceholders, // Плейсхолдеры таблиц (генерируются на лету)
   invalidateTablePlaceholdersCache, // Инвалидация кэша плейсхолдеров таблиц
   replacePlaceholders, // Функция подстановки плейсхолдеров
-  generatePlaceholder // Функция генерации плейсхолдера из названия
+  generatePlaceholder, // Функция генерации плейсхолдера из названия
+  buildConversationSummary
 };
 

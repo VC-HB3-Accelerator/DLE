@@ -28,6 +28,7 @@ const { DOCUMENT_CONSENT_MAP } = consentService;
 const {
   MEDIA_MAX_BYTES,
   chatUploadMiddleware,
+  chatMediaRateLimit,
   prepareChatAttachment,
   attachmentMetaFromRow,
   mediaTooLargePayload,
@@ -49,7 +50,7 @@ const chatUpload = chatUploadMiddleware(upload.array('attachments', 1));
 // Функция processGuestMessages заменена на UniversalGuestService.migrateToUser()
 
 // Обработчик для гостевых сообщений (НОВАЯ ВЕРСИЯ)
-router.post('/guest-message', chatUpload, async (req, res) => {
+router.post('/guest-message', chatUpload, chatMediaRateLimit, async (req, res) => {
   try {
     // Frontend отправляет FormData, поэтому читаем из req.body
     const content = req.body.message;
@@ -193,7 +194,7 @@ router.post('/guest-message', chatUpload, async (req, res) => {
 // Старая логика удалена - используется guestService.js);
 
 // Обработчик для сообщений аутентифицированных пользователей (НОВАЯ ВЕРСИЯ)
-router.post('/message', requireAuth, chatUpload, async (req, res) => {
+router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req, res) => {
   try {
     // Frontend отправляет FormData, поэтому читаем из req.body
     const content = req.body.message;

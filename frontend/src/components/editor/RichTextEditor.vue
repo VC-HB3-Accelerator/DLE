@@ -12,7 +12,12 @@
 
 <template>
   <div class="rich-text-editor">
-    <p v-if="uploadProgress" class="rte-progress">{{ uploadProgress }}</p>
+    <div v-if="uploadProgress" class="rte-progress-row">
+      <p class="rte-progress">{{ uploadProgress }}</p>
+      <button type="button" class="rte-cancel" @click="onCancelUpload">
+        {{ t('editor.uploadCancel') }}
+      </button>
+    </div>
     <div ref="editorContainer" class="editor-container"></div>
     <ContentMediaPickerModal
       :open="pickerKind !== null"
@@ -38,7 +43,7 @@ import { useI18n } from 'vue-i18n';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 import ContentMediaPickerModal from '../content/ContentMediaPickerModal.vue';
-import { uploadContentMedia } from '../../composables/useChunkedMediaUpload';
+import { uploadContentMedia, abortContentMediaUpload, isAbortError } from '../../composables/useChunkedMediaUpload';
 import { isLocalCmsMediaUrl, toRelativeCmsMediaUrl } from '../../utils/cmsMediaUrl';
 
 const { t } = useI18n();
@@ -78,6 +83,8 @@ const hiddenFileInput = ref(null);
 const pickerKind = ref(null);
 const pendingKind = ref('image');
 const uploadProgress = ref('');
+const activeUploadFile = ref(null);
+const uploadAbortController = ref(null);
 let savedRange = null;
 let quill = null;
 
@@ -321,12 +328,25 @@ function onPickerUrl() {
   if (url) insertVideoAtRange(url);
 }
 
+async function onCancelUpload() {
+  const file = activeUploadFile.value;
+  if (uploadAbortController.value) uploadAbortController.value.abort();
+  if (file) await abortContentMediaUpload(file);
+  uploadProgress.value = '';
+  activeUploadFile.value = null;
+  uploadAbortController.value = null;
+}
+
 async function onHiddenFile(event) {
   const file = event.target.files && event.target.files[0];
   event.target.value = '';
   if (!file) return;
+  const controller = new AbortController();
+  uploadAbortController.value = controller;
+  activeUploadFile.value = file;
   try {
     const data = await uploadContentMedia(file, {
+      signal: controller.signal,
       onProgress: ({ percent, phase, part, totalParts }) => {
         if (phase === 'parts') {
           uploadProgress.value = t('editor.chunkedProgress', {
@@ -350,9 +370,13 @@ async function onHiddenFile(event) {
     else insertImageAtRange(data.url);
   } catch (error) {
     uploadProgress.value = '';
+    if (isAbortError(error)) return;
     const errorMessage = getUploadErrorMessage(error);
     const key = pendingKind.value === 'video' ? 'editor.videoUploadError' : 'editor.imageUploadError';
     alert(t(key, { message: errorMessage }));
+  } finally {
+    activeUploadFile.value = null;
+    uploadAbortController.value = null;
   }
 }
 
@@ -469,10 +493,27 @@ defineExpose({
   display: none;
 }
 
-.rte-progress {
+.rte-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0 0 8px;
+}
+
+.rte-progress {
+  margin: 0;
   font-size: 0.9rem;
   color: #495057;
+}
+
+.rte-cancel {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 8px;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
 }
 
 .editor-container {
