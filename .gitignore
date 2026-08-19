@@ -220,6 +220,17 @@ scripts/setup-gitea-db.sh
 scripts/prepare-clean-template.sh
 scripts/localize-readme-for-mirror.py
 scripts/patch-update-pack-min-from.py
+scripts/manage-models.sh
+
+# Локальные dev/smoke/seed/bench скрипты backend (не в зеркала; на VDS — sync-to-vds)
+backend/scripts/local-*.js
+backend/scripts/smoke-*.js
+backend/scripts/dump-*.js
+backend/scripts/sweep-*.js
+backend/scripts/bench-*.js
+backend/combat-rag-tags-last.json
+backend/combat-rag-tags-last.ru.md
+backend/tmp-*.js
 
 # Docker data and release archives - не коммитить в Git!
 docker-data/
