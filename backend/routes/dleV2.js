@@ -17,6 +17,7 @@ const unifiedDeploymentService = new UnifiedDeploymentService();
 const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
 const authService = require('../services/auth-service');
+const dleDeployLicenseCheckService = require('../services/dleDeployLicenseCheckService');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 const path = require('path');
@@ -84,16 +85,30 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
         });
       }
       
-      // Проверяем, есть ли в сессии адрес кошелька пользователя
-      if (!req.user || !req.user.walletAddress) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Не указан адрес кошелька пользователя или партнеров для распределения токенов' 
+      // Проверяем, есть ли в сессии адрес кошелька пользователя.
+      // В `backend/app.js` подставляется `req.user.address`, а `walletAddress` может отсутствовать.
+      const holderWalletAddress =
+        req.user?.walletAddress || req.user?.address || null;
+      if (!holderWalletAddress) {
+        return res.status(400).json({
+          success: false,
+          message: 'Не указан адрес кошелька пользователя или партнеров для распределения токенов',
+        });
+      }
+
+      const deployLicenseCheck = await dleDeployLicenseCheckService.checkWallet(
+        holderWalletAddress
+      );
+      if (!deployLicenseCheck.allowed) {
+        return res.status(403).json({
+          success: false,
+          reason: deployLicenseCheck.reason,
+          message: 'Deploy license check failed'
         });
       }
       
       // Используем адрес авторизованного пользователя
-      dleParams.initialPartners = [req.user.address || req.user.walletAddress];
+      dleParams.initialPartners = [holderWalletAddress];
       
       // Если суммы не указаны, используем значение по умолчанию (100% токенов)
       if (!dleParams.initialAmounts || dleParams.initialAmounts.length === 0) {
@@ -319,6 +334,35 @@ router.get('/check-admin-tokens', async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Произошла ошибка при проверке админских токенов'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/dle-v2/check-deploy-license
+ * @desc    Проверить license-токен на кошельке для деплоя
+ * @access  Private
+ */
+router.get('/check-deploy-license', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const requestedAddress = String(req.query?.address || '').trim();
+    const sessionAddress = req.user?.walletAddress || req.user?.address || '';
+    const address = requestedAddress || sessionAddress;
+
+    if (!address) {
+      return res.json({
+        success: true,
+        data: { allowed: false, reason: 'wallet_not_connected' }
+      });
+    }
+
+    const result = await dleDeployLicenseCheckService.checkWallet(address);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Ошибка при проверке license-токена для деплоя:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Произошла ошибка при проверке license-токена'
     });
   }
 });

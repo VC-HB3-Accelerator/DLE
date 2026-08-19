@@ -31,6 +31,13 @@ const DEFAULT_CALL_SYSTEM_PROMPT_EN = [
   'Ask which topic they are interested in.'
 ].join('\n');
 
+const TONE_VALUES = ['neutral', 'business', 'warm'];
+const RESPONSE_LENGTH_VALUES = ['short', 'balanced', 'detailed'];
+const FORMALITY_VALUES = ['strict', 'normal', 'soft'];
+const EXPLANATION_LEVEL_DEFAULT_VALUES = ['auto', 'plain', 'balanced', 'expert'];
+const ALLOW_PROFESSIONAL_TERMS_VALUES = ['minimal', 'balanced', 'free'];
+const FALLBACK_IF_NOT_CONFIDENT_VALUES = ['chat', 'staff', 'chat_or_staff'];
+
 function normalizeCallLocale(raw) {
   const s = String(raw || '').trim().toLowerCase();
   if (s === 'en' || s.startsWith('en-') || s.startsWith('en_')) return 'en';
@@ -65,6 +72,23 @@ function defaultSettings() {
     packages: DEFAULT_PACKAGES.map((p) => ({ ...p })),
     hard_stop: true,
     write_call_stub_to_chat: false,
+    tone: 'business',
+    response_length: 'balanced',
+    formality: 'normal',
+    adapt_to_caller: true,
+    explanation_level_default: 'auto',
+    allow_gentle_rephrase_offer: true,
+    avoid_jargon_by_default: true,
+    forbid_abbreviations_in_voice: true,
+    allow_professional_terms: 'minimal',
+    explain_terms_if_needed: true,
+    quality_over_speed: true,
+    allow_check_kb_phrase: true,
+    fallback_if_not_confident: 'chat_or_staff',
+    forbid_flirty_tone: true,
+    forbid_vulgar_tone: true,
+    forbid_patronizing_tone: true,
+    forbid_slang_mirroring: true,
     confirmations: 3,
     invoice_ttl_minutes: 20,
     booking_slot_minutes: 30,
@@ -90,6 +114,12 @@ function asInt(value, fallback, { min = 0, max = 1e9 } = {}) {
   const i = Math.trunc(n);
   if (i < min || i > max) return fallback;
   return i;
+}
+
+function asEnum(value, fallback, allowed) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return fallback;
+  return allowed.includes(raw) ? raw : fallback;
 }
 
 function normalizePackages(raw) {
@@ -158,6 +188,44 @@ function mapRow(row) {
     packages: normalizePackages(packages && packages.length ? packages : defaults.packages),
     hard_stop: row.hard_stop !== false,
     write_call_stub_to_chat: Boolean(row.write_call_stub_to_chat),
+    tone: asEnum(row.tone, defaults.tone, TONE_VALUES),
+    response_length: asEnum(row.response_length, defaults.response_length, RESPONSE_LENGTH_VALUES),
+    formality: asEnum(row.formality, defaults.formality, FORMALITY_VALUES),
+    adapt_to_caller: asBool(row.adapt_to_caller, defaults.adapt_to_caller),
+    explanation_level_default: asEnum(
+      row.explanation_level_default,
+      defaults.explanation_level_default,
+      EXPLANATION_LEVEL_DEFAULT_VALUES
+    ),
+    allow_gentle_rephrase_offer: asBool(
+      row.allow_gentle_rephrase_offer,
+      defaults.allow_gentle_rephrase_offer
+    ),
+    avoid_jargon_by_default: asBool(
+      row.avoid_jargon_by_default,
+      defaults.avoid_jargon_by_default
+    ),
+    forbid_abbreviations_in_voice: asBool(
+      row.forbid_abbreviations_in_voice,
+      defaults.forbid_abbreviations_in_voice
+    ),
+    allow_professional_terms: asEnum(
+      row.allow_professional_terms,
+      defaults.allow_professional_terms,
+      ALLOW_PROFESSIONAL_TERMS_VALUES
+    ),
+    explain_terms_if_needed: asBool(row.explain_terms_if_needed, defaults.explain_terms_if_needed),
+    quality_over_speed: asBool(row.quality_over_speed, defaults.quality_over_speed),
+    allow_check_kb_phrase: asBool(row.allow_check_kb_phrase, defaults.allow_check_kb_phrase),
+    fallback_if_not_confident: asEnum(
+      row.fallback_if_not_confident,
+      defaults.fallback_if_not_confident,
+      FALLBACK_IF_NOT_CONFIDENT_VALUES
+    ),
+    forbid_flirty_tone: asBool(row.forbid_flirty_tone, defaults.forbid_flirty_tone),
+    forbid_vulgar_tone: asBool(row.forbid_vulgar_tone, defaults.forbid_vulgar_tone),
+    forbid_patronizing_tone: asBool(row.forbid_patronizing_tone, defaults.forbid_patronizing_tone),
+    forbid_slang_mirroring: asBool(row.forbid_slang_mirroring, defaults.forbid_slang_mirroring),
     confirmations: asInt(row.confirmations, 3, { min: 1, max: 64 }),
     invoice_ttl_minutes: asInt(row.invoice_ttl_minutes, 20, { min: 15, max: 24 * 60 }),
     booking_slot_minutes: asInt(row.booking_slot_minutes, 30, { min: 10, max: 180 }),
@@ -181,6 +249,23 @@ function publicConfig(settings) {
     booking_slot_minutes: settings.booking_slot_minutes,
     booking_hours: settings.booking_hours,
     model_call: settings.model_call || '',
+    tone: settings.tone,
+    response_length: settings.response_length,
+    formality: settings.formality,
+    adapt_to_caller: settings.adapt_to_caller,
+    explanation_level_default: settings.explanation_level_default,
+    allow_gentle_rephrase_offer: settings.allow_gentle_rephrase_offer,
+    avoid_jargon_by_default: settings.avoid_jargon_by_default,
+    forbid_abbreviations_in_voice: settings.forbid_abbreviations_in_voice,
+    allow_professional_terms: settings.allow_professional_terms,
+    explain_terms_if_needed: settings.explain_terms_if_needed,
+    quality_over_speed: settings.quality_over_speed,
+    allow_check_kb_phrase: settings.allow_check_kb_phrase,
+    fallback_if_not_confident: settings.fallback_if_not_confident,
+    forbid_flirty_tone: settings.forbid_flirty_tone,
+    forbid_vulgar_tone: settings.forbid_vulgar_tone,
+    forbid_patronizing_tone: settings.forbid_patronizing_tone,
+    forbid_slang_mirroring: settings.forbid_slang_mirroring,
     call_ready: Boolean(settings.enabled && settings.model_call)
   };
 }
@@ -229,6 +314,41 @@ async function saveSettings(payload = {}, updatedBy = null) {
     packages: normalizePackages(payload.packages ?? current.packages),
     hard_stop: asBool(payload.hard_stop, current.hard_stop),
     write_call_stub_to_chat: asBool(payload.write_call_stub_to_chat, current.write_call_stub_to_chat),
+    tone: asEnum(payload.tone, current.tone, TONE_VALUES),
+    response_length: asEnum(payload.response_length, current.response_length, RESPONSE_LENGTH_VALUES),
+    formality: asEnum(payload.formality, current.formality, FORMALITY_VALUES),
+    adapt_to_caller: asBool(payload.adapt_to_caller, current.adapt_to_caller),
+    explanation_level_default: asEnum(
+      payload.explanation_level_default,
+      current.explanation_level_default,
+      EXPLANATION_LEVEL_DEFAULT_VALUES
+    ),
+    allow_gentle_rephrase_offer: asBool(
+      payload.allow_gentle_rephrase_offer,
+      current.allow_gentle_rephrase_offer
+    ),
+    avoid_jargon_by_default: asBool(payload.avoid_jargon_by_default, current.avoid_jargon_by_default),
+    forbid_abbreviations_in_voice: asBool(
+      payload.forbid_abbreviations_in_voice,
+      current.forbid_abbreviations_in_voice
+    ),
+    allow_professional_terms: asEnum(
+      payload.allow_professional_terms,
+      current.allow_professional_terms,
+      ALLOW_PROFESSIONAL_TERMS_VALUES
+    ),
+    explain_terms_if_needed: asBool(payload.explain_terms_if_needed, current.explain_terms_if_needed),
+    quality_over_speed: asBool(payload.quality_over_speed, current.quality_over_speed),
+    allow_check_kb_phrase: asBool(payload.allow_check_kb_phrase, current.allow_check_kb_phrase),
+    fallback_if_not_confident: asEnum(
+      payload.fallback_if_not_confident,
+      current.fallback_if_not_confident,
+      FALLBACK_IF_NOT_CONFIDENT_VALUES
+    ),
+    forbid_flirty_tone: asBool(payload.forbid_flirty_tone, current.forbid_flirty_tone),
+    forbid_vulgar_tone: asBool(payload.forbid_vulgar_tone, current.forbid_vulgar_tone),
+    forbid_patronizing_tone: asBool(payload.forbid_patronizing_tone, current.forbid_patronizing_tone),
+    forbid_slang_mirroring: asBool(payload.forbid_slang_mirroring, current.forbid_slang_mirroring),
     confirmations: asInt(payload.confirmations, current.confirmations, { min: 1, max: 64 }),
     invoice_ttl_minutes: asInt(payload.invoice_ttl_minutes, current.invoice_ttl_minutes, { min: 15, max: 1440 }),
     booking_slot_minutes: asInt(payload.booking_slot_minutes, current.booking_slot_minutes, { min: 10, max: 180 }),
@@ -294,6 +414,23 @@ async function saveSettings(payload = {}, updatedBy = null) {
        invoice_ttl_minutes = $15,
        booking_slot_minutes = $16,
        booking_hours_json = $17::jsonb,
+       tone = $20,
+       response_length = $21,
+       formality = $22,
+       adapt_to_caller = $23,
+       explanation_level_default = $24,
+       allow_gentle_rephrase_offer = $25,
+       avoid_jargon_by_default = $26,
+       forbid_abbreviations_in_voice = $27,
+       allow_professional_terms = $28,
+       explain_terms_if_needed = $29,
+       quality_over_speed = $30,
+       allow_check_kb_phrase = $31,
+       fallback_if_not_confident = $32,
+       forbid_flirty_tone = $33,
+       forbid_vulgar_tone = $34,
+       forbid_patronizing_tone = $35,
+       forbid_slang_mirroring = $36,
        updated_at = NOW(),
        updated_by = $18
      WHERE id = 1`,
@@ -316,7 +453,24 @@ async function saveSettings(payload = {}, updatedBy = null) {
       next.booking_slot_minutes,
       JSON.stringify(next.booking_hours),
       updatedBy,
-      next.system_prompt
+      next.system_prompt,
+      next.tone,
+      next.response_length,
+      next.formality,
+      next.adapt_to_caller,
+      next.explanation_level_default,
+      next.allow_gentle_rephrase_offer,
+      next.avoid_jargon_by_default,
+      next.forbid_abbreviations_in_voice,
+      next.allow_professional_terms,
+      next.explain_terms_if_needed,
+      next.quality_over_speed,
+      next.allow_check_kb_phrase,
+      next.fallback_if_not_confident,
+      next.forbid_flirty_tone,
+      next.forbid_vulgar_tone,
+      next.forbid_patronizing_tone,
+      next.forbid_slang_mirroring
     ]
   );
   return getSettings();
@@ -346,6 +500,12 @@ module.exports = {
   DEFAULT_CALL_SYSTEM_PROMPT_EN,
   normalizeCallLocale,
   resolveCallSystemPrompt,
+  TONE_VALUES,
+  RESPONSE_LENGTH_VALUES,
+  FORMALITY_VALUES,
+  EXPLANATION_LEVEL_DEFAULT_VALUES,
+  ALLOW_PROFESSIONAL_TERMS_VALUES,
+  FALLBACK_IF_NOT_CONFIDENT_VALUES,
   defaultSettings,
   normalizePackages,
   publicConfig,

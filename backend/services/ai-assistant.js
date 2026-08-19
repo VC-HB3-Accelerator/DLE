@@ -477,6 +477,7 @@ class AIAssistant {
         acceptInput,
         allowAsk: turnCtx.allowAsk,
         isGuest: turnCtx.isGuest,
+        behaviorSettings: aiSettings || null,
         generateIfNoRag: aiAssistantRulesService.resolveGenerateIfNoRag(rules, {
           isGuest: turnCtx.isGuest
         })

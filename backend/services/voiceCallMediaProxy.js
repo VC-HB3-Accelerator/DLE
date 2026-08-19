@@ -11,6 +11,7 @@ const WebSocket = require('ws');
 const logger = require('../utils/logger');
 const aiProviderSettingsService = require('./aiProviderSettingsService');
 const { realtimeWsUrlFromCompatibleBase } = require('./qwenRealtimeService');
+const { extractEventText } = require('./qwenRealtimeService');
 const sessionService = require('./voiceCallSessionService');
 const knowledge = require('./voiceCallKnowledgeService');
 const bargeQueue = require('./voiceCallBargeQueue');
@@ -68,9 +69,14 @@ async function handleVoiceCallSocket(clientWs, ticket) {
   let lastRagQuery = '';
   let pendingRagQuery = '';
   let callAudience = null;
+  let selectedTopic = '';
+  let usedFacts = [];
+  let explanationLevel = 'balanced';
   let greetingSent = false;
   let callLocale = 'ru';
   let clientPlaying = false;
+  let lastUserTranscript = '';
+  let lastAssistantTranscript = '';
   const barge = bargeQueue.createBargeQueue();
 
   const flushBargeToOmni = (reason) => {
@@ -124,12 +130,20 @@ async function handleVoiceCallSocket(clientWs, ticket) {
     }
     ragBusy = true;
     try {
+      const questionProfile = knowledge.classifyVoiceQuestion(q);
+      explanationLevel = knowledge.detectExplanationLevel(q, explanationLevel);
       const spoken = knowledge.inferCallAudience(q);
       callAudience = knowledge.pickStrongerAudience(callAudience, spoken);
       const pack = await knowledge.buildCallInstructions(owner, q, {
         audience: callAudience,
         phase: 'ongoing',
-        locale: callLocale
+        locale: callLocale,
+        latestUserText: lastUserTranscript || q,
+        recentAssistantText: lastAssistantTranscript,
+        selectedTopic,
+        usedFacts,
+        questionProfile,
+        explanationLevel
       });
       if (closed) return;
       if (responseOpen) {
@@ -138,6 +152,9 @@ async function handleVoiceCallSocket(clientWs, ticket) {
       }
       lastRagQuery = q;
       callAudience = knowledge.pickStrongerAudience(callAudience, pack.audienceSlug);
+      selectedTopic = pack.selectedTopic || selectedTopic;
+      usedFacts = (pack.usedFacts || []).slice(0, 6);
+      explanationLevel = pack.explanationLevel || explanationLevel;
       pushSessionUpdate(pack.instructions);
       logger.info(`[voiceCall] RAG refresh snippets=${pack.snippetsCount} audience=${pack.audienceSlug} ask=${pack.allowAsk}`);
     } catch (error) {
@@ -184,7 +201,12 @@ async function handleVoiceCallSocket(clientWs, ticket) {
       knowledge.buildCallInstructions(owner, knowledge.START_QUERY, {
         audience: callAudience,
         phase: 'greeting',
-        locale: callLocale
+        locale: callLocale,
+        latestUserText: '',
+        recentAssistantText: '',
+        selectedTopic,
+        usedFacts,
+        explanationLevel
       })
     ]);
     if (closed || gen !== upstreamGen) return;
@@ -209,6 +231,9 @@ async function handleVoiceCallSocket(clientWs, ticket) {
       pushSessionUpdate(lastInstructions, { gateAudio: true });
       sendJson(clientWs, { type: 'session', state: 'connecting' });
       callAudience = knowledge.pickStrongerAudience(callAudience, pack.audienceSlug);
+      selectedTopic = pack.selectedTopic || selectedTopic;
+      usedFacts = (pack.usedFacts || []).slice(0, 6);
+      explanationLevel = pack.explanationLevel || explanationLevel;
       logger.info(`[voiceCall] RAG start snippets=${pack.snippetsCount} audience=${pack.audienceSlug} ask=${pack.allowAsk}`);
     });
     upstream.on('message', (raw) => {
@@ -257,11 +282,19 @@ async function handleVoiceCallSocket(clientWs, ticket) {
       }
       const audio = extractAudioB64(event);
       if (audio) sendJson(clientWs, { type: 'audio', pcm: audio });
-      if (t === 'response.audio_transcript.done' || t === 'response.text.done') {
-        sendJson(clientWs, { type: 'transcript', text: event.transcript || event.text || '' });
+      const assistantText = extractEventText(event);
+      if (
+        t === 'response.audio_transcript.done'
+        || t === 'response.output_audio_transcript.done'
+        || t === 'response.text.done'
+        || t === 'response.output_text.done'
+      ) {
+        lastAssistantTranscript = assistantText.trim();
+        sendJson(clientWs, { type: 'transcript', text: lastAssistantTranscript });
       }
       const userText = knowledge.extractUserTranscript(event);
       if (userText) {
+        lastUserTranscript = userText;
         sendJson(clientWs, { type: 'user_transcript', text: userText });
         refreshRag(userText).catch(() => {});
       }

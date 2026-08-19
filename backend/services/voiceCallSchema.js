@@ -42,6 +42,23 @@ async function ensureVoiceCallSchema() {
     ON CONFLICT (id) DO NOTHING
   `);
   await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS system_prompt TEXT`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS tone TEXT NOT NULL DEFAULT 'business'`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS response_length TEXT NOT NULL DEFAULT 'balanced'`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS formality TEXT NOT NULL DEFAULT 'normal'`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS adapt_to_caller BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS explanation_level_default TEXT NOT NULL DEFAULT 'auto'`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS allow_gentle_rephrase_offer BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS avoid_jargon_by_default BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_abbreviations_in_voice BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS allow_professional_terms TEXT NOT NULL DEFAULT 'minimal'`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS explain_terms_if_needed BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS quality_over_speed BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS allow_check_kb_phrase BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS fallback_if_not_confident TEXT NOT NULL DEFAULT 'chat_or_staff'`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_flirty_tone BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_vulgar_tone BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_patronizing_tone BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_slang_mirroring BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`
     CREATE TABLE IF NOT EXISTS ai_call_invoices (
       id UUID PRIMARY KEY,

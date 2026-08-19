@@ -651,6 +651,10 @@
                     <strong>{{ $t('deploy.form.общая_стоимость_деплоя', { cost: totalDeployCost.toFixed(2) }) }}</strong>
                   </div>
                 </div>
+
+                <div class="license-check" :class="licenseCheckClass">
+                  <strong>License check:</strong> {{ licenseCheckMessage }}
+                </div>
                 
                 <!-- Рекомендации безопасности -->
                 <div v-if="selectedNetworks.length > 0" class="security-recommendations">
@@ -873,8 +877,8 @@
                 @click="deploySmartContracts" 
                 type="button" 
                 class="btn btn-primary btn-lg deploy-btn"
-                :disabled="!isFormValid || !canManageSettings || adminTokenCheck.isLoading"
-                :title="`isFormValid: ${isFormValid}, canManageSettings: ${canManageSettings}, isLoading: ${adminTokenCheck.isLoading}`"
+                :disabled="!isDeployAllowed"
+                :title="deployDisabledTitle"
               >
                 {{ $t('deploy.form.поэтапный_деплой_dle_btn') }}
               </button>
@@ -951,6 +955,11 @@ const adminTokenCheck = ref({
   canManageSettings: false,
   error: null
 });
+const licenseCheck = ref({
+  isLoading: false,
+  allowed: false,
+  reason: 'wallet_not_connected',
+});
 
 // Обработка события изменения авторизации
 const handleAuthEvent = (eventData) => {
@@ -964,6 +973,7 @@ const handleAuthEvent = (eventData) => {
   } else {
     // При подключении обновляем проверку токенов
     checkAdminTokens();
+    checkDeployLicense();
   }
 };
 
@@ -973,6 +983,42 @@ watch(canManageSettings, (newValue, oldValue) => {
   // При изменении прав обновляем локальное состояние
   adminTokenCheck.value.canManageSettings = newValue;
 }, { immediate: true });
+
+const licenseCheckMessage = computed(() => {
+  if (licenseCheck.value.isLoading) return 'loading';
+  switch (licenseCheck.value.reason) {
+    case 'ok':
+      return 'ok';
+    case 'insufficient_license_balance':
+      return 'insufficient';
+    case 'rpc_error':
+      return 'rpc failed';
+    case 'no_auth_tokens':
+      return 'no auth tokens configured';
+    case 'wallet_not_connected':
+    default:
+      return 'wallet not connected';
+  }
+});
+
+const licenseCheckClass = computed(() => {
+  if (licenseCheck.value.isLoading) return 'license-check--loading';
+  return licenseCheck.value.allowed ? 'license-check--ok' : 'license-check--deny';
+});
+
+const isDeployAllowed = computed(() => {
+  return Boolean(
+    isFormValid.value
+    && canManageSettings.value
+    && !adminTokenCheck.value.isLoading
+    && !licenseCheck.value.isLoading
+    && licenseCheck.value.allowed
+  );
+});
+
+const deployDisabledTitle = computed(() => {
+  return `isFormValid: ${isFormValid.value}, canManageSettings: ${canManageSettings.value}, adminTokenCheckLoading: ${adminTokenCheck.value.isLoading}, licenseAllowed: ${licenseCheck.value.allowed}, licenseLoading: ${licenseCheck.value.isLoading}`;
+});
 
 // Основные настройки DLE
 const dleSettings = reactive({
@@ -2611,6 +2657,7 @@ onMounted(() => {
   
   // Проверяем админские токены при загрузке
   checkAdminTokens();
+  checkDeployLicense();
 });
 
 // Удаляем слушатель при размонтировании компонента
@@ -2624,6 +2671,7 @@ watch(address, (newAddress, oldAddress) => {
   
   // Обновляем состояние при изменении адреса (подключение/отключение кошелька)
   checkAdminTokens();
+  checkDeployLicense();
   
   if (newAddress && dleSettings.partners[0]) {
     // Подставляем адрес, если поле пустое или пользователь только что подключил кошелек
@@ -2668,10 +2716,43 @@ const checkAdminTokens = async () => {
   }
 };
 
+const checkDeployLicense = async () => {
+  if (!address.value) {
+    licenseCheck.value = {
+      isLoading: false,
+      allowed: false,
+      reason: 'wallet_not_connected',
+    };
+    return;
+  }
+
+  licenseCheck.value = {
+    ...licenseCheck.value,
+    isLoading: true,
+  };
+
+  try {
+    const response = await api.get(`/dle-v2/check-deploy-license?address=${address.value}`);
+    const data = response.data?.data || {};
+    licenseCheck.value = {
+      isLoading: false,
+      allowed: Boolean(data.allowed),
+      reason: data.reason || (data.allowed ? 'ok' : 'insufficient_license_balance'),
+    };
+  } catch (error) {
+    licenseCheck.value = {
+      isLoading: false,
+      allowed: false,
+      reason: 'rpc_error',
+    };
+  }
+};
+
 // Определяем handleRefreshApplicationData после checkAdminTokens
 const handleRefreshApplicationData = () => {
   console.log('[DleDeployFormView] Refreshing DLE deploy data');
   checkAdminTokens(); // Обновляем данные при входе в систему
+  checkDeployLicense();
 };
 
 // Функции для работы с партнерами
@@ -4533,6 +4614,33 @@ async function submitDeploy() {
   .total-balance strong {
     color: #0056b3;
   }
+
+.license-check {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  background: #f8f9fa;
+  color: #495057;
+}
+
+.license-check--ok {
+  background: #d4edda;
+  color: #155724;
+  border-color: #c3e6cb;
+}
+
+.license-check--deny {
+  background: #fff3cd;
+  color: #856404;
+  border-color: #ffeaa7;
+}
+
+.license-check--loading {
+  background: #e7f3ff;
+  color: #0056b3;
+  border-color: #b8daff;
+}
 
   /* Рекомендации безопасности */
   .security-recommendations {

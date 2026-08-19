@@ -37,28 +37,26 @@
           </p>
 
           <div
-            v-if="(state === 'connecting' || state === 'live') && outputDevices.length"
+            v-if="state === 'connecting' || state === 'live'"
             class="voice-call-modal__speaker"
           >
-            <label class="voice-call-modal__speaker-label" for="voice-call-speaker">{{ $t('chat.voiceCall.speaker') }}</label>
-            <select
-              id="voice-call-speaker"
-              v-model="selectedSinkId"
-              class="voice-call-modal__speaker-select"
-              @change="applySinkId(selectedSinkId)"
+            <button
+              type="button"
+              class="voice-call-modal__speaker-btn"
+              :disabled="!supportsSetSinkId || !outputDevices.length"
+              :title="speakerTitle"
+              @click="cycleSpeaker"
             >
-              <option value="">{{ $t('chat.voiceCall.speakerDefault') }}</option>
-              <option v-for="dev in outputDevices" :key="dev.deviceId" :value="dev.deviceId">
-                {{ dev.label || dev.deviceId }}
-              </option>
-            </select>
+              <svg viewBox="0 0 24 24" class="voice-call-modal__icon" aria-hidden="true">
+                <path d="M3 10v4h4l5 4V6L7 10H3z" />
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.08c.58.43.95 1.13.95 1.95s-.37 1.52-.95 1.95v2.08c1.48-.74 2.5-2.26 2.5-4.03z" />
+                <path d="M19.5 12c0-3.04-1.72-5.67-4.22-6.98v2.23c1.62 1.08 2.72 2.95 2.72 4.75s-1.1 3.67-2.72 4.75v2.23c2.5-1.31 4.22-3.94 4.22-6.98z" />
+              </svg>
+            </button>
+            <p v-if="!supportsSetSinkId" class="voice-call-modal__hint">
+              {{ $t('chat.voiceCall.speakerNotSupported') }}
+            </p>
           </div>
-          <p
-            v-else-if="(state === 'connecting' || state === 'live') && !supportsSetSinkId"
-            class="voice-call-modal__hint"
-          >
-            {{ $t('chat.voiceCall.speakerNotSupported') }}
-          </p>
 
           <p v-if="errorText" class="voice-call-modal__error">{{ errorText }}</p>
           <p v-if="state === 'connecting'" class="voice-call-modal__note connecting-note">
@@ -92,9 +90,16 @@
             <button
               v-if="state === 'live' || state === 'connecting'"
               type="button"
-              class="btn btn-danger"
+              class="btn btn-danger voice-call-modal__hangup"
               @click="hangup"
-            >{{ $t('chat.voiceCall.hangup') }}</button>
+              :aria-label="$t('chat.voiceCall.hangup')"
+            >
+              <svg viewBox="0 0 24 24" class="voice-call-modal__icon voice-call-modal__icon--phone" aria-hidden="true">
+                <path d="M4.1 4.1c.5-.5 1.3-.5 1.8 0l2.3 2.3c.5.5.5 1.3 0 1.8l-1 1c.8 1.5 2 2.8 3.5 3.5l1-1c.5-.5 1.3-.5 1.8 0l2.3 2.3c.5.5.5 1.3 0 1.8l-1 1c-.8.8-2.1 1-3.2.5-3.4-1.6-6.2-4.4-7.8-7.8-.5-1.1-.3-2.4.5-3.2l1-1z" />
+                <path d="M14 3h7v7h-2V6.4l-5.3 5.3-1.4-1.4L17.6 5H14V3z" opacity="0.6" />
+              </svg>
+              <span class="voice-call-modal__hangup-text">{{ $t('chat.voiceCall.hangup') }}</span>
+            </button>
             <button
               v-if="state === 'time_up' || state === 'ended' || state === 'idle'"
               type="button"
@@ -142,7 +147,6 @@ let playbackDest = null;
 let processor = null;
 let mediaStream = null;
 let callSessionId = null;
-let ringCtx = null;
 let ringTimer = null;
 let ringOsc = null;
 const playQueue = [];
@@ -182,6 +186,14 @@ function playbackOutputNode(ctx) {
   return ctx.destination;
 }
 
+const speakerTitle = computed(() => {
+  if (!supportsSetSinkId.value) return t('chat.voiceCall.speakerNotSupported');
+  if (!outputDevices.value.length) return t('chat.voiceCall.speaker');
+  const cur = outputDevices.value.find((d) => d.deviceId === selectedSinkId.value);
+  if (!cur) return t('chat.voiceCall.speakerDefault');
+  return cur.label || cur.deviceId;
+});
+
 async function applySinkId(deviceId) {
   selectedSinkId.value = deviceId || '';
   setToStorage('voiceCallSinkId', selectedSinkId.value);
@@ -210,29 +222,30 @@ function ensurePlaybackRouting(ctx) {
   applySinkId(selectedSinkId.value);
 }
 
+function initPlaybackAudio() {
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  ensurePlaybackRouting(audioCtx);
+}
+
 function startRingback() {
   stopRingback();
-  try {
-    ringCtx = new AudioContext();
-    if (ringCtx.state === 'suspended') ringCtx.resume().catch(() => {});
-    ensurePlaybackRouting(ringCtx);
-  } catch (_) {
-    return;
-  }
   const beep = () => {
-    if (!ringCtx) return;
+    if (!audioCtx) return;
     try { ringOsc?.stop(); } catch (_) { /* ignore */ }
-    const osc = ringCtx.createOscillator();
-    const gain = ringCtx.createGain();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.value = 425;
     gain.gain.value = 0.07;
     osc.connect(gain);
-    gain.connect(playbackOutputNode(ringCtx));
+    gain.connect(playbackOutputNode(audioCtx));
     osc.start();
-    osc.stop(ringCtx.currentTime + 1);
+    osc.stop(audioCtx.currentTime + 1);
     ringOsc = osc;
   };
+  if (!audioCtx) initPlaybackAudio();
+  if (!audioCtx) return;
   beep();
   ringTimer = setInterval(beep, 4000);
 }
@@ -244,11 +257,6 @@ function stopRingback() {
   }
   try { ringOsc?.stop(); } catch (_) { /* ignore */ }
   ringOsc = null;
-  if (ringCtx) {
-    const ctx = ringCtx;
-    ringCtx = null;
-    ctx.close().catch(() => {});
-  }
 }
 
 function stopPlaybackImmediate() {
@@ -256,9 +264,6 @@ function stopPlaybackImmediate() {
   playing = false;
   try { activePlaybackSource?.stop(); } catch (_) { /* ignore */ }
   activePlaybackSource = null;
-  if (audioCtx && audioCtx.state === 'running') {
-    audioCtx.suspend().catch(() => {});
-  }
 }
 
 function startCallTimer() {
@@ -350,6 +355,9 @@ async function startCall() {
   try {
     const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaStream = mic;
+    // Важно: инициируем AudioContext сразу после клика “Start call”.
+    // Это помогает обойти autoplay policy на некоторых прод-хостах.
+    initPlaybackAudio();
     await refreshOutputDevices();
     const { data } = await api.post('/ai-calls/sessions', {
       package_id: selectedPackageId.value,
@@ -445,10 +453,10 @@ function openSocket(path) {
 }
 
 function startMicStream() {
-  if (audioCtx) return;
-  audioCtx = new AudioContext();
+  if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
   ensurePlaybackRouting(audioCtx);
+  if (processor) return;
   const source = audioCtx.createMediaStreamSource(mediaStream);
   processor = audioCtx.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => {
@@ -522,6 +530,16 @@ function stopMic() {
   }
   const el = playbackEl.value;
   if (el) el.srcObject = null;
+}
+
+function cycleSpeaker() {
+  if (!supportsSetSinkId.value) return;
+  if (!outputDevices.value.length) return;
+
+  const options = [{ deviceId: '' }].concat(outputDevices.value.map((d) => ({ deviceId: d.deviceId })));
+  const curIdx = Math.max(0, options.findIndex((o) => o.deviceId === selectedSinkId.value));
+  const next = options[(curIdx + 1) % options.length];
+  applySinkId(next.deviceId);
 }
 
 function hangup() {
@@ -602,6 +620,39 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--spacing-xs);
   margin: var(--spacing-sm) 0;
+}
+
+.voice-call-modal__speaker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  cursor: pointer;
+}
+
+.voice-call-modal__speaker-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-call-modal__icon {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.voice-call-modal__hangup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.voice-call-modal__hangup-text {
+  font-weight: 600;
 }
 .voice-call-modal__speaker-label {
   font-size: 0.9rem;
