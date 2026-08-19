@@ -2,7 +2,8 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * Multimodal in/out для чата: parts + audio reply. Без Whisper/ffmpeg (фаза C).
+ * Multimodal in/out для чата: parts + audio reply.
+ * Whisper STT — fallback в ragService/whisperSttService (ключ Qwen Cloud).
  */
 
 function loadShared(name) {
@@ -37,12 +38,15 @@ function buildUserContentParts({ promptText, media }) {
 
   const caps = media.capabilities || resolveModelCapabilities(media.model);
   if ((kind === ATTACHMENT_KINDS.AUDIO) && caps.input.audio) {
+    const format = audioFormatFromMime(media.mimetype);
+    const modelName = String(media.model || '').toLowerCase();
+    // DashScope Omni/Qwen-Audio: data URL. OpenAI audio: raw base64 + format.
+    const qwenAudio = modelName.includes('omni') || modelName.includes('qwen-audio') || modelName.startsWith('qwen');
     parts.push({
       type: 'input_audio',
-      input_audio: {
-        data: b64,
-        format: audioFormatFromMime(media.mimetype)
-      }
+      input_audio: qwenAudio
+        ? { data: `data:audio/${format};base64,${b64}` }
+        : { data: b64, format }
     });
     return { parts, used: true, reason: 'audio_in' };
   }

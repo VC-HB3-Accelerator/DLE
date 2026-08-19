@@ -975,7 +975,7 @@ app.post('/vds/diagnostics', logRequest, async (req, res) => {
     const dockerStatus = await execSshCommand('docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"', options);
     
     // 3. Проверка портов
-    const portsStatus = await execSshCommand('netstat -tlnp 2>/dev/null | grep -E ":(80|443|8000|9000|5432|11434|8001|7880|7881|2223)" || ss -tlnp | grep -E ":(80|443|8000|9000|5432|11434|8001|7880|7881|2223)" || true', options);
+    const portsStatus = await execSshCommand('netstat -tlnp 2>/dev/null | grep -E ":(80|443|8000|9000|5432|11434|7880|7881|2223)" || ss -tlnp | grep -E ":(80|443|8000|9000|5432|11434|7880|7881|2223)" || true', options);
     
     // 4. Проверка Docker nginx контейнера
     const nginxStatus = await execSshCommand('docker ps --filter "name=dapp-frontend-nginx" --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}" || echo "Docker nginx контейнер не найден"', options);

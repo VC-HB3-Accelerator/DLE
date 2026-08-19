@@ -11,6 +11,7 @@
       <div v-if="loading" class="form-hint">{{ $t('common.loading') }}…</div>
       <div v-if="error" class="error-banner">{{ error }}</div>
       <div v-if="saveOk" class="ok-banner">{{ $t('settings.ai.rag.saved') }}</div>
+      <div v-if="rebuildOk" class="ok-banner">{{ rebuildOk }}</div>
 
       <nav class="rag-tabs" role="tablist">
         <button
@@ -42,10 +43,7 @@
         />
         <RagVectorTab
           v-else-if="activeTab === 'vector'"
-          :vector-search-url="config.vector_search_url"
           :runtime="runtime"
-          :saving="saving"
-          @save="onSave"
         />
         <RagOllamaTab
           v-else-if="activeTab === 'ollama'"
@@ -63,8 +61,11 @@
           :llm-parameters="config.llm_parameters"
           :qwen-parameters="config.qwen_specific_parameters"
           :embedding-parameters="config.embedding_parameters"
+          :runtime="runtime"
           :saving="saving"
+          :rebuilding="rebuilding"
           @save="onSave"
+          @save-rebuild="onSaveRebuild"
         />
         <RagCacheQueueTab
           v-else-if="activeTab === 'cache'"
@@ -95,6 +96,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import axios from 'axios';
 import BaseLayout from '@/components/BaseLayout.vue';
 import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { useAiConfig } from '@/composables/useAiConfig';
@@ -107,9 +110,12 @@ import RagCacheQueueTab from './rag/RagCacheQueueTab.vue';
 import RagReliabilityTab from './rag/RagReliabilityTab.vue';
 import RagDialogTab from './rag/RagDialogTab.vue';
 
+const { t } = useI18n();
 const { config, runtime, loading, saving, error, load, loadRuntime, save } = useAiConfig();
 const activeTab = ref('overview');
 const saveOk = ref(false);
+const rebuildOk = ref('');
+const rebuilding = ref(false);
 
 const tabs = [
   { id: 'overview', labelKey: 'settings.ai.rag.tabOverview' },
@@ -128,11 +134,35 @@ onMounted(() => {
 
 async function onSave(payload) {
   saveOk.value = false;
+  rebuildOk.value = '';
   try {
     await save(payload);
     saveOk.value = true;
     setTimeout(() => { saveOk.value = false; }, 2500);
   } catch (_) { /* error in composable */ }
+}
+
+async function onSaveRebuild(payload) {
+  saveOk.value = false;
+  rebuildOk.value = '';
+  rebuilding.value = true;
+  try {
+    await save(payload);
+    const { data } = await axios.post('/settings/ai-config/rebuild-rag', {}, { timeout: 600000 });
+    const r = data?.result || {};
+    const faqChunks = (r.faq || []).reduce((s, row) => s + (row.chunks || 0), 0);
+    rebuildOk.value = t('settings.ai.rag.rebuildOk', {
+      model: r.model || '—',
+      dim: r.dimension || '—',
+      faq: faqChunks,
+      docs: r.corpus?.chunks || 0
+    });
+    await loadRuntime();
+  } catch (e) {
+    error.value = e?.response?.data?.error || e.message || 'rebuild failed';
+  } finally {
+    rebuilding.value = false;
+  }
 }
 </script>
 

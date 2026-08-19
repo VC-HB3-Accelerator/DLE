@@ -104,15 +104,21 @@ function normalizeI18n(raw) {
   for (const [locale, block] of Object.entries(raw)) {
     if (!block || typeof block !== 'object') continue;
     const branches = Array.isArray(block.branches)
-      ? block.branches.map((b, idx) => ({
-          id: String(b.id || `b${idx}`).slice(0, 64),
-          ui: b.ui === 'text' ? 'text' : 'button',
-          label: String(b.label || '').slice(0, 256),
-          action: ['send_user_message', 'inline', 'assistant_reply'].includes(b.action)
-            ? b.action
-            : 'send_user_message',
-          payload: String(b.payload != null ? b.payload : b.label || ''),
-        }))
+      ? block.branches.map((b, idx) => {
+          const ragHint = ['company', 'product', 'partner', 'investor'].includes(String(b.rag_hint || '').trim().toLowerCase())
+            ? String(b.rag_hint).trim().toLowerCase()
+            : null;
+          return {
+            id: String(b.id || `b${idx}`).slice(0, 64),
+            ui: b.ui === 'text' ? 'text' : 'button',
+            label: String(b.label || '').slice(0, 256),
+            action: ['send_user_message', 'inline', 'assistant_reply'].includes(b.action)
+              ? b.action
+              : 'send_user_message',
+            payload: String(b.payload != null ? b.payload : b.label || ''),
+            ...(ragHint ? { rag_hint: ragHint } : {})
+          };
+        })
       : [];
     out[locale] = {
       title: String(block.title || ''),

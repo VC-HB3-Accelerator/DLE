@@ -63,6 +63,16 @@
         @open="goTo('/settings/ai/rag')"
       />
       <HubCard
+        :title="t('settings.ai.agentAccess.title')"
+        :description="t('settings.ai.agentAccess.description')"
+        @open="goTo('/settings/ai/agent-access')"
+      />
+      <HubCard
+        :title="t('settings.ai.voiceCall.pageTitle')"
+        :description="t('settings.ai.voiceCall.linkFromAssistantDesc')"
+        @open="goTo('/settings/ai/voice-call')"
+      />
+      <HubCard
         :title="t('settings.ai.assistant.title')"
         :description="t('settings.ai.assistant.description')"
         @open="goTo('/settings/ai/assistant')"

@@ -420,12 +420,18 @@ async function fetchFilteredRows() {
     for (const def of relationFilterDefs.value) {
       const filterVal = relationFilters.value[def.filterKey];
       if (!filterVal || (Array.isArray(filterVal) && !filterVal.length)) continue;
-      // Найти ячейку для этого столбца
       const cell = cellValues.value.find(c => c.row_id === row.id && c.column_id === def.col.id);
-      const cellArr = parseIfArray(cell ? cell.value : []);
-      // filterVal может быть массивом (multi) или строкой
       const filterArr = Array.isArray(filterVal) ? filterVal : [filterVal];
-      // Если хотя бы одно значение фильтра есть в массиве ячейки — строка проходит
+      if (def.valueKind === 'text') {
+        const raw = cell ? String(cell.value ?? '').trim() : '';
+        const hit = filterArr.some((val) => (val === '__empty__' ? !raw : raw === String(val)));
+        if (!hit) {
+          ok = false;
+          break;
+        }
+        continue;
+      }
+      const cellArr = parseIfArray(cell ? cell.value : []);
       if (!filterArr.some(val => cellArr.includes(val))) {
         ok = false;
         break;
@@ -586,6 +592,33 @@ async function updateRelationFilterDefs() {
         options: opts
       });
     }
+  }
+
+  const TEXT_FILTER_PURPOSES = new Set(['userTags', 'audienceTags', 'serviceMode']);
+  for (const col of columns.value) {
+    const purpose = col.options?.purpose;
+    if (!TEXT_FILTER_PURPOSES.has(purpose)) continue;
+    if (col.type === 'multiselect-relation' || col.type === 'relation') continue;
+    const values = new Set();
+    let hasEmpty = false;
+    for (const row of rows.value) {
+      const cell = cellValues.value.find(c => c.row_id === row.id && c.column_id === col.id);
+      const raw = cell ? String(cell.value ?? '').trim() : '';
+      if (!raw) hasEmpty = true;
+      else values.add(raw);
+    }
+    const opts = Array.from(values).sort().map((id) => ({ id, display: id }));
+    if (hasEmpty) {
+      opts.unshift({ id: '__empty__', display: t('tables.common.filterEmpty') });
+    }
+    if (!opts.length) continue;
+    defs.push({
+      col,
+      filterKey: `text_${col.id}`,
+      isMulti: true,
+      valueKind: 'text',
+      options: opts
+    });
   }
   // console.log('relationFilterDefs:', defs); // Для отладки
   relationFilterDefs.value = defs;

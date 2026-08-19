@@ -140,7 +140,8 @@ const lastUpdateText = computed(() => {
 
 const serviceLabels = {
   backend: 'Backend',
-  vectorSearch: 'Vector Search',
+  pgvector: 'pgvector',
+  vectorSearch: 'pgvector',
   ollama: 'Ollama',
   postgres: 'PostgreSQL',
 };

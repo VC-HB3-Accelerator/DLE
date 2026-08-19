@@ -6,63 +6,58 @@
   <div class="rag-vector-tab">
     <div class="settings-section panel">
       <h3>{{ $t('settings.ai.assistant.vectorSearchTitle') }}</h3>
-      <label class="form-label">{{ $t('settings.ai.assistant.vectorSearchUrl') }}</label>
-      <input type="text" v-model="url" class="form-control" placeholder="http://vector-search:8001" />
-      <small class="form-hint">{{ $t('settings.ai.assistant.vectorSearchUrlHelp') }}</small>
-
-      <div v-if="runtime?.vectorSearch" class="embed-status">
+      <p class="form-hint">{{ $t('settings.ai.rag.pgvectorHint') }}</p>
+      <div v-if="runtime?.pgvector" class="embed-status">
         <p>
-          <b>{{ $t('settings.ai.rag.embedDb') }}:</b>
-          <code>{{ runtime.vectorSearch.embedModelInDb || '—' }}</code>
+          {{ $t('settings.ai.rag.vectorHealth') }}:
+          <strong>{{ runtime.pgvector.healthy === true ? 'OK' : runtime.pgvector.healthy === false ? 'FAIL' : '—' }}</strong>
+          <span class="badge badge-ok">pgvector</span>
         </p>
         <p>
-          <b>{{ $t('settings.ai.rag.embedEnv') }}:</b>
-          <code>{{ runtime.vectorSearch.embedModelInVectorContainer || '—' }}</code>
-          <span class="badge" :class="runtime.vectorSearch.modelsMatch ? 'badge-ok' : 'badge-warn'">
-            {{ runtime.vectorSearch.modelsMatch ? $t('settings.ai.rag.match') : $t('settings.ai.rag.mismatch') }}
+          {{ $t('settings.ai.rag.pgvectorChunks') }}:
+          <code>{{ runtime.pgvector.chunks ?? '—' }}</code>
+          (FAQ {{ runtime.pgvector.faq ?? '—' }} · docs {{ runtime.pgvector.documents ?? '—' }})
+        </p>
+        <p>
+          {{ $t('settings.ai.rag.embedProvider') }}:
+          <code>{{ runtime.embedding?.provider || runtime.pgvector.embedProvider || 'ollama' }}</code>
+        </p>
+        <p>
+          {{ $t('settings.ai.rag.embedDb') }}:
+          <code>{{ runtime.embedding?.model || runtime.pgvector.embedModelInDb || runtime.ollama?.embeddingModel || '—' }}</code>
+        </p>
+        <p>
+          {{ $t('settings.ai.rag.embedDimension') }}:
+          <code>{{ runtime.embedding?.dimension || runtime.pgvector.embedDimension || '—' }}</code>
+          <span v-if="runtime.pgvector.columnDimension" class="badge badge-info">
+            pgvector {{ runtime.pgvector.columnDimension }}
           </span>
         </p>
-        <p v-if="!runtime.vectorSearch.modelsMatch" class="form-hint warn">
-          {{ $t('settings.ai.rag.embedMismatchHint') }}
-        </p>
         <p>
-          <b>{{ $t('settings.ai.rag.vectorHealth') }}:</b>
-          {{ runtime.vectorSearch.healthy === true ? 'OK' : runtime.vectorSearch.healthy === false ? 'FAIL' : '—' }}
+          {{ $t('settings.ai.rag.embedEnv') }}:
+          <code>{{ runtime.pgvector.embedModelInEnv || '—' }}</code>
+          <span class="badge" :class="runtime.pgvector.modelsMatch ? 'badge-ok' : 'badge-warn'">
+            {{ runtime.pgvector.modelsMatch ? $t('settings.ai.rag.match') : $t('settings.ai.rag.mismatch') }}
+          </span>
         </p>
       </div>
-
-      <router-link class="btn btn-outline btn-sm" to="/content/internal">{{ $t('settings.ai.rag.linkDocs') }}</router-link>
-    </div>
-    <div class="form-actions">
-      <button type="button" class="btn btn-primary" :disabled="saving" @click="$emit('save', { vector_search_url: url })">
-        {{ $t('common.save') }}
-      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
-
-const props = defineProps({
-  vectorSearchUrl: { type: String, default: '' },
+defineProps({
   runtime: { type: Object, default: null },
   saving: { type: Boolean, default: false }
 });
-defineEmits(['save']);
-
-const url = ref(props.vectorSearchUrl || '');
-watch(() => props.vectorSearchUrl, (v) => { url.value = v || ''; });
 </script>
 
 <style scoped>
-.settings-section { padding: 1rem; margin-bottom: 1rem; }
-.form-label { display: block; margin-top: 0.5rem; font-weight: 600; }
-.form-control { width: 100%; max-width: 36rem; }
-.form-hint { color: var(--text-muted, #666); }
-.form-hint.warn { color: #92400e; }
-.embed-status { margin: 1rem 0; }
-.badge { margin-left: 0.5rem; font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 4px; }
+.settings-section { margin-top: 0.5rem; padding: 1rem; }
+.form-hint { color: var(--text-muted, #666); margin: 0.35rem 0 0.75rem; }
+.embed-status p { margin: 0.35rem 0; }
+.badge { font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 4px; margin-left: 0.35rem; }
 .badge-ok { background: #dcfce7; color: #166534; }
 .badge-warn { background: #fef3c7; color: #92400e; }
+.badge-info { background: #e0e7ff; color: #3730a3; }
 </style>

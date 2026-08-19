@@ -109,6 +109,16 @@
             <p class="section-description">{{ $t('settings.ai.rag.linkFromAssistantDesc') }}</p>
             <router-link class="btn btn-outline btn-sm" to="/settings/ai/rag">{{ $t('settings.ai.rag.openPage') }}</router-link>
           </div>
+          <div class="rag-infra-link settings-section panel">
+            <h3>{{ $t('settings.ai.agentAccess.linkFromAssistantTitle') }}</h3>
+            <p class="section-description">{{ $t('settings.ai.agentAccess.linkFromAssistantDesc') }}</p>
+            <router-link class="btn btn-outline btn-sm" to="/settings/ai/agent-access">{{ $t('settings.ai.agentAccess.openPage') }}</router-link>
+          </div>
+          <div class="rag-infra-link settings-section panel">
+            <h3>{{ $t('settings.ai.voiceCall.linkFromAssistantTitle') }}</h3>
+            <p class="section-description">{{ $t('settings.ai.voiceCall.linkFromAssistantDesc') }}</p>
+            <router-link class="btn btn-outline btn-sm" to="/settings/ai/voice-call">{{ $t('settings.ai.voiceCall.openPage') }}</router-link>
+          </div>
 
           <!-- Выбор модели для AI ассистента -->
           <div class="model-selection-settings settings-section panel">
@@ -247,10 +257,7 @@ const modelCapsLabel = computed(() => {
     textOnly: !hasMultimodalInput(caps) && !hasMultimodalOutput(caps)
   };
 });
-const filteredEmbeddingModels = computed(() => {
-  if (!selectedLLM.value) return embeddingModels.value;
-  return embeddingModels.value.filter(m => m.provider === selectedLLM.value.provider);
-});
+const filteredEmbeddingModels = computed(() => embeddingModels.value);
 const placeholders = ref([]);
 const editingPlaceholder = ref(null);
 const editingPlaceholderValue = ref('');
@@ -288,7 +295,7 @@ const ragSettings = ref({
 // LLM параметры
 const llmParameters = ref({
   temperature: 0.3,
-  maxTokens: 150,
+  maxTokens: 8000,
   top_p: 0.9,
   top_k: 40,
   repeat_penalty: 1.1
@@ -342,18 +349,10 @@ const ollamaConfig = ref({
   embeddingModel: 'mxbai-embed-large:latest'
 });
 
-// Vector Search настройки
-const vectorSearchConfig = ref({
-  url: 'http://vector-search:8001'
-});
-
 // Таймауты
 const timeouts = ref({
   ollamaChat: 180000,
   ollamaEmbedding: 90000,
-  vectorSearch: 90000,
-  vectorUpsert: 90000,
-  vectorHealth: 5000,
   ollamaHealth: 5000,
   ollamaTags: 10000
 });
@@ -443,7 +442,7 @@ async function loadRAGSettings() {
       if (data.config.llm_parameters) {
         llmParameters.value = {
           temperature: 0.3,
-          maxTokens: 150,
+          maxTokens: 8000,
           top_p: 0.9,
           top_k: 40,
           repeat_penalty: 1.1,
@@ -521,19 +520,11 @@ async function loadRAGSettings() {
         ollamaConfig.value.embeddingModel = data.config.ollama_embedding_model;
       }
       
-      // Vector Search настройки
-      if (data.config.vector_search_url) {
-        vectorSearchConfig.value.url = data.config.vector_search_url;
-      }
-      
       // Таймауты
       if (data.config.timeouts) {
         timeouts.value = {
           ollamaChat: 180000,
           ollamaEmbedding: 90000,
-          vectorSearch: 90000,
-          vectorUpsert: 90000,
-          vectorHealth: 5000,
           ollamaHealth: 5000,
           ollamaTags: 10000,
           ...data.config.timeouts

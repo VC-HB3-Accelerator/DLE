@@ -29,6 +29,7 @@ class AIConfigService {
     this.cache = null;
     this.cacheTimestamp = 0;
     this.CACHE_TTL = 60000; // 1 минута
+    this.runtimeOverride = null;
     
     // Дефолтные значения (fallback)
     this.defaults = {
@@ -36,16 +37,17 @@ class AIConfigService {
       ollama_llm_model: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
       ollama_preload_model: null,
       ollama_embedding_model: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest',
-      vector_search_url: process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001',
       embedding_parameters: {
+        provider: 'ollama',
+        model: null,
         batch_size: 32,
         normalize: true,
-        dimension: null,
+        dimension: 1024,
         pooling: 'mean'
       },
       llm_parameters: {
         temperature: 0.3,
-        maxTokens: 150,
+        maxTokens: 8000,
         top_p: 0.9,
         top_k: 40,
         repeat_penalty: 1.1
@@ -90,9 +92,6 @@ class AIConfigService {
       timeouts: {
         ollamaChat: 600000,
         ollamaEmbedding: 90000,
-        vectorSearch: 90000,
-        vectorUpsert: 600000,
-        vectorHealth: 5000,
         ollamaHealth: 5000,
         ollamaTags: 10000
       },
@@ -147,6 +146,16 @@ class AIConfigService {
     return out;
   }
 
+  _sanitizeEmbeddingParameters(params) {
+    const p = { ...this.defaults.embedding_parameters, ...(params || {}) };
+    if (!p.provider) p.provider = 'ollama';
+    if (!Number(p.dimension)) {
+      p.dimension = this.defaults.embedding_parameters.dimension;
+    }
+    if (p.model === '') p.model = null;
+    return p;
+  }
+
   onChange(listener) {
     if (typeof listener === 'function') this._changeListeners.add(listener);
     return () => this._changeListeners.delete(listener);
@@ -191,7 +200,7 @@ class AIConfigService {
       // Парсим JSONB поля
       const parsedConfig = {
         ...config,
-        embedding_parameters: config.embedding_parameters || this.defaults.embedding_parameters,
+        embedding_parameters: this._sanitizeEmbeddingParameters(config.embedding_parameters),
         llm_parameters: config.llm_parameters || this.defaults.llm_parameters,
         qwen_specific_parameters: config.qwen_specific_parameters || this.defaults.qwen_specific_parameters,
         rag_settings: config.rag_settings || this.defaults.rag_settings,
@@ -372,9 +381,35 @@ class AIConfigService {
    * Получить RAG настройки
    * @returns {Promise<Object>}
    */
+  /**
+   * Временный override для sweep-тестов. Не пишет в БД / UI.
+   * Всегда вызывать clearRuntimeOverride() в finally.
+   */
+  setRuntimeOverride({ rag_settings = null, rag_behavior = null } = {}) {
+    this.runtimeOverride = { rag_settings, rag_behavior };
+  }
+
+  clearRuntimeOverride() {
+    this.runtimeOverride = null;
+  }
+
   async getRAGConfig() {
     const config = await this.getConfig();
-    return config.rag_settings || this.defaults.rag_settings;
+    const base = { ...(config.rag_settings || this.defaults.rag_settings) };
+    const over = this.runtimeOverride?.rag_settings;
+    if (!over) return base;
+    return {
+      ...base,
+      ...over,
+      searchWeights: {
+        ...(base.searchWeights || {}),
+        ...(over.searchWeights || {})
+      },
+      advanced: {
+        ...(base.advanced || {}),
+        ...(over.advanced || {})
+      }
+    };
   }
 
   /**
@@ -437,18 +472,14 @@ class AIConfigService {
    */
   async getEmbeddingParameters() {
     const config = await this.getConfig();
-    return config.embedding_parameters || this.defaults.embedding_parameters;
+    return this._sanitizeEmbeddingParameters(config.embedding_parameters);
   }
 
   /**
-   * Получить настройки Vector Search
-   * @returns {Promise<Object>}
+   * Векторный индекс — pgvector в Postgres, без отдельного URL.
    */
   async getVectorSearchConfig() {
-    const config = await this.getConfig();
-    return {
-      url: config.vector_search_url || this.defaults.vector_search_url
-    };
+    return { engine: 'pgvector' };
   }
 
   /**
@@ -457,7 +488,10 @@ class AIConfigService {
    */
   async getRAGBehavior() {
     const config = await this.getConfig();
-    return { ...this.defaults.rag_behavior, ...(config.rag_behavior || {}) };
+    const base = { ...this.defaults.rag_behavior, ...(config.rag_behavior || {}) };
+    const over = this.runtimeOverride?.rag_behavior;
+    if (!over) return base;
+    return { ...base, ...over };
   }
 
   async getDialogSettings() {

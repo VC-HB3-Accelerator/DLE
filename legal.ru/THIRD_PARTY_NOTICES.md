@@ -58,16 +58,6 @@ DLE **не импортирует** `web3-utils` напрямую; для раб
 - Копия в дистрибутиве: `backend/node_modules/web3-utils/LICENSE` (при включении
   зависимостей backend)
 
-## Python: vector-search
-
-| Пакет | Лицензия | Примечание |
-|-------|----------|------------|
-| fastapi | MIT | https://github.com/fastapi/fastapi |
-| uvicorn | BSD-3-Clause | https://github.com/encode/uvicorn |
-| faiss-cpu | MIT | https://github.com/facebookresearch/faiss |
-| requests | Apache-2.0 | https://github.com/psf/requests |
-| pydantic | MIT | https://github.com/pydantic/pydantic |
-
 ## Python: runtime (backend Docker)
 
 Системные пакеты устанавливаются через apt в Docker-образе backend (python3, curl и др.) — лицензии соответствуют дистрибутиву Debian.

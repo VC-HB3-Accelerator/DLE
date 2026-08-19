@@ -196,6 +196,15 @@ async function runMigrations() {
       console.error('[run-migrations] legal seed failed:', seedErr);
       throw seedErr;
     }
+
+    try {
+      const mirror = require('../services/aiAssistantRulesMirrorService');
+      const stats = await mirror.mirrorAllExistingRules();
+      console.log(`[run-migrations] assistant rules table OK: id=${stats.tableId} rows=${stats.count}`);
+    } catch (mirrorErr) {
+      console.error('[run-migrations] assistant rules table failed:', mirrorErr);
+      throw mirrorErr;
+    }
   } catch (error) {
     console.error('Ошибка при выполнении миграций:', error);
     try {

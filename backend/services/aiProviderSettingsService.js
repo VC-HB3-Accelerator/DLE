@@ -32,7 +32,14 @@ const QWENCLOUD_FALLBACK_MODELS = [
   'qwen3.5-plus',
   'qwen3-max',
   'qwen3.7-plus',
-  'qwen3.8-max'
+  'qwen3.8-max',
+  'qwen-omni-turbo',
+  'qwen3.5-omni-flash',
+  'qwen3.5-omni-plus',
+  'qwen3.5-omni-flash-realtime',
+  'qwen3.5-omni-plus-realtime',
+  'qwen3-asr-flash',
+  'qwen-audio-3.0-tts-plus'
 ];
 
 function resolveDeepseekBaseUrl(base_url) {
@@ -210,7 +217,13 @@ async function getProviderModels(provider, settings = {}) {
         const logger = require('../utils/logger');
         logger.warn(`[aiProviderSettings] qwencloud models.list fallback: ${listErr.message}`);
       }
-      const merged = listed.length ? listed : qwenCloudFallbackModels();
+      const fallback = qwenCloudFallbackModels();
+      const merged = listed.length ? [...listed] : [...fallback];
+      for (const fb of fallback) {
+        if (!merged.some((m) => String(m.id) === String(fb.id))) {
+          merged.push(fb);
+        }
+      }
       const selected = String(settings.selected_model || '').trim();
       if (selected && !merged.some((m) => String(m.id) === selected)) {
         merged.unshift({ id: selected });
@@ -435,60 +448,10 @@ async function getAllLLMModels() {
 
 async function getAllEmbeddingModels() {
   try {
-    // Получаем все настройки провайдеров
-    const providers = await encryptedDb.getData(TABLE, {});
-    
-    // Собираем все embedding модели из всех провайдеров
-    const allModels = [];
-    
-    for (const provider of providers) {
-      if (provider.embedding_model) {
-        allModels.push({ 
-          id: provider.embedding_model, 
-          provider: provider.provider 
-        });
-      }
-    }
-    
-    // Для Ollama проверяем реально установленные embedding модели через HTTP API
-    try {
-      const ollamaUrl = ollamaConfig.getBaseUrl();
-      
-      const response = await axios.get(`${ollamaUrl}/api/tags`, { 
-        timeout: TIMEOUTS.ollamaTags 
-      });
-      
-      const models = response.data.models || [];
-      for (const model of models) {
-        // Проверяем, что это embedding модель
-        if (model.name.includes('embed') || model.name.includes('bge') || model.name.includes('nomic')) {
-          allModels.push({ 
-            id: model.name, 
-            provider: 'ollama' 
-          });
-        }
-      }
-    } catch (ollamaError) {
-      // console.error('Error checking Ollama embedding models:', ollamaError);
-      // Если не удалось проверить Ollama, добавляем базовые embedding модели
-      allModels.push({ id: 'mxbai-embed-large:latest', provider: 'ollama' });
-    }
-    
-    // Убираем дубликаты
-    const uniqueModels = [];
-    const seen = new Set();
-    
-    for (const model of allModels) {
-      const key = `${model.id}-${model.provider}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueModels.push(model);
-      }
-    }
-    
-    return uniqueModels;
+    const { listCatalog } = require('./embeddingRuntimeService');
+    const catalog = await listCatalog();
+    return (catalog.models || []).map((m) => ({ id: m.id, provider: m.provider }));
   } catch (error) {
-    // console.error('Error getting embedding models:', error);
     return [];
   }
 }

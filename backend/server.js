@@ -76,6 +76,13 @@ initWSS(server);
 
 async function startServer() {
   await initDbPool();
+  try {
+    const { ensureVoiceCallSchemaSafe } = require('./services/voiceCallSchema');
+    await ensureVoiceCallSchemaSafe();
+    require('./services/voiceCallSessionService').startWatchdog();
+  } catch (error) {
+    console.warn('[Server] voice call schema:', error.message);
+  }
   
   // Настройка NO_PROXY для RPC провайдеров из базы данных
   await configureNoProxyFromRpcProviders();

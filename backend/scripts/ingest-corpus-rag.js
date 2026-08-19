@@ -32,6 +32,8 @@ function parseArgs(argv) {
     apply: false,
     target: 'both', // pages | faq | both
     audience: null,
+    audiences: [],
+    packs: [],
     faqTableId: null,
     faqSeed: false,
     help: false
@@ -43,9 +45,11 @@ function parseArgs(argv) {
     else if (a === '--apply') { args.apply = true; args.dryRun = false; }
     else if (a === '--faq-seed') args.faqSeed = true;
     else if (a === '--target' && argv[i + 1]) args.target = argv[++i];
-    else if (a === '--audience' && argv[i + 1]) args.audience = argv[++i];
+    else if (a === '--audience' && argv[i + 1]) args.audiences.push(argv[++i]);
+    else if (a === '--pack' && argv[i + 1]) args.packs.push(argv[++i]);
     else if (a === '--faq-table-id' && argv[i + 1]) args.faqTableId = Number(argv[++i]);
   }
+  args.audience = args.audiences[0] || null;
   if (!['pages', 'faq', 'both'].includes(args.target)) {
     throw new Error(`Invalid --target ${args.target}; use pages|faq|both`);
   }
@@ -59,12 +63,23 @@ function loadManifest() {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
 }
 
-function filterDocs(manifest, { audience } = {}) {
+function filterDocs(manifest, { audience, audiences, packs } = {}) {
+  const aud = [...(audiences || [])];
+  if (audience && !aud.includes(audience)) aud.push(audience);
+  const packList = (packs || []).map((p) => String(p).replace(/\/+$/, '')).filter(Boolean);
   return (manifest.documents || []).filter((doc) => {
     if (doc.status !== 'approved') return false;
     const targets = doc.rag_targets || [];
     if (!targets.length) return false;
-    if (audience && !(doc.audience || []).includes(audience)) return false;
+    if (aud.length) {
+      const docAud = doc.audience || [];
+      if (!aud.some((a) => docAud.includes(a))) return false;
+    }
+    if (packList.length) {
+      const p = String(doc.path || '');
+      const ok = packList.some((pack) => p === pack || p.startsWith(`${pack}/`));
+      if (!ok) return false;
+    }
     return true;
   });
 }
@@ -108,25 +123,50 @@ function resolveDocPath(relPath) {
   return path.join(ROOT, 'data-room', 'Public_Data_Room', relPath);
 }
 
+const FAQ_AUDIENCE_SLUGS = new Set(['public-client', 'partner', 'investor-a']);
+const FAQ_MODE_SLUGS = new Set(['sales', 'support', 'dle-setup']);
+
 /**
- * Парсит Q/A таблицы из B1-FAQ-SEED.ru.md (секции ## public-client / partner / investor-a).
+ * Заголовок секции B1: `## public-client`, `## support`, `## support+partner`, `## public-client+dle-setup`.
+ * Неизвестные секции (regulator-pilot, investor-b, Negative) пропускаются.
+ */
+function parseFaqSectionHeading(line) {
+  const h = String(line || '').match(/^##\s+([a-z0-9+_.-]+)/i);
+  if (!h) return null;
+  const raw = h[1].toLowerCase();
+  if (raw.startsWith('negative') || raw.startsWith('assistant')) return { skip: true };
+  const parts = raw.split('+').map((s) => s.trim()).filter(Boolean);
+  let audience = '';
+  let service_mode = '';
+  let known = false;
+  for (const part of parts) {
+    if (FAQ_AUDIENCE_SLUGS.has(part)) {
+      audience = part;
+      known = true;
+    } else if (FAQ_MODE_SLUGS.has(part)) {
+      service_mode = part;
+      known = true;
+    }
+  }
+  if (!known) return { skip: true };
+  return { audience, service_mode };
+}
+
+/**
+ * Парсит Q/A таблицы из B1-FAQ-SEED.ru.md.
+ * Секции задают ЦА и/или слой: public-client / partner / investor-a / support / dle-setup и комбо через `+`.
  */
 function parseFaqSeed(md) {
   const rows = [];
-  let audience = null;
+  let section = null;
   const lines = md.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const h = lines[i].match(/^##\s+(public-client|partner|investor-a)\b/i);
-    if (h) {
-      audience = h[1].toLowerCase();
+    if (/^##\s+/.test(lines[i])) {
+      const parsed = parseFaqSectionHeading(lines[i]);
+      section = parsed && !parsed.skip ? parsed : null;
       continue;
     }
-    if (lines[i].match(/^##\s+/)) {
-      if (!lines[i].match(/^##\s+(public-client|partner|investor-a)/i)) {
-        audience = null;
-      }
-    }
-    if (!audience) continue;
+    if (!section) continue;
     // | question | answer | claim_level | source_id |
     const m = lines[i].match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/);
     if (!m) continue;
@@ -136,7 +176,14 @@ function parseFaqSeed(md) {
     const sourceId = m[4].trim();
     if (!question || question === 'question' || question.startsWith('---')) continue;
     if (question.includes('---') || answer === 'answer') continue;
-    rows.push({ audience, question, answer, claim_level: claimLevel, source_id: sourceId });
+    rows.push({
+      audience: section.audience || '',
+      service_mode: section.service_mode || '',
+      question,
+      answer,
+      claim_level: claimLevel,
+      source_id: sourceId
+    });
   }
   return rows;
 }
@@ -309,7 +356,8 @@ async function applyFaq(seedRows, tableId) {
 
   for (const row of seedRows) {
     const context = [
-      `audience=${row.audience}`,
+      `audience=${row.audience || ''}`,
+      `service_mode=${row.service_mode || ''}`,
       `claim_level=${row.claim_level}`,
       `source_id=${row.source_id}`
     ].join('; ');
@@ -333,9 +381,15 @@ async function applyFaq(seedRows, tableId) {
     if (cols.context) {
       await upsertFaqCell(db, rowId, cols.context, context, encryptionKey);
     }
+    if (cols.userTags || cols.audienceTags) {
+      await upsertFaqCell(db, rowId, cols.userTags || cols.audienceTags, row.audience || '', encryptionKey);
+    }
+    if (cols.serviceMode) {
+      await upsertFaqCell(db, rowId, cols.serviceMode, row.service_mode || '', encryptionKey);
+    }
   }
 
-  console.log('\nRemember: rebuild FAISS index for the FAQ table in UI (tables → rebuild-index).');
+  console.log('\nRemember: rebuild pgvector (rag_chunks) for the FAQ table. Not FAISS.');
   return { inserted, updated };
 }
 
@@ -345,13 +399,15 @@ function printHelp() {
   Default: --dry-run (no DB writes)
   --apply              write to DB (local/compose only; no VDS auto-deploy)
   --target pages|faq|both
-  --audience <name>    filter manifest audience
+  --audience <name>    repeatable; filter manifest audience / FAQ seed
+  --pack <folder>      repeatable; path prefix (public-client, partner, investor-a, company)
   --faq-table-id <id>  required for faq --apply (HB3 SoT: 14)
   --faq-seed           plan/apply from B1-FAQ-SEED.ru.md (Canon FAQ)
 
 Examples:
   node backend/scripts/ingest-corpus-rag.js --dry-run
   node backend/scripts/ingest-corpus-rag.js --target pages --apply
+  node backend/scripts/ingest-corpus-rag.js --pack public-client --pack partner --target pages --apply
   node backend/scripts/ingest-corpus-rag.js --faq-seed --faq-table-id 14 --apply
 `);
 }
@@ -364,7 +420,7 @@ async function main() {
   }
 
   const manifest = loadManifest();
-  const docs = filterDocs(manifest, { audience: args.audience });
+  const docs = filterDocs(manifest, { audiences: args.audiences, packs: args.packs });
   const mode = args.apply ? 'APPLY' : 'DRY-RUN';
 
   console.log(`=== ingest-corpus-rag ${mode} ===`);
@@ -378,8 +434,10 @@ async function main() {
   if (args.faqSeed || args.target === 'faq' || args.target === 'both') {
     if (fs.existsSync(FAQ_SEED_PATH)) {
       faqSeedRows = parseFaqSeed(fs.readFileSync(FAQ_SEED_PATH, 'utf8'));
-      if (args.audience) {
-        faqSeedRows = faqSeedRows.filter((r) => r.audience === args.audience);
+      if (args.audiences.length) {
+        faqSeedRows = faqSeedRows.filter((r) =>
+          args.audiences.includes(r.audience) || args.audiences.includes(r.service_mode)
+        );
       }
     }
   }
@@ -400,14 +458,14 @@ async function main() {
     }
     console.log(`\n--- faq seed rows (B1-FAQ-SEED): ${faqSeedRows.length} ---`);
     for (const r of faqSeedRows.slice(0, 8)) {
-      console.log(`  [${r.audience}] ${r.question.slice(0, 70)}`);
+      console.log(`  [${r.audience || '∅'}${r.service_mode ? '/' + r.service_mode : ''}] ${r.question.slice(0, 70)}`);
     }
     if (faqSeedRows.length > 8) console.log(`  … +${faqSeedRows.length - 8} more`);
   }
 
   if (!args.apply) {
     console.log('\nDry-run only. Re-run with --apply to write (local/compose).');
-    console.log('After FAQ apply: rebuild FAISS in UI. Do not sync to VDS without explicit «можно».');
+    console.log('After FAQ apply: rebuild pgvector (rag_chunks). Do not sync to VDS without explicit «можно».');
     return;
   }
 
@@ -441,6 +499,7 @@ module.exports = {
   loadManifest,
   filterDocs,
   parseFaqSeed,
+  parseFaqSectionHeading,
   planPages,
   pageTitle
 };

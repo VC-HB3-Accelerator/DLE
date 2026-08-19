@@ -20,6 +20,7 @@ const SettingsInterfaceView = () => import('../views/settings/Interface/Interfac
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
 import { PERMISSIONS, hasPermission } from './permissions.js';
+import { isScreenAllowed } from '@/shared/roleScreenAllowlist.js';
 
 // console.log('router/index.js: Script loaded');
 
@@ -216,6 +217,18 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
   },
   {
+    path: '/settings/ai/agent-access',
+    name: 'ai-agent-access-settings',
+    component: () => import('@/views/settings/AI/AiAgentAccessView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+  },
+  {
+    path: '/settings/ai/voice-call',
+    name: 'ai-voice-call-settings',
+    component: () => import('@/views/settings/AI/AiVoiceCallSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+  },
+  {
     path: '/settings/ai/rag',
     name: 'ai-rag-settings',
     component: () => import('@/views/settings/AI/AiRagSettingsView.vue'),
@@ -254,6 +267,12 @@ const routes = [
     name: 'delete-table',
     component: () => import('../views/tables/DeleteTableView.vue'),
     props: true
+  },
+  {
+    path: '/book-call',
+    name: 'voice-call-booking',
+    component: () => import('../views/chat/VoiceCallBookingView.vue'),
+    meta: { closeFallback: 'home' },
   },
   {
     path: '/contacts/new',
@@ -315,6 +334,11 @@ const routes = [
         path: '',
         name: 'hub-conferences',
         component: () => import('../views/contacts/ConferenceHubHomeView.vue'),
+      },
+      {
+        path: 'schedule',
+        name: 'hub-conference-schedule',
+        component: () => import('../views/contacts/VoiceCallScheduleView.vue'),
       },
       {
         path: ':sessionId',
@@ -562,7 +586,7 @@ const router = createRouter({
 
 // console.log('router/index.js: Router created');
 
-// Защита маршрутов — только явный meta.permission / meta.requiresAuth
+// Защита маршрутов — meta.permission / meta.requiresAuth + allowlist гостя (ТЗ P2)
 router.beforeEach(async (to, from, next) => {
   if (!to.matched.length) {
     return next({ name: 'home' });
@@ -571,8 +595,9 @@ router.beforeEach(async (to, from, next) => {
   const requiredPermission = to.meta?.permission;
   const requiresAuth = to.meta?.requiresAuth;
   const editorOnly = to.matched.some((r) => r.meta?.editorOnly);
+  const guestDenied = !isScreenAllowed('guest', to.path);
 
-  if (!requiredPermission && !requiresAuth && !editorOnly) {
+  if (!requiredPermission && !requiresAuth && !editorOnly && !guestDenied) {
     return next();
   }
 
@@ -594,6 +619,10 @@ router.beforeEach(async (to, from, next) => {
       userRole = 'readonly';
     } else if (userAccessLevel?.level === 'editor') {
       userRole = 'editor';
+    }
+
+    if (!isScreenAllowed(userRole, to.path)) {
+      return next({ name: 'home' });
     }
 
     if (editorOnly && userRole !== 'editor') {

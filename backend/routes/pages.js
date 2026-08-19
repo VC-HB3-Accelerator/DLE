@@ -16,7 +16,7 @@ const db = require('../db');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const vectorSearchClient = require('../services/vectorSearchClient');
+const ragPgvectorService = require('../services/ragPgvectorService');
 const logger = require('../utils/logger');
 const { preRenderBlog, publishSeoForPage, removeHtmlForSlug } = require('../scripts/pre-render-blog');
 const { attachCoverToPage } = require('../utils/blogCoverUtils');
@@ -1213,7 +1213,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Ручная переиндексация документа в vector-search (только для админа)
+// Ручная переиндексация документа в pgvector (только для админа)
 router.post('/:id/reindex', async (req, res) => {
   if (!req.session || !req.session.authenticated) {
     return res.status(401).json({ error: 'Требуется аутентификация' });
@@ -1260,11 +1260,10 @@ router.post('/:id/reindex', async (req, res) => {
     }
     
     try {
-      await vectorSearchClient.remove('legal_docs', oldRowIds);
-      console.log(`[pages] Удалены старые чанки документа ${page.id} перед реиндексацией`);
+      await ragPgvectorService.removeDocument(page.id);
+      console.log(`[pages] Удалены старые чанки документа ${page.id} из rag_chunks`);
     } catch (removeError) {
       console.warn(`[pages] Ошибка удаления старых чанков (продолжаем индексацию):`, removeError.message);
-      // Продолжаем индексацию даже если удаление не удалось
     }
     
     // Используем Semantic Chunking для разбивки документа
@@ -1290,44 +1289,35 @@ router.post('/:id/reindex', async (req, res) => {
       useLLM
     });
 
-    // Индексируем каждый чанк отдельно
-    const rowsToUpsert = chunks.map((chunk, index) => ({
-      row_id: `${page.id}_chunk_${index}`,
-      text: chunk.text,
+    const corpusAudience = (() => {
+      let seo = page.seo;
+      if (typeof seo === 'string') {
+        try { seo = JSON.parse(seo); } catch { seo = {}; }
+      }
+      return Array.isArray(seo?.corpus_audience)
+        ? seo.corpus_audience.map((a) => String(a).toLowerCase())
+        : [];
+    })();
+
+    const pgChunks = (chunks.length ? chunks : [{ text, metadata: {} }]).map((chunk, index) => ({
+      row_id: chunks.length > 1 ? `${page.id}_chunk_${index}` : String(page.id),
+      text: chunk.text || text,
+      audience_tags: corpusAudience,
       metadata: {
         doc_id: page.id,
         chunk_index: index,
         section: chunk.metadata?.section || 'Документ',
         parent_doc_id: page.id,
         title: page.title,
-        url: `${url}#chunk_${index}`,
+        url: chunks.length > 1 ? `${url}#chunk_${index}` : url,
         visibility: page.visibility,
         required_permission: page.required_permission,
         format: page.format,
         updated_at: page.updated_at || null,
-        isComplete: chunk.metadata?.isComplete || false
+        corpus_audience: corpusAudience
       }
     }));
-
-    if (chunks.length > 1) {
-      console.log(`[pages] Документ ${page.id} разбит на ${chunks.length} чанков при реиндексации`);
-      await vectorSearchClient.upsert('legal_docs', rowsToUpsert);
-    } else {
-      // Если чанк один, индексируем как раньше
-    await vectorSearchClient.upsert('legal_docs', [{
-      row_id: page.id,
-      text,
-      metadata: {
-        doc_id: page.id,
-        title: page.title,
-        url,
-        visibility: page.visibility,
-        required_permission: page.required_permission,
-        format: page.format,
-        updated_at: page.updated_at || null
-      }
-    }]);
-    }
+    await ragPgvectorService.upsertDocumentChunks({ pageId: page.id, chunks: pgChunks });
 
     res.json({ success: true, chunksCount: chunks.length });
   } catch (e) {
@@ -1759,8 +1749,8 @@ router.delete('/:id', async (req, res) => {
       for (let i = 0; i < 100; i++) {
         rowIdsToDelete.push(`${deleted.id}_chunk_${i}`);
       }
-      await vectorSearchClient.remove('legal_docs', rowIdsToDelete);
-      console.log(`[pages] Удалены документ ${deleted.id} и все его чанки из векторного поиска`);
+      await ragPgvectorService.removeDocument(deleted.id);
+      console.log(`[pages] Удалены документ ${deleted.id} и чанки из rag_chunks`);
     }
   } catch (e) {
     console.error('[pages] vector remove error:', e.message);

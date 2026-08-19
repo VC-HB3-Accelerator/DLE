@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * Что ассистент кладёт в LLM из уже принятого сообщения.
- * SoT: docs.ru/back-docs/TZ_AI_ASSISTANT_INPUT_MODALITIES.ru.md
+ * SoT: docs.ru/back-docs/archive/TZ_AI_ASSISTANT_INPUT_MODALITIES.ru.md
  */
 
 function loadMediaLimits() {

@@ -8,7 +8,7 @@
     <router-link
       v-for="item in visibleNavItems"
       :key="item.name"
-      :to="{ name: item.name, params: { id: contactId } }"
+      :to="item.hub ? { name: item.name } : { name: item.name, params: { id: contactId } }"
       class="conference-nav-link"
       active-class="is-active"
     >
@@ -32,6 +32,7 @@ const contactId = computed(() => route.params.id);
 const navItems = [
   { name: 'contact-conference', labelKey: 'contacts.conference.nav.settings' },
   { name: 'contact-conference-agent', labelKey: 'contacts.conference.nav.agent', editorOnly: true },
+  { name: 'hub-conference-schedule', labelKey: 'contacts.conference.nav.schedule', editorOnly: true, hub: true },
 ];
 
 const visibleNavItems = computed(() =>

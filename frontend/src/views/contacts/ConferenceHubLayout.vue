@@ -11,23 +11,39 @@
       <PageCloseButton :on-navigate="handlePageClose" />
       <div class="hub-topbar">
         <div class="hub-topbar-left">
-          <h1 class="hub-title">{{ t('contacts.conference.hub.title') }}</h1>
-          <p class="hub-subtitle">{{ t('contacts.conference.hub.subtitle') }}</p>
-          <nav v-if="sessionId && !isLive" class="hub-nav">
+          <h1 class="hub-title">{{ pageTitle }}</h1>
+          <p class="hub-subtitle">{{ pageSubtitle }}</p>
+          <nav v-if="!isLive" class="hub-nav">
             <router-link
-              :to="{ name: 'hub-conference', params: { sessionId } }"
+              :to="{ name: 'hub-conferences' }"
               class="hub-nav-link"
-              active-class="is-active"
+              :class="{ 'is-active': route.name === 'hub-conferences' }"
             >
-              {{ t('contacts.conference.nav.settings') }}
+              {{ t('contacts.conference.nav.rooms') }}
             </router-link>
             <router-link
-              :to="{ name: 'hub-conference-agent', params: { sessionId } }"
+              :to="{ name: 'hub-conference-schedule' }"
               class="hub-nav-link"
-              active-class="is-active"
+              :class="{ 'is-active': isSchedule }"
             >
-              {{ t('contacts.conference.nav.agent') }}
+              {{ t('contacts.conference.nav.schedule') }}
             </router-link>
+            <template v-if="sessionId">
+              <router-link
+                :to="{ name: 'hub-conference', params: { sessionId } }"
+                class="hub-nav-link"
+                active-class="is-active"
+              >
+                {{ t('contacts.conference.nav.settings') }}
+              </router-link>
+              <router-link
+                :to="{ name: 'hub-conference-agent', params: { sessionId } }"
+                class="hub-nav-link"
+                active-class="is-active"
+              >
+                {{ t('contacts.conference.nav.agent') }}
+              </router-link>
+            </template>
           </nav>
         </div>
       </div>
@@ -49,6 +65,13 @@ const router = useRouter();
 
 const sessionId = computed(() => route.params.sessionId || null);
 const isLive = computed(() => route.name === 'hub-conference-live');
+const isSchedule = computed(() => route.name === 'hub-conference-schedule');
+const pageTitle = computed(() => (
+  isSchedule.value ? t('contacts.conference.schedule.title') : t('contacts.conference.hub.title')
+));
+const pageSubtitle = computed(() => (
+  isSchedule.value ? t('contacts.conference.schedule.subtitle') : t('contacts.conference.hub.subtitle')
+));
 
 const pageCloseHandler = ref(null);
 provide('registerPageCloseHandler', (fn) => {

@@ -221,18 +221,13 @@ async function loadModels() {
 
 async function loadEmbeddingModels() {
   try {
-    let data;
-    if (props.provider === 'ollama') {
-      const response = await axios.get('/ollama/models');
-      data = { models: response.data.models.map((m) => ({ id: m.name, name: m.name })) };
-    } else {
-      const response = await axios.get(`/settings/ai-settings/${props.provider}/models`);
-      data = response.data;
-    }
-
-    embeddingModels.value = (data.models || []).filter((m) => {
+    const { data } = await axios.get('/settings/embedding-models');
+    const all = data.models || [];
+    embeddingModels.value = all.filter((m) => {
       const name = m.id || m.name || m;
-      return name && String(name).toLowerCase().includes('embed');
+      if (!name) return false;
+      if (props.provider && m.provider && m.provider !== props.provider) return false;
+      return true;
     });
     if (!selectedEmbeddingModel.value && embeddingModels.value.length) {
       const first = embeddingModels.value[0];

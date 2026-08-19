@@ -41,8 +41,12 @@ const NAME_STOPWORDS = new Set([
   'только', 'уже', 'снова', 'опять', 'всегда', 'никогда', 'может', 'буду', 'была', 'было',
   'здесь', 'тут', 'там', 'сюда', 'туда', 'кто', 'что', 'как', 'где', 'куда',
   'компания', 'продукт', 'помощь', 'вопрос', 'ответ', 'менеджер', 'директор',
-  'главный', 'уважением', 'уважение', 'подпись', 'команда', 'клиент', 'пользователь'
+  'главный', 'уважением', 'уважение', 'подпись', 'команда', 'клиент', 'пользователь',
+  'инвестор', 'партнер', 'партнёр', 'контрибьютор', 'предприниматель',
+  'основатель', 'сотрудник', 'подрядчик', 'поставщик', 'ангел', 'венчур', 'фонд'
 ]);
+
+const ROLE_CLAIM_PREFIX = /(^|\s)я\s+(инвестор|партн[её]р|клиент|предприниматель|контрибьютор)(?=\s|[!,.?]|$)/i;
 
 /** Capture: одно-два кириллических слова (имя / имя+фамилия) */
 const NAME_CAPTURE = '([А-ЯЁа-яё-]{2,30}(?:\\s+[А-ЯЁа-яё-]{2,30})?)';
@@ -101,6 +105,7 @@ function sanitizeAssistantText(raw) {
   // Служебные утечки из RAG-промпта
   text = text.replace(/\(?\s*Таблица\s*\(ID:\s*\d+\)\s*\)?/gi, '');
   text = text.replace(/\[Источник\s+\d+[^\]]*\]/gi, '');
+  text = text.replace(/\b(?:update_user_tags|update_user_name|get_user_profile)\s*\([^)]*\)/gi, '');
   text = text.replace(/[ \t]{2,}/g, ' ').trim();
 
   return text;
@@ -140,8 +145,29 @@ function detectNameHint(message) {
     return { likely: false, candidate: null, strong: false };
   }
 
+  // «я инвестор» — роль, не ФИО. Имя ищем в хвосте: «я инвестор. алеша викторович».
+  if (ROLE_CLAIM_PREFIX.test(text)) {
+    const remainder = text
+      .replace(ROLE_CLAIM_PREFIX, ' ')
+      .replace(/^[,\s.!:;—-]+/, '')
+      .trim();
+    if (!remainder) {
+      return { likely: false, candidate: null, strong: false };
+    }
+    const restHint = detectNameHint(remainder);
+    if (restHint.likely) return restHint;
+    const restMatch = remainder.match(/^([А-ЯЁа-яё-]{2,30}(?:\s+[А-ЯЁа-яё-]{2,30})?)\s*[.!,]?$/);
+    const restName = candidateFromMatch(restMatch);
+    if (restName) {
+      return { likely: true, candidate: restName, strong: remainder.includes(' ') };
+    }
+    return { likely: false, candidate: null, strong: false };
+  }
+
   // Явные шаблоны — auto-accept
   const strongPatterns = [
+    // «зовут игнат» / «меня зовут Игнат» / «завут …» — без ожидания LLM
+    new RegExp(`(?:^|[,.!?\\s])(?:меня\\s+)?(?:з[ао]вут[ь]?|звать)\\s+${NAME_CAPTURE}`, 'i'),
     // меня зовут / завут / зовуть / звать / кличут
     new RegExp(`(?:меня\\s+(?:з[ао]вут[ь]?|звать|кличут)|зовут\\s+меня)\\s+${NAME_CAPTURE}`, 'i'),
     // зови(те) меня X / можете звать меня X / называйте меня X
@@ -154,8 +180,8 @@ function detectNameHint(message) {
     // подпись: с уважением[,.] Имя  |  Имя, с уважением
     new RegExp(`с\\s+уважением\\s*[,.]?\\s*${NAME_CAPTURE}\\s*$`, 'i'),
     new RegExp(`^${NAME_CAPTURE}\\s*[,.]?\\s*с\\s+уважением\\b`, 'i'),
-    // всё сообщение целиком: «я Алекс» / «я алекс.»
-    new RegExp(`^я\\s+${NAME_CAPTURE}\\s*[.!,]?$`, 'i')
+    // «я семен из компании…» / «я семен. мне нужна…» — имя, не роль
+    new RegExp(`(?:^|\\s)я\\s+([А-ЯЁа-яё-]{2,20})(?=\\s+из\\s|\\s*[,.!?])`, 'i'),
   ];
   for (const re of strongPatterns) {
     const candidate = candidateFromMatch(text.match(re));

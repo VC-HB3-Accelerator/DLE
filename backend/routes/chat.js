@@ -56,23 +56,17 @@ router.post('/guest-message', chatUpload, chatMediaRateLimit, async (req, res) =
     const content = req.body.message;
     const guestId = req.body.guestId;
     const files = req.files || [];
-    let assignTags = [];
-    if (req.body.assign_tags) {
-      try {
-        const parsed = typeof req.body.assign_tags === 'string'
-          ? JSON.parse(req.body.assign_tags)
-          : req.body.assign_tags;
-        if (Array.isArray(parsed)) assignTags = parsed.map((t) => String(t).trim()).filter(Boolean);
-      } catch (_) {
-        assignTags = String(req.body.assign_tags).split(',').map((t) => t.trim()).filter(Boolean);
-      }
+    let ragHint = null;
+    if (req.body.rag_hint) {
+      const hint = String(req.body.rag_hint).trim().toLowerCase();
+      if (['company', 'product', 'partner', 'investor'].includes(hint)) ragHint = hint;
     }
 
     logger.info('[Chat] Получен guest-message запрос:', { 
       content: content?.substring(0, 50), 
       guestId, 
       hasFiles: files.length > 0,
-      assignTags,
+      ragHint,
       bodyKeys: Object.keys(req.body)
     });
 
@@ -85,8 +79,12 @@ router.post('/guest-message', chatUpload, chatMediaRateLimit, async (req, res) =
       });
     }
 
-    // Проверяем готовность системы
-    if (!botManager.isReady()) {
+    // Web-чат не ждёт Telegram/Email: достаточно Web Bot или полного BotManager
+    const webBotReady = (() => {
+      const webBot = botManager.getBot('web');
+      return Boolean(webBot && webBot.isInitialized);
+    })();
+    if (!botManager.isReady() && !webBotReady) {
       return res.status(503).json({
         success: false,
         error: 'Система ботов не готова. Попробуйте позже.'
@@ -141,8 +139,10 @@ router.post('/guest-message', chatUpload, chatMediaRateLimit, async (req, res) =
       content: messageContent,
       channel: 'web',
       attachments,
-      assign_tags: assignTags,
-      metadata: attachments[0] ? { attachment_kind: attachments[0].kind } : {}
+      metadata: {
+        ...(attachments[0] ? { attachment_kind: attachments[0].kind } : {}),
+        ...(ragHint ? { rag_hint: ragHint } : {})
+      }
     };
 
     // Обработка через unified processor
@@ -202,16 +202,10 @@ router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req,
     const recipientId = req.body.recipientId || req.body.toUserId;
     const userId = req.session.userId;
     const files = req.files || [];
-    let assignTags = [];
-    if (req.body.assign_tags) {
-      try {
-        const parsed = typeof req.body.assign_tags === 'string'
-          ? JSON.parse(req.body.assign_tags)
-          : req.body.assign_tags;
-        if (Array.isArray(parsed)) assignTags = parsed.map((t) => String(t).trim()).filter(Boolean);
-      } catch (_) {
-        assignTags = String(req.body.assign_tags).split(',').map((t) => t.trim()).filter(Boolean);
-      }
+    let ragHint = null;
+    if (req.body.rag_hint) {
+      const hint = String(req.body.rag_hint).trim().toLowerCase();
+      if (['company', 'product', 'partner', 'investor'].includes(hint)) ragHint = hint;
     }
 
     if (!String(content || '').trim() && (!files || files.length === 0)) {
@@ -229,8 +223,12 @@ router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req,
       });
     }
 
-    // Проверяем готовность системы
-    if (!botManager.isReady()) {
+    // Web-чат не ждёт Telegram/Email: достаточно Web Bot или полного BotManager
+    const webBotReady = (() => {
+      const webBot = botManager.getBot('web');
+      return Boolean(webBot && webBot.isInitialized);
+    })();
+    if (!botManager.isReady() && !webBotReady) {
       return res.status(503).json({
         success: false,
         error: 'Система ботов не готова. Попробуйте позже.'
@@ -319,8 +317,10 @@ router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req,
       conversationId: conversationId || null,
       recipientId: recipientId || null,
       userId: userId,
-      assign_tags: assignTags,
-      metadata: attachments[0] ? { attachment_kind: attachments[0].kind } : {}
+      metadata: {
+        ...(attachments[0] ? { attachment_kind: attachments[0].kind } : {}),
+        ...(ragHint ? { rag_hint: ragHint } : {})
+      }
     };
 
     // Обработка через unified processor
@@ -521,6 +521,11 @@ router.post('/process-guest', requireAuth, async (req, res) => {
     const universalGuestService = require('../services/UniversalGuestService');
     const identifier = `web:${guestId}`; // Старые гости всегда из web
     const result = await universalGuestService.migrateToUser(identifier, userId);
+    try {
+      await require('../services/voiceCallBillingService').mergeGuestToUser(guestId, userId);
+    } catch (mergeErr) {
+      logger.warn('[Chat] voice call merge:', mergeErr.message);
+    }
 
     // Успех даже при 0 сообщений (гость без истории / уже мигрирован)
     return res.json({

@@ -120,6 +120,7 @@ wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Acceler
 | [contributor-client-agreement.md](legal.ru/templates/contributor-client-agreement.md) | Шаблон договора с контрибьютором |
 | [contributor-client-specification.md](legal.ru/templates/contributor-client-specification.md) | Спецификация / счёт |
 | [contributor-client-acceptance-act.md](legal.ru/templates/contributor-client-acceptance-act.md) | Акт приёмки и фиксации токена |
+| [ai-agent-glossary.ru.md](docs.ru/ai-agent-glossary.ru.md) | Глоссарий для ИИ-агента: как говорить термины корпуса |
 | [os-dle-presentation.md](docs.ru/os-dle-presentation.md) | ОС DLE — презентация для бизнеса (каркас) |
 | [ai-assistant.md](docs.ru/ai-assistant.md) | ИИ-агенты: архитектура, примеры, настройка |
 | [blockchain-for-business.md](docs.ru/blockchain-for-business.md) | Блокчейн для бизнеса и практические кейсы |

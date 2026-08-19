@@ -11,7 +11,8 @@
  */
 
 const encryptedDb = require('./encryptedDatabaseService');
-const vectorSearch = require('./vectorSearchClient');
+const vectorSearch = require('./vectorSearchClient'); // pgvector, не FAISS
+const { pickBestRagHit } = require('./ragScore');
 const { getProviderSettings } = require('./aiProviderSettingsService');
 const axios = require('axios');
 const ollamaConfig = require('./ollamaConfig');
@@ -21,6 +22,9 @@ const { PRIORITY: AI_QUEUE_PRIORITY } = require('./ai-queue');
 const aiConfigService = require('./aiConfigService');
 const userContextService = require('./userContextService');
 const profileAnalysisService = require('./profileAnalysisService');
+const {
+  UPDATE_TAGS_TOOL_DESCRIPTION
+} = require('./assistantTurnContext');
 const { buildOllamaRequest } = require('../utils/ollamaRequestBuilder');
 const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
 const { toOllamaToolMessage } = require('../utils/ollamaToolMessages');
@@ -313,14 +317,12 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = nu
     filtered = filtered.filter(row => Array.isArray(row.metadata.product) ? row.metadata.product.includes(product) : row.metadata.product === product);
   }
   
-  // Берём ближайший результат с учётом порога (по модулю)
-  console.log(`[RAG] Looking for best result with abs(threshold): ${finalThreshold}`);
-  const best = filtered.reduce((acc, row) => {
-    if (Math.abs(row.score) <= finalThreshold && (acc === null || Math.abs(row.score) < Math.abs(acc.score))) {
-      return row;
-    }
-    return acc;
-  }, null);
+  const relevanceFloor = Number(ragConfig.relevanceThreshold);
+  const best = pickBestRagHit(filtered, {
+    relevanceThreshold: Number.isFinite(relevanceFloor) ? relevanceFloor : 0.1,
+    l2Threshold: finalThreshold
+  });
+  console.log(`[RAG] Best result (pgvector cosine / legacy L2):`, best);
   console.log(`[RAG] Best result:`, best);
   
   const result = {
@@ -501,7 +503,7 @@ function parseIfArray(val) {
  * @param {number} userId - ID пользователя
  * @returns {Promise<Object>} Результат выполнения функции
  */
-async function executeToolCall(toolCall, userId) {
+async function executeToolCall(toolCall, userId, toolCtx = {}) {
   const fn = toolCall?.function || {};
   const name = fn.name;
   let args = fn.arguments;
@@ -547,25 +549,49 @@ async function executeToolCall(toolCall, userId) {
         };
       }
 
-      case 'update_user_name':
-        // Обновление имени пользователя
-        await profileAnalysisService.updateUserNameInternal(userId, args.name);
-        return { 
-          success: true, 
-          message: `Имя пользователя обновлено: ${args.name}`,
-          name: args.name
+      case 'update_user_name': {
+        const { normalizePersonName } = require('../utils/assistantTextSanitizer');
+        const name = normalizePersonName(args.name);
+        if (!name) {
+          return {
+            error: 'Это не личное имя. Роль («я инвестор») в поле имени не пишется.'
+          };
+        }
+        await profileAnalysisService.updateUserNameInternal(userId, name);
+        return {
+          success: true,
+          message: `Имя пользователя обновлено: ${name}`,
+          name
         };
+      }
         
       case 'update_user_tags': {
-        // Обновление тегов пользователя
-        // args.tagNames - массив названий тегов
-        const tagIds = await profileAnalysisService.getTagIdsByNames(args.tagNames || []);
+        if (!userId || userContextService.isGuestId(userId)) {
+          return { error: 'Теги CRM только у пользователя с карточкой. Гостю тег не ставится.' };
+        }
+        const { applyAudienceTagUpdate, matchWelcomeHint, hasExplicitRoleConfirm } = require('./assistantTurnContext');
+        if (matchWelcomeHint(userQuestion) && !hasExplicitRoleConfirm({ history, userQuestion })) {
+          return { error: 'Кнопка welcome / «хочу узнать о…» — тема, не тег ЦА. Тег только после явного самоопределения.' };
+        }
+        const tagNames = Array.isArray(args.tagNames) ? args.tagNames : [];
+        const ctx = await userContextService.getUserContext(userId);
+        const currentNames = Array.isArray(ctx?.tagNames) ? ctx.tagNames : [];
+        const planned = applyAudienceTagUpdate({
+          isGuest: false,
+          currentNames,
+          requested: tagNames
+        });
+        if (planned.error) return { error: planned.error };
+        const tagIds = await profileAnalysisService.getTagIdsByNames(planned.tagNames);
+        if (!tagIds.length) {
+          return { error: 'Таблица «Теги клиентов» пуста или slug не найден. Тег не записан.' };
+        }
         await profileAnalysisService.updateUserTagsInternal(userId, tagIds);
-        return { 
-          success: true, 
-          message: `Теги пользователя обновлены: ${args.tagNames.join(', ')}`,
-          tagNames: args.tagNames,
-          tagIds: tagIds
+        return {
+          success: true,
+          message: `Теги пользователя обновлены: ${planned.tagNames.join(', ')}`,
+          tagNames: planned.tagNames,
+          tagIds
         };
       }
         
@@ -602,7 +628,7 @@ function getFunctionDefinitions(userId) {
       type: "function",
       function: {
         name: "update_user_name",
-        description: "Обновить имя пользователя в профиле. Используй когда пользователь называет свое имя в сообщении. Пример: пользователь говорит 'Меня зовут Иван Петров' → вызывай update_user_name с name='Иван Петров'.",
+        description: "Записать личное имя в CRM, если пользователь представился (в любой форме: «я Семён», «зовут Игнат», «меня зовут …»). Не вызывать, если имени нет. Не писать роль (инвестор/партнёр/клиент) и название компании в поле имени.",
         parameters: {
           type: "object",
           properties: {
@@ -619,14 +645,19 @@ function getFunctionDefinitions(userId) {
       type: "function",
       function: {
         name: "update_user_tags",
-        description: "Обновить теги пользователя. Используй когда нужно добавить или изменить теги пользователя на основе контекста беседы. Пример: пользователь говорит 'Я купил ваш продукт' → можно добавить тег 'клиент' или 'холдер'. Пример: пользователь спрашивает про VIP программу → можно добавить тег 'VIP'.",
+        description: UPDATE_TAGS_TOOL_DESCRIPTION,
         parameters: {
           type: "object",
           properties: {
             tagNames: {
               type: "array",
-              items: { type: "string" },
-              description: "Массив названий тегов для добавления/обновления (например, ['VIP', 'клиент'] или ['холдер'])"
+              items: {
+                type: "string",
+                enum: ["investor-a", "partner", "public-client"]
+              },
+              minItems: 1,
+              maxItems: 1,
+              description: "Один CRM-slug по смыслу роли, не по совпадению слов"
             }
           },
           required: ["tagNames"]
@@ -657,8 +688,15 @@ async function generateLLMResponse({
   enableTools = false,
   conversationMemory = null,
   media = null,
-  acceptInput = null
+  acceptInput = null,
+  allowAsk = false,
+  generateIfNoRag = false,
+  isGuest = false
 }) {
+  const executeAssistantTool = (toolCall, uid) => executeToolCall(toolCall, uid, {
+    history,
+    userQuestion
+  });
   console.log(`[RAG] generateLLMResponse called with:`, {
     userQuestion,
     context,
@@ -749,7 +787,8 @@ async function generateLLMResponse({
       conversationMemory,
       history,
       snippetLimit,
-      generateIfNoRag: false
+      generateIfNoRag: Boolean(generateIfNoRag),
+      allowAsk: Boolean(allowAsk)
     });
 
     // --- ДОБАВЛЕНО: подстановка плейсхолдеров ---
@@ -781,25 +820,15 @@ async function generateLLMResponse({
     }
 
     if (userProfile) {
-      const profileLines = [];
-      if (userProfile.name) {
-        profileLines.push(`Имя пользователя: ${userProfile.name}`);
-      } else if (userProfile.nameMissing) {
-        profileLines.push('Имя пользователя неизвестно. Вежливо спросите, как к нему обращаться, и дождитесь ответа (например: "Подскажите, пожалуйста, как я могу к вам обращаться?").');
-      }
-
-      if (Array.isArray(userProfile.tags) && userProfile.tags.length > 0) {
-        profileLines.push(`Активные теги пользователя: ${userProfile.tags.join(', ')}`);
-      }
-
-      if (userProfile.comment) {
-        profileLines.push(`Комментарий в CRM-профиле: ${userProfile.comment}`);
-      }
-
-      if (userProfile.link) {
-        profileLines.push(`Ссылка в CRM-профиле: ${userProfile.link}`);
-      }
-
+      const { buildUserProfilePromptLines } = require('./assistantTurnContext');
+      const profileLines = buildUserProfilePromptLines({
+        isGuest: Boolean(isGuest || userProfile.isGuest),
+        name: userProfile.name,
+        nameMissing: userProfile.nameMissing,
+        tags: userProfile.tags,
+        comment: userProfile.comment,
+        link: userProfile.link
+      });
       if (profileLines.length > 0) {
         const profileBlock = `Информация о пользователе:\n${profileLines.join('\n')}`;
         finalSystemPrompt = finalSystemPrompt
@@ -858,9 +887,21 @@ async function generateLLMResponse({
         const textPart = Array.isArray(built.parts)
           ? built.parts.find((p) => p.type === 'text')?.text
           : prompt;
+        let userText = textPart || prompt;
+        const whisperStt = require('./whisperSttService');
+        if (whisperStt.needsWhisperFallback({ used: built.used, media })) {
+          const stt = await whisperStt.transcribeMedia(media);
+          if (stt.text) {
+            userText = `${userText}\n\n[Расшифровка голоса]: ${stt.text}`.trim();
+            multimodalReason = 'whisper_stt';
+            logger.info('[RAG] Whisper STT fallback applied');
+          } else {
+            logger.info(`[RAG] Whisper STT skipped: ${stt.reason}`);
+          }
+        }
         messages[messages.length - 1] = {
           role: 'user',
-          content: textPart || prompt
+          content: userText
         };
         logger.info(`[RAG] multimodal in skipped: ${built.reason}`);
       }
@@ -889,7 +930,7 @@ async function generateLLMResponse({
         tool_choice: tools ? 'auto' : undefined,
         llmParameters,
         userId,
-        executeToolCall,
+        executeToolCall: executeAssistantTool,
         extraPayload: extra,
         returnMeta: true
       });
@@ -1003,7 +1044,7 @@ async function generateLLMResponse({
 
             const toolResults = [];
             for (const toolCall of queuedMessage.tool_calls) {
-              const result = await executeToolCall(toolCall, userId);
+              const result = await executeAssistantTool(toolCall, userId);
               toolResults.push(toOllamaToolMessage(toolCall, result));
             }
 
@@ -1116,7 +1157,7 @@ async function generateLLMResponse({
         
         // Выполняем все function calls
         for (const toolCall of response.data.message.tool_calls) {
-          const result = await executeToolCall(toolCall, userId);
+          const result = await executeAssistantTool(toolCall, userId);
           toolResults.push(toOllamaToolMessage(toolCall, result));
         }
         
@@ -1416,6 +1457,7 @@ function getCacheStats() {
 }
 
 module.exports = {
+  pickBestRagHit,
   ragAnswer,
   getTableData,
   generateLLMResponse,

@@ -61,12 +61,18 @@ const dns = require('node:dns').promises;
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botsSettings = require('../services/botsSettings');
+const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
 const dbSettingsService = require('../services/dbSettingsService');
 const footerDleService = require('../services/footerDleService');
 const regionUrlsService = require('../services/regionUrlsService');
 const sidebarNoticeService = require('../services/sidebarNoticeService');
 const sidebarNavService = require('../services/sidebarNavService');
 const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
+const {
+  ROLES,
+  PERMISSIONS_MAP,
+  getRoleDescription
+} = require('/app/shared/permissions');
 
 // Логируем версию ethers для отладки
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
@@ -660,6 +666,82 @@ router.put('/ai-assistant', requireAuth, requirePermission(PERMISSIONS.MANAGE_SE
   }
 });
 
+router.get('/ai-agent-access', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
+  try {
+    const roleOrder = [ROLES.GUEST, ROLES.USER, ROLES.READONLY, ROLES.EDITOR];
+    const chatCapsMatrix = {};
+    for (const role of roleOrder) {
+      chatCapsMatrix[chatRoleCapabilitiesService.roleKeyForChatCaps(role)] = await chatRoleCapabilitiesService.getCapsForUi(role);
+    }
+    const editorCanManageSettings = (PERMISSIONS_MAP[ROLES.EDITOR] || []).includes(PERMISSIONS.MANAGE_SETTINGS);
+
+    const roleCards = roleOrder.map((role) => {
+      const caps = chatCapsMatrix[chatRoleCapabilitiesService.roleKeyForChatCaps(role)] || null;
+      const isGuest = role === ROLES.GUEST;
+      const isEditor = role === ROLES.EDITOR;
+      const isReadonly = role === ROLES.READONLY;
+      const rolePerms = PERMISSIONS_MAP[role] || [];
+      const canReadProfile = !isGuest;
+      const canUpdateName = !isGuest;
+      const canUpdateAudienceTags = false;
+      // "Внутренние материалы" = внутренние юридические документы по доступу VIEW_LEGAL_DOCS.
+      const canReadInternal = rolePerms.includes(PERMISSIONS.VIEW_LEGAL_DOCS);
+      // Control-plane доступен редактору, а не guest/user/readonly.
+      const canProposePromptChanges = isEditor
+        && rolePerms.includes(PERMISSIONS.MANAGE_SETTINGS)
+        && rolePerms.includes(PERMISSIONS.GENERATE_AI_REPLIES);
+      // Применение правки возможно только после явного подтверждения.
+      const canApplyPromptChanges = canProposePromptChanges;
+      const applyPromptChangesRequiresConfirm = canApplyPromptChanges;
+
+      return {
+        role,
+        title: getRoleDescription(role),
+        mode: isEditor ? 'control_plane' : 'consultant',
+        knowledgeScope: isGuest ? 'public-client' : (canReadInternal ? 'crm + internal по правам' : 'crm + public-client'),
+        toolsSummary: isGuest ? 'нет' : (isEditor ? 'профиль + режим правок' : 'профиль'),
+        permissions: {
+          chat_ai: rolePerms.includes(PERMISSIONS.CHAT_AI),
+          read_profile: canReadProfile,
+          update_name: canUpdateName,
+          update_tags: canUpdateAudienceTags,
+          read_internal: canReadInternal,
+          propose_prompt_changes: canProposePromptChanges,
+          apply_prompt_changes: canApplyPromptChanges,
+          apply_prompt_changes_requires_confirm: applyPromptChangesRequiresConfirm
+        },
+        chatCaps: caps,
+        notes: {
+          tags: 'Теги аудитории и слоя tool не меняет: их ставит оператор в карточке контакта.',
+          prompt: isEditor
+            ? 'Редактор может получить черновик правки. Применение возможно только после явного подтверждения.'
+            : 'У роли нет режима управления промптом.'
+        }
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        roles: roleCards,
+        editorFlow: {
+          canManageSettings: editorCanManageSettings,
+          propose: editorCanManageSettings,
+          applyRequiresConfirm: true,
+          autoApplyForbidden: true,
+          auditLogPlanned: true
+        },
+        source: {
+          permissions: 'shared/permissions.js',
+          chatCaps: 'chat_role_capabilities'
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Получить все наборы правил
 router.get('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
   try {
@@ -716,7 +798,7 @@ router.get('/ai-config', requireAdmin, async (req, res, next) => {
   }
 });
 
-// Фактический runtime vs config (TZ_AI_RAG_SETTINGS_PAGE)
+// Фактический runtime vs config (archive/TZ_AI_RAG_SETTINGS_PAGE)
 router.get('/ai-config/runtime-status', requireAdmin, async (req, res, next) => {
   try {
     const aiConfigService = require('../services/aiConfigService');
@@ -725,20 +807,27 @@ router.get('/ai-config/runtime-status', requireAdmin, async (req, res, next) => 
     const config = await aiConfigService.getConfig();
     const ragSettings = config.rag_settings || {};
     const weights = aiConfigService.resolveHybridWeights(ragSettings);
-    const embedDb = config.ollama_embedding_model || null;
+    const embedParams = config.embedding_parameters || {};
+    let embedRuntime = {
+      provider: String(embedParams.provider || 'ollama').trim() || 'ollama',
+      model: embedParams.model || config.ollama_embedding_model || null,
+      dimension: embedParams.dimension || null
+    };
+    try {
+      const embeddingRuntimeService = require('../services/embeddingRuntimeService');
+      embedRuntime = await embeddingRuntimeService.resolveRuntime();
+    } catch (_) { /* keep config snapshot */ }
+    const embedDb = embedRuntime.model || config.ollama_embedding_model || null;
     const embedEnv = process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || null;
     const normalizeModel = (m) => String(m || '').replace(/:latest$/i, '').trim().toLowerCase();
+    const embedProvider = embedRuntime.provider || 'ollama';
 
-    let vectorHealthy = null;
+    let pgvectorHealth = null;
     try {
-      const vectorSearchClient = require('../services/vectorSearchClient');
-      if (typeof vectorSearchClient.health === 'function') {
-        vectorHealthy = !!(await vectorSearchClient.health());
-      } else if (typeof vectorSearchClient.ping === 'function') {
-        vectorHealthy = !!(await vectorSearchClient.ping());
-      }
+      const ragPgvectorService = require('../services/ragPgvectorService');
+      pgvectorHealth = await ragPgvectorService.health();
     } catch (_) {
-      vectorHealthy = false;
+      pgvectorHealth = { status: 'error' };
     }
 
     res.json({
@@ -764,13 +853,26 @@ router.get('/ai-config/runtime-status', requireAdmin, async (req, res, next) => 
             return Math.abs(rs - eff.semantic) < 0.02 && Math.abs(rk - eff.keyword) < 0.02;
           })()
         },
-        vectorSearch: {
-          url: config.vector_search_url || null,
-          healthy: vectorHealthy,
+        pgvector: {
+          engine: 'pgvector',
+          healthy: pgvectorHealth?.status === 'ok',
+          chunks: pgvectorHealth?.chunks || 0,
+          faq: pgvectorHealth?.faq || 0,
+          documents: pgvectorHealth?.documents || 0,
+          embedProvider,
           embedModelInDb: embedDb,
-          embedModelInVectorContainer: embedEnv,
-          modelsMatch: normalizeModel(embedDb) === normalizeModel(embedEnv)
+          embedDimension: embedRuntime.dimension || pgvectorHealth?.embeddingDimension || null,
+          columnDimension: pgvectorHealth?.columnDimension || null,
+          embedModelInEnv: embedEnv,
+          modelsMatch: embedProvider !== 'ollama'
+            || normalizeModel(embedDb) === normalizeModel(embedEnv)
             || (!embedEnv && !!embedDb)
+        },
+        embedding: {
+          provider: embedProvider,
+          model: embedDb,
+          dimension: embedRuntime.dimension || pgvectorHealth?.embeddingDimension || null,
+          columnDimension: pgvectorHealth?.columnDimension || null
         },
         ollama: {
           baseUrl: config.ollama_base_url || null,
@@ -820,6 +922,34 @@ router.put('/ai-config', requireAdmin, async (req, res, next) => {
   } catch (error) {
     logger.error('Ошибка при обновлении AI Config:', error);
     next(error);
+  }
+});
+
+router.get('/ai-config/embedding-catalog', requireAdmin, async (req, res, next) => {
+  try {
+    const embeddingRuntimeService = require('../services/embeddingRuntimeService');
+    const catalog = await embeddingRuntimeService.listCatalog();
+    let runtime = null;
+    try {
+      runtime = await embeddingRuntimeService.resolveRuntime();
+    } catch (_) {
+      runtime = null;
+    }
+    res.json({ success: true, catalog, runtime });
+  } catch (error) {
+    logger.error('Ошибка embedding-catalog:', error);
+    next(error);
+  }
+});
+
+router.post('/ai-config/rebuild-rag', requireAdmin, async (req, res, next) => {
+  try {
+    const ragPgvectorService = require('../services/ragPgvectorService');
+    const result = await ragPgvectorService.rebuildAllRagIndex();
+    res.json({ success: true, result });
+  } catch (error) {
+    logger.error('Ошибка rebuild RAG:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

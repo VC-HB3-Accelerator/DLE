@@ -82,12 +82,20 @@ class TelegramBot {
         return { success: false, reason: 'invalid_token' };
       }
 
-      // Проверяем токен через Telegram API
+      // Проверяем токен через Telegram API (с таймаутом — иначе блокирует web-чат на минуты)
       try {
         await this.refreshOutboundProxy();
         logger.info('[TelegramBot] Проверяем токен через Telegram API...');
         const testBot = this.createTelegraf();
-        const me = await testBot.telegram.getMe();
+        const GETME_TIMEOUT_MS = Number(process.env.TELEGRAM_GETME_TIMEOUT_MS) || 10000;
+        const me = await Promise.race([
+          testBot.telegram.getMe(),
+          new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(Object.assign(new Error(`getMe timeout after ${GETME_TIMEOUT_MS}ms`), { code: 'ETIMEDOUT' }));
+            }, GETME_TIMEOUT_MS);
+          })
+        ]);
         logger.info('[TelegramBot] ✅ Токен валиден, бот:', me.username);
         // Не вызываем stop() - может вызвать ошибку
       } catch (error) {

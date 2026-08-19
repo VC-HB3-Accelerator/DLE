@@ -102,20 +102,15 @@ async function processMessage(messageData) {
       attachments = [],
       conversationId: inputConversationId,
       recipientId,
-      metadata = {},
-      assign_tags: topAssignTags = []
+      metadata = {}
     } = messageData;
-
-    if (Array.isArray(topAssignTags) && topAssignTags.length && !metadata.assign_tags) {
-      metadata.assign_tags = topAssignTags;
-    }
 
     logger.info('[UnifiedMessageProcessor] Обработка сообщения:', {
       identifier,
       channel,
       contentLength: content?.length,
       hasAttachments: attachments.length > 0,
-      assign_tags: metadata.assign_tags || []
+      rag_hint: metadata.rag_hint || null
     });
 
     // 1. Разбираем идентификатор
@@ -448,9 +443,7 @@ async function processMessage(messageData) {
             hasAttachments: attachments.length > 0,
             channel,
             isAdmin,
-            assign_tags: Array.isArray(metadata?.assign_tags)
-              ? metadata.assign_tags
-              : (Array.isArray(messageData?.assign_tags) ? messageData.assign_tags : []),
+            rag_hint: metadata?.rag_hint || null,
             attachment_kind: attachmentKind
           }
         });

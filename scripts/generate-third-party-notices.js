@@ -211,19 +211,7 @@ When distributing DLE software:
 4. For Apache-2.0 — include NOTICE files where provided by the package.
 5. For LGPL-3.0 (**web3-utils**) — follow the [LGPL-3.0 Compliance](#lgpl-30-compliance) section.
 
-${renderLgplCompliance('en')}## Python: vector-search
-
-| Package | License | Note |
-|---------|---------|------|
-| fastapi | MIT | https://github.com/fastapi/fastapi |
-| uvicorn | BSD-3-Clause | https://github.com/encode/uvicorn |
-| faiss-cpu | MIT | https://github.com/facebookresearch/faiss |
-| requests | Apache-2.0 | https://github.com/psf/requests |
-| pydantic | MIT | https://github.com/pydantic/pydantic |
-
----
-
-${renderSection('Backend (Node.js, production)', backend, 'en')}---
+${renderLgplCompliance('en')}${renderSection('Backend (Node.js, production)', backend, 'en')}---
 ${renderSection('Frontend (Node.js, production)', frontend, 'en')}---
 
 ## Common license texts
@@ -263,17 +251,7 @@ Full text: https://www.gnu.org/licenses/lgpl-3.0.html
 4. Для Apache-2.0 — включать соответствующие NOTICE-файлы (если поставляются пакетом).
 5. Для LGPL-3.0 (**web3-utils**) — см. раздел [«Соответствие LGPL-3.0»](#соответствие-lgpl-30).
 
-${renderLgplCompliance('ru')}## Python: vector-search
-
-| Пакет | Лицензия | Примечание |
-|-------|----------|------------|
-| fastapi | MIT | https://github.com/fastapi/fastapi |
-| uvicorn | BSD-3-Clause | https://github.com/encode/uvicorn |
-| faiss-cpu | MIT | https://github.com/facebookresearch/faiss |
-| requests | Apache-2.0 | https://github.com/psf/requests |
-| pydantic | MIT | https://github.com/pydantic/pydantic |
-
-## Python: runtime (backend Docker)
+${renderLgplCompliance('ru')}## Python: runtime (backend Docker)
 
 Системные пакеты устанавливаются через apt в Docker-образе backend (python3, curl и др.) — лицензии соответствуют дистрибутиву Debian.
 

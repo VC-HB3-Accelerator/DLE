@@ -105,6 +105,24 @@
         </el-form-item>
       </div>
 
+      <el-form-item :label="t('contacts.conference.agent.scene')">
+        <el-select
+          v-model="selectedScene"
+          clearable
+          style="width: 100%"
+          :placeholder="t('contacts.conference.agent.scenePlaceholder')"
+          @change="onSceneChange"
+        >
+          <el-option
+            v-for="item in sceneOptions"
+            :key="item.id"
+            :label="t(`contacts.conference.agent.scenes.${item.id}`)"
+            :value="item.id"
+          />
+        </el-select>
+        <p class="scene-hint">{{ t('contacts.conference.agent.sceneHint') }}</p>
+      </el-form-item>
+
       <el-form-item :label="t('contacts.conference.agent.ragTables')">
         <el-select
           v-model="form.rag_table_ids"
@@ -165,6 +183,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import conferenceService from '@/services/conferenceService';
 import { usePermissions } from '@/composables/usePermissions';
+import { listScenes, applyScenePreset } from '@/shared/conferenceScenePresets';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -175,6 +194,8 @@ const loading = ref(false);
 const saving = ref(false);
 const models = ref([]);
 const ragTables = ref([]);
+const selectedScene = ref('');
+const sceneOptions = listScenes();
 const providerKey = reactive({ configured: false, selected_model: null, provider: 'openai' });
 
 const providerOptions = [
@@ -302,6 +323,18 @@ function resetSystemPrompt() {
   form.system_prompt = defaults.system_prompt || '';
 }
 
+function onSceneChange(sceneId) {
+  if (!sceneId) return;
+  const applied = applyScenePreset(sceneId, ragTables.value);
+  form.system_prompt = applied.system_prompt;
+  form.search_rag_first = applied.search_rag_first;
+  form.generate_if_no_rag = applied.generate_if_no_rag;
+  if (applied.rag_table_ids.length) {
+    form.rag_table_ids = [...applied.rag_table_ids];
+  }
+  ElMessage.success(t('contacts.conference.agent.sceneApplied'));
+}
+
 async function saveSettings() {
   saving.value = true;
   try {
@@ -361,6 +394,13 @@ onMounted(() => {
 
 .prompt-actions {
   margin-top: 6px;
+}
+
+.scene-hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-grey, #6c757d);
+  line-height: 1.4;
 }
 
 .form-actions {

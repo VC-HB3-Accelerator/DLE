@@ -53,11 +53,15 @@ class BotManager {
       this.bots.set('telegram', telegramBot);
       this.bots.set('email', emailBot);
 
-      // Инициализируем Web Bot
+      // Инициализируем Web Bot первым — гостевой чат не должен ждать Telegram/Email
       logger.info('[BotManager] Инициализация Web Bot...');
       await webBot.initialize().catch(error => {
         logger.warn('[BotManager] Web Bot не инициализирован:', error.message);
       });
+      if (webBot.isInitialized) {
+        this.isInitialized = true;
+        logger.info('[BotManager] ✅ Web готов — guest/web чат доступен');
+      }
 
       // Инициализируем Telegram Bot
       logger.info('[BotManager] Инициализация Telegram Bot...');

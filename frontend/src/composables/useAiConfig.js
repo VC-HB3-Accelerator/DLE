@@ -1,5 +1,5 @@
 /**
- * Централизованный load/save ai_config (TZ_AI_RAG_SETTINGS_PAGE).
+ * Централизованный load/save ai_config (archive/TZ_AI_RAG_SETTINGS_PAGE).
  * Save per tab: отправляем полный объект колонки (сервер deep-merge JSONB).
  */
 import { reactive, ref } from 'vue';
@@ -9,7 +9,6 @@ const defaults = () => ({
   ollama_base_url: 'http://ollama:11434',
   ollama_llm_model: 'qwen2.5:1.5b',
   ollama_embedding_model: 'mxbai-embed-large:latest',
-  vector_search_url: 'http://vector-search:8001',
   rag_settings: {
     threshold: 300,
     searchMethod: 'hybrid',
@@ -25,9 +24,11 @@ const defaults = () => ({
   },
   qwen_specific_parameters: { format: null },
   embedding_parameters: {
+    provider: 'ollama',
+    model: null,
     batch_size: 32,
     normalize: true,
-    dimension: null,
+    dimension: 1024,
     pooling: 'mean'
   },
   cache_settings: {
@@ -54,9 +55,6 @@ const defaults = () => ({
   timeouts: {
     ollamaChat: 600000,
     ollamaEmbedding: 90000,
-    vectorSearch: 90000,
-    vectorUpsert: 600000,
-    vectorHealth: 5000,
     ollamaHealth: 5000,
     ollamaTags: 10000
   },
@@ -113,11 +111,16 @@ export function useAiConfig() {
           ollama_base_url: data.config.ollama_base_url || d.ollama_base_url,
           ollama_llm_model: data.config.ollama_llm_model || d.ollama_llm_model,
           ollama_embedding_model: data.config.ollama_embedding_model || d.ollama_embedding_model,
-          vector_search_url: data.config.vector_search_url || d.vector_search_url,
           rag_settings: deepMerge(d.rag_settings, data.config.rag_settings || {}),
           llm_parameters: deepMerge(d.llm_parameters, data.config.llm_parameters || {}),
           qwen_specific_parameters: deepMerge(d.qwen_specific_parameters, data.config.qwen_specific_parameters || {}),
-          embedding_parameters: deepMerge(d.embedding_parameters, data.config.embedding_parameters || {}),
+          embedding_parameters: (() => {
+            const merged = deepMerge(d.embedding_parameters, data.config.embedding_parameters || {});
+            if (!merged.provider) merged.provider = 'ollama';
+            if (!merged.dimension) merged.dimension = 1024;
+            if (merged.model === '') merged.model = null;
+            return merged;
+          })(),
           cache_settings: deepMerge(d.cache_settings, data.config.cache_settings || {}),
           queue_settings: deepMerge(d.queue_settings, data.config.queue_settings || {}),
           deduplication_settings: deepMerge(d.deduplication_settings, data.config.deduplication_settings || {}),

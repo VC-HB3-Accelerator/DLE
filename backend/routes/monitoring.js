@@ -27,15 +27,12 @@ router.get('/', async (req, res) => {
   // Backend
   results.backend = { status: 'ok' };
 
-  // Vector Search
+  // pgvector
   try {
-    const baseUrl = process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
-    const healthUrl = baseUrl.replace(/\/$/, '') + '/health';
-    const vs = await axios.get(healthUrl, { timeout: TIMEOUTS.vectorHealth });
-    results.vectorSearch = { status: 'ok', ...vs.data };
+    const ragPgvectorService = require('../services/ragPgvectorService');
+    results.pgvector = await ragPgvectorService.health();
   } catch (e) {
-    console.log('Vector Search error:', e.message, 'Status:', e.response?.status);
-    results.vectorSearch = { status: 'error', error: e.message };
+    results.pgvector = { status: 'error', error: e.message };
   }
 
   // Ollama

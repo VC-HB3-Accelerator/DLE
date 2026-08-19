@@ -231,7 +231,7 @@
         </div>
       </div>
     </div>
-    
+    <VoiceCallModal v-if="showVoiceCall" @close="showVoiceCall = false" />
   </div>
 </template>
 
@@ -242,6 +242,7 @@ import { ElMessage } from 'element-plus';
 import Message from './Message.vue';
 import VoiceMessageBubble from './chat/VoiceMessageBubble.vue';
 import VideoNoteBubble from './chat/VideoNoteBubble.vue';
+import VoiceCallModal from './chat/VoiceCallModal.vue';
 import messagesService from '../services/messagesService.js';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
@@ -301,6 +302,7 @@ const plusWidgetStyle = ref({});
 const SLOT_MODES = ['send', 'audio', 'video_note', 'phone'];
 const slotMode = ref('send');
 const plusOpen = ref(false);
+const showVoiceCall = ref(false);
 const HOLD_MS = 220;
 const RECORD_MIN_MS = 800;
 let slotHoldTimer = null;
@@ -320,13 +322,11 @@ function handleConsentGranted(messageId) {
 
 function handleCmsBranch({ payload, branch }) {
   if (!payload) return;
-  const assignTags = Array.isArray(branch?.assign_tags)
-    ? branch.assign_tags
-    : (Array.isArray(branch?.assignTags) ? branch.assignTags : []);
+  const ragHint = String(branch?.rag_hint || branch?.ragHint || '').trim().toLowerCase();
   emit('send-message', {
     message: payload,
     attachments: [],
-    assign_tags: assignTags,
+    ...(ragHint ? { rag_hint: ragHint } : {})
   });
 }
 
@@ -761,7 +761,7 @@ function selectSlotMode(mode) {
     return;
   }
   if (mode === 'phone') {
-    ElMessage.info(t('chat.callInDevelopment'));
+    showVoiceCall.value = true;
     slotMode.value = 'send';
     return;
   }
@@ -854,7 +854,7 @@ function onSlotPointerDown() {
     return;
   }
   if (slotMode.value === 'phone') {
-    ElMessage.info(t('chat.callInDevelopment'));
+    showVoiceCall.value = true;
     slotMode.value = 'send';
     return;
   }

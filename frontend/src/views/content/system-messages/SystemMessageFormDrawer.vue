@@ -182,12 +182,13 @@
               </label>
               <label class="sm-branch-field">
                 <span>{{ t('content.systemMessages.form.branchAssignTags') }}</span>
-                <input
-                  :value="(branch.assign_tags || []).join(', ')"
-                  type="text"
-                  :placeholder="t('content.systemMessages.form.branchAssignTagsHint')"
-                  @input="onAssignTagsInput(branch, $event.target.value)"
-                />
+                <select v-model="branch.rag_hint">
+                  <option value="">—</option>
+                  <option value="company">company</option>
+                  <option value="product">product</option>
+                  <option value="partner">partner</option>
+                  <option value="investor">investor</option>
+                </select>
               </label>
               <label class="sm-branch-field">
                 <span>{{ t('content.systemMessages.form.branchAction') }}</span>
@@ -360,18 +361,10 @@ function addBranch() {
       label: '',
       action: 'send_user_message',
       payload: '',
-      assign_tags: [],
+      rag_hint: '',
       _key: `${id}-${loc}`,
     });
   }
-}
-
-function onAssignTagsInput(branch, value) {
-  const tags = String(value || '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
-  branch.assign_tags = tags;
 }
 
 function removeBranch(idx) {

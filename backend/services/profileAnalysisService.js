@@ -25,7 +25,8 @@ const aiQueue = require('./ai-queue');
 const { PRIORITY } = require('./ai-queue');
 const {
   detectNameHint,
-  normalizePersonName
+  normalizePersonName,
+  looksLikePersonNameToken
 } = require('../utils/assistantTextSanitizer');
 
 /**
@@ -404,12 +405,11 @@ function processAction(action, currentTagNames, newTagNames) {
  * @param {string} message - Сообщение пользователя
  * @returns {Promise<Object>} { name: string|null, suggestedTags: Array<string> }
  */
-async function analyzeUserMessage(userId, message) {
+async function analyzeUserMessage(userId, message, { history = [] } = {}) {
   try {
     logger.info(`[ProfileAnalysis] Анализ сообщения пользователя ${userId}`);
     logger.info(`[ProfileAnalysis] Сообщение пользователя ${userId}: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
 
-    const DEFAULT_TAG_NAME = 'Без лицензии';
     const isGuest = userContextService.isGuestId(userId);
 
     let currentContext = null;
@@ -427,26 +427,16 @@ async function analyzeUserMessage(userId, message) {
         ? [...currentContext.tagNames]
         : await userContextService.getTagNames(currentTagIds);
 
-      if (!currentTagIds || currentTagIds.length === 0) {
-        const defaultTagIds = await getTagIdsByNames([DEFAULT_TAG_NAME]);
-        if (defaultTagIds.length > 0) {
-          await updateUserTagsInternal(userId, defaultTagIds);
-          userContextService.invalidateUserCache(userId);
-          currentTagIds = [...defaultTagIds];
-          currentTagNames = [DEFAULT_TAG_NAME];
-          logger.info(`[ProfileAnalysis] Пользователю ${userId} автоматически назначен тег по умолчанию: ${DEFAULT_TAG_NAME}`);
-        } else {
-          logger.warn(`[ProfileAnalysis] Тег по умолчанию "${DEFAULT_TAG_NAME}" не найден в базе`);
-        }
-      }
-
       suggestedTags = [...currentTagNames];
       nameMissing = !currentName;
     }
 
-    // 1. Извлечение имени: strong — сразу; soft/LLM — в фоне, не блокируем чат
+    // 1. Извлечение имени: strong — сразу; soft/LLM — в фоне, не блокируем чат.
+    // «Инвестор» после «я инвестор» — не ФИО, не блокируем повторный разбор.
+    const nameToken = String(currentName || '').trim().split(/\s+/)[0];
+    const currentNameIsRoleLabel = Boolean(currentName) && !looksLikePersonNameToken(nameToken);
     let nameResult = { name: null, should_update_name: false };
-    if (!isGuest && !currentName) {
+    if (!isGuest && (!currentName || currentNameIsRoleLabel)) {
       const hint = detectNameHint(message);
       const heuristicName = normalizePersonName(hint.candidate);
       if (heuristicName && hint.strong) {
@@ -459,7 +449,9 @@ async function analyzeUserMessage(userId, message) {
             .then(async (bgResult) => {
               if (!bgResult?.name || !bgResult.should_update_name) return;
               const latest = await userContextService.getUserContext(userId);
-              if (latest?.name) return;
+              const latestToken = String(latest?.name || '').trim().split(/\s+/)[0];
+              const latestIsRole = latest?.name && !looksLikePersonNameToken(latestToken);
+              if (latest?.name && !latestIsRole) return;
               await updateUserNameInternal(userId, bgResult.name);
               userContextService.invalidateUserCache(userId);
               logger.info(`[ProfileAnalysis] Имя обновлено фоном для ${userId}: ${bgResult.name}`);
@@ -487,37 +479,43 @@ async function analyzeUserMessage(userId, message) {
       }
     }
 
-    // 3. Поиск ключевых слов в таблице "Ключевые слова и теги"
-    const keywordsTable = await findTableByName('Ключевые слова и теги');
-
-    if (!isGuest && keywordsTable) {
-      const foundKeywords = await findKeywordsInMessage(message, keywordsTable.id);
-      
-      if (foundKeywords.length > 0) {
-        // Получаем теги по ключевым словам
-        const tagsByKeywords = await getTagsByKeywords(foundKeywords, keywordsTable.id);
-        
-        // Обрабатываем действия и собираем новые теги
-        let allTagNames = [...currentTagNames];
-        
-        for (const { tagNames, action } of tagsByKeywords) {
-          allTagNames = processAction(action, allTagNames, tagNames);
+    // 3. Явный confirm роли → один audience-тег (P-4 / E9 / P1b). Гостю не пишем.
+    if (!isGuest) {
+      const {
+        claimedAudienceFromTurn,
+        mergeAudienceIntoTagNames
+      } = require('./assistantTurnContext');
+      const claimed = claimedAudienceFromTurn({ history, userQuestion: message });
+      if (claimed) {
+        const mergedNames = mergeAudienceIntoTagNames(currentTagNames, claimed);
+        const sameAudience = currentTagNames.some((n) => n === claimed)
+          && mergedNames.length === currentTagNames.length
+          && mergedNames.every((n) => currentTagNames.includes(n));
+        if (!sameAudience) {
+          const tagIds = await getTagIdsByNames(mergedNames);
+          if (tagIds.length) {
+            await updateUserTagsInternal(userId, tagIds);
+            currentTagIds = tagIds;
+            currentTagNames = mergedNames;
+            suggestedTags = [...mergedNames];
+            logger.info(`[ProfileAnalysis] ЦА после confirm: user=${userId} → ${claimed} (tags=${mergedNames.join(',')})`);
+          } else {
+            logger.warn(`[ProfileAnalysis] Confirm «${claimed}», но tagIds не найдены: ${mergedNames.join(',')}`);
+          }
         }
+      }
+    }
 
-        // Находим tagIds по названиям
-        const tagIds = await getTagIdsByNames(allTagNames);
-        
-        // Обновляем теги пользователя (если есть изменения)
-        const hasChanges = tagIds.length !== currentTagIds.length || !tagIds.every(id => currentTagIds.includes(id));
-        if (hasChanges) {
-          logger.info(`[ProfileAnalysis] Обновление тегов пользователя ${userId}: ${currentTagNames.join(', ') || '—'} → ${allTagNames.join(', ')}`);
-          await updateUserTagsInternal(userId, tagIds);
-          userContextService.invalidateUserCache(userId);
-          currentTagIds = [...tagIds];
-          currentTagNames = [...allTagNames];
+    // 4. Ключевые слова не пишут CRM-теги (ТЗ E9): audience/mode — только confirm или карточка.
+    if (!isGuest) {
+      const keywordsTable = await findTableByName('Ключевые слова и теги');
+      if (keywordsTable) {
+        const foundKeywords = await findKeywordsInMessage(message, keywordsTable.id);
+        if (foundKeywords.length > 0) {
+          logger.info(
+            `[ProfileAnalysis] Ключевые слова найдены у ${userId} (${foundKeywords.length} строк), CRM-теги не пишем`
+          );
         }
-
-        suggestedTags = [...currentTagNames];
       }
     }
 

@@ -440,7 +440,7 @@ class UniversalGuestService {
    */
   async processMessage(messageData) {
     try {
-      const { identifier, content, channel, contentData, assign_tags: assignTags = [] } = messageData;
+      const { identifier, content, channel, contentData, metadata: incomingMeta = {} } = messageData;
 
       logger.info(`[UniversalGuestService] Обработка сообщения гостя: ${identifier}`);
 
@@ -552,7 +552,7 @@ class UniversalGuestService {
             hasMedia: Boolean(firstAtt || processedContent),
             mediaSummary: processedContent?.summary,
             guestIdentifier: identifier,
-            assign_tags: Array.isArray(assignTags) ? assignTags : [],
+            rag_hint: incomingMeta.rag_hint || messageData?.metadata?.rag_hint || null,
             attachment_kind: firstAtt?.kind || null
           }
         });

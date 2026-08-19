@@ -14,64 +14,7 @@ const logger = require('../utils/logger');
 const ollamaConfig = require('./ollamaConfig');
 const { shouldProcessWithAI } = require('../utils/languageFilter');
 const userContextService = require('./userContextService');
-
-/**
- * Разрешённые audience корпуса для RAG (pages / legal_docs).
- * Гость без тегов → только public-client (продукт + company с этой аудиторией).
- * investor-a / partner → свой pack + public-client (продукт остаётся доступен).
- */
-function resolveAllowedCorpusAudiences(assignTagNames = []) {
-  const tags = (Array.isArray(assignTagNames) ? assignTagNames : [])
-    .map((t) => String(t || '').trim().toLowerCase())
-    .filter(Boolean);
-
-  if (!tags.length) {
-    return ['public-client'];
-  }
-
-  const allowed = new Set(['public-client']);
-  for (const tag of tags) {
-    if (tag === 'investor' || tag === 'investor-a' || tag === 'investora') {
-      allowed.add('investor-a');
-    } else if (tag === 'investor-b') {
-      allowed.add('investor-b');
-    } else if (tag === 'partner' || tag === 'contributor') {
-      allowed.add('partner');
-    } else if (tag === 'internal' || tag === 'admin') {
-      allowed.add('internal');
-      allowed.add('partner');
-      allowed.add('investor-a');
-    } else if (tag === 'public-client' || tag === 'client' || tag === 'entrepreneur') {
-      allowed.add('public-client');
-    } else {
-      allowed.add(tag);
-    }
-  }
-  return [...allowed];
-}
-
-function corpusHitAllowedForAudiences(hit, allowedAudiences) {
-  if (!hit) return false;
-  const allowed = new Set((allowedAudiences || []).map((a) => String(a).toLowerCase()));
-  const audiences = hit.metadata?.corpus_audience || hit.corpus_audience || [];
-  if (Array.isArray(audiences) && audiences.length) {
-    return audiences.some((a) => allowed.has(String(a).toLowerCase()));
-  }
-
-  // Fallback по title [Corpus] … пока seo.corpus_audience не backfill
-  const title = String(hit.metadata?.title || hit.context || '');
-  if (title.startsWith('[Corpus]')) {
-    const id = title.replace(/^\[Corpus\]\s*/i, '').toLowerCase();
-    if (id.startsWith('inv-a') || id.includes('investor-a')) return allowed.has('investor-a');
-    if (id.startsWith('inv-b') || id.includes('investor-b')) return allowed.has('investor-b');
-    if (id.startsWith('partner')) return allowed.has('partner');
-    if (id.startsWith('pub-') || id.startsWith('company')) return allowed.has('public-client');
-    return false;
-  }
-
-  // Не-корпусные документы — не режем (юр. шаблоны и т.п.)
-  return true;
-}
+const { resolveTurnContext } = require('./assistantTurnContext');
 
 /**
  * AI Assistant - тонкая обёртка для работы с Ollama и RAG
@@ -121,46 +64,16 @@ class AIAssistant {
       messageId,
       userId,
       userQuestion,
-      conversationHistory = [],
+      conversationHistory: incomingHistory = [],
       conversationId,
       ragTableId = null,
       metadata = {},
       media = null
     } = options;
+    let conversationHistory = Array.isArray(incomingHistory) ? incomingHistory.slice() : [];
 
     try {
       logger.info(`[AIAssistant] Генерация ответа для канала ${channel}, пользователь ${userId}`);
-
-      // Теги аудитории с кнопки welcome (или явный metadata) — работают и для гостей
-      const WELCOME_TAG_HINTS = [
-        { re: /хочу узнать об инвестициях\s*\/\s*stage a/i, tags: ['investor-a'] },
-        { re: /i want to learn about investing\s*\/\s*stage a/i, tags: ['investor-a'] },
-        { re: /интересует партн[её]рство\s*\/\s*контрибьютор/i, tags: ['partner'] },
-        { re: /interested in partnership\s*\/\s*contributor/i, tags: ['partner'] },
-      ];
-      let assignTagNames = [];
-      if (Array.isArray(metadata.assign_tags)) {
-        assignTagNames = metadata.assign_tags.map((t) => String(t).trim()).filter(Boolean);
-      } else if (typeof metadata.assign_tags === 'string' && metadata.assign_tags.trim()) {
-        try {
-          const parsed = JSON.parse(metadata.assign_tags);
-          if (Array.isArray(parsed)) assignTagNames = parsed.map((t) => String(t).trim()).filter(Boolean);
-          else assignTagNames = metadata.assign_tags.split(',').map((t) => t.trim()).filter(Boolean);
-        } catch (_) {
-          assignTagNames = metadata.assign_tags.split(',').map((t) => t.trim()).filter(Boolean);
-        }
-      }
-      if (!assignTagNames.length) {
-        for (const hint of WELCOME_TAG_HINTS) {
-          if (hint.re.test(String(userQuestion || ''))) {
-            assignTagNames = hint.tags;
-            break;
-          }
-        }
-      }
-      if (assignTagNames.length) {
-        logger.info(`[AIAssistant] assign_tags аудитории: ${assignTagNames.join(', ')}`);
-      }
 
       // 0. Проверяем язык сообщения (только русский)
       const languageCheck = await shouldProcessWithAI(userQuestion, { hasMedia: Boolean(media?.data) });
@@ -178,7 +91,6 @@ class AIAssistant {
       const aiAssistantSettingsService = require('./aiAssistantSettingsService');
       const aiAssistantRulesService = require('./aiAssistantRulesService');
       const profileAnalysisService = require('./profileAnalysisService');
-      const { ragAnswer } = require('./ragService');
       
       // 1. Проверяем дедупликацию через хеш
       const messageForDedup = {
@@ -204,7 +116,9 @@ class AIAssistant {
       let profileAnalysis = null;
       if (userId && !userContextService.isGuestId(userId)) {
         try {
-          profileAnalysis = await profileAnalysisService.analyzeUserMessage(userId, userQuestion);
+          profileAnalysis = await profileAnalysisService.analyzeUserMessage(userId, userQuestion, {
+            history: conversationHistory
+          });
           const tagsDisplay = profileAnalysis.currentTagNames && profileAnalysis.currentTagNames.length > 0 
             ? profileAnalysis.currentTagNames.join(', ') 
             : 'нет тегов';
@@ -213,8 +127,6 @@ class AIAssistant {
           // Получаем текущие теги пользователя для передачи в generateLLMResponse
           if (profileAnalysis.currentTagNames && profileAnalysis.currentTagNames.length > 0) {
             userTags = profileAnalysis.currentTagNames;
-          } else if (profileAnalysis.suggestedTags && profileAnalysis.suggestedTags.length > 0) {
-            userTags = profileAnalysis.suggestedTags;
           }
 
           userNameForProfile = profileAnalysis.currentName || profileAnalysis.name || null;
@@ -301,26 +213,53 @@ class AIAssistant {
       }
       const ingestMedia = filteredIngest.media;
       const ingestQuestion = filteredIngest.promptText;
-      
-      // Правила: по тегам пользователя + опциональный базовый набор из настроек
+
+      let crmTagIds = [];
+      if (userId && !userContextService.isGuestId(userId)) {
+        try {
+          crmTagIds = await userContextService.getUserTags(userId) || [];
+        } catch (_) {
+          crmTagIds = [];
+        }
+      }
+      const crmTagNames = (userId && !userContextService.isGuestId(userId) && Array.isArray(userTags))
+        ? userTags
+        : [];
+      if ((!crmTagNames.length) && crmTagIds.length) {
+        try {
+          const names = await userContextService.getTagNames(crmTagIds);
+          if (Array.isArray(names) && names.length) userTags = names;
+        } catch (_) { /* ignore */ }
+      }
+
+      const turnCtx = resolveTurnContext({
+        userId,
+        isGuest: Boolean(metadata.isGuest) || userContextService.isGuestId(userId) || !userId,
+        userQuestion: ingestQuestion,
+        metadata,
+        conversationHistory,
+        crmTagIds,
+        crmTagNames: Array.isArray(userTags) ? userTags : [],
+        isGuestId: userContextService.isGuestId
+      });
+      logger.info(
+        `[AIAssistant] turn: guest=${turnCtx.isGuest} aud=${turnCtx.audienceSlugs.join(',')} mode=${turnCtx.modeSlugs.join(',')} hint=${turnCtx.ragHint || '—'} crm=${turnCtx.crmTagNames.join(',') || '∅'}`
+      );
+
+      // Правила B: гость / user без ЦА — только KB base. С ЦА — AND mode+audience+combo, без base.
       let rules = { byTags: [], global: null };
       try {
-        let userTagIds = [];
-        if (userId && !userContextService.isGuestId(userId)) {
-          userTagIds = await userContextService.getUserTags(userId);
-        }
-        if (assignTagNames.length) {
-          const hintedIds = await profileAnalysisService.getTagIdsByNames(assignTagNames);
-          if (Array.isArray(hintedIds) && hintedIds.length) {
-            userTagIds = Array.from(new Set([...(userTagIds || []), ...hintedIds]));
-          }
-        }
         rules = await aiAssistantRulesService.resolveRulesForUser({
           rulesId: aiSettings?.rules_id || null,
-          tagIds: userTagIds
+          tagIds: turnCtx.crmTagIds,
+          tagNames: turnCtx.crmTagNames,
+          includeBase: turnCtx.includeBaseRules,
+          matchTaggedRules: turnCtx.hasCrmAudience,
+          audienceSlugs: turnCtx.audienceSlugs,
+          modeSlugs: turnCtx.modeSlugs
         });
         logger.info(
-          `[AIAssistant] Правила: по тегам=${rules.byTags?.length || 0}, базовый=${rules.global ? rules.global.name : 'нет'}, tagIds=[${(userTagIds || []).join(',')}]`
+          `[AIAssistant] Правила: по тегам=${rules.byTags?.length || 0}, базовый=${rules.global ? rules.global.name : 'нет'}`
         );
       } catch (rulesErr) {
         logger.warn(`[AIAssistant] Не удалось загрузить правила: ${rulesErr.message}`);
@@ -333,12 +272,11 @@ class AIAssistant {
       
       logger.info(`[AIAssistant] Определены tableIds для RAG: ${JSON.stringify(tableIds)}`);
 
-      // 4. Выполняем мульти-источниковый поиск (таблицы + документы)
-      logger.info(`[AIAssistant] Начало мульти-источникового поиска...`);
-      const multiSourceSearchService = require('./multiSourceSearchService');
+      // 4. Поиск только pgvector (FAQ + documents), pre-filter до ANN
+      logger.info(`[AIAssistant] Начало поиска rag_chunks/pgvector...`);
+      const ragPgvectorService = require('./ragPgvectorService');
       const aiConfigService = require('./aiConfigService');
       const ragConfig = await aiConfigService.getRAGConfig();
-      logger.info(`[AIAssistant] RAG конфигурация получена, метод поиска: ${ragConfig.searchMethod || 'hybrid'}`);
       
       let searchResults = null;
       let ragResult = null; // Для обратной совместимости
@@ -360,54 +298,59 @@ class AIAssistant {
 
       if (ragQuery && (tableIds.length > 0 || searchInDocuments)) {
         try {
-          logger.info(`[AIAssistant] Вызов multiSourceSearchService.search для запроса: "${String(ragQuery).substring(0, 50)}..."`);
+          logger.info(`[AIAssistant] pgvector search: "${String(ragQuery).substring(0, 50)}..."`);
           const searchStartTime = Date.now();
-          searchResults = await multiSourceSearchService.search({
+          const oversample = 15;
+          searchResults = await ragPgvectorService.search({
             query: ragQuery,
-            tableIds: tableIds,
-            searchInDocuments,
-            searchMethod: ragConfig.searchMethod || 'hybrid', // 'semantic', 'keyword', 'hybrid'
-            userId: userId,
-            maxResultsPerSource: ragConfig.maxResults || 10,
-            totalMaxResults: (ragConfig.maxResults || 10) * 2 // Увеличиваем для объединения
+            tableIds,
+            ctx: turnCtx,
+            limit: oversample
           });
           const searchDuration = Date.now() - searchStartTime;
-          logger.info(`[AIAssistant] Мульти-источниковый поиск завершен за ${searchDuration}ms, найдено результатов: ${searchResults?.results?.length || 0}`);
+          logger.info(`[AIAssistant] pgvector завершен за ${searchDuration}ms, hits=${searchResults?.results?.length || 0}`);
 
-          // Аудиторный фильтр корпуса (pages): гость → public-client; теги → свой pack
           if (searchResults?.results?.length) {
-            const allowedAudiences = resolveAllowedCorpusAudiences(assignTagNames);
+            const {
+              filterHitsByTurnContext,
+              rerankTableHitsByQuestion,
+              preferCoreProductFaqHits,
+              preferCoreInvestorFaqHits,
+              preferCorePartnerFaqHits,
+              preferCorpusPresentationHits,
+              pickSourcesForPrompt
+            } = require('./ragPromptAssembly');
             const before = searchResults.results.length;
-            const scoped = searchResults.results.filter((r) => {
-              if (r.sourceType === 'document' || r.source === 'document' || r.source === 'documents') {
-                return corpusHitAllowedForAudiences(r, allowedAudiences);
-              }
-              return true;
+            const filtered = filterHitsByTurnContext(searchResults.results, turnCtx);
+            let nextHits = filtered.results;
+            if (filtered.emptied) {
+              logger.warn('[AIAssistant] Фильтр аудитории опустошил выдачу — fail-closed (0 hits)');
+            } else if (filtered.results.length !== before) {
+              logger.info(`[AIAssistant] После фильтра: ${before} → ${filtered.results.length}`);
+            }
+            nextHits = rerankTableHitsByQuestion(nextHits, ragQuery);
+            const hint = turnCtx.ragHint;
+            // rag_hint — rerank, не ACL. Гость / без allowAsk не бустим investor/partner FAQ и inv-a страницы.
+            if (!turnCtx.isGuest && turnCtx.allowAsk
+              && (hint === 'investor' || turnCtx.audienceSlugs.includes('investor-a'))) {
+              nextHits = preferCoreInvestorFaqHits(nextHits, ragQuery);
+            } else if (!turnCtx.isGuest
+              && (hint === 'partner' || turnCtx.audienceSlugs.includes('partner'))) {
+              nextHits = preferCorePartnerFaqHits(nextHits, ragQuery);
+            } else {
+              nextHits = preferCoreProductFaqHits(nextHits, ragQuery);
+            }
+            nextHits = preferCorpusPresentationHits(nextHits, ragQuery, turnCtx.audienceSlugs, hint, {
+              isGuest: turnCtx.isGuest
             });
-            if (scoped.length !== before) {
-              searchResults.results = scoped;
-              logger.info(
-                `[AIAssistant] Фильтр corpus audience [${allowedAudiences.join(',')}]: ${before} → ${scoped.length}`
-              );
-            }
-          }
-
-          // Аудиторный фильтр по assign_tags / welcome (FAQ rows с userTags)
-          if (assignTagNames.length && searchResults?.results?.length) {
-            const { filterHitsByAssignTags } = require('./ragPromptAssembly');
-            const before = searchResults.results.length;
-            const filtered = filterHitsByAssignTags(searchResults.results, assignTagNames);
-            searchResults.results = filtered.results;
-            if (!filtered.emptied && filtered.results.length !== before) {
-              logger.info(`[AIAssistant] После фильтра assign_tags осталось ${filtered.results.length} hit(s)`);
-            } else if (filtered.emptied) {
-              logger.warn(`[AIAssistant] Фильтр assign_tags опустошил выдачу — оставляем исходные hit(s)`);
-            }
+            nextHits.sort((a, b) => (Number(b.combinedScore != null ? b.combinedScore : b.score) || 0)
+              - (Number(a.combinedScore != null ? a.combinedScore : a.score) || 0));
+            const promptLimit = Math.max(3, Math.min(Number(ragConfig.maxResults) || 5, 8));
+            searchResults.results = pickSourcesForPrompt(nextHits, promptLimit);
           }
 
           // Формируем объединенный результат для обратной совместимости
           if (searchResults.results && searchResults.results.length > 0) {
-            // Берем лучший результат
             const bestResult = searchResults.results[0];
             ragResult = {
               answer: bestResult.text,
@@ -418,16 +361,15 @@ class AIAssistant {
               score: bestResult.score || 0
             };
 
-            // Формируем контекст из всех результатов для LLM
             const allResultsContext = searchResults.results
-              .slice(0, 3) // Берем топ-3 результатов
+              .slice(0, Math.max(3, Math.min(Number(ragConfig.maxResults) || 5, 8)))
               .map((r, idx) => {
                 const sourceLabel = r.sourceType === 'table' ? 'База знаний' : 'Документ';
                 const fallbackText = (r.metadata?.answer && String(r.metadata.answer).trim())
                   || (r.metadata?.title && String(r.metadata.title).trim())
                   || '(текст отсутствует)';
                 const text = (r.text && r.text.trim()) || fallbackText;
-                const snippetLimit = 300;
+                const snippetLimit = r.sourceType === 'table' ? 1200 : 1800;
                 const truncatedText = text.length > snippetLimit
                   ? `${text.slice(0, snippetLimit)}...`
                   : text;
@@ -438,16 +380,9 @@ class AIAssistant {
             ragResult.context = allResultsContext;
           }
         } catch (error) {
-          logger.error(`[AIAssistant] Ошибка мульти-источникового поиска:`, error);
-          // Fallback на старый метод, если новый не работает
-          if (tableIds.length > 0) {
-            const { ragAnswer } = require('./ragService');
-        ragResult = await ragAnswer({
-              tableId: tableIds[0],
-              userQuestion,
-              userId: userId
-            });
-          }
+          logger.error(`[AIAssistant] Ошибка pgvector поиска (fail-closed, без FAISS):`, error.message);
+          searchResults = { results: [] };
+          ragResult = null;
         }
       }
 
@@ -497,23 +432,27 @@ class AIAssistant {
       const userProfile = {
         id: userId,
         name: userNameForProfile || null,
-        tags: Array.isArray(userTags) && userTags.length
-          ? userTags
-          : (assignTagNames.length ? assignTagNames : []),
-        nameMissing: shouldAskForName,
-        suggestedTags: profileAnalysis?.suggestedTags || [],
+        tags: turnCtx.isGuest ? [] : (turnCtx.crmTagNames || []),
+        nameMissing: turnCtx.isGuest ? false : shouldAskForName,
+        isGuest: turnCtx.isGuest,
+        suggestedTags: turnCtx.isGuest ? [] : (profileAnalysis?.suggestedTags || []),
         comment: profileComment,
         link: profileLink
       };
 
-      const normalizedQuestion = String(ingestQuestion || '').toLowerCase();
-      const needsProfileTools = /меня\s+з[ао]вут|меня\s+звать|зовут\s+меня|зови(?:те)?\s+меня|по\s+имени|мо[её]\s+имя|мое\s+имя|с\s+уважением|представлю|представляюсь|как меня зовут|как меня звать|мой профиль|профиль|мои теги|какие у меня теги|комментар|кто я|переимен|тег|лиценз|vip|клиент|холдер|держател|^я\s+[а-яёа-я-]{2,20}\s*[.!,]?$/i.test(normalizedQuestion);
+      const enableTools = Boolean(userId && !userContextService.isGuestId(userId));
 
       const conversationMemoryService = require('./conversationMemoryService');
       const memoryKey = conversationMemoryService.buildMemoryKey({
         userId: userId && !userContextService.isGuestId(userId) ? userId : null,
         guestIdentifier: metadata?.guestIdentifier || null
       });
+      if (memoryKey) {
+        await conversationMemoryService.resetIfAudienceChanged(
+          memoryKey,
+          turnCtx.hasCrmAudience ? (turnCtx.audienceSlugs[0] || '') : ''
+        );
+      }
       const conversationMemory = memoryKey
         ? await conversationMemoryService.getSummary(memoryKey)
         : null;
@@ -530,12 +469,17 @@ class AIAssistant {
         selectedRagTables: aiSettings ? aiSettings.selected_rag_tables : [],
         userId: userId,
         multiSourceResults: searchResults,
-        userTags: (Array.isArray(userTags) && userTags.length) ? userTags : (assignTagNames.length ? assignTagNames : null),
+        userTags: turnCtx.isGuest ? null : (turnCtx.crmTagNames.length ? turnCtx.crmTagNames : null),
         userProfile,
-        enableTools: needsProfileTools && userId && !userContextService.isGuestId(userId),
+        enableTools,
         conversationMemory,
         media: ingestMedia,
-        acceptInput
+        acceptInput,
+        allowAsk: turnCtx.allowAsk,
+        isGuest: turnCtx.isGuest,
+        generateIfNoRag: aiAssistantRulesService.resolveGenerateIfNoRag(rules, {
+          isGuest: turnCtx.isGuest
+        })
       });
 
       logger.info(`[AIAssistant] generateLLMResponse вернул ответ типа: ${typeof aiResponse}`);

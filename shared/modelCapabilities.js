@@ -29,6 +29,13 @@ function resolveModelCapabilities(modelName) {
     });
   }
 
+  if (n.includes('qwen-audio') || (n.startsWith('qwen') && n.includes('realtime'))) {
+    return cloneCaps({
+      input: { text: true, audio: true },
+      output: { text: true, audio: true }
+    });
+  }
+
   if (n.includes('omni') || n.includes('qwen2.5-omni') || n.includes('qwen-omni')) {
     return cloneCaps({
       input: { text: true, audio: true, video: true, image: true },

@@ -33,7 +33,7 @@ echo "🐳 Очистка логов Docker контейнеров..."
 docker system prune -f
 
 # 3. Очистка логов конкретных контейнеров (без удаления)
-containers=("dapp-backend" "dapp-frontend" "dapp-frontend-nginx" "dapp-postgres" "dapp-ollama" "dapp-vector-search")
+containers=("dapp-backend" "dapp-frontend" "dapp-frontend-nginx" "dapp-postgres" "dapp-ollama")
 for container in "${containers[@]}"; do
     if docker ps -a --format "table {{.Names}}" | grep -q "^${container}$"; then
         echo "🧹 Очистка логов контейнера ${container}..."

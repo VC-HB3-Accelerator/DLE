@@ -56,12 +56,47 @@ async function ensureSchema() {
         memory_key TEXT PRIMARY KEY,
         summary_text TEXT NOT NULL DEFAULT '',
         turn_count INTEGER NOT NULL DEFAULT 0,
+        crm_audience TEXT NOT NULL DEFAULT '',
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    await query(`ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS crm_audience TEXT NOT NULL DEFAULT ''`);
     schemaReady = true;
   } catch (error) {
     logger.warn('[conversationMemory] Не удалось создать таблицу:', error.message);
+  }
+}
+
+/** @type {Map<string, string>} */
+const audienceByKey = new Map();
+
+async function resetIfAudienceChanged(memoryKey, audienceKey) {
+  if (!memoryKey) return false;
+  const next = audienceKey == null ? '' : String(audienceKey);
+  audienceByKey.set(memoryKey, next);
+  await ensureSchema();
+  try {
+    const db = require('../db');
+    const query = db.getQuery();
+    const { rows } = await query(
+      'SELECT crm_audience FROM conversation_memory WHERE memory_key = $1',
+      [memoryKey]
+    );
+    if (!rows[0]) return false;
+    const prev = rows[0].crm_audience == null ? '' : String(rows[0].crm_audience);
+    if (prev === next) return false;
+    await query(
+      `UPDATE conversation_memory
+          SET summary_text = '', turn_count = 0, crm_audience = $2, updated_at = NOW()
+        WHERE memory_key = $1`,
+      [memoryKey, next]
+    );
+    turnBuffers.delete(memoryKey);
+    logger.info(`[conversationMemory] Сброс памяти ${memoryKey}: audience ${prev || '∅'} → ${next || '∅'}`);
+    return true;
+  } catch (error) {
+    logger.warn('[conversationMemory] Ошибка сброса памяти по audience:', error.message);
+    return false;
   }
 }
 
@@ -117,14 +152,15 @@ async function saveSummary(memoryKey, summaryText, incrementTurn = true) {
   if (!text) return null;
 
   const { rows } = await query(
-    `INSERT INTO conversation_memory (memory_key, summary_text, turn_count, updated_at)
-     VALUES ($1, $2, 1, NOW())
+    `INSERT INTO conversation_memory (memory_key, summary_text, turn_count, crm_audience, updated_at)
+     VALUES ($1, $2, 1, $4, NOW())
      ON CONFLICT (memory_key) DO UPDATE SET
        summary_text = EXCLUDED.summary_text,
        turn_count = conversation_memory.turn_count + CASE WHEN $3 THEN 1 ELSE 0 END,
+       crm_audience = EXCLUDED.crm_audience,
        updated_at = NOW()
      RETURNING turn_count`,
-    [memoryKey, text, incrementTurn]
+    [memoryKey, text, incrementTurn, audienceByKey.get(memoryKey) || '']
   );
   return Number(rows[0]?.turn_count) || 0;
 }
@@ -310,6 +346,7 @@ async function migrateGuestToUser(guestIdentifier, userId) {
 module.exports = {
   buildMemoryKey,
   getSummary: getSummaryText,
+  resetIfAudienceChanged,
   scheduleUpdate,
   migrateGuestToUser,
   ensureSchema

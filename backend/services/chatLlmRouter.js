@@ -1,6 +1,6 @@
 /**
  * Роутинг LLM для Live-чата: Ollama (локально) vs DeepSeek / Qwen Cloud (OpenAI-compatible API).
- * Embeddings / vector-search не трогает.
+ * Embeddings / pgvector не трогает.
  */
 
 const OpenAI = require('openai');
@@ -23,6 +23,12 @@ function isQwenCloudModelName(modelName) {
   const name = String(modelName || '').trim().toLowerCase();
   if (!name || name.includes(':')) return false;
   return name.startsWith('qwen') || name.startsWith('qwq');
+}
+
+function isQwenRealtimeModelName(modelName) {
+  const n = String(modelName || '').trim().toLowerCase();
+  if (!n.startsWith('qwen')) return false;
+  return n.includes('realtime');
 }
 
 function isOpenAiModelName(modelName) {
@@ -62,7 +68,7 @@ function createDeepseekClient(settings) {
     throw err;
   }
   const baseURL = String(settings.base_url || '').trim() || DEEPSEEK_DEFAULT_BASE_URL;
-  return new OpenAI({ apiKey: settings.api_key, baseURL });
+  return new OpenAI({ apiKey: settings.api_key, baseURL, timeout: 180000 });
 }
 
 function createQwenCloudClient(settings) {
@@ -73,7 +79,7 @@ function createQwenCloudClient(settings) {
     throw err;
   }
   const baseURL = String(settings.base_url || '').trim() || QWENCLOUD_DEFAULT_BASE_URL;
-  return new OpenAI({ apiKey: settings.api_key, baseURL });
+  return new OpenAI({ apiKey: settings.api_key, baseURL, timeout: 180000 });
 }
 
 function normalizeToolCallForExecute(toolCall) {
@@ -109,6 +115,19 @@ function toOpenAiToolMessage(toolCall, result) {
  * Один/два раунда chat.completions для OpenAI-compatible cloud (DeepSeek / Qwen Cloud).
  * @returns {Promise<string>}
  */
+function cloudSafeLlmParameters(llmParameters = {}) {
+  const temperature = Number.isFinite(Number(llmParameters.temperature))
+    ? Number(llmParameters.temperature)
+    : 0.3;
+  let maxTokens = Number(llmParameters.maxTokens) > 0
+    ? Number(llmParameters.maxTokens)
+    : 8000;
+  // Дефолт вкладки RAG/Ollama (150) обрезает cloud-ответы — не тащим в DeepSeek/Qwen.
+  if (maxTokens < 256) maxTokens = 8000;
+  if (maxTokens > 8000) maxTokens = 8000;
+  return { temperature, maxTokens };
+}
+
 async function generateOpenAiCompatibleChatResponse({
   providerLabel,
   client,
@@ -122,12 +141,7 @@ async function generateOpenAiCompatibleChatResponse({
   extraPayload = {},
   returnMeta = false
 }) {
-  const temperature = Number.isFinite(Number(llmParameters.temperature))
-    ? Number(llmParameters.temperature)
-    : 0.3;
-  const maxTokens = Number(llmParameters.maxTokens) > 0
-    ? Number(llmParameters.maxTokens)
-    : 800;
+  const { temperature, maxTokens } = cloudSafeLlmParameters(llmParameters);
 
   const basePayload = {
     model,
@@ -196,12 +210,44 @@ async function generateDeepseekChatResponse(opts) {
   });
 }
 
+function lastUserTextFromMessages(messages) {
+  const lastUser = [...(messages || [])].reverse().find((m) => m.role === 'user');
+  if (!lastUser) return '';
+  if (typeof lastUser.content === 'string') return lastUser.content;
+  if (!Array.isArray(lastUser.content)) return '';
+  return lastUser.content
+    .filter((p) => p && (p.type === 'text' || p.text))
+    .map((p) => p.text)
+    .join('\n')
+    .trim();
+}
+
 async function generateQwenCloudChatResponse(opts) {
+  if (isQwenRealtimeModelName(opts.model)) {
+    const { askQwenRealtime } = require('./qwenRealtimeService');
+    const sys = (opts.messages || [])
+      .filter((m) => m.role === 'system')
+      .map((m) => (typeof m.content === 'string' ? m.content : ''))
+      .join('\n');
+    const text = await askQwenRealtime({
+      settings: opts.settings,
+      model: opts.model,
+      instructions: sys,
+      userText: lastUserTextFromMessages(opts.messages)
+    });
+    if (opts.returnMeta) return { text, message: { role: 'assistant', content: text } };
+    return text;
+  }
+  const extra = {};
+  if (String(opts.model || '').toLowerCase().startsWith('deepseek-v')) {
+    extra.thinking = { type: 'disabled' };
+  }
   const client = createQwenCloudClient(opts.settings);
   return generateOpenAiCompatibleChatResponse({
     ...opts,
     providerLabel: 'QwenCloud',
-    client
+    client,
+    extraPayload: { ...extra, ...(opts.extraPayload || {}) }
   });
 }
 
@@ -213,7 +259,7 @@ async function generateOpenAiChatResponse(opts) {
     err.code = 'OPENAI_KEY_MISSING';
     throw err;
   }
-  const client = openaiProxy.createOpenAIClient(opts.settings, { timeout: 120000 });
+  const client = openaiProxy.createOpenAIClient(opts.settings, { timeout: 180000 });
   return generateOpenAiCompatibleChatResponse({
     ...opts,
     providerLabel: 'OpenAI',
@@ -224,8 +270,10 @@ async function generateOpenAiChatResponse(opts) {
 module.exports = {
   isDeepseekModelName,
   isQwenCloudModelName,
+  isQwenRealtimeModelName,
   isOpenAiModelName,
   resolveChatLlmRoute,
+  cloudSafeLlmParameters,
   generateDeepseekChatResponse,
   generateQwenCloudChatResponse,
   generateOpenAiChatResponse

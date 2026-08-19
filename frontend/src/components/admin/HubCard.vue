@@ -2,7 +2,7 @@
   Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
 
-  Единая карточка админ-хаба (TZ_ADMIN_UI_SHELL_CLOSE §3.2).
+  Единая карточка админ-хаба (archive/TZ_ADMIN_UI_SHELL_CLOSE §3.2).
   Заголовок — --color-dark; CTA — btn btn-primary. Без класса .panel.
 -->
 

@@ -93,7 +93,7 @@ Load agent settings (prompt, rules, RAG tables)
        ↓
 Request vectorization (Ollama mxbai-embed-large → vector [768])
        ↓
-RAG search over connected tables (FAISS)
+RAG search over connected tables (pgvector)
        ↓
 Response generation (LLM with RAG context + system prompt + history)
        ↓
@@ -266,7 +266,7 @@ The number of agents is unlimited. Each new agent is a new combination of prompt
 |-----------|------------|------------|
 | LLM | Ollama (qwen2.5:1.5b or any other) | Response generation, dialogue |
 | Embedding | mxbai-embed-large | Text vectorization for search |
-| Vector DB | FAISS | Fast semantic search |
+| Vector DB | pgvector (PostgreSQL) | Semantic search |
 | Primary DB | PostgreSQL | Storing agent settings, knowledge bases, history |
 | Cache | Node.js Map + TTL | Speeding up repeat requests (< 50ms) |
 | Queue | AI Queue | Priority-based task processing |
@@ -276,7 +276,7 @@ The number of agents is unlimited. Each new agent is a new combination of prompt
 
 | Method | Description | When to use |
 |-------|----------|-------------------|
-| Semantic | Meaning-based search via FAISS | When understanding accuracy matters |
+| Semantic | Meaning-based search via pgvector | When understanding accuracy matters |
 | Keyword | Fast text search | When speed matters |
 | Hybrid | 70% semantic + 30% keywords | Recommended by default |
 

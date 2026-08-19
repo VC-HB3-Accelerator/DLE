@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * Права ролей на типы сообщений чата.
- * SoT: docs.ru/back-docs/TZ_USER_ROLES_CHAT_PERMISSIONS.ru.md
+ * SoT: docs.ru/back-docs/archive/TZ_USER_ROLES_CHAT_PERMISSIONS.ru.md
  */
 
 function loadMediaLimits() {

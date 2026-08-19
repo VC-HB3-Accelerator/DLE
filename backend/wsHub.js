@@ -50,6 +50,21 @@ function initWSS(server) {
     logger.debug('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
     logger.debug('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
     logger.debug('🔌 [WebSocket] Origin:', req.headers.origin);
+
+    try {
+      const voiceTicket = new URL(req.url || '', 'http://localhost').searchParams.get('ticket');
+      if (voiceTicket) {
+        const { handleVoiceCallSocket } = require('./services/voiceCallMediaProxy');
+        logger.info(`[WebSocket] voice ticket=${String(voiceTicket).slice(0, 8)}`);
+        handleVoiceCallSocket(ws, voiceTicket).catch((error) => {
+          logger.warn('[WebSocket] voice call:', error.message);
+          try { ws.close(); } catch (_) { /* ignore */ }
+        });
+        return;
+      }
+    } catch (error) {
+      logger.warn('[WebSocket] ticket parse:', error.message);
+    }
     
     // Добавляем клиента в общий список
     if (!wsClients.has('anonymous')) {
@@ -301,7 +316,7 @@ function broadcastTagsUpdate(targetUserId = null, rowId = null) {
   
   // Устанавливаем новый таймаут
   tagsUpdateTimeout = setTimeout(() => {
-    // console.log('🔔 [WebSocket] Отправляем уведомление об обновлении тегов', rowId ? `для строки ${rowId}` : '');
+    if (!wss) return;
     const message = JSON.stringify({
       type: 'tags-updated',
       timestamp: Date.now(),
@@ -413,6 +428,7 @@ function broadcastProposalExecuted(dleAddress, proposalId, txHash) {
 }
 
 function broadcastToAllClients(message) {
+  if (!wss) return;
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);

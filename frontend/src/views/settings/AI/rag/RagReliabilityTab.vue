@@ -26,18 +26,6 @@
           <input type="number" v-model.number="timeoutsLocal.ollamaEmbedding" class="form-control form-control--narrow" min="1000" step="1000" />
         </div>
         <div class="form-group">
-          <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorSearch') }}</label>
-          <input type="number" v-model.number="timeoutsLocal.vectorSearch" class="form-control form-control--narrow" min="1000" step="1000" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorUpsert') }}</label>
-          <input type="number" v-model.number="timeoutsLocal.vectorUpsert" class="form-control form-control--narrow" min="1000" step="1000" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">{{ $t('settings.ai.assistant.timeoutVectorHealth') }}</label>
-          <input type="number" v-model.number="timeoutsLocal.vectorHealth" class="form-control form-control--narrow" min="1000" step="1000" />
-        </div>
-        <div class="form-group">
           <label class="form-label">{{ $t('settings.ai.assistant.timeoutOllamaHealth') }}</label>
           <input type="number" v-model.number="timeoutsLocal.ollamaHealth" class="form-control form-control--narrow" min="1000" step="1000" />
         </div>
@@ -68,9 +56,6 @@ const dedup = reactive({ enabled: true, ttl: 300000 });
 const timeoutsLocal = reactive({
   ollamaChat: 600000,
   ollamaEmbedding: 90000,
-  vectorSearch: 90000,
-  vectorUpsert: 600000,
-  vectorHealth: 5000,
   ollamaHealth: 5000,
   ollamaTags: 10000
 });

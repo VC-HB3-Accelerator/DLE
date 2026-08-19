@@ -58,16 +58,6 @@ DLE does **not** import `web3-utils` directly; Ethereum interaction uses
 - Copy in the distribution: `backend/node_modules/web3-utils/LICENSE` (when
   backend dependencies are included)
 
-## Python: vector-search
-
-| Package | License | Note |
-|-------|----------|------------|
-| fastapi | MIT | https://github.com/fastapi/fastapi |
-| uvicorn | BSD-3-Clause | https://github.com/encode/uvicorn |
-| faiss-cpu | MIT | https://github.com/facebookresearch/faiss |
-| requests | Apache-2.0 | https://github.com/psf/requests |
-| pydantic | MIT | https://github.com/pydantic/pydantic |
-
 ## Python: runtime (backend Docker)
 
 System packages are installed via apt in the backend Docker image (python3, curl, and others) — licenses correspond to the Debian distribution.

@@ -16,13 +16,19 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const vectorSearchClient = require('../services/vectorSearchClient');
+const ragPgvectorService = require('../services/ragPgvectorService');
+const rulesMirror = require('../services/aiAssistantRulesMirrorService');
 const { broadcastTableUpdate, broadcastTableRelationsUpdate } = require('../wsHub');
 
 // Вспомогательная функция для получения ключа шифрования
 function getEncryptionKey() {
   const encryptionUtils = require('../utils/encryptionUtils');
   return encryptionUtils.getEncryptionKey();
+}
+
+async function maybeRebuildFaqIndex(tableId) {
+  if (!(await rulesMirror.isRagSourceTable(tableId))) return { skipped: true, count: 0 };
+  return ragPgvectorService.rebuildFaqTable(tableId);
 }
 
 router.use((req, res, next) => {
@@ -203,9 +209,13 @@ router.post('/:id/rows', async (req, res, next) => {
     const rows = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId, encryptionKey])).rows;
     const upsertRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
     // console.log('[DEBUG][upsertRows]', upsertRows);
-    if (upsertRows.length > 0) {
-      await vectorSearchClient.upsert(tableId, upsertRows);
-    }
+        if (upsertRows.length > 0) {
+          try {
+            await maybeRebuildFaqIndex(tableId);
+          } catch (idxErr) {
+            console.error('[tables] pgvector rebuild after addRow:', idxErr.message);
+          }
+        }
     // console.log('[DEBUG][addRow] res.json:', result.rows[0]);
     res.json(result.rows[0]);
     broadcastTableUpdate(tableId);
@@ -316,8 +326,18 @@ router.post('/cell', async (req, res, next) => {
         const upsertRows = [{ row_id: rowData.row_id, text: rowData.text, metadata: { answer: rowData.answer } }].filter(r => r.row_id && r.text);
         console.log('[DEBUG][upsertRows]', upsertRows);
         if (upsertRows.length > 0) {
-          await vectorSearchClient.upsert(tableId, upsertRows);
+          try {
+            await maybeRebuildFaqIndex(tableId);
+          } catch (idxErr) {
+            console.error('[tables] pgvector rebuild after cell:', idxErr.message);
+          }
         }
+      }
+
+      try {
+        await rulesMirror.syncTableRowToRule(tableId, row_id);
+      } catch (syncErr) {
+        console.warn('[tables] sync правил из ячейки:', syncErr.message);
       }
       
       // Отправляем WebSocket уведомление об обновлении таблицы
@@ -343,6 +363,12 @@ router.delete('/row/:rowId', async (req, res, next) => {
     }
     
     const tableId = table.table_id;
+
+    try {
+      await rulesMirror.deleteRuleIfMirrorRow(tableId, rowId);
+    } catch (syncErr) {
+      console.warn('[tables] sync удаления правила:', syncErr.message);
+    }
     
     // Удаляем строку
     await db.getQuery()('DELETE FROM user_rows WHERE id = $1', [rowId]);
@@ -356,7 +382,11 @@ router.delete('/row/:rowId', async (req, res, next) => {
     const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
     console.log('[DEBUG][rebuildRows]', rebuildRows);
     if (rebuildRows.length > 0) {
-      await vectorSearchClient.rebuild(tableId, rebuildRows);
+      try {
+        await maybeRebuildFaqIndex(tableId);
+      } catch (idxErr) {
+        console.error('[tables] pgvector rebuild after delete row:', idxErr.message);
+      }
     }
     
     // Отправляем WebSocket уведомление об обновлении таблицы
@@ -543,17 +573,18 @@ router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
       [tableId, questionCol, answerCol, encryptionKey]
     )).rows;
     
-    const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ 
-      row_id: r.row_id, 
-      text: r.text, 
-      metadata: { answer: r.answer } 
+    const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({
+      row_id: r.row_id,
+      text: r.answer ? `${r.text}\n${r.answer}` : r.text,
+      metadata: { answer: r.answer, question: r.text }
     }));
     
     console.log('[DEBUG][rebuildRows]', rebuildRows);
     
     if (rebuildRows.length > 0) {
-      await vectorSearchClient.rebuild(tableId, rebuildRows);
-      res.json({ success: true, count: rebuildRows.length });
+      const result = await maybeRebuildFaqIndex(tableId);
+      const count = result && typeof result.count === 'number' ? result.count : rebuildRows.length;
+      res.json({ success: true, count, engine: 'pgvector' });
     } else {
       res.status(400).json({ error: 'Нет валидных строк для индексации' });
     }
@@ -641,9 +672,18 @@ router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
         // Отправляем WebSocket уведомление
         const { broadcastTagsUpdate } = require('../wsHub');
         broadcastTagsUpdate(null, rowId);
-        
+        try {
+          await rulesMirror.syncTableRowToRule(tableId, rowId);
+        } catch (syncErr) {
+          console.warn('[tables] sync правил из relations:', syncErr.message);
+        }
         res.json(result.rows);
       } else {
+        try {
+          await rulesMirror.syncTableRowToRule(tableId, rowId);
+        } catch (syncErr) {
+          console.warn('[tables] sync правил из relations:', syncErr.message);
+        }
         res.json([]);
       }
     } else {
@@ -658,7 +698,11 @@ router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
       // Отправляем WebSocket уведомление
       const { broadcastTagsUpdate } = require('../wsHub');
       broadcastTagsUpdate(null, rowId);
-      
+      try {
+        await rulesMirror.syncTableRowToRule(tableId, rowId);
+      } catch (syncErr) {
+        console.warn('[tables] sync правил из relations:', syncErr.message);
+      }
       res.json(result.rows[0]);
     }
   } catch (err) {
@@ -670,8 +714,13 @@ router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
 // Удалить связь
 router.delete('/:tableId/row/:rowId/relations/:relationId', async (req, res, next) => {
   try {
-    const { relationId } = req.params;
+    const { tableId, rowId, relationId } = req.params;
     await db.getQuery()('DELETE FROM user_table_relations WHERE id = $1', [relationId]);
+    try {
+      await rulesMirror.syncTableRowToRule(tableId, rowId);
+    } catch (syncErr) {
+      console.warn('[tables] sync правил после удаления связи:', syncErr.message);
+    }
     res.json({ success: true });
   } catch (err) {
     next(err);

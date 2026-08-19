@@ -1,5 +1,0 @@
-fastapi
-uvicorn
-faiss-cpu
-requests
-pydantic 

@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * Склад CMS media: диск, чанки, DELETE, dual-read, короткий URL.
- * SoT: TZ_CONTENT_MEDIA_CHUNKED_UPLOAD + TZ_CONTENT_MEDIA_LIBRARY
+ * SoT: archive/TZ_CONTENT_MEDIA_CHUNKED_UPLOAD + archive/TZ_CONTENT_MEDIA_LIBRARY
  */
 
 const fs = require('fs');
@@ -78,7 +78,7 @@ function assertSafeMediaAbs(abs) {
 }
 
 function publicFileUrl(row) {
-  if (row && row.public_id) return `/api/v/${row.public_id}`;
+  if (row && row.public_id) return `/v/${row.public_id}`;
   if (row && row.id) return `/api/uploads/media/${row.id}/file`;
   return null;
 }
@@ -293,7 +293,7 @@ async function listMedia({ mediaType, pageId, q, limit, offset, scope = 'cms', s
         created_at,
         public_id,
         CASE
-          WHEN public_id IS NOT NULL AND public_id <> '' THEN '/api/v/' || public_id
+          WHEN public_id IS NOT NULL AND public_id <> '' THEN '/v/' || public_id
           ELSE '/api/uploads/media/' || id::text || '/file'
         END AS url
       FROM content_media

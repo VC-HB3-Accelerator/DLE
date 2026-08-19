@@ -70,7 +70,7 @@
               type="number" 
               v-model.number="ruleFields.max_tokens" 
               min="1" 
-              max="4000"
+              max="8000"
               placeholder="500"
             />
           </div>
@@ -155,7 +155,7 @@ const ruleFields = ref({
   max_tokens: props.rule?.rules?.max_tokens ?? 500,
   checkUserTags: props.rule?.rules?.rules?.checkUserTags ?? true,
   searchRagFirst: props.rule?.rules?.rules?.searchRagFirst ?? true,
-  generateIfNoRag: props.rule?.rules?.rules?.generateIfNoRag ?? true,
+  generateIfNoRag: props.rule?.rules?.rules?.generateIfNoRag ?? false,
   allowed_topics: props.rule?.rules?.rules?.allowed_topics || [],
   forbidden_words: props.rule?.rules?.rules?.forbidden_words || []
 });
@@ -218,7 +218,7 @@ watch(() => props.rule, (newRule) => {
       max_tokens: newRule.rules?.max_tokens ?? 500,
       checkUserTags: newRule.rules?.rules?.checkUserTags ?? true,
       searchRagFirst: newRule.rules?.rules?.searchRagFirst ?? true,
-      generateIfNoRag: newRule.rules?.rules?.generateIfNoRag ?? true,
+      generateIfNoRag: newRule.rules?.rules?.generateIfNoRag ?? false,
       allowed_topics: newRule.rules?.rules?.allowed_topics || [],
       forbidden_words: newRule.rules?.rules?.forbidden_words || []
     };
@@ -235,7 +235,7 @@ watch(() => props.rule, (newRule) => {
       max_tokens: 500,
       checkUserTags: true,
       searchRagFirst: true,
-      generateIfNoRag: true,
+      generateIfNoRag: false,
       allowed_topics: [],
       forbidden_words: []
     };

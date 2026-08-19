@@ -43,7 +43,6 @@ const exportDockerImages = async (sendWebSocketLog) => {
   const images = [
     { name: 'postgres:16', file: 'dapp-postgres.tar' },
     { name: 'digital_legal_entitydle-ollama:latest', file: 'dapp-ollama.tar' },
-    { name: 'digital_legal_entitydle-vector-search:latest', file: 'dapp-vector-search.tar' },
     { name: 'digital_legal_entitydle-backend:latest', file: 'dapp-backend.tar' },
     { name: 'digital_legal_entitydle-frontend:latest', file: 'dapp-frontend.tar' },
     { name: 'digital_legal_entitydle-frontend-nginx:latest', file: 'dapp-frontend-nginx.tar' },

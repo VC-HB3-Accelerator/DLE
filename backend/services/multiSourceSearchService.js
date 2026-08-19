@@ -181,6 +181,16 @@ class MultiSourceSearchService {
         totalMaxResults,
         searchMethod
       });
+      if (query) {
+        const { rerankTableHitsByQuestion, isTableHit } = require('./ragPromptAssembly');
+        mergedResults.results = rerankTableHitsByQuestion(mergedResults.results, query);
+        mergedResults.results.sort((a, b) => {
+          const ta = isTableHit(a) ? 1 : 0;
+          const tb = isTableHit(b) ? 1 : 0;
+          if (ta !== tb) return tb - ta;
+          return (b.score || 0) - (a.score || 0);
+        });
+      }
 
       logger.info(`[MultiSourceSearch] Найдено результатов: ${mergedResults.results.length} из ${searchResults.length} источников`);
 
@@ -279,9 +289,10 @@ class MultiSourceSearchService {
           sourceId: tableId,
           rowId: rowId,
           text: vectorResult.metadata?.answer || vectorResult.metadata?.text || '',
-          context: vectorResult.metadata?.context || '',
+          context: vectorResult.metadata?.question || vectorResult.metadata?.context || '',
           score: vectorResult.score || 0,
           metadata: {
+            question: vectorResult.metadata?.question,
             answer: vectorResult.metadata?.answer,
             context: vectorResult.metadata?.context,
             product: vectorResult.metadata?.product,
@@ -466,9 +477,11 @@ class MultiSourceSearchService {
       keywordWeight
     );
 
-    // Сортируем и берем топ-N
-    combined.sort((a, b) => b.combinedScore - a.combinedScore);
-    const topResults = combined.slice(0, maxResults);
+    const { rerankTableHitsByQuestion } = require('./ragPromptAssembly');
+    const boosted = rerankTableHitsByQuestion(combined, query);
+
+    boosted.sort((a, b) => (b.combinedScore || b.score || 0) - (a.combinedScore || a.score || 0));
+    const topResults = boosted.slice(0, maxResults);
 
     return {
       source: 'table',
@@ -670,24 +683,23 @@ class MultiSourceSearchService {
 
     // Сортируем по релевантности
     uniqueResults.sort((a, b) => {
-      // Приоритет: таблицы > документы (можно настроить)
       const sourcePriority = {
-        table: 1.0,
-        document: 0.9
+        table: 1.15,
+        document: 0.4,
+        documents: 0.4
       };
-      
-      const priorityA = sourcePriority[a.sourceType] || 0.8;
-      const priorityB = sourcePriority[b.sourceType] || 0.8;
-      
-      // Комбинируем релевантность и приоритет источника
+      const priorityA = sourcePriority[a.sourceType] || 0.35;
+      const priorityB = sourcePriority[b.sourceType] || 0.35;
       const scoreA = (a.score || 0) * priorityA;
       const scoreB = (b.score || 0) * priorityB;
-      
       return scoreB - scoreA;
     });
 
-    // Берем топ-N результатов
-    const topResults = uniqueResults.slice(0, totalMaxResults);
+    const tables = uniqueResults.filter((r) => r.sourceType === 'table');
+    const others = uniqueResults.filter((r) => r.sourceType !== 'table');
+    const tableQuota = Math.min(tables.length, Math.max(4, Math.ceil(totalMaxResults / 2)));
+    const topResults = [...tables.slice(0, tableQuota), ...others]
+      .slice(0, totalMaxResults);
 
     // Группируем по источникам для статистики
     const sourcesStats = {};
@@ -718,13 +730,9 @@ class MultiSourceSearchService {
   combineSearchResults(semanticResults, keywordResults, semanticWeight, keywordWeight) {
     const combined = new Map();
 
-    // Нормализуем скоры для семантического поиска
     const normalizedSemantic = this.normalizeScores(semanticResults);
-    
-    // Нормализуем скоры для поиска по ключевым словам
     const normalizedKeyword = this.normalizeScores(keywordResults);
 
-    // Добавляем результаты семантического поиска
     normalizedSemantic.forEach(result => {
       const key = `${result.source}_${result.sourceId}_${result.rowId || 'unknown'}`;
       combined.set(key, {
@@ -735,22 +743,27 @@ class MultiSourceSearchService {
       });
     });
 
-    // Добавляем результаты поиска по ключевым словам
     normalizedKeyword.forEach(result => {
       const key = `${result.source}_${result.sourceId}_${result.rowId || 'unknown'}`;
       const existing = combined.get(key);
-      
+      const question = result.metadata?.question || result.context || '';
+      const looksLikeQuestion = question && !/^audience=/i.test(String(question));
       if (existing) {
-        // Объединяем скоры
         existing.keywordScore = result.score;
         existing.combinedScore = (existing.semanticScore * semanticWeight) + (result.score * keywordWeight);
+        if (looksLikeQuestion) {
+          existing.metadata = { ...(existing.metadata || {}), question };
+        }
       } else {
-        // Новый результат
         combined.set(key, {
           ...result,
           semanticScore: 0,
           keywordScore: result.score,
-          combinedScore: result.score * keywordWeight
+          combinedScore: result.score * keywordWeight,
+          metadata: {
+            ...(result.metadata || {}),
+            ...(looksLikeQuestion ? { question } : {})
+          }
         });
       }
     });
@@ -759,19 +772,20 @@ class MultiSourceSearchService {
   }
 
   /**
-   * Нормализация скоров (0-1)
+   * Нормализация скоров в [0, 1] без инверсии.
+   * pgvector отдаёт cosine similarity (больше = лучше).
    */
   normalizeScores(results) {
-    if (results.length === 0) return [];
+    if (!results.length) return [];
 
-    const scores = results.map(r => Math.abs(r.score || 0));
+    const scores = results.map((r) => Number(r.score) || 0);
     const maxScore = Math.max(...scores);
     const minScore = Math.min(...scores);
-    const range = maxScore - minScore || 1;
+    const range = maxScore - minScore;
 
-    return results.map(result => ({
+    return results.map((result) => ({
       ...result,
-      score: range > 0 ? (Math.abs(result.score || 0) - minScore) / range : 0.5
+      score: range > 0 ? ((Number(result.score) || 0) - minScore) / range : 1
     }));
   }
 

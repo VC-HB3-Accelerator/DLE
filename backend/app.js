@@ -382,6 +382,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/contact-site-parser', contactSiteParserRoutes);
 app.use('/api/conference', conferenceRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/ai-calls', require('./routes/aiCalls'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/isic', isicRoutes); // Добавленное использование роута
@@ -427,6 +428,14 @@ app.get('/api/v/:publicId', (req, res) => {
   return contentMediaStore.sendPublicFile(req, res);
 });
 app.head('/api/v/:publicId', (req, res) => {
+  const contentMediaStore = require('./services/contentMediaStore');
+  return contentMediaStore.sendPublicFile(req, res);
+});
+app.get('/v/:publicId', (req, res) => {
+  const contentMediaStore = require('./services/contentMediaStore');
+  return contentMediaStore.sendPublicFile(req, res);
+});
+app.head('/v/:publicId', (req, res) => {
   const contentMediaStore = require('./services/contentMediaStore');
   return contentMediaStore.sendPublicFile(req, res);
 });
@@ -506,17 +515,17 @@ app.get('/api/health', async (req, res) => {
       healthStatus.services.ai = { status: 'warning', message: error.message };
     }
 
-    // Проверяем Vector Search сервис (не блокируем healthcheck при ошибках)
+    // Проверяем pgvector (не блокируем healthcheck при ошибках)
     try {
-      const vectorSearchClient = require('./services/vectorSearchClient');
-      const vectorQueryPromise = vectorSearchClient.health();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Vector search timeout')), 5000)
+      const ragPgvectorService = require('./services/ragPgvectorService');
+      const vectorQueryPromise = ragPgvectorService.health();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('pgvector timeout')), 5000)
       );
       const vectorStatus = await Promise.race([vectorQueryPromise, timeoutPromise]);
-      healthStatus.services.vectorSearch = vectorStatus;
+      healthStatus.services.pgvector = vectorStatus;
     } catch (error) {
-      healthStatus.services.vectorSearch = { status: 'warning', message: error.message };
+      healthStatus.services.pgvector = { status: 'warning', message: error.message };
     }
 
     // Всегда возвращаем 200 для healthcheck, чтобы контейнер не считался unhealthy

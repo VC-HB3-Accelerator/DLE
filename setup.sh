@@ -352,7 +352,7 @@ check_images() {
     exit 1
   fi
   
-  local images=("backend.tar" "frontend-nginx.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
+  local images=("backend.tar" "frontend-nginx.tar" "ollama.tar" "webssh-agent.tar")
   for image in "${images[@]}"; do
     if [ ! -f "docker-data/images/$image" ]; then
       print_red "❌ Файл образа $image не найден!"
@@ -393,7 +393,7 @@ check_volumes() {
     exit 1
   fi
   
-  local volumes=("postgres_data.tar.gz" "ollama_data.tar.gz" "vector_search_data.tar.gz" "backend_node_modules.tar.gz")
+  local volumes=("postgres_data.tar.gz" "ollama_data.tar.gz" "backend_node_modules.tar.gz")
   for volume in "${volumes[@]}"; do
     if [ ! -f "docker-data/volumes/$volume" ]; then
       print_red "❌ Файл тома $volume не найден!"
@@ -413,7 +413,7 @@ check_volumes() {
 import_images() {
   print_blue "📦 Импорт образов..."
   
-  local images=("backend.tar" "frontend-nginx.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
+  local images=("backend.tar" "frontend-nginx.tar" "ollama.tar" "webssh-agent.tar")
   for image in "${images[@]}"; do
     print_blue "Импорт $image..."
     if docker load -i "docker-data/images/$image"; then
@@ -488,7 +488,6 @@ create_volumes() {
   local volumes=(
     "${project_name}_postgres_data"
     "${project_name}_ollama_data"
-    "${project_name}_vector_search_data"
     "${project_name}_backend_node_modules"
   )
   
@@ -531,11 +530,6 @@ import_volumes() {
   print_blue "Импорт ollama_data..."
   docker run --rm -v "${project_name}_ollama_data:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/ollama_data.tar.gz -C /target
   print_green "✅ ollama_data импортирован"
-  
-  # Vector Search
-  print_blue "Импорт vector_search_data..."
-  docker run --rm -v "${project_name}_vector_search_data:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/vector_search_data.tar.gz -C /target
-  print_green "✅ vector_search_data импортирован"
   
   # Backend node_modules
   print_blue "Импорт backend_node_modules..."

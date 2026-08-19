@@ -23,18 +23,34 @@
             <code>{{ fmtWeights(runtime.rag?.configHybridWeights) }}</code>
           </div>
           <div class="runtime-item">
+            <span class="runtime-label">{{ $t('settings.ai.rag.embedProvider') }}</span>
+            <code>{{ runtime.embedding?.provider || runtime.pgvector?.embedProvider || 'ollama' }}</code>
+          </div>
+          <div class="runtime-item">
             <span class="runtime-label">{{ $t('settings.ai.rag.embedDb') }}</span>
-            <code>{{ runtime.vectorSearch?.embedModelInDb || '—' }}</code>
+            <code>{{ runtime.embedding?.model || runtime.pgvector?.embedModelInDb || runtime.ollama?.embeddingModel || '—' }}</code>
+          </div>
+          <div class="runtime-item">
+            <span class="runtime-label">{{ $t('settings.ai.rag.embedDimension') }}</span>
+            <code>{{ runtime.embedding?.dimension || runtime.pgvector?.embedDimension || '—' }}</code>
+            <span v-if="runtime.pgvector?.columnDimension" class="badge badge-info">
+              pgvector {{ runtime.pgvector.columnDimension }}
+            </span>
           </div>
           <div class="runtime-item">
             <span class="runtime-label">{{ $t('settings.ai.rag.embedEnv') }}</span>
-            <code>{{ runtime.vectorSearch?.embedModelInVectorContainer || '—' }}</code>
+            <code>{{ runtime.pgvector?.embedModelInEnv || '—' }}</code>
             <span
               class="badge"
-              :class="runtime.vectorSearch?.modelsMatch ? 'badge-ok' : 'badge-warn'"
+              :class="runtime.pgvector?.modelsMatch ? 'badge-ok' : 'badge-warn'"
             >
-              {{ runtime.vectorSearch?.modelsMatch ? $t('settings.ai.rag.match') : $t('settings.ai.rag.mismatch') }}
+              {{ runtime.pgvector?.modelsMatch ? $t('settings.ai.rag.match') : $t('settings.ai.rag.mismatch') }}
             </span>
+          </div>
+          <div class="runtime-item">
+            <span class="runtime-label">{{ $t('settings.ai.rag.vectorHealth') }}</span>
+            <code>{{ runtime.pgvector?.healthy === true ? 'OK' : runtime.pgvector?.healthy === false ? 'FAIL' : '—' }}</code>
+            <span class="badge badge-ok">pgvector · {{ runtime.pgvector?.chunks ?? '—' }}</span>
           </div>
           <div class="runtime-item">
             <span class="runtime-label">USE_AI_CACHE</span>

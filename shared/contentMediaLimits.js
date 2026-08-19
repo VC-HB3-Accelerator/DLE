@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * Лимиты медиа CMS (статьи/блог). Чат это не читает.
- * SoT: docs.ru/back-docs/TZ_CONTENT_MEDIA_CHUNKED_UPLOAD.ru.md
+ * SoT: docs.ru/back-docs/archive/TZ_CONTENT_MEDIA_CHUNKED_UPLOAD.ru.md
  */
 
 const PART_SIZE = 8 * 1024 * 1024;

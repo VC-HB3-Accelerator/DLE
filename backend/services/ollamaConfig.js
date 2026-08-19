@@ -149,11 +149,6 @@ async function _updateTimeoutsCache() {
       ollamaHealth: timeouts.ollamaHealth,
       ollamaTags: timeouts.ollamaTags,
       
-      // Vector Search - таймауты запросов
-      vectorSearch: timeouts.vectorSearch,
-      vectorUpsert: timeouts.vectorUpsert,
-      vectorHealth: timeouts.vectorHealth,
-      
       // AI Cache - TTL (Time To Live) для кэширования
       cacheLLM: cacheConfig.llmTTL,
       cacheRAG: cacheConfig.ragTTL,
@@ -176,9 +171,6 @@ async function _updateTimeoutsCache() {
       ollamaEmbedding: 90000,
       ollamaHealth: 5000,
       ollamaTags: 10000,
-      vectorSearch: 90000,
-      vectorUpsert: 600000,
-      vectorHealth: 5000,
       cacheLLM: 86400000,
       cacheRAG: 300000,
       cacheMax: 1000,
@@ -213,9 +205,6 @@ function getTimeouts() {
     ollamaEmbedding: 90000,
     ollamaHealth: 5000,
     ollamaTags: 10000,
-    vectorSearch: 90000,
-    vectorUpsert: 600000,
-    vectorHealth: 5000,
     cacheLLM: 86400000,
     cacheRAG: 300000,
     cacheMax: 1000,

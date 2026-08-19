@@ -42,7 +42,7 @@
 
 <script setup>
   import { ref, watch, onMounted, computed, onUnmounted } from 'vue';
-  import { RouterView } from 'vue-router';
+  import { RouterView, useRouter } from 'vue-router';
   import { useI18n } from 'vue-i18n';
   import { elementPlusLocales } from './locales';
   import { useAuth, provideAuth } from './composables/useAuth';
@@ -51,8 +51,10 @@
   import eventBus from './utils/eventBus';
   import wsClient from './utils/websocket';
   import { fetchRegionUrls } from './services/regionUrlsService';
+  import { consumeVoiceCallReturnUrl } from './utils/voiceCallReturnUrl';
 
   const { locale } = useI18n();
+  const router = useRouter();
   const elementPlusLocale = computed(
     () => elementPlusLocales[locale.value] || elementPlusLocales.ru
   );
@@ -160,7 +162,10 @@
     try {
       // 1. Проверяем аутентификацию (обновит identities и isAuthenticated)
       await auth.checkAuth();
-              // console.log('[App] auth.checkAuth() completed. isAuthenticated:', auth.isAuthenticated.value);
+      if (auth.isAuthenticated.value) {
+        const next = consumeVoiceCallReturnUrl();
+        if (next) router.push(next);
+      }
       
       // 2. Обновляем баланс через WebSocket
       refreshTokenBalances();

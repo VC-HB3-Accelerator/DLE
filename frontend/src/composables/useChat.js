@@ -285,7 +285,7 @@ export function useChat(auth) {
     // });
     // --- КОНЕЦ ДОБАВЛЕННЫХ ЛОГОВ ---
 
-    const { message: text, attachments: files, assign_tags: assignTags } = payload; // files - массив File объектов
+    const { message: text, attachments: files, rag_hint: ragHint } = payload;
     const userMessageContent = String(text || '').trim();
 
     // Проверка на пустое сообщение (если нет ни текста, ни файлов)
@@ -331,8 +331,8 @@ export function useChat(auth) {
         const formData = new FormData();
         formData.append('message', userMessageContent);
         formData.append('language', userLanguage.value);
-        if (Array.isArray(assignTags) && assignTags.length) {
-            formData.append('assign_tags', JSON.stringify(assignTags));
+        if (ragHint) {
+            formData.append('rag_hint', String(ragHint));
         }
 
         if (files && files.length > 0) {
