@@ -23,7 +23,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
-const { attachmentMetaFromRow, chatUploadMiddleware, chatMediaRateLimit, prepareChatAttachment, mediaTooLargePayload, MEDIA_MAX_BYTES } = require('../utils/chatMedia');
+const { attachmentMetaFromRow, attachmentMetasForRows, chatUploadMiddleware, chatMediaRateLimit, prepareChatAttachment, mediaTooLargePayload, MEDIA_MAX_BYTES } = require('../utils/chatMedia');
 const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
 const broadcastService = require('../services/broadcastService');
 const broadcastQueueService = require('../services/broadcastQueueService');
@@ -219,7 +219,18 @@ router.get('/public', requireAuth, async (req, res) => {
       );
       const totalCount = parseInt(countResult.rows[0].count, 10);
 
-      const mappedMessages = messagesResult.rows.map((row) => {
+      const guestAttachmentMetas = await attachmentMetasForRows(
+        messagesResult.rows.map((row) => ({
+          id: row.id,
+          attachment_filename: row.attachment_filename,
+          attachment_mimetype: row.attachment_mimetype,
+          attachment_size: row.attachment_size,
+          metadata: parseMetadata(row.metadata)
+        })),
+        { guest: true }
+      );
+
+      const mappedMessages = messagesResult.rows.map((row, i) => {
         const metadata = parseMetadata(row.metadata);
         const baseMessage = {
           id: row.id,
@@ -237,16 +248,7 @@ router.get('/public', requireAuth, async (req, res) => {
           last_read_at: null
         };
 
-        if (row.attachment_filename || row.attachment_mimetype || row.attachment_size) {
-          const meta = attachmentMetaFromRow({
-            id: row.id,
-            attachment_filename: row.attachment_filename,
-            attachment_mimetype: row.attachment_mimetype,
-            attachment_size: row.attachment_size,
-            metadata
-          }, { guest: true });
-          if (meta) baseMessage.attachments = [meta];
-        }
+        if (guestAttachmentMetas[i]) baseMessage.attachments = [guestAttachmentMetas[i]];
 
         if (metadata.consentRequired !== undefined) {
           baseMessage.consentRequired = metadata.consentRequired;
@@ -329,11 +331,11 @@ router.get('/public', requireAuth, async (req, res) => {
     );
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
-    const publicMessages = result.rows.map((row) => {
-      const meta = attachmentMetaFromRow(row, { guest: false });
+    const publicAttachmentMetas = await attachmentMetasForRows(result.rows, { guest: false });
+    const publicMessages = result.rows.map((row, i) => {
       return {
         ...row,
-        attachments: meta ? [meta] : null
+        attachments: publicAttachmentMetas[i] ? [publicAttachmentMetas[i]] : null
       };
     });
     
@@ -2078,11 +2080,11 @@ router.get('/private/:conversationId', requireAuth, async (req, res) => {
       [conversationId, encryptionKey]
     );
 
-    const mapped = result.rows.map((row) => {
-      const meta = attachmentMetaFromRow(row, { guest: false });
+    const privateAttachmentMetas = await attachmentMetasForRows(result.rows, { guest: false });
+    const mapped = result.rows.map((row, i) => {
       return {
         ...row,
-        attachments: meta ? [meta] : null
+        attachments: privateAttachmentMetas[i] ? [privateAttachmentMetas[i]] : null
       };
     });
     
@@ -2153,11 +2155,11 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req, r
       [conversationId, encryptionKey, limit, offset]
     );
 
-    const mapped = result.rows.map((row) => {
-      const meta = attachmentMetaFromRow(row, { guest: false });
+    const conversationAttachmentMetas = await attachmentMetasForRows(result.rows, { guest: false });
+    const mapped = result.rows.map((row, i) => {
       return {
         ...row,
-        attachments: meta ? [meta] : null
+        attachments: conversationAttachmentMetas[i] ? [conversationAttachmentMetas[i]] : null
       };
     });
 

@@ -18,17 +18,21 @@ const DEFAULT_PACKAGES = [
 ];
 
 const DEFAULT_CALL_SYSTEM_PROMPT = [
-  'Я ИИ-агент, администратор компании VC HB3 Accelerator.',
-  'Продолжая разговор, вы подтверждаете ознакомление с политикой и согласие на обработку персональных данных.',
-  'Консультация может быть по темам: операционная система и меры поддержки для бизнеса; условия сотрудничества для подрядчиков; условия сотрудничества для инвестора.',
-  'Спросите, какая тема интересует.'
+  'Скажи один раз целиком, без дроблений и без повторов:',
+  '«Здравствуйте! Я секретарь с искусственным интеллектом VC HB3 Accelerator. Продолжая разговор, вы принимаете условия политики и соглашений, опубликованных на странице операционной системы. Чем могу помочь?»',
+  'После приветствия веди диалог: слушай абонента, отвечай по существу и задавай уточняющие вопросы, чтобы квалифицировать клиента и помочь решить его вопрос.',
+  'Ответы ищи только в корпусе базы знаний, который тебе передан. Не выдумывай факты вне справки.',
+  'Если тема или ответ несут потенциальные риски (юридические, финансовые, инвестиционные условия, обязательства) — явно скажи, что в ответах возможны ошибки, и порекомендуй забронировать слот с представителями фонда.',
+  'Не повторяй приветствие, согласие и вопрос «чем могу помочь». Не говори «венчурный фонд» рядом с названием VC HB3 Accelerator. Не упоминай «проверку сервиса» и «предварительные ответы». Не говори «ИИ-секретарь» — только «секретарь с искусственным интеллектом».'
 ].join('\n');
 
 const DEFAULT_CALL_SYSTEM_PROMPT_EN = [
-  'I am an AI agent and administrator of VC HB3 Accelerator.',
-  'By continuing the call, you confirm that you have read the privacy policy and consent to personal data processing.',
-  'Consultation topics: operating system and business support measures; partnership terms for contractors; investor cooperation terms.',
-  'Ask which topic they are interested in.'
+  'Say once as a single block, do not split or repeat:',
+  '"Hello! I am a secretary with artificial intelligence at VC HB3 Accelerator. By continuing, you accept the policy and agreements published on the operating system page. How can I help?"',
+  'After the greeting, run the conversation: listen to the caller, answer substantively, and ask clarifying questions to qualify the client and help resolve their issue.',
+  'Find answers only in the knowledge-base corpus provided to you. Do not invent facts outside that pack.',
+  'If the topic or answer carries potential risks (legal, financial, investment terms, obligations) — clearly say that answers may contain errors, and recommend booking a slot with fund representatives.',
+  'Do not repeat the greeting, consent, or "how can I help". Do not say "venture fund" next to the name VC HB3 Accelerator. Do not mention a "service check" or "provisional answers". Do not say "AI secretary" — only "secretary with artificial intelligence".'
 ].join('\n');
 
 const TONE_VALUES = ['neutral', 'business', 'warm'];
@@ -72,6 +76,7 @@ function defaultSettings() {
     packages: DEFAULT_PACKAGES.map((p) => ({ ...p })),
     hard_stop: true,
     write_call_stub_to_chat: false,
+    save_call_recording: true,
     tone: 'business',
     response_length: 'balanced',
     formality: 'normal',
@@ -188,6 +193,7 @@ function mapRow(row) {
     packages: normalizePackages(packages && packages.length ? packages : defaults.packages),
     hard_stop: row.hard_stop !== false,
     write_call_stub_to_chat: Boolean(row.write_call_stub_to_chat),
+    save_call_recording: row.save_call_recording !== false,
     tone: asEnum(row.tone, defaults.tone, TONE_VALUES),
     response_length: asEnum(row.response_length, defaults.response_length, RESPONSE_LENGTH_VALUES),
     formality: asEnum(row.formality, defaults.formality, FORMALITY_VALUES),
@@ -245,6 +251,7 @@ function publicConfig(settings) {
     pay_to_address: settings.pay_to_address,
     pay_mode: settings.pay_mode,
     hard_stop: settings.hard_stop,
+    save_call_recording: settings.save_call_recording !== false,
     booking_editor_user_id: settings.booking_editor_user_id,
     booking_slot_minutes: settings.booking_slot_minutes,
     booking_hours: settings.booking_hours,
@@ -314,6 +321,7 @@ async function saveSettings(payload = {}, updatedBy = null) {
     packages: normalizePackages(payload.packages ?? current.packages),
     hard_stop: asBool(payload.hard_stop, current.hard_stop),
     write_call_stub_to_chat: asBool(payload.write_call_stub_to_chat, current.write_call_stub_to_chat),
+    save_call_recording: asBool(payload.save_call_recording, current.save_call_recording),
     tone: asEnum(payload.tone, current.tone, TONE_VALUES),
     response_length: asEnum(payload.response_length, current.response_length, RESPONSE_LENGTH_VALUES),
     formality: asEnum(payload.formality, current.formality, FORMALITY_VALUES),
@@ -410,6 +418,7 @@ async function saveSettings(payload = {}, updatedBy = null) {
        packages_json = $11::jsonb,
        hard_stop = $12,
        write_call_stub_to_chat = $13,
+       save_call_recording = $37,
        confirmations = $14,
        invoice_ttl_minutes = $15,
        booking_slot_minutes = $16,
@@ -470,7 +479,8 @@ async function saveSettings(payload = {}, updatedBy = null) {
       next.forbid_flirty_tone,
       next.forbid_vulgar_tone,
       next.forbid_patronizing_tone,
-      next.forbid_slang_mirroring
+      next.forbid_slang_mirroring,
+      next.save_call_recording
     ]
   );
   return getSettings();

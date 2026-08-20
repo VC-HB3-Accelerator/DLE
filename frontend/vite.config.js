@@ -69,6 +69,11 @@ export default defineConfig({
         credentials: true,
         rewrite: (path) => path,
       },
+      '/v': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        secure: false,
+      },
       '/ws': {
         target: apiProxyTarget,
         ws: true,

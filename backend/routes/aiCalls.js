@@ -5,6 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
@@ -14,8 +15,14 @@ const settingsService = require('../services/voiceCallSettingsService');
 const billing = require('../services/voiceCallBillingService');
 const sessions = require('../services/voiceCallSessionService');
 const booking = require('../services/voiceCallBookingService');
+const recordingService = require('../services/voiceCallRecordingService');
 const rpcProviderService = require('../services/rpcProviderService');
 const db = require('../db');
+
+const recordingUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 }
+});
 
 function sendError(res, error) {
   const status = error.status || 500;
@@ -167,6 +174,29 @@ router.post('/sessions/:id/extend', async (req, res) => {
     sendError(res, error);
   }
 });
+
+router.post(
+  '/sessions/:id/recording',
+  recordingUpload.single('file'),
+  async (req, res) => {
+    try {
+      const owner = ownerFromReq(req);
+      await persistGuestSession(req, owner);
+      if (!owner) return res.status(400).json({ success: false, error: 'Нет сессии' });
+      const data = await recordingService.saveSessionRecording({
+        sessionId: req.params.id,
+        owner,
+        file: req.file,
+        transcript: req.body?.transcript || '',
+        authorAddress: req.session?.address || ''
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.warn('[ai-calls] recording:', error.message);
+      sendError(res, error);
+    }
+  }
+);
 
 router.post('/sessions/:id/hangup', async (req, res) => {
   try {

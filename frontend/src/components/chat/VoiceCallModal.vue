@@ -152,6 +152,13 @@ let ringOsc = null;
 const playQueue = [];
 let playing = false;
 let activePlaybackSource = null;
+let mixDest = null;
+let mediaRecorder = null;
+const recordedChunks = [];
+let transcriptLog = [];
+let micSourceNode = null;
+let saveRecordingEnabled = true;
+let hangupInFlight = null;
 
 const selectedPkg = computed(() => (config.value.packages || []).find((p) => p.id === selectedPackageId.value) || null);
 const selectedMinutes = computed(() => Number(selectedPkg.value?.minutes || 0));
@@ -278,6 +285,7 @@ function markLive() {
   stopRingback();
   state.value = 'live';
   startMicStream();
+  startCallRecording();
   startCallTimer();
 }
 
@@ -305,6 +313,7 @@ async function loadConfig() {
   try {
     const { data } = await api.get('/ai-calls/config');
     config.value = data.data || config.value;
+    saveRecordingEnabled = config.value.save_call_recording !== false;
     creditsSeconds.value = Number(data.data?.credits?.seconds_remaining || 0);
     if (!selectedPackageId.value && config.value.packages?.[0]) {
       selectedPackageId.value = config.value.packages[0].id;
@@ -431,24 +440,31 @@ function openSocket(path) {
       markLive();
       enqueuePlayback(msg.pcm);
     }
-    if (msg.type === 'transcript') transcript.value = msg.text || transcript.value;
+    if (msg.type === 'transcript') {
+      transcript.value = msg.text || transcript.value;
+      if (msg.text) transcriptLog.push(`Агент: ${msg.text}`);
+    }
+    if (msg.type === 'user_transcript' && msg.text) {
+      transcriptLog.push(`Абонент: ${msg.text}`);
+    }
     if (msg.type === 'ended') {
-      stopRingback();
-      stopPlaybackImmediate();
+      hangup();
       state.value = msg.reason === 'timeout' ? 'time_up' : 'ended';
-      stopMic();
     }
     if (msg.type === 'error') {
       stopRingback();
       stopPlaybackImmediate();
       errorText.value = msg.message || t('chat.voiceCall.startError');
+      hangup();
     }
   };
   ws.onclose = () => {
-    stopRingback();
-    stopPlaybackImmediate();
-    if (state.value === 'live' || state.value === 'connecting') state.value = 'ended';
-    stopMic();
+    if (state.value === 'live' || state.value === 'connecting') {
+      hangup();
+    } else {
+      stopRingback();
+      stopPlaybackImmediate();
+    }
   };
 }
 
@@ -456,8 +472,9 @@ function startMicStream() {
   if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
   ensurePlaybackRouting(audioCtx);
+  if (!mixDest) mixDest = audioCtx.createMediaStreamDestination();
   if (processor) return;
-  const source = audioCtx.createMediaStreamSource(mediaStream);
+  micSourceNode = audioCtx.createMediaStreamSource(mediaStream);
   processor = audioCtx.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => {
     if (!ws || ws.readyState !== 1) return;
@@ -471,9 +488,66 @@ function startMicStream() {
   };
   const mute = audioCtx.createGain();
   mute.gain.value = 0;
-  source.connect(processor);
+  micSourceNode.connect(processor);
+  micSourceNode.connect(mixDest);
   processor.connect(mute);
   mute.connect(audioCtx.destination);
+}
+
+function pickRecorderMime() {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+  for (const mime of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(mime)) return mime;
+  }
+  return '';
+}
+
+function startCallRecording() {
+  if (!saveRecordingEnabled || !audioCtx) return;
+  if (typeof MediaRecorder === 'undefined') return;
+  try {
+    if (!mixDest) mixDest = audioCtx.createMediaStreamDestination();
+    recordedChunks.length = 0;
+    const mime = pickRecorderMime();
+    mediaRecorder = mime
+      ? new MediaRecorder(mixDest.stream, { mimeType: mime })
+      : new MediaRecorder(mixDest.stream);
+    mediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) recordedChunks.push(ev.data);
+    };
+    mediaRecorder.start(1000);
+  } catch (_) {
+    mediaRecorder = null;
+  }
+}
+
+function stopRecorderBlob() {
+  return new Promise((resolve) => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      resolve(null);
+      return;
+    }
+    const mime = mediaRecorder.mimeType || 'audio/webm';
+    mediaRecorder.onstop = () => {
+      const blob = recordedChunks.length
+        ? new Blob(recordedChunks, { type: mime })
+        : null;
+      mediaRecorder = null;
+      resolve(blob && blob.size > 0 ? blob : null);
+    };
+    try { mediaRecorder.stop(); } catch (_) { resolve(null); }
+  });
+}
+
+async function uploadCallRecording(sessionId, blob) {
+  if (!sessionId || !blob || !saveRecordingEnabled) return;
+  const form = new FormData();
+  const ext = blob.type.includes('mp4') ? 'm4a' : 'webm';
+  form.append('file', blob, `voice-call-${sessionId}.${ext}`);
+  form.append('transcript', transcriptLog.join('\n').slice(0, 18000));
+  const guest = guestPayload();
+  if (guest.guestId) form.append('guestId', guest.guestId);
+  await api.post(`/ai-calls/sessions/${sessionId}/recording`, form);
 }
 
 function enqueuePlayback(b64) {
@@ -492,6 +566,7 @@ async function playNext() {
   if (audioCtx.state === 'suspended') {
     try { await audioCtx.resume(); } catch (_) { /* ignore */ }
   }
+  if (!mixDest) mixDest = audioCtx.createMediaStreamDestination();
   const chunk = playQueue.shift();
   if (!chunk) {
     playing = false;
@@ -505,6 +580,7 @@ async function playNext() {
   const src = audioCtx.createBufferSource();
   src.buffer = buffer;
   src.connect(playbackOutputNode(audioCtx));
+  src.connect(mixDest);
   activePlaybackSource = src;
   src.onended = () => {
     activePlaybackSource = null;
@@ -520,9 +596,12 @@ function stopMic() {
   }
   try { processor?.disconnect(); } catch (_) { /* ignore */ }
   processor = null;
+  try { micSourceNode?.disconnect(); } catch (_) { /* ignore */ }
+  micSourceNode = null;
   try { mediaStream?.getTracks().forEach((tr) => tr.stop()); } catch (_) { /* ignore */ }
   mediaStream = null;
   playbackDest = null;
+  mixDest = null;
   if (audioCtx) {
     const ctx = audioCtx;
     audioCtx = null;
@@ -542,18 +621,36 @@ function cycleSpeaker() {
   applySinkId(next.deviceId);
 }
 
-function hangup() {
-  stopRingback();
-  stopPlaybackImmediate();
-  if (state.value === 'live' || state.value === 'connecting') state.value = 'ended';
-  try { ws?.send(JSON.stringify({ type: 'hangup' })); } catch (_) { /* ignore */ }
-  try { ws?.close(); } catch (_) { /* ignore */ }
-  ws = null;
-  stopMic();
-  const id = callSessionId;
-  callSessionId = null;
-  if (id) {
-    api.post(`/ai-calls/sessions/${id}/hangup`, { reason: 'user', ...guestPayload() }).catch(() => {});
+async function hangup() {
+  if (hangupInFlight) return hangupInFlight;
+  hangupInFlight = (async () => {
+    stopRingback();
+    stopPlaybackImmediate();
+    if (state.value === 'live' || state.value === 'connecting') state.value = 'ended';
+    const id = callSessionId;
+    const blob = await stopRecorderBlob();
+    stopMic();
+    callSessionId = null;
+    if (id && blob) {
+      try {
+        await uploadCallRecording(id, blob);
+      } catch (error) {
+        console.warn('[voiceCall] recording upload:', error.response?.data?.error || error.message);
+      }
+    }
+    try { ws?.send(JSON.stringify({ type: 'hangup' })); } catch (_) { /* ignore */ }
+    try { ws?.close(); } catch (_) { /* ignore */ }
+    ws = null;
+    if (id) {
+      api.post(`/ai-calls/sessions/${id}/hangup`, { reason: 'user', ...guestPayload() }).catch(() => {});
+    }
+    transcriptLog = [];
+    recordedChunks.length = 0;
+  })();
+  try {
+    await hangupInFlight;
+  } finally {
+    hangupInFlight = null;
   }
 }
 

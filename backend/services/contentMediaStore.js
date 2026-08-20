@@ -657,7 +657,7 @@ async function insertDiskRow({
       fileSize,
       fileHash,
       mediaType,
-      authorAddress || null,
+      String(authorAddress || '').trim() || 'system',
       pageId || null,
       publicId,
       filePath,

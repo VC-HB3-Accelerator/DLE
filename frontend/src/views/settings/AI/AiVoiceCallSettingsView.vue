@@ -84,6 +84,11 @@
             <input v-model="form.write_call_stub_to_chat" type="checkbox">
             <span>{{ $t('settings.ai.voiceCall.writeStub') }}</span>
           </label>
+          <label class="check-row">
+            <input v-model="form.save_call_recording" type="checkbox">
+            <span>{{ $t('settings.ai.voiceCall.saveRecording') }}</span>
+          </label>
+          <p class="form-hint">{{ $t('settings.ai.voiceCall.saveRecordingHint') }}</p>
         </div>
 
         <div v-else-if="activeTab === 'behavior'" class="panel section-card">
@@ -333,6 +338,7 @@ const form = ref({
   booking_slot_minutes: 30,
   hard_stop: true,
   write_call_stub_to_chat: false,
+  save_call_recording: true,
   tone: 'business',
   response_length: 'balanced',
   formality: 'normal',

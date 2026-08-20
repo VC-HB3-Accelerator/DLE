@@ -64,19 +64,30 @@
       </div>
       <button type="button" class="btn btn-secondary" @click="addRpc">{{ $t('settings.rpc.addButton') }}</button>
     </div>
+
+    <RpcTestModal
+      :show="showTestModal"
+      :result="testResult"
+      @close="showTestModal = false"
+    />
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
+import RpcTestModal from '@/components/RpcTestModal.vue';
 
 const { t } = useI18n();
 const props = defineProps({
   rpcConfigs: { type: Array, required: true, default: () => [] }
 });
 const emit = defineEmits(['update', 'test']);
+
+const showTestModal = ref(false);
+const testResult = ref({});
 
 const {
   networkGroups,
@@ -126,11 +137,14 @@ async function testRpc(rpc) {
     return;
   }
   const result = await testRpcConnection(rpc.networkId, rpc.rpcUrl);
-  if (result.success) {
-    alert(result.message);
-  } else {
-    alert(t('settings.security.rpcConnectionError', { networkId: rpc.networkId, error: result.error }));
-  }
+  testResult.value = {
+    success: Boolean(result.success),
+    networkId: rpc.networkId,
+    blockNumber: result.blockNumber,
+    message: result.message,
+    error: result.error || ''
+  };
+  showTestModal.value = true;
 }
 </script>
 

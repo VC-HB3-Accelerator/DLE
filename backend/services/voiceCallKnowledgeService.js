@@ -20,13 +20,11 @@ const MAX_INSTRUCTIONS = 3500;
 const START_QUERY_RU = 'кто вы что такое DLE продукт компания для клиента кратко FAQ глоссарий термины';
 const START_QUERY_EN = 'who are you what is DLE product company for client brief FAQ glossary terms';
 
-const GREETING_KICK_RU = 'Абонент поднял трубку. Скажи первую реплику по инструкции.';
-const GREETING_KICK_EN = 'The caller picked up. Say your first line per the instructions.';
+const GREETING_KICK_RU = 'Абонент на линии. Произнеси стартовый скрипт один раз целиком и остановись.';
+const GREETING_KICK_EN = 'Caller is on the line. Speak the opening script once as a single block, then stop.';
 
-const CALL_INTRO_PREFIX_RU =
-  'Первая реплика звонка (скажи сразу, коротко, своим голосом; повторно не представляйся):';
-const CALL_INTRO_PREFIX_EN =
-  'First line of the call (say it right away, briefly, in your own voice; do not re-introduce yourself):';
+const CALL_INTRO_PREFIX_RU = 'Стартовый скрипт звонка:';
+const CALL_INTRO_PREFIX_EN = 'Call opening script:';
 
 /** @deprecated use greetingKickForLocale */
 const GREETING_KICK = GREETING_KICK_RU;
@@ -36,9 +34,9 @@ const START_QUERY = START_QUERY_RU;
 const USED_FACTS_LIMIT = 6;
 
 const ONGOING_NO_REPEAT_RU =
-  'Это продолжение того же звонка. Не повторяй согласие на обработку данных, выбор из трёх тем и приветствие. Не повторяй дословно свои предыдущие ответы и не перечисляй заново те же темы, если абонент уже выбрал направление. Отвечай по сути вопроса.';
+  'Это продолжение того же звонка. Не повторяй приветствие, согласие с политикой/соглашениями и вопрос «чем могу помочь». Отвечай по сути.';
 const ONGOING_NO_REPEAT_EN =
-  'This is the same ongoing call. Do not repeat consent, the three-topic menu, or greeting. Do not repeat your previous answers verbatim and do not restate the same topic menu if the caller already chose a direction. Answer the question directly.';
+  'This is the same ongoing call. Do not repeat the greeting, policy/agreements consent, or "how can I help". Answer the question directly.';
 
 const QUALITY_FIRST_RU =
   'Если вопрос требует точности, сверки по регламентам, правилам или базе знаний, сначала честно скажи, что тебе нужно немного времени на проверку информации. Качество ответа важнее скорости.';
@@ -60,12 +58,12 @@ const EXPLANATION_LEVEL_RULES = {
 
 const PACK = {
   ru: {
-    role: 'Ты ИИ-агент, администратор компании HB3 Accelerator. Отвечай кратко голосом, своими словами, не читай источники целиком.',
+    role: 'Ты секретарь с искусственным интеллектом VC HB3 Accelerator. Говори кратко голосом. Слушай, отвечай и уточняй, чтобы квалифицировать клиента и помочь с вопросом. Ответы — из корпуса базы знаний. На рисковых темах предупреждай о возможных ошибках и предлагай слот с представителями фонда. Не читай источники целиком. Не повторяй одну мысль дважды. Не называй себя «ИИ-секретарём».',
     newSession: 'Историю текстового чата не знаешь — это новая беседа.',
     noFake: 'Не выдумывай цифры и условия, которых нет в справке ниже.',
     noFacts: 'В базе сейчас нет подходящих фактов. Не выдумывай. Предложи уточнить у команды или записаться к сотруднику.',
     replyLang: 'Отвечай только по-русски.',
-    humanStyle: 'Говори по-человечески: 1–3 короткие фразы, без канцелярита, без повторов одного и того же смысла в соседних предложениях. Если уже ответил по сути, не начинай ответ заново.',
+    humanStyle: 'Говори по-человечески: коротко, без канцелярита. В одной реплике не повторяй одно и то же другими словами.',
     qualityFirst: QUALITY_FIRST_RU,
     assistantRules: 'Правила ассистента:',
     kbSnippets: 'Краткая справка из базы знаний:',
@@ -79,12 +77,12 @@ const PACK = {
     ongoingNoRepeat: ONGOING_NO_REPEAT_RU
   },
   en: {
-    role: 'You are an AI agent and administrator of HB3 Accelerator. Reply briefly by voice, in your own words; do not read sources verbatim.',
+    role: 'You are a secretary with artificial intelligence at VC HB3 Accelerator. Speak briefly by voice. Listen, answer, and clarify to qualify the client and help with their issue. Answers come from the knowledge-base corpus. On risk topics, warn that answers may contain errors and offer a slot with fund representatives. Do not read sources verbatim. Do not repeat the same idea twice. Do not call yourself an "AI secretary".',
     newSession: 'You do not know the text chat history — this is a new call.',
     noFake: 'Do not invent numbers or terms that are not in the knowledge pack below.',
     noFacts: 'There are no matching facts in the knowledge base right now. Do not invent. Offer to clarify with the team or book a staff member.',
     replyLang: 'Reply only in English.',
-    humanStyle: 'Speak naturally: 1-3 short sentences, no bureaucratic phrasing, and no repeating the same point in neighboring sentences. If you already answered the question, do not restart the answer.',
+    humanStyle: 'Speak naturally and briefly, without bureaucratic phrasing. Do not restate the same point in other words within one turn.',
     qualityFirst: QUALITY_FIRST_EN,
     assistantRules: 'Assistant rules:',
     kbSnippets: 'Brief knowledge pack:',
@@ -749,7 +747,7 @@ function buildOmniSession(instructions, { transcribe = true, locale = 'ru' } = {
     output_audio_format: 'pcm',
     turn_detection: {
       type: 'server_vad',
-      silence_duration_ms: 800,
+      silence_duration_ms: 1400,
       interrupt_response: false
     }
   };

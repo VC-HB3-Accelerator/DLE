@@ -736,6 +736,7 @@ class UniversalGuestService {
               attachment_mimetype,
               attachment_size,
               attachment_data,
+              metadata,
               message_type,
               user_id,
               role,
@@ -743,14 +744,15 @@ class UniversalGuestService {
               created_at
             ) VALUES (
               $1, $2,
-              encrypt_text($3, $17),
-              encrypt_text($4, $17),
-              encrypt_text($5, $17),
-              encrypt_text($6, $17),
-              encrypt_text($7, $17),
+              encrypt_text($3, $18),
+              encrypt_text($4, $18),
+              encrypt_text($5, $18),
+              encrypt_text($6, $18),
+              encrypt_text($7, $18),
               $8, $9, $10, $11,
-              $12, $13, $14, $15,
-              $16
+              $12::jsonb,
+              $13, $14, $15, $16,
+              $17
             )`,
             [
               conversationId,
@@ -764,6 +766,9 @@ class UniversalGuestService {
               msg.attachment_mimetype,
               msg.attachment_size,
               msg.attachment_data,
+              msg.metadata
+                ? (typeof msg.metadata === 'string' ? msg.metadata : JSON.stringify(msg.metadata))
+                : null,
               'user_chat', // message_type для мигрированных сообщений (личный чат с ИИ)
               userId, // user_id
               role, // role (незашифрованное)

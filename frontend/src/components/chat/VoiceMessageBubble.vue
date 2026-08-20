@@ -47,6 +47,7 @@
       @loadedmetadata="onMeta"
       @timeupdate="onTime"
       @ended="onEnded"
+      @error="onError"
       @play="isPlaying = true"
       @pause="isPlaying = false"
     />
@@ -103,9 +104,15 @@ async function toggle() {
   try {
     if (el.paused) await el.play();
     else el.pause();
-  } catch (_) {
+  } catch (error) {
     isPlaying.value = false;
+    console.warn('[voice] play:', error?.message || error);
   }
+}
+
+function onError() {
+  isPlaying.value = false;
+  console.warn('[voice] load:', props.src);
 }
 
 function onMeta() {
@@ -151,6 +158,7 @@ onUnmounted(() => {
 
 <style scoped>
 .voice {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -225,6 +233,11 @@ onUnmounted(() => {
 }
 
 .voice__el {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  clip: rect(0 0 0 0);
 }
 </style>

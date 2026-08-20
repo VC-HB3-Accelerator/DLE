@@ -82,7 +82,9 @@ function detectAttachmentKind({ filename = '', mimetype = '', hint = '' } = {}) 
   }
 
   // Голосовое: hint или имя audio-* (часто video/webm из MediaRecorder)
-  const looksLikeAudio = hinted === ATTACHMENT_KINDS.AUDIO || /^audio[-_]/.test(name);
+  const looksLikeAudio = hinted === ATTACHMENT_KINDS.AUDIO
+    || /^audio[-_]/.test(name)
+    || /^voice-call[-_]/.test(name);
   if (looksLikeAudio && (
     mime.startsWith('audio/')
     || mime === 'video/webm'

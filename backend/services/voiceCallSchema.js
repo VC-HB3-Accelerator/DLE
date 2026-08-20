@@ -59,6 +59,25 @@ async function ensureVoiceCallSchema() {
   await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_vulgar_tone BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_patronizing_tone BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS forbid_slang_mirroring BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE voice_call_settings ADD COLUMN IF NOT EXISTS save_call_recording BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE ai_call_sessions ADD COLUMN IF NOT EXISTS recording_media_id INTEGER`);
+  await query(`ALTER TABLE ai_call_sessions ADD COLUMN IF NOT EXISTS transcript_text TEXT`);
+  await query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'content_media_media_type_check'
+      ) THEN
+        ALTER TABLE content_media DROP CONSTRAINT content_media_media_type_check;
+      END IF;
+      ALTER TABLE content_media
+        ADD CONSTRAINT content_media_media_type_check
+        CHECK (media_type IN ('image', 'video', 'audio'));
+    EXCEPTION
+      WHEN undefined_table THEN
+        NULL;
+    END $$
+  `);
   await query(`
     CREATE TABLE IF NOT EXISTS ai_call_invoices (
       id UUID PRIMARY KEY,

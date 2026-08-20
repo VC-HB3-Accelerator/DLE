@@ -124,32 +124,93 @@ function prepareChatAttachment(file, kindHint) {
   };
 }
 
-function attachmentMetaFromRow(row, { guest = false } = {}) {
-  if (!row) return null;
-  const hasFile = row.attachment_filename || row.attachment_mimetype || Number(row.attachment_size) > 0;
-  if (!hasFile) return null;
-  let kind = null;
-  const meta = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+function parseRowMetadata(row) {
+  if (!row) return {};
+  if (row.metadata && typeof row.metadata === 'object') return { ...row.metadata };
   if (typeof row.metadata === 'string') {
-    try {
-      Object.assign(meta, JSON.parse(row.metadata));
-    } catch (_) { /* ignore */ }
+    try { return JSON.parse(row.metadata) || {}; } catch (_) { return {}; }
   }
-  kind = meta.attachment_kind || detectAttachmentKind({
-    filename: row.attachment_filename,
-    mimetype: row.attachment_mimetype
+  return {};
+}
+
+function isVoiceCallFilename(name) {
+  return /^voice-call[-_]/i.test(String(name || ''));
+}
+
+function cmsPlaybackUrl(meta = {}, filename, publicIdByFilename) {
+  if (meta.recording_url) return String(meta.recording_url);
+  if (meta.recording_public_id) return `/v/${meta.recording_public_id}`;
+  const name = filename || meta.recording_filename;
+  const pid = name && publicIdByFilename ? publicIdByFilename.get(name) : null;
+  return pid ? `/v/${pid}` : '';
+}
+
+async function hydrateVoiceCallRecordingUrls(rows = []) {
+  const names = [];
+  for (const row of rows) {
+    const meta = parseRowMetadata(row);
+    if (cmsPlaybackUrl(meta)) continue;
+    const name = row.attachment_filename || meta.recording_filename;
+    if (isVoiceCallFilename(name)) names.push(name);
+  }
+  if (!names.length) return new Map();
+  const db = require('../db');
+  const { rows: media } = await db.getQuery()(
+    `SELECT DISTINCT ON (file_name) file_name, public_id
+     FROM content_media
+     WHERE file_name = ANY($1::text[])
+       AND media_type = 'audio'
+       AND (status IS NULL OR status = 'ready')
+     ORDER BY file_name, id DESC`,
+    [[...new Set(names)]]
+  );
+  return new Map(media.map((r) => [r.file_name, r.public_id]));
+}
+
+function attachmentMetaFromRow(row, { guest = false, publicIdByFilename } = {}) {
+  if (!row) return null;
+  const meta = parseRowMetadata(row);
+  const filename = row.attachment_filename || meta.recording_filename;
+  const playback = cmsPlaybackUrl(meta, filename, publicIdByFilename);
+  const hasFile = Boolean(
+    filename
+    || row.attachment_mimetype
+    || Number(row.attachment_size) > 0
+    || playback
+    || meta.recording_public_id
+  );
+  if (!hasFile) return null;
+  const kind = meta.attachment_kind || detectAttachmentKind({
+    filename,
+    mimetype: row.attachment_mimetype || meta.recording_mime,
+    hint: isVoiceCallFilename(filename) ? 'audio' : ''
   });
   const id = row.id;
-  const url = guest
-    ? `/api/chat/guest-attachment/${id}`
-    : `/api/chat/attachment/${id}`;
+  const url = playback
+    || (guest ? `/api/chat/guest-attachment/${id}` : `/api/chat/attachment/${id}`);
   return {
-    originalname: row.attachment_filename,
-    mimetype: row.attachment_mimetype,
-    size: row.attachment_size,
+    originalname: filename || 'attachment',
+    mimetype: row.attachment_mimetype || meta.recording_mime || 'application/octet-stream',
+    size: row.attachment_size || meta.recording_size || 0,
     kind,
     url
   };
+}
+
+async function attachmentMetasForRows(rows = [], { guest = false } = {}) {
+  const publicIdByFilename = await hydrateVoiceCallRecordingUrls(rows);
+  return rows.map((row) => attachmentMetaFromRow(row, { guest, publicIdByFilename }));
+}
+
+async function cmsRecordingRedirectUrl(row) {
+  if (!row) return '';
+  const meta = parseRowMetadata(row);
+  const filename = row.attachment_filename || meta.recording_filename;
+  let url = cmsPlaybackUrl(meta, filename);
+  if (url) return url;
+  if (!isVoiceCallFilename(filename)) return '';
+  const map = await hydrateVoiceCallRecordingUrls([row]);
+  return cmsPlaybackUrl(meta, filename, map);
 }
 
 function byteaToBuffer(value) {
@@ -180,7 +241,13 @@ module.exports = {
   chatMediaRateLimit,
   chatUploadMiddleware,
   prepareChatAttachment,
+  parseRowMetadata,
+  isVoiceCallFilename,
+  cmsPlaybackUrl,
+  hydrateVoiceCallRecordingUrls,
   attachmentMetaFromRow,
+  attachmentMetasForRows,
+  cmsRecordingRedirectUrl,
   byteaToBuffer,
   contentTypeForKind,
   detectAttachmentKind,

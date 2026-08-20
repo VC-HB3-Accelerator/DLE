@@ -14,7 +14,7 @@
   <div v-if="show" class="modal-overlay" @click="closeModal">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h3>{{ isSuccess ? t('rpc.titleSuccess') : t('rpc.titleError') }}</h3>
+        <h3>{{ isSuccess ? t('settings.rpc.titleSuccess') : t('settings.rpc.titleError') }}</h3>
         <button class="close-btn" @click="closeModal">&times;</button>
       </div>
       
@@ -23,18 +23,18 @@
           <div class="success-icon">
             <UiGlyph name="check-circle" :size="48" />
           </div>
-          <h4>{{ t('rpc.connectionSuccess') }}</h4>
+          <h4>{{ t('settings.rpc.connectionSuccess') }}</h4>
           <div class="connection-details">
             <div class="detail-row">
-              <span class="label">{{ t('rpc.network') }}</span>
+              <span class="label">{{ t('settings.rpc.network') }}</span>
               <span class="value">{{ result.networkId }}</span>
             </div>
             <div class="detail-row" v-if="result.blockNumber">
-              <span class="label">{{ t('rpc.blockNumber') }}</span>
+              <span class="label">{{ t('settings.rpc.blockNumber') }}</span>
               <span class="value">{{ result.blockNumber }}</span>
             </div>
             <div class="detail-row" v-if="result.message">
-              <span class="label">{{ t('rpc.message') }}</span>
+              <span class="label">{{ t('settings.rpc.message') }}</span>
               <span class="value">{{ result.message }}</span>
             </div>
           </div>
@@ -44,14 +44,14 @@
           <div class="error-icon">
             <UiGlyph name="warning" :size="48" />
           </div>
-          <h4>{{ t('rpc.connectionFailed') }}</h4>
+          <h4>{{ t('settings.rpc.connectionFailed') }}</h4>
           <div class="error-details">
             <div class="detail-row">
-              <span class="label">{{ t('rpc.network') }}</span>
+              <span class="label">{{ t('settings.rpc.network') }}</span>
               <span class="value">{{ result.networkId }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">{{ t('rpc.error') }}</span>
+              <span class="label">{{ t('settings.rpc.error') }}</span>
               <span class="value error-text">{{ result.error }}</span>
             </div>
           </div>

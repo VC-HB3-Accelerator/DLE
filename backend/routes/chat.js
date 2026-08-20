@@ -30,7 +30,8 @@ const {
   chatUploadMiddleware,
   chatMediaRateLimit,
   prepareChatAttachment,
-  attachmentMetaFromRow,
+  attachmentMetasForRows,
+  cmsRecordingRedirectUrl,
   mediaTooLargePayload,
   byteaToBuffer
 } = require('../utils/chatMedia');
@@ -462,7 +463,8 @@ router.get('/history', requireAuth, async (req, res) => {
     const messages = result.rows;
     messages.reverse();
 
-    const formattedMessages = messages.map(msg => {
+    const attachmentMetas = await attachmentMetasForRows(messages, { guest: false });
+    const formattedMessages = messages.map((msg, i) => {
       const formatted = {
         id: msg.id,
         conversation_id: msg.conversation_id,
@@ -472,13 +474,8 @@ router.get('/history', requireAuth, async (req, res) => {
         role: msg.role,
         channel: msg.channel,
         created_at: msg.created_at,
-        attachments: null
+        attachments: attachmentMetas[i] ? [attachmentMetas[i]] : null
       };
-
-      if (msg.attachment_filename || msg.attachment_mimetype || Number(msg.attachment_size) > 0) {
-        const meta = attachmentMetaFromRow(msg, { guest: false });
-        formatted.attachments = meta ? [meta] : null;
-      }
 
       return formatted;
     });
@@ -650,11 +647,11 @@ async function streamMessageAttachment({ table, id, userFilterSql, userFilterPar
   let sql;
   let params;
   if (table === 'messages') {
-    sql = `SELECT id, attachment_filename, attachment_mimetype, attachment_size, attachment_data
+    sql = `SELECT id, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata
            FROM messages WHERE id = $1 ${userFilterSql || ''}`;
     params = [id, ...(userFilterParams || [])];
   } else {
-    sql = `SELECT id, attachment_size, attachment_data,
+    sql = `SELECT id, attachment_size, attachment_data, metadata,
                    decrypt_text(identifier_encrypted, $2) as identifier,
                    decrypt_text(attachment_filename_encrypted, $2) as attachment_filename,
                    decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype
@@ -664,7 +661,7 @@ async function streamMessageAttachment({ table, id, userFilterSql, userFilterPar
   }
   const { rows } = await db.getQuery()(sql, params);
   const row = rows[0];
-  if (!row || !row.attachment_data) {
+  if (!row) {
     return res.status(404).json({ success: false, error: 'Вложение не найдено', code: 'ATTACHMENT_NOT_FOUND' });
   }
   if (guest) {
@@ -673,8 +670,15 @@ async function streamMessageAttachment({ table, id, userFilterSql, userFilterPar
       return res.status(403).json({ success: false, error: 'Нет доступа', code: 'ATTACHMENT_FORBIDDEN' });
     }
   }
+  if (!row.attachment_data) {
+    const cmsUrl = await cmsRecordingRedirectUrl(row);
+    if (cmsUrl) return res.redirect(302, cmsUrl);
+    return res.status(404).json({ success: false, error: 'Вложение не найдено', code: 'ATTACHMENT_NOT_FOUND' });
+  }
   const buf = byteaToBuffer(row.attachment_data);
   if (!buf || !buf.length) {
+    const cmsUrl = await cmsRecordingRedirectUrl(row);
+    if (cmsUrl) return res.redirect(302, cmsUrl);
     return res.status(404).json({ success: false, error: 'Вложение не найдено', code: 'ATTACHMENT_NOT_FOUND' });
   }
   const filename = row.attachment_filename || 'attachment';

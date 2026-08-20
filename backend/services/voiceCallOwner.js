@@ -11,6 +11,15 @@ function ownerKey({ ownerType, ownerUserId, ownerGuestId }) {
   return null;
 }
 
+/** content_media.author_address NOT NULL — гость без кошелька не может дать null. */
+function mediaAuthorAddress(owner, sessionAddress) {
+  const fromSession = String(sessionAddress || '').trim();
+  if (fromSession) return fromSession.slice(0, 128);
+  const fromOwner = String(owner?.key || '').trim();
+  if (fromOwner) return fromOwner.slice(0, 128);
+  return 'voice-call';
+}
+
 function normalizeWebGuestId(raw) {
   const id = String(raw || '').trim();
   if (!id) return '';
@@ -79,5 +88,6 @@ module.exports = {
   normalizeWebGuestId,
   persistGuestSession,
   assertOwner,
-  sanitizeReturnUrl
+  sanitizeReturnUrl,
+  mediaAuthorAddress
 };
