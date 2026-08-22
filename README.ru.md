@@ -142,8 +142,45 @@ Latest **v1.0.7** — полный шаблон с Docker-образами, то
 - [Релиз v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — предыдущая версия
 
 ### Команда для запуска ОС
+
+После установки из блока выше каталог ОС — **`DLE`** в домашней папке (`~/DLE`): туда `setup.sh` клонирует репозиторий. Сначала запустите Docker и дождитесь готовности, затем в терминале перейдите в эту папку и выполните запуск.
+
+#### Linux
+
+Скопируйте и вставьте в терминал:
+
 ```bash
+sudo systemctl start docker
+cd ~/DLE
 docker-compose up -d
+```
+
+#### macOS
+
+Скопируйте и вставьте в Terminal (дождитесь кита Docker Desktop, затем выполните `cd` и запуск, если Desktop ещё стартует):
+
+```bash
+open -a Docker
+cd ~/DLE
+docker-compose up -d
+```
+
+#### Windows
+
+Установка шага 5 кладёт ОС в домашний каталог WSL: `~/DLE` (не на диск `C:`).
+
+**1.** Запустите приложение Docker Desktop — скопируйте в PowerShell:
+
+```powershell
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+```
+
+Дождитесь зелёной иконки в трее.
+
+**2.** Запуск ОС — скопируйте в PowerShell:
+
+```powershell
+wsl bash -c "cd ~/DLE && docker-compose up -d"
 ```
 
 ### Доступ к приложению
@@ -152,8 +189,20 @@ docker-compose up -d
 - **Frontend**: http://localhost:9000 (HTTP)
 
 ### Команда для остановки ОС
+
+Из той же папки `~/DLE`:
+
+#### Linux и macOS
+
 ```bash
-docker-compose-down
+cd ~/DLE
+docker-compose down
+```
+
+#### Windows
+
+```powershell
+wsl bash -c "cd ~/DLE && docker-compose down"
 ```
 
 ### Контакты 

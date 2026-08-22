@@ -14,7 +14,6 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
-const DeployParamsService = require('../services/deployParamsService');
 
 /**
  * Получить информацию о мультиконтрактном предложении
@@ -50,7 +49,7 @@ router.post('/get-proposal-multichain-info', async (req, res) => {
       DLE_GET_CURRENT_CHAIN_ID,
     } = require('../constants/dleReadAbi');
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     
     const dleAbi = [
       DLE_GET_PROPOSAL_SUMMARY,
@@ -121,124 +120,11 @@ router.post('/get-proposal-multichain-info', async (req, res) => {
  * @route POST /api/dle-multichain/execute-in-all-target-chains
  */
 router.post('/execute-in-all-target-chains', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, deploymentId, userAddress } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !deploymentId || !userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[DLE Multichain] Исполнение предложения ${proposalId} во всех целевых сетях для DLE: ${dleAddress}`);
-
-    // Получаем параметры деплоя
-    const deployParamsService = new DeployParamsService();
-    const deployParams = await deployParamsService.getDeployParams(deploymentId);
-    
-    if (!deployParams || !deployParams.privateKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'Приватный ключ не найден в параметрах деплоя'
-      });
-    }
-
-    // Получаем информацию о предложении
-    const proposalInfoResponse = await fetch(`${req.protocol}://${req.get('host')}/api/dle-multichain/get-proposal-multichain-info`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        dleAddress,
-        proposalId,
-        governanceChainId: deployParams.currentChainId
-      })
-    });
-
-    const proposalInfo = await proposalInfoResponse.json();
-    
-    if (!proposalInfo.success) {
-      return res.status(400).json({
-        success: false,
-        error: 'Не удалось получить информацию о предложении'
-      });
-    }
-
-    const { targetChains, canExecuteInTargetChains } = proposalInfo.data;
-
-    if (!canExecuteInTargetChains) {
-      return res.status(400).json({
-        success: false,
-        error: 'Предложение не готово к исполнению в целевых сетях'
-      });
-    }
-
-    if (targetChains.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'У предложения нет целевых сетей для исполнения'
-      });
-    }
-
-    // Исполняем в каждой целевой сети
-    const executionResults = [];
-    
-    for (const targetChainId of targetChains) {
-      try {
-        console.log(`[DLE Multichain] Исполнение в сети ${targetChainId}`);
-        
-        const result = await executeProposalInChain(
-          dleAddress,
-          proposalId,
-          targetChainId,
-          deployParams.privateKey,
-          userAddress
-        );
-        
-        executionResults.push({
-          chainId: targetChainId,
-          success: true,
-          transactionHash: result.transactionHash
-        });
-        
-      } catch (error) {
-        console.error(`[DLE Multichain] Ошибка исполнения в сети ${targetChainId}:`, error.message);
-        executionResults.push({
-          chainId: targetChainId,
-          success: false,
-          error: error.message
-        });
-      }
-    }
-
-    const successCount = executionResults.filter(r => r.success).length;
-    const totalCount = executionResults.length;
-
-    console.log(`[DLE Multichain] Исполнение завершено: ${successCount}/${totalCount} успешно`);
-
-    res.json({
-      success: true,
-      data: {
-        proposalId,
-        targetChains,
-        executionResults,
-        summary: {
-          total: totalCount,
-          successful: successCount,
-          failed: totalCount - successCount
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('[DLE Multichain] Ошибка при исполнении во всех целевых сетях:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при исполнении во всех целевых сетях: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_execute_removed',
+    error: 'Исполнение шлёт кошелёк держателя, не ключ ОС. Используйте кнопку исполнения в панели.',
+  });
 });
 
 /**
@@ -246,114 +132,11 @@ router.post('/execute-in-all-target-chains', async (req, res) => {
  * @route POST /api/dle-multichain/execute-in-target-chain
  */
 router.post('/execute-in-target-chain', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, targetChainId, deploymentId, userAddress } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !targetChainId || !deploymentId || !userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[DLE Multichain] Исполнение предложения ${proposalId} в сети ${targetChainId} для DLE: ${dleAddress}`);
-
-    // Получаем параметры деплоя
-    const deployParamsService = new DeployParamsService();
-    const deployParams = await deployParamsService.getDeployParams(deploymentId);
-    
-    if (!deployParams || !deployParams.privateKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'Приватный ключ не найден в параметрах деплоя'
-      });
-    }
-
-    // Исполняем в целевой сети
-    const result = await executeProposalInChain(
-      dleAddress,
-      proposalId,
-      targetChainId,
-      deployParams.privateKey,
-      userAddress
-    );
-
-    res.json({
-      success: true,
-      data: {
-        proposalId,
-        targetChainId,
-        transactionHash: result.transactionHash,
-        blockNumber: result.blockNumber
-      }
-    });
-
-  } catch (error) {
-    console.error('[DLE Multichain] Ошибка при исполнении в целевой сети:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при исполнении в целевой сети: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_execute_removed',
+    error: 'Исполнение шлёт кошелёк держателя, не ключ ОС. Используйте кнопку исполнения в панели.',
+  });
 });
 
-/**
- * Вспомогательная функция для исполнения предложения в конкретной сети
- */
-async function executeProposalInChain(dleAddress, proposalId, chainId, privateKey, userAddress) {
-  // Получаем RPC URL для целевой сети
-  const rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
-  if (!rpcUrl) {
-    throw new Error(`RPC URL для сети ${chainId} не найден`);
-  }
-
-  const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-  const wallet = new ethers.Wallet(privateKey, provider);
-  
-  const dleAbi = [
-    "function executeProposalBySignatures(uint256 _proposalId, address[] calldata signers, bytes[] calldata signatures) external"
-  ];
-
-  const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
-
-  // Для простоты используем подпись от одного адреса (кошелька с приватным ключом)
-  // В реальности нужно собрать подписи от держателей токенов
-  const signers = [wallet.address];
-  const signatures = []; // TODO: Реализовать сбор подписей
-
-  // Временная заглушка - используем прямое исполнение если это возможно
-  // В реальности нужно реализовать сбор подписей от держателей токенов
-  try {
-    // Пытаемся исполнить напрямую (если это сеть голосования)
-    const directExecuteAbi = [
-      "function executeProposal(uint256 _proposalId) external"
-    ];
-    
-    const directDle = new ethers.Contract(dleAddress, directExecuteAbi, wallet);
-    const tx = await directDle.executeProposal(proposalId);
-    const receipt = await tx.wait();
-
-    return {
-      transactionHash: receipt.hash,
-      blockNumber: receipt.blockNumber
-    };
-    
-  } catch (directError) {
-    // Если прямое исполнение невозможно, используем подписи
-    if (signatures.length === 0) {
-      throw new Error('Необходимо собрать подписи от держателей токенов для исполнения в целевой сети');
-    }
-
-    const tx = await dle.executeProposalBySignatures(proposalId, signers, signatures);
-    const receipt = await tx.wait();
-
-    return {
-      transactionHash: receipt.hash,
-      blockNumber: receipt.blockNumber
-    };
-  }
-}
-
 module.exports = router;
-
-

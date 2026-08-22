@@ -15,6 +15,47 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
 const { getSupportedChainIds } = require('../utils/networkLoader');
+const logger = require('../utils/logger');
+
+async function resolveProviderForDle(dleAddress, preferredChainId) {
+  const tried = [];
+  if (preferredChainId) {
+    tried.push(Number(preferredChainId));
+  }
+  try {
+    const fromLoader = await getSupportedChainIds();
+    for (const cid of fromLoader || []) {
+      if (!tried.includes(Number(cid))) tried.push(Number(cid));
+    }
+  } catch {
+    // ignore
+  }
+
+  for (const cid of tried) {
+    try {
+      const rpcUrl = await rpcProviderService.getRpcUrlByChainId(cid);
+      if (!rpcUrl) continue;
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const code = await provider.getCode(dleAddress);
+      if (code && code !== '0x') {
+        return { provider, rpcUrl, chainId: cid };
+      }
+    } catch {
+      // next
+    }
+  }
+  return null;
+}
+
+router.get('/relayer-status', async (req, res) => {
+  res.json({
+    success: true,
+    configured: false,
+    funded: false,
+    address: null,
+    code: 'relayer_removed',
+  });
+});
 
 // Получение списка всех предложений
 router.post('/get-proposals', async (req, res) => {
@@ -713,56 +754,13 @@ router.post('/execute-proposal', async (req, res) => {
   }
 });
 
-// Отменить предложение
+// Отменить предложение (кошелёк держателя)
 router.post('/cancel-proposal', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, reason, userAddress } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !reason || !userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[DLE Proposals] Отмена предложения ${proposalId} в DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function cancelProposal(uint256 _proposalId, string calldata reason) external"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Отменяем предложение
-    const tx = await dle.cancelProposal(proposalId, reason);
-    const receipt = await tx.wait();
-
-    console.log(`[DLE Proposals] Предложение отменено:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[DLE Proposals] Ошибка при отмене предложения:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при отмене предложения: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_cancel_removed',
+    error: 'Отмену шлёт кошелёк держателя, не ОС.',
+  });
 });
 
 // Получить количество предложений
@@ -975,6 +973,18 @@ router.post('/vote-proposal', async (req, res) => {
   }
 });
 
+/**
+ * Служебный отправитель голоса с ОС снят: ключ на сервере — окно кражи комиссии.
+ * Голос шлёт кошелёк держателя. Казна не возвращает газ без отдельного предложения.
+ */
+router.post('/vote-by-signature', async (req, res) => {
+  return res.status(410).json({
+    success: false,
+    code: 'relayer_removed',
+    error: 'Голос отправляет кошелёк держателя. Служебного ключа на ОС нет.',
+  });
+});
+
 // Проверить статус голосования пользователя
 router.post('/check-vote-status', async (req, res) => {
   try {
@@ -989,20 +999,27 @@ router.post('/check-vote-status', async (req, res) => {
 
     console.log(`[DLE Proposals] Проверка статуса голосования для ${voterAddress} по предложению ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
+    const resolved = await resolveProviderForDle(dleAddress, req.body.chainId);
+    if (!resolved) {
+      return res.status(400).json({
         success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = resolved.provider;
     
-    // Функция hasVoted не существует в контракте DLE
-    console.log(`[DLE Proposals] Функция hasVoted не поддерживается в контракте DLE`);
-    
-    const hasVoted = false; // Всегда возвращаем false, так как функция не существует
+    const dle = new ethers.Contract(dleAddress, [
+      'function hasVoted(uint256 _proposalId, address _voter) view returns (bool)',
+    ], provider);
+
+    let hasVoted = false;
+    try {
+      hasVoted = await dle.hasVoted(proposalId, voterAddress);
+    } catch (e) {
+      logger.info(`[DLE Proposals] hasVoted недоступен (старое поколение): ${e.message}`);
+      hasVoted = false;
+    }
 
     res.json({
       success: true,

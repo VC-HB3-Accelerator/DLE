@@ -176,26 +176,30 @@ class DeployParamsService {
       let dleAddress = null;
       let deployResult = null;
       
-      if (result) {
+      if (typeof result === 'string' && /^0x[a-fA-F0-9]{40}$/i.test(result.trim())) {
+        dleAddress = result.trim();
+        logger.info(`✅ [DEBUG] Адрес передан строкой: ${dleAddress}`);
+      } else if (result && typeof result === 'object') {
         logger.info(`🔍 [DEBUG] updateDeploymentStatus получил result:`, JSON.stringify(result, null, 2));
-        
-         // Извлекаем адреса из результата деплоя
+
          if (result.data && result.data.networks && result.data.networks.length > 0) {
-           // Берем первый адрес для обратной совместимости
            dleAddress = result.data.networks[0].address;
            logger.info(`✅ [DEBUG] Найден адрес в result.data.networks[0].address: ${dleAddress}`);
+         } else if (result.dleAddress || result.dle_address) {
+           dleAddress = result.dleAddress || result.dle_address;
+           logger.info(`✅ [DEBUG] Найден адрес в result.dleAddress: ${dleAddress}`);
+         } else if (result.data && (result.data.dleAddress || result.data.dle_address)) {
+           dleAddress = result.data.dleAddress || result.data.dle_address;
+           logger.info(`✅ [DEBUG] Найден адрес в result.data.dleAddress: ${dleAddress}`);
          } else if (result.networks && result.networks.length > 0) {
-           // Берем первый адрес для обратной совместимости
            dleAddress = result.networks[0].address;
            logger.info(`✅ [DEBUG] Найден адрес в result.networks[0].address: ${dleAddress}`);
          } else if (result.output) {
-           // Ищем адрес в тексте output - сначала пробуем найти JSON массив с адресами
            const jsonArrayMatch = result.output.match(/\[[\s\S]*?"address":\s*"(0x[a-fA-F0-9]{40})"[\s\S]*?\]/);
            if (jsonArrayMatch) {
              dleAddress = jsonArrayMatch[1];
              logger.info(`✅ [DEBUG] Найден адрес в JSON массиве result.output: ${dleAddress}`);
            } else {
-             // Fallback: ищем адрес в тексте output (формат: "📍 Адрес: 0x...")
              const addressMatch = result.output.match(/📍 Адрес: (0x[a-fA-F0-9]{40})/);
              if (addressMatch) {
                dleAddress = addressMatch[1];
@@ -205,28 +209,59 @@ class DeployParamsService {
          } else {
            logger.warn(`⚠️ [DEBUG] Адрес не найден в результате деплоя`);
          }
-        
-        // Сохраняем полный результат деплоя (включая все адреса всех сетей)
+
         deployResult = JSON.stringify(result);
       }
-      
-      const query = `
-        UPDATE deploy_params 
-        SET deployment_status = $2, dle_address = $3, deploy_result = $4, updated_at = CURRENT_TIMESTAMP
+
+      let query;
+      let queryParams;
+      if (deployResult != null) {
+        query = `
+        UPDATE deploy_params
+        SET deployment_status = $2,
+            dle_address = COALESCE($3, dle_address),
+            deploy_result = $4,
+            updated_at = CURRENT_TIMESTAMP
         WHERE deployment_id = $1
         RETURNING *
       `;
-      
-      const queryResult = await this.pool.query(query, [deploymentId, status, dleAddress, deployResult]);
+        queryParams = [deploymentId, status, dleAddress, deployResult];
+      } else {
+        query = `
+        UPDATE deploy_params
+        SET deployment_status = $2,
+            dle_address = COALESCE($3, dle_address),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE deployment_id = $1
+        RETURNING *
+      `;
+        queryParams = [deploymentId, status, dleAddress];
+      }
+
+      const queryResult = await this.pool.query(query, queryParams);
       
       if (queryResult.rows.length === 0) {
         throw new Error(`Параметры деплоя не найдены: ${deploymentId}`);
       }
-      
+
       logger.info(`✅ Статус деплоя обновлен: ${deploymentId} -> ${status}`);
       if (dleAddress) {
         logger.info(`📍 Адрес DLE контракта: ${dleAddress}`);
       }
+
+      if (status === 'completed' && dleAddress) {
+        try {
+          const params = await this.getDeployParams(deploymentId);
+          await require('./dleAttachService').syncAuthDoorFromDeployment({
+            address: dleAddress,
+            chainId: params?.current_chain_id,
+            name: params?.name,
+          });
+        } catch (authError) {
+          logger.warn(`[deployParams] дверь auth после деплоя: ${authError.message}`);
+        }
+      }
+
       return queryResult.rows[0];
     } catch (error) {
       logger.error(`❌ Ошибка при обновлении статуса деплоя: ${error.message}`);
@@ -486,8 +521,16 @@ class DeployParamsService {
             logger.warn(`⚠️ Ошибка парсинга deployResult для ${row.deployment_id}: ${error.message}`);
           }
         }
+
+        if ((!deployedNetworks || deployedNetworks.length === 0) && row.dle_address) {
+          deployedNetworks = [{
+            chainId: Number(row.current_chain_id) || null,
+            address: row.dle_address,
+            networkName: row.current_chain_id ? `Chain ${row.current_chain_id}` : '',
+          }];
+        }
         
-        return {
+        const mapped = {
           deploymentId: row.deployment_id,
           name: row.name,
           symbol: row.symbol,
@@ -516,6 +559,9 @@ class DeployParamsService {
           createdAt: row.created_at,
           updatedAt: row.updated_at
         };
+        delete mapped.privateKey;
+        delete mapped.private_key;
+        return mapped;
       });
       
     } catch (error) {

@@ -37,16 +37,15 @@ export const getDeploymentId = async (dleAddress) => {
  * @returns {Promise<Object>} - Результат создания
  */
 export const createAddModuleProposal = async (dleAddress, moduleData) => {
-  try {
-    const response = await api.post('/dle-modules/create-add-module-proposal', {
-      dleAddress,
-      ...moduleData
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Ошибка при создании предложения добавления модуля:', error);
-    throw error;
-  }
+  const { createAddModuleProposal: fromWallet } = await import('@/utils/dle-contract');
+  return fromWallet(
+    dleAddress,
+    moduleData.description,
+    moduleData.duration,
+    moduleData.moduleId,
+    moduleData.moduleAddress,
+    moduleData.chainId
+  );
 };
 
 /**
@@ -56,16 +55,14 @@ export const createAddModuleProposal = async (dleAddress, moduleData) => {
  * @returns {Promise<Object>} - Результат создания
  */
 export const createRemoveModuleProposal = async (dleAddress, moduleData) => {
-  try {
-    const response = await api.post('/dle-modules/create-remove-module-proposal', {
-      dleAddress,
-      ...moduleData
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Ошибка при создании предложения удаления модуля:', error);
-    throw error;
-  }
+  const { createRemoveModuleProposal: fromWallet } = await import('@/utils/dle-contract');
+  return fromWallet(
+    dleAddress,
+    moduleData.description,
+    moduleData.duration,
+    moduleData.moduleId,
+    moduleData.chainId
+  );
 };
 
 /**
@@ -341,7 +338,6 @@ export const initializeModulesAllNetworks = async (dleAddress, privateKey) => {
   try {
     const response = await api.post('/dle-modules/initialize-modules-all-networks', {
       dleAddress,
-      privateKey
     });
     return response.data;
   } catch (error) {
@@ -360,7 +356,6 @@ export const verifyModulesAllNetworks = async (dleAddress, privateKey) => {
   try {
     const response = await api.post('/dle-modules/verify-modules-all-networks', {
       dleAddress,
-      privateKey
     });
     return response.data;
   } catch (error) {
@@ -431,7 +426,6 @@ export const deployModuleAllNetworks = async (dleAddress, moduleType, privateKey
     const response = await api.post('/dle-modules/deploy-module-all-networks', {
       dleAddress,
       moduleType,
-      privateKey,
       maxRetries,
       retryDelay
     });
@@ -454,7 +448,6 @@ export const verifyDLEAllNetworks = async (dleAddress, privateKey, maxRetries = 
   try {
     const response = await api.post('/dle-modules/verify-dle-all-networks', {
       dleAddress,
-      privateKey,
       maxRetries,
       retryDelay
     });
@@ -479,7 +472,6 @@ export const verifyModuleAllNetworks = async (dleAddress, moduleType, privateKey
     const response = await api.post('/dle-modules/verify-module-all-networks', {
       dleAddress,
       moduleType,
-      privateKey,
       maxRetries,
       retryDelay
     });
@@ -504,7 +496,6 @@ export const initializeModuleAllNetworks = async (dleAddress, moduleType, privat
     const response = await api.post('/dle-modules/initialize-module-all-networks', {
       dleAddress,
       moduleType,
-      privateKey,
       maxRetries,
       retryDelay
     });

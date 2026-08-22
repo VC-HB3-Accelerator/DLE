@@ -22,6 +22,7 @@ try {
   // Hardhat не установлен в production - это нормально
 }
 const rpcProviderService = require('../services/rpcProviderService');
+const { rejectClientPrivateKey, getBookPrivateKey } = require('../services/bookDeployKeyService');
 const { spawn } = require('child_process');
 const path = require('path');
 const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS, MODULE_IDS } = require('../constants/moduleIds');
@@ -713,306 +714,19 @@ router.post('/get-deployment-id', async (req, res) => {
 
 // Создать предложение о добавлении модуля (с автоматической оплатой газа)
 router.post('/create-add-module-proposal', async (req, res) => {
-  try {
-    const { dleAddress, description, duration, moduleId, moduleAddress, chainId, deploymentId } = req.body;
-    
-    if (!dleAddress || !description || !duration || !moduleId || !moduleAddress || !chainId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[DLE Modules] Создание предложения о добавлении модуля: ${moduleId} для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: `RPC URL для сети ${chainId} не найден`
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
-    // Получаем приватный ключ из параметров деплоя
-    let privateKey;
-    if (deploymentId) {
-      const DeployParamsService = require('../services/deployParamsService');
-      const deployParamsService = new DeployParamsService();
-      const params = await deployParamsService.getDeployParams(deploymentId);
-      
-      if (!params || !params.privateKey) {
-        return res.status(400).json({
-          success: false,
-          error: 'Приватный ключ не найден в параметрах деплоя'
-        });
-      }
-      
-      privateKey = params.privateKey;
-      await deployParamsService.close();
-    } else {
-      // Fallback к переменной окружения
-      privateKey = process.env.PRIVATE_KEY;
-      if (!privateKey) {
-        return res.status(400).json({
-          success: false,
-          error: 'Приватный ключ не найден. Укажите deploymentId или установите PRIVATE_KEY'
-        });
-      }
-    }
-
-    // Создаем кошелек
-    const wallet = new ethers.Wallet(privateKey, provider);
-    console.log(`[DLE Modules] Используем кошелек: ${wallet.address}`);
-
-    const dleAbi = [
-      "function createAddModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) external returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
-
-    // Отправляем транзакцию автоматически
-    console.log(`[DLE Modules] Отправляем транзакцию создания предложения...`);
-    console.log(`[DLE Modules] Параметры:`, {
-      description,
-      duration,
-      moduleId,
-      moduleAddress,
-      chainId
-    });
-    
-    const tx = await dle.createAddModuleProposal(
-      description, 
-      duration, 
-      moduleId, 
-      moduleAddress, 
-      chainId
-    );
-
-    console.log(`[DLE Modules] Транзакция отправлена: ${tx.hash}`);
-    console.log(`[DLE Modules] Ожидаем подтверждения...`);
-    
-    // Ждем подтверждения
-    const receipt = await tx.wait();
-    
-    // Пробуем получить proposalId из возвращаемого значения транзакции
-    let proposalIdFromReturn = null;
-    try {
-      // Если функция возвращает значение, оно должно быть в receipt
-      if (receipt.logs && receipt.logs.length > 0) {
-        console.log(`[DLE Modules] Ищем ProposalCreated в ${receipt.logs.length} логах транзакции...`);
-        
-        // Ищем событие с возвращаемым значением
-        for (let i = 0; i < receipt.logs.length; i++) {
-          const log = receipt.logs[i];
-          console.log(`[DLE Modules] Лог ${i}:`, {
-            address: log.address,
-            topics: log.topics,
-            data: log.data
-          });
-          
-          try {
-            const parsedLog = dle.interface.parseLog(log);
-            console.log(`[DLE Modules] Парсинг лога ${i}:`, parsedLog);
-            
-            if (parsedLog && parsedLog.name === 'ProposalCreated') {
-              proposalIdFromReturn = parsedLog.args.proposalId.toString();
-              console.log(`[DLE Modules] ✅ Получен proposalId из события: ${proposalIdFromReturn}`);
-              break;
-            }
-          } catch (e) {
-            console.log(`[DLE Modules] Ошибка парсинга лога ${i}:`, e.message);
-            // Пробуем альтернативный способ - ищем по топикам
-            if (log.topics && log.topics.length > 0) {
-              // ProposalCreated имеет сигнатуру: ProposalCreated(uint256,address,string)
-              // Первый топик - это хеш сигнатуры события
-              const proposalCreatedTopic = ethers.id("ProposalCreated(uint256,address,string)");
-              if (log.topics[0] === proposalCreatedTopic) {
-                console.log(`[DLE Modules] Найден топик ProposalCreated, извлекаем proposalId из данных...`);
-                // proposalId находится в indexed параметрах (топиках)
-                if (log.topics.length > 1) {
-                  proposalIdFromReturn = BigInt(log.topics[1]).toString();
-                  console.log(`[DLE Modules] ✅ Извлечен proposalId из топика: ${proposalIdFromReturn}`);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`[DLE Modules] Ошибка при получении proposalId из возвращаемого значения:`, e.message);
-    }
-    console.log(`[DLE Modules] Транзакция подтверждена:`, {
-      hash: receipt.hash,
-      blockNumber: receipt.blockNumber,
-      gasUsed: receipt.gasUsed.toString(),
-      logsCount: receipt.logs.length,
-      status: receipt.status
-    });
-
-    // Используем proposalId из события, если он найден
-    let proposalId = proposalIdFromReturn;
-    
-    // Если не найден в событии, пробуем другие способы
-    if (!proposalId) {
-      console.log(`[DLE Modules] Анализируем ${receipt.logs.length} логов для поиска ProposalCreated...`);
-      
-      if (receipt.logs && receipt.logs.length > 0) {
-        // Ищем событие ProposalCreated
-        for (let i = 0; i < receipt.logs.length; i++) {
-          const log = receipt.logs[i];
-          console.log(`[DLE Modules] Лог ${i}:`, {
-            address: log.address,
-            topics: log.topics,
-            data: log.data
-          });
-          
-          try {
-            const parsedLog = dle.interface.parseLog(log);
-            console.log(`[DLE Modules] Парсинг лога ${i}:`, parsedLog);
-            
-            if (parsedLog && parsedLog.name === 'ProposalCreated') {
-              proposalId = parsedLog.args.proposalId.toString();
-              console.log(`[DLE Modules] ✅ Найден ProposalCreated с ID: ${proposalId}`);
-              break;
-            }
-          } catch (e) {
-            console.log(`[DLE Modules] Ошибка парсинга лога ${i}:`, e.message);
-            // Пробуем альтернативный способ - ищем по топикам
-            if (log.topics && log.topics.length > 0) {
-              // ProposalCreated имеет сигнатуру: ProposalCreated(uint256,address,string)
-              // Первый топик - это хеш сигнатуры события
-              const proposalCreatedTopic = ethers.id("ProposalCreated(uint256,address,string)");
-              if (log.topics[0] === proposalCreatedTopic) {
-                console.log(`[DLE Modules] Найден топик ProposalCreated, извлекаем proposalId из данных...`);
-                // proposalId находится в indexed параметрах (топиках)
-                if (log.topics.length > 1) {
-                  proposalId = BigInt(log.topics[1]).toString();
-                  console.log(`[DLE Modules] ✅ Извлечен proposalId из топика: ${proposalId}`);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    if (!proposalId) {
-      console.warn(`[DLE Modules] ⚠️ Не удалось извлечь proposalId из логов транзакции`);
-      console.warn(`[DLE Modules] ⚠️ Это критическая проблема - без proposalId нельзя исполнить предложение!`);
-    } else {
-      console.log(`[DLE Modules] ✅ Успешно получен proposalId: ${proposalId}`);
-    }
-
-    res.json({
-      success: true,
-      data: {
-        transactionHash: receipt.hash,
-        proposalId: proposalId,
-        gasUsed: receipt.gasUsed.toString(),
-        message: `Предложение о добавлении модуля успешно создано! ID: ${proposalId || 'неизвестно'}`
-      }
-    });
-
-  } catch (error) {
-    console.error('[DLE Modules] Ошибка при создании предложения о добавлении модуля:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при создании предложения о добавлении модуля: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_proposal_removed',
+    error: 'Предложение создаёт кошелёк держателя, не ключ ОС.',
+  });
 });
-
-// Создать предложение об удалении модуля
 router.post('/create-remove-module-proposal', async (req, res) => {
-  try {
-    const { dleAddress, description, duration, moduleId, chainId } = req.body;
-    
-    if (!dleAddress || !description || !duration || !moduleId || !chainId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[DLE Modules] Создание предложения об удалении модуля: ${moduleId} для DLE: ${dleAddress}`);
-
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    let candidateChainIds = []; // Будет заполнено из deploy_params
-    
-    try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
-    const dleAbi = [
-      "function createRemoveModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, uint256 _chainId) external returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Создаем предложение
-    const tx = await dle.createRemoveModuleProposal(description, duration, moduleId, chainId);
-    const receipt = await tx.wait();
-
-    console.log(`[DLE Modules] Предложение об удалении модуля создано:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        proposalId: receipt.logs[0].args.proposalId,
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[DLE Modules] Ошибка при создании предложения об удалении модуля:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при создании предложения об удалении модуля: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_proposal_removed',
+    error: 'Предложение создаёт кошелёк держателя, не ключ ОС.',
+  });
 });
-
 // Функция для получения поддерживаемых сетей из DLE контракта
 async function getSupportedNetworksFromDLE(dleAddress) {
   try {
@@ -1552,13 +1266,16 @@ async function createStandardJsonInput(contractName, moduleAddress, dleAddress, 
 // Мультиинициализация модулей во всех сетях
 router.post('/initialize-modules-all-networks', async (req, res) => {
   try {
-    const { dleAddress, privateKey } = req.body;
-    
-    if (!dleAddress || !privateKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE и приватный ключ обязательны'
-      });
+    const { dleAddress } = req.body;
+    if (!dleAddress) {
+      return res.status(400).json({ success: false, error: 'Адрес DLE обязателен' });
+    }
+    let privateKey;
+    try {
+      rejectClientPrivateKey(req.body);
+      privateKey = (await getBookPrivateKey(dleAddress)).pk;
+    } catch (keyErr) {
+      return res.status(keyErr.status || 400).json({ success: false, error: keyErr.message, code: keyErr.code });
     }
 
     console.log(`[DLE Modules] Мультиинициализация модулей для DLE: ${dleAddress}`);
@@ -1665,13 +1382,16 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
 // Мультиверификация модулей во всех сетях
 router.post('/verify-modules-all-networks', async (req, res) => {
   try {
-    const { dleAddress, privateKey } = req.body;
-    
-    if (!dleAddress || !privateKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE и приватный ключ обязательны'
-      });
+    const { dleAddress } = req.body;
+    if (!dleAddress) {
+      return res.status(400).json({ success: false, error: 'Адрес DLE обязателен' });
+    }
+    let privateKey;
+    try {
+      rejectClientPrivateKey(req.body);
+      privateKey = (await getBookPrivateKey(dleAddress)).pk;
+    } catch (keyErr) {
+      return res.status(keyErr.status || 400).json({ success: false, error: keyErr.message, code: keyErr.code });
     }
 
     console.log(`[DLE Modules] Мультиверификация модулей для DLE: ${dleAddress}`);
@@ -2107,13 +1827,20 @@ router.post('/check-module-deployment-status', async (req, res) => {
 // Деплой одного модуля во всех сетях
 router.post('/deploy-module-all-networks', async (req, res) => {
   try {
-    const { dleAddress, moduleType, privateKey, maxRetries = 1, retryDelay = 45000 } = req.body;
+    const { dleAddress, moduleType, maxRetries = 1, retryDelay = 45000 } = req.body;
     
-    if (!dleAddress || !moduleType || !privateKey) {
+    if (!dleAddress || !moduleType) {
       return res.status(400).json({
         success: false,
-        error: 'Адрес DLE, тип модуля и приватный ключ обязательны'
+        error: 'Адрес DLE и тип модуля обязательны'
       });
+    }
+    let privateKey;
+    try {
+      rejectClientPrivateKey(req.body);
+      privateKey = (await getBookPrivateKey(dleAddress)).pk;
+    } catch (keyErr) {
+      return res.status(keyErr.status || 400).json({ success: false, error: keyErr.message, code: keyErr.code });
     }
 
     console.log(`[DLE Modules] Деплой модуля ${moduleType} для DLE: ${dleAddress}`);
@@ -2257,13 +1984,20 @@ router.post('/deploy-module-all-networks', async (req, res) => {
 // Верификация DLE контракта во всех сетях
 router.post('/verify-dle-all-networks', async (req, res) => {
   try {
-    const { dleAddress, privateKey, maxRetries = 1, retryDelay = 60000 } = req.body;
+    const { dleAddress, maxRetries = 1, retryDelay = 60000 } = req.body;
     
-    if (!dleAddress || !privateKey) {
+    if (!dleAddress) {
       return res.status(400).json({
         success: false,
-        error: 'Адрес DLE и приватный ключ обязательны'
+        error: 'Адрес DLE обязателен'
       });
+    }
+    let privateKey;
+    try {
+      rejectClientPrivateKey(req.body);
+      privateKey = (await getBookPrivateKey(dleAddress)).pk;
+    } catch (keyErr) {
+      return res.status(keyErr.status || 400).json({ success: false, error: keyErr.message, code: keyErr.code });
     }
 
     console.log(`[DLE Modules] Верификация DLE контракта: ${dleAddress}`);
@@ -2576,13 +2310,20 @@ router.post('/verify-dle-all-networks', async (req, res) => {
 // Верификация одного модуля во всех сетях
 router.post('/verify-module-all-networks', async (req, res) => {
   try {
-    const { dleAddress, moduleType, privateKey, maxRetries = 1, retryDelay = 60000 } = req.body;
+    const { dleAddress, moduleType, maxRetries = 1, retryDelay = 60000 } = req.body;
     
-    if (!dleAddress || !moduleType || !privateKey) {
+    if (!dleAddress || !moduleType) {
       return res.status(400).json({
         success: false,
-        error: 'Адрес DLE, тип модуля и приватный ключ обязательны'
+        error: 'Адрес DLE и тип модуля обязательны'
       });
+    }
+    let privateKey;
+    try {
+      rejectClientPrivateKey(req.body);
+      privateKey = (await getBookPrivateKey(dleAddress)).pk;
+    } catch (keyErr) {
+      return res.status(keyErr.status || 400).json({ success: false, error: keyErr.message, code: keyErr.code });
     }
 
     console.log(`[DLE Modules] Верификация модуля ${moduleType} для DLE: ${dleAddress}`);
@@ -2705,13 +2446,20 @@ router.post('/verify-module-all-networks', async (req, res) => {
 // Инициализация одного модуля во всех сетях
 router.post('/initialize-module-all-networks', async (req, res) => {
   try {
-    const { dleAddress, moduleType, privateKey, maxRetries = 1, retryDelay = 30000 } = req.body;
+    const { dleAddress, moduleType, maxRetries = 1, retryDelay = 30000 } = req.body;
     
-    if (!dleAddress || !moduleType || !privateKey) {
+    if (!dleAddress || !moduleType) {
       return res.status(400).json({
         success: false,
-        error: 'Адрес DLE, тип модуля и приватный ключ обязательны'
+        error: 'Адрес DLE и тип модуля обязательны'
       });
+    }
+    let privateKey;
+    try {
+      rejectClientPrivateKey(req.body);
+      privateKey = (await getBookPrivateKey(dleAddress)).pk;
+    } catch (keyErr) {
+      return res.status(keyErr.status || 400).json({ success: false, error: keyErr.message, code: keyErr.code });
     }
 
     console.log(`[DLE Modules] Инициализация модуля ${moduleType} для DLE: ${dleAddress}`);

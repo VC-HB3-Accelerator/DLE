@@ -127,8 +127,8 @@
               type="number"
               v-model="newToken.editorThreshold"
               class="form-control"
-              placeholder="2"
-              min="2"
+              placeholder="1"
+              min="1"
               :disabled="!canManageSettings"
             >
             <small class="form-text">{{ $t('settings.authTokens.editorThresholdHelp') }}</small>
@@ -169,7 +169,7 @@ const newToken = reactive({
   network: '',
   minBalance: 0,
   readonlyThreshold: 1,
-  editorThreshold: 2
+  editorThreshold: 1
 });
 
 const { networkGroups, networks } = useBlockchainNetworks();
@@ -182,7 +182,7 @@ function handleClear() {
   newToken.network = '';
   newToken.minBalance = 0;
   newToken.readonlyThreshold = 1;
-  newToken.editorThreshold = 2;
+  newToken.editorThreshold = 1;
 }
 
 function handleRefresh() {
@@ -205,7 +205,7 @@ async function addToken() {
     return;
   }
 
-  if (newToken.readonlyThreshold >= newToken.editorThreshold) {
+  if (Number(newToken.readonlyThreshold) > Number(newToken.editorThreshold)) {
     alert(t('settings.authTokens.thresholdInvalid'));
     return;
   }
@@ -216,7 +216,7 @@ async function addToken() {
     network: newToken.network,
     minBalance: Number(newToken.minBalance) || 0,
     readonlyThreshold: newToken.readonlyThreshold !== null && newToken.readonlyThreshold !== undefined && newToken.readonlyThreshold !== '' ? Number(newToken.readonlyThreshold) : 1,
-    editorThreshold: newToken.editorThreshold !== null && newToken.editorThreshold !== undefined && newToken.editorThreshold !== '' ? Number(newToken.editorThreshold) : 2
+    editorThreshold: newToken.editorThreshold !== null && newToken.editorThreshold !== undefined && newToken.editorThreshold !== '' ? Number(newToken.editorThreshold) : 1
   };
 
   try {

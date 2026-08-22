@@ -10,7 +10,29 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
+const { ethers } = require('ethers');
 const encryptedDb = require('./encryptedDatabaseService');
+
+function canonicalizeAddress(address) {
+  const raw = String(address || '').trim();
+  try {
+    return ethers.getAddress(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function addressesEqual(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+async function findAuthTokenRow(address, network) {
+  const net = String(network || '').trim();
+  const tokens = await encryptedDb.getData('auth_tokens', {});
+  return (tokens || []).find(
+    (t) => addressesEqual(t.address, address) && String(t.network || '').trim() === net
+  ) || null;
+}
 
 async function getAllAuthTokens() {
   const tokens = await encryptedDb.getData('auth_tokens', {}, null, 'id');
@@ -25,7 +47,7 @@ async function saveAllAuthTokens(authTokens) {
   for (const token of authTokens) {
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,
-      address: token.address,
+      address: canonicalizeAddress(token.address),
       network: token.network,
       min_balance: token.minBalance == null ? 0 : Number(token.minBalance),
       readonly_threshold: token.readonlyThreshold == null ? null : Number(token.readonlyThreshold),
@@ -45,42 +67,44 @@ async function upsertAuthToken(token) {
   console.log('[AuthTokenService] token.readonlyThreshold:', token.readonlyThreshold, 'тип:', typeof token.readonlyThreshold);
   console.log('[AuthTokenService] token.editorThreshold:', token.editorThreshold, 'тип:', typeof token.editorThreshold);
   
+  const address = canonicalizeAddress(token.address);
+  const network = String(token.network || '').trim();
   const minBalance = token.minBalance == null ? 0 : Number(token.minBalance);
   const readonlyThreshold = (token.readonlyThreshold === null || token.readonlyThreshold === undefined || token.readonlyThreshold === '') ? null : Number(token.readonlyThreshold);
   const editorThreshold = (token.editorThreshold === null || token.editorThreshold === undefined || token.editorThreshold === '') ? null : Number(token.editorThreshold);
   
-  // Валидация порогов доступа
-  if (readonlyThreshold >= editorThreshold) {
-    throw new Error('Минимум токенов для Read-Only доступа должен быть меньше минимума для Editor доступа');
+  // Пороги двери: равенство разрешено (дефолт 1/1 → один токен = editor)
+  if (
+    readonlyThreshold != null &&
+    editorThreshold != null &&
+    Number.isFinite(readonlyThreshold) &&
+    Number.isFinite(editorThreshold) &&
+    readonlyThreshold > editorThreshold
+  ) {
+    throw new Error('Минимум токенов для Read-Only доступа не должен быть больше минимума для Editor доступа');
   }
   
   console.log('[AuthTokenService] Вычисленные значения:');
   console.log('[AuthTokenService] readonlyThreshold:', readonlyThreshold);
   console.log('[AuthTokenService] editorThreshold:', editorThreshold);
   
-  // Проверяем, существует ли токен
-  const existingTokens = await encryptedDb.getData('auth_tokens', {
-    address: token.address,
-    network: token.network
-  }, 1);
-  
-  if (existingTokens.length > 0) {
-    // Обновляем существующий токен
+  const existing = await findAuthTokenRow(address, network);
+
+  if (existing) {
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,
       min_balance: minBalance,
       readonly_threshold: readonlyThreshold,
       editor_threshold: editorThreshold
     }, {
-      address: token.address,
-      network: token.network
+      address: existing.address,
+      network: existing.network
     });
   } else {
-    // Создаем новый токен
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,
-      address: token.address,
-      network: token.network,
+      address,
+      network,
       min_balance: minBalance,
       readonly_threshold: readonlyThreshold,
       editor_threshold: editorThreshold
@@ -97,12 +121,25 @@ async function upsertAuthToken(token) {
 async function deleteAuthToken(address, network) {
   console.log(`[AuthTokenService] deleteAuthToken: address=${address}, network=${network}`);
   try {
-    await encryptedDb.deleteData('auth_tokens', { address, network });
+    const existing = await findAuthTokenRow(address, network);
+    if (existing) {
+      await encryptedDb.deleteData('auth_tokens', {
+        address: existing.address,
+        network: existing.network,
+      });
+    } else {
+      await encryptedDb.deleteData('auth_tokens', { address, network });
+    }
     console.log(`[AuthTokenService] Токен успешно удален`);
     try {
       require('./updatesEntitlementService').clearEntitlementCache();
     } catch {
       // ignore
+    }
+    try {
+      await require('./dleAttachService').detachIfNoAuthToken(address);
+    } catch (detachError) {
+      console.error(`[AuthTokenService] Каскад deploy_params:`, detachError.message);
     }
   } catch (error) {
     console.error(`[AuthTokenService] Ошибка при удалении токена:`, error);

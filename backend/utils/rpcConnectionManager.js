@@ -27,7 +27,10 @@ class RPCConnectionManager {
    */
   async createConnection(chainId, privateKey, options = {}) {
     const config = { ...this.retryConfig, ...options };
-    const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+    const rpcUrl = (options.rpcUrlsByChainId && options.rpcUrlsByChainId[String(chainId)])
+      || (options.rpcUrlsByChainId && options.rpcUrlsByChainId[Number(chainId)])
+      || options.rpcUrl
+      || await rpcService.getRpcUrlByChainId(chainId);
     logger.info(`[RPC_MANAGER] Получен RPC URL для chainId ${chainId}: ${rpcUrl}`);
     
     // КРИТИЧЕСКАЯ ПРОВЕРКА: если rpcUrl содержит 127.0.0.1:8545, это ошибка!

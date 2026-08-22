@@ -146,13 +146,79 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
 });
 
 /**
+ * @route   GET /api/dle-v2/module-deployer
+ * @desc    Статус ключа деплоя модулей (без private key)
+ */
+router.get('/module-deployer', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+  try {
+    const dleAttachService = require('../services/dleAttachService');
+    const address = req.query.dleAddress || req.query.address;
+    if (!address) {
+      return res.status(400).json({ success: false, message: 'dleAddress обязателен' });
+    }
+    const row = await dleAttachService.findDeployRowByDleAddress(address);
+    res.json({
+      success: true,
+      data: await dleAttachService.getModuleDeployerStatus(row),
+    });
+  } catch (error) {
+    logger.error('Ошибка module-deployer GET:', error);
+    next(error);
+  }
+});
+
+/**
+ * @route   PUT /api/dle-v2/module-deployer
+ * @desc    ETHEREUM_NETWORK_URL + PRIVATE_KEY для деплоя модулей этой книги
+ */
+router.put('/module-deployer', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+  try {
+    const dleAttachService = require('../services/dleAttachService');
+    const {
+      dleAddress,
+      address,
+      rpcUrl,
+      rpcUrls,
+      privateKey,
+      etherscanApiKey,
+      ETHEREUM_NETWORK_URL,
+      PRIVATE_KEY,
+      RPC_URL,
+      RPC_URLS,
+      ETHERSCAN_API_KEY,
+    } = req.body || {};
+    const result = await dleAttachService.saveModuleDeployerCredentials({
+      dleAddress: dleAddress || address,
+      rpcUrl: rpcUrl || ETHEREUM_NETWORK_URL || RPC_URL,
+      rpcUrls: rpcUrls || RPC_URLS,
+      privateKey: privateKey || PRIVATE_KEY,
+      etherscanApiKey: etherscanApiKey || ETHERSCAN_API_KEY,
+    });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    const status = error.code === 'no_tail' ? 404
+      : ['missing_fields', 'bad_rpc', 'bad_key', 'relayer_key'].includes(error.code) ? 400
+      : 500;
+    if (status >= 500) {
+      logger.error('Ошибка module-deployer PUT:', error);
+    }
+    return res.status(status).json({
+      success: false,
+      message: error.message,
+      code: error.code,
+    });
+  }
+});
+
+/**
  * @route   GET /api/dle-v2
  * @desc    Получить список всех DLE v2
  * @access  Public (доступно всем пользователям)
  */
 router.get('/', async (req, res, next) => {
   try {
-    const dles = await unifiedDeploymentService.getAllDeployments();
+    const { stripDeploymentSecrets } = require('../services/dleAttachService');
+    const dles = (await unifiedDeploymentService.getAllDeployments()).map(stripDeploymentSecrets);
     
     res.json({
       success: true,
@@ -203,6 +269,68 @@ router.get('/default-params', auth.requireAuth, async (req, res, next) => {
       success: false,
       message: error.message || 'Произошла ошибка при получении параметров по умолчанию'
     });
+  }
+});
+
+/**
+ * @route   POST /api/dle-v2/attach
+ * @desc    Привязать уже существующую в сети книгу: auth_tokens + хвост deploy_params без private_key
+ * @access  Private (editor / manage_settings)
+ */
+router.post('/attach', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+  try {
+    const authTokenService = require('../services/authTokenService');
+    const dleAttachService = require('../services/dleAttachService');
+    const { name, address, network } = req.body;
+    const readonlyThreshold = req.body.readonlyThreshold == null ? 1 : Number(req.body.readonlyThreshold);
+    const editorThreshold = req.body.editorThreshold == null ? 1 : Number(req.body.editorThreshold);
+
+    if (!address || !network) {
+      return res.status(400).json({
+        success: false,
+        message: 'address и network обязательны',
+      });
+    }
+
+    const existing = (await authTokenService.getAllAuthTokens()).find(
+      (t) => String(t.address || '').toLowerCase() === String(address).toLowerCase()
+        && String(t.network || '') === String(network)
+    );
+
+    await authTokenService.upsertAuthToken({
+      name: name || existing?.name || 'DLE',
+      address,
+      network,
+      minBalance: req.body.minBalance == null ? 0 : req.body.minBalance,
+      readonlyThreshold: existing
+        ? (existing.readonly_threshold == null ? readonlyThreshold : existing.readonly_threshold)
+        : readonlyThreshold,
+      editorThreshold: existing
+        ? (existing.editor_threshold == null ? editorThreshold : existing.editor_threshold)
+        : editorThreshold,
+    });
+
+    const attachResult = await dleAttachService.tryAttachFromAuthToken({
+      name: name || 'DLE',
+      address,
+      network,
+    });
+
+    if (!attachResult.attached) {
+      return res.status(400).json({
+        success: false,
+        message: 'Не удалось прочитать книгу по адресу (нет кода или getDLEInfo)',
+        reason: attachResult.reason || 'probe_failed',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: attachResult,
+    });
+  } catch (error) {
+    logger.error('Ошибка attach DLE:', error);
+    next(error);
   }
 });
 
@@ -372,7 +500,7 @@ router.get('/check-deploy-license', auth.requireAuth, auth.requireAdmin, async (
  * @desc    Валидировать приватный ключ и получить адрес кошелька
  * @access  Public
  */
-router.post('/validate-private-key', async (req, res, next) => {
+router.post('/validate-private-key', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
   try {
     const { privateKey } = req.body;
     
@@ -382,42 +510,23 @@ router.post('/validate-private-key', async (req, res, next) => {
         message: 'Приватный ключ не передан'
       });
     }
-    
-    // Логируем входящий ключ (только для отладки)
-    logger.info('Получен приватный ключ для валидации:', privateKey);
-    logger.info('Длина входящего ключа:', privateKey.length);
-    logger.info('Тип входящего ключа:', typeof privateKey);
-    logger.info('Полный объект запроса:', JSON.stringify(req.body));
-    
+
     try {
-      // Очищаем ключ от префикса 0x если есть
       const cleanKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
-      
-      // Логируем очищенный ключ (только для отладки)
-      logger.info('Очищенный ключ:', cleanKey);
-      logger.info('Длина очищенного ключа:', cleanKey.length);
-      
-      // Проверяем длину и формат (64 символа в hex)
+
       if (cleanKey.length !== 64 || !/^[a-fA-F0-9]+$/.test(cleanKey)) {
-        logger.error('Некорректный формат ключа. Длина:', cleanKey.length, 'Формат:', /^[a-fA-F0-9]+$/.test(cleanKey));
         return res.status(400).json({
           success: false,
           message: 'Некорректный формат приватного ключа'
         });
       }
       
-      // Генерируем адрес из приватного ключа
       const wallet = new ethers.Wallet('0x' + cleanKey);
-      const address = wallet.address;
-      
-      // Логируем сгенерированный адрес
-      logger.info('Сгенерированный адрес из приватного ключа:', address);
-      
       res.json({
         success: true,
         data: {
           isValid: true,
-          address: address,
+          address: wallet.address,
           error: null
         }
       });

@@ -376,6 +376,20 @@ router.post('/auth-token', requireAdmin, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'name, address и network обязательны' });
     }
     await authTokenService.upsertAuthToken({ name, address, network, minBalance, readonlyThreshold, editorThreshold });
+
+    let attachResult = { attached: false };
+    try {
+      attachResult = await require('../services/dleAttachService').tryAttachFromAuthToken({
+        name,
+        address,
+        network,
+      });
+      if (attachResult.attached) {
+        logger.info(`[settings] DLE привязан к хабу: ${attachResult.dleAddress}`);
+      }
+    } catch (attachError) {
+      logger.warn(`[settings] attach после auth-token: ${attachError.message}`);
+    }
     
     // Отправляем WebSocket уведомление о добавлении токена
     try {
@@ -394,7 +408,12 @@ router.post('/auth-token', requireAdmin, async (req, res, next) => {
       logger.error(`Ошибка при перепроверке балансов всех пользователей: ${balanceError.message}`);
     }
     
-    res.json({ success: true, message: 'Токен аутентификации сохранён' });
+    res.json({
+      success: true,
+      message: 'Токен аутентификации сохранён',
+      attached: Boolean(attachResult.attached),
+      attachReason: attachResult.reason || null,
+    });
   } catch (error) {
     logger.error('Ошибка при сохранении токена аутентификации:', error);
     next(error);

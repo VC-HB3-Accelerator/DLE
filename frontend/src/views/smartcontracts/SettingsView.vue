@@ -33,6 +33,26 @@
         </div>
       </div>
       <div v-if="dleInfo" class="main-content">
+        <div class="settings-tabs" role="tablist">
+          <button
+            type="button"
+            class="settings-tab"
+            :class="{ 'settings-tab--active': activeTab === 'general' }"
+            @click="activeTab = 'general'"
+          >
+            {{ t('smartcontracts.settings.tabGeneral') }}
+          </button>
+          <button
+            type="button"
+            class="settings-tab"
+            :class="{ 'settings-tab--active': activeTab === 'modules' }"
+            @click="openModulesTab"
+          >
+            {{ t('smartcontracts.settings.tabModuleDeploy') }}
+          </button>
+        </div>
+
+        <template v-if="activeTab === 'general'">
         <!-- Отображение в футере -->
         <div v-if="canSetFooterDle" class="footer-card">
           <div class="footer-header">
@@ -101,6 +121,81 @@
             </button>
           </div>
         </div>
+        </template>
+
+        <div v-if="activeTab === 'modules'" class="module-deploy-card">
+          <div class="module-deploy-header">
+            <h3>{{ t('smartcontracts.settings.moduleDeployTitle') }}</h3>
+          </div>
+          <div class="module-deploy-content">
+            <p>{{ t('smartcontracts.settings.moduleDeployHint') }}</p>
+            <p v-if="moduleDeployStatus.hasPrivateKey" class="module-deploy-status">
+              {{ t('smartcontracts.settings.moduleDeployConfigured', {
+                address: moduleDeployStatus.walletAddress || '—',
+                scan: moduleDeployStatus.hasEtherscanKey
+                  ? t('smartcontracts.settings.moduleDeployScanYes')
+                  : t('smartcontracts.settings.moduleDeployScanNo'),
+              }) }}
+            </p>
+            <div
+              v-for="(_, rpcIndex) in moduleDeployForm.rpcUrls"
+              :key="'rpc-' + rpcIndex"
+              class="form-group"
+            >
+              <label class="form-label" :for="'module-rpc-url-' + rpcIndex">RPC_URL</label>
+              <div class="rpc-url-row">
+                <input
+                  :id="'module-rpc-url-' + rpcIndex"
+                  v-model="moduleDeployForm.rpcUrls[rpcIndex]"
+                  class="form-control"
+                  type="url"
+                  autocomplete="off"
+                  placeholder="https://"
+                />
+                <button
+                  v-if="moduleDeployForm.rpcUrls.length > 1"
+                  type="button"
+                  class="btn-rpc-remove"
+                  :aria-label="t('common.delete')"
+                  @click="removeModuleRpcField(rpcIndex)"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <button type="button" class="btn-rpc-add" @click="addModuleRpcField">
+              {{ t('smartcontracts.settings.moduleDeployAddRpc') }}
+            </button>
+            <div class="form-group">
+              <label class="form-label" for="module-private-key">PRIVATE_KEY</label>
+              <input
+                id="module-private-key"
+                v-model="moduleDeployForm.privateKey"
+                class="form-control"
+                type="password"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="module-etherscan-key">ETHERSCAN_API_KEY</label>
+              <input
+                id="module-etherscan-key"
+                v-model="moduleDeployForm.etherscanApiKey"
+                class="form-control"
+                type="password"
+                autocomplete="new-password"
+              />
+            </div>
+            <button
+              type="button"
+              class="btn-primary"
+              :disabled="isSavingModuleDeploy || !canSetFooterDle"
+              @click="saveModuleDeployer"
+            >
+              {{ isSavingModuleDeploy ? t('common.loading') : t('smartcontracts.settings.moduleDeploySave') }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Сообщение если DLE не выбран -->
@@ -149,6 +244,17 @@ const isSaving = ref(false);
 const dleAddress = ref('');
 const dleInfo = ref(null);
 const isLoading = ref(false);
+const activeTab = ref('general');
+const isSavingModuleDeploy = ref(false);
+const moduleDeployForm = ref({ rpcUrls: [''], privateKey: '', etherscanApiKey: '' });
+const moduleDeployStatus = ref({
+  hasPrivateKey: false,
+  hasRpcUrl: false,
+  hasEtherscanKey: false,
+  rpcUrl: '',
+  rpcUrls: [],
+  walletAddress: null,
+});
 
 // Получаем адрес DLE из URL параметров
 const address = route.query.address || props.dleAddress;
@@ -239,13 +345,15 @@ const removeFromFooter = async () => {
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    // Очищаем данные при выходе из системы
     dleInfo.value = null;
   });
   
   window.addEventListener('refresh-application-data', () => {
-    loadDLEInfo(); // Обновляем данные при входе в систему
+    loadDLEInfo();
   });
+  if (route.query.tab === 'modules') {
+    activeTab.value = 'modules';
+  }
 });
 
 // Загружаем информацию о DLE
@@ -273,6 +381,7 @@ const loadDLEInfo = async () => {
         logoURI: dleData.logoURI || '', // URL логотипа
         currentChainId: Number(dleData.currentChainId) || null
       };
+      await loadModuleDeployer();
     } else {
       console.error('Ошибка загрузки DLE:', response.data.error);
       throw new Error(response.data.error || t('smartcontracts.settings.alerts.dleLoadFailed'));
@@ -287,6 +396,88 @@ const loadDLEInfo = async () => {
     isLoading.value = false;
   }
 };
+
+async function loadModuleDeployer() {
+  if (!address) return;
+  try {
+    const response = await api.get('/dle-v2/module-deployer', {
+      params: { dleAddress: address },
+    });
+    const data = response.data?.data || {};
+    const savedRpc = Array.isArray(data.rpcUrls) && data.rpcUrls.length
+      ? data.rpcUrls
+      : (data.rpcUrl ? [data.rpcUrl] : []);
+    moduleDeployStatus.value = {
+      hasPrivateKey: Boolean(data.hasPrivateKey),
+      hasRpcUrl: Boolean(data.hasRpcUrl) || savedRpc.length > 0,
+      hasEtherscanKey: Boolean(data.hasEtherscanKey),
+      rpcUrl: savedRpc[0] || '',
+      rpcUrls: savedRpc,
+      walletAddress: data.walletAddress || null,
+    };
+    moduleDeployForm.value.rpcUrls = savedRpc.length ? [...savedRpc] : [''];
+  } catch (error) {
+    console.error('[SettingsView] module-deployer status:', error);
+  }
+}
+
+function openModulesTab() {
+  activeTab.value = 'modules';
+  loadModuleDeployer();
+}
+
+function addModuleRpcField() {
+  moduleDeployForm.value.rpcUrls.push('');
+}
+
+function removeModuleRpcField(index) {
+  if (moduleDeployForm.value.rpcUrls.length <= 1) return;
+  moduleDeployForm.value.rpcUrls.splice(index, 1);
+}
+
+async function saveModuleDeployer() {
+  if (!canSetFooterDle.value) {
+    alert(t('smartcontracts.settings.alerts.editorOnlyModuleDeploy'));
+    return;
+  }
+  if (!address) {
+    alert(t('smartcontracts.settings.alerts.addressNotFound'));
+    return;
+  }
+  const rpcUrls = (moduleDeployForm.value.rpcUrls || [])
+    .map((url) => String(url || '').trim())
+    .filter(Boolean);
+  const privateKey = String(moduleDeployForm.value.privateKey || '').trim();
+  const etherscanApiKey = String(moduleDeployForm.value.etherscanApiKey || '').trim();
+  if (!rpcUrls.length && !privateKey && !etherscanApiKey) {
+    alert(t('smartcontracts.settings.alerts.moduleDeployFieldsRequired'));
+    return;
+  }
+  try {
+    isSavingModuleDeploy.value = true;
+    const payload = { dleAddress: address };
+    if (rpcUrls.length) {
+      payload.RPC_URL = rpcUrls[0];
+      payload.RPC_URLS = rpcUrls;
+    }
+    if (privateKey) payload.PRIVATE_KEY = privateKey;
+    if (etherscanApiKey) payload.ETHERSCAN_API_KEY = etherscanApiKey;
+    const response = await api.put('/dle-v2/module-deployer', payload);
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || t('smartcontracts.settings.alerts.moduleDeploySaveFailed'));
+    }
+    moduleDeployForm.value.privateKey = '';
+    moduleDeployForm.value.etherscanApiKey = '';
+    await loadModuleDeployer();
+    alert(t('smartcontracts.settings.alerts.moduleDeploySaved', {
+      address: response.data.data?.walletAddress || '',
+    }));
+  } catch (error) {
+    alert(error.response?.data?.message || error.message || t('smartcontracts.settings.alerts.moduleDeploySaveFailed'));
+  } finally {
+    isSavingModuleDeploy.value = false;
+  }
+}
 
 // Методы
 const deleteDLE = async () => {
@@ -423,6 +614,116 @@ onMounted(() => {
 .main-content {
   display: grid;
   gap: 20px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-tab {
+  border: 1px solid #e9ecef;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-grey-dark);
+}
+
+.settings-tab--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.module-deploy-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.module-deploy-header {
+  background: #f0f7ff;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.module-deploy-header h3 {
+  color: var(--color-primary);
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.module-deploy-content {
+  padding: 20px;
+}
+
+.module-deploy-content p {
+  color: var(--color-grey-dark);
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.module-deploy-status {
+  background: #e6f7e6;
+  border: 1px solid #b3e5b3;
+  border-radius: 6px;
+  padding: 10px 15px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.rpc-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.rpc-url-row .form-control {
+  flex: 1;
+}
+
+.btn-rpc-add,
+.btn-rpc-remove {
+  border: 1px solid #e9ecef;
+  background: #f8f9fa;
+  color: var(--color-grey-dark, #4a5568);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.btn-rpc-add {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.btn-rpc-remove {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.form-control {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #e9ecef;
+  border-radius: var(--radius-sm);
 }
 
 /* Карточки */

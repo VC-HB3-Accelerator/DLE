@@ -922,7 +922,7 @@
     "editorThresholdHelp": "Number of tokens required for edit and delete permissions",
     "addButton": "Add token",
     "allFieldsRequired": "All fields are required",
-    "thresholdInvalid": "Read-Only token minimum must be less than Editor token minimum",
+    "thresholdInvalid": "Read-Only token minimum must not be greater than Editor token minimum",
     "addError": "Error adding token: {error}",
     "confirmDelete": "Delete token {name} ({address})?",
     "deleteError": "Error deleting token: {error}",

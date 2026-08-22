@@ -132,6 +132,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     bytes32 private constant EXECUTION_APPROVAL_TYPEHASH = keccak256(
         "ExecutionApproval(uint256 proposalId,bytes32 operationHash,uint256 chainId,uint256 snapshotTimepoint)"
     );
+    // EIP712 typehash голоса холдера (не ERC20Permit.nonces)
+    bytes32 private constant VOTE_TYPEHASH = keccak256(
+        "Vote(uint256 proposalId,bool support,address voter,uint256 chainId,uint256 snapshotTimepoint)"
+    );
     // Custom errors (reduce bytecode size)
     error ErrZeroAddress();
     error ErrArrayMismatch();
@@ -316,20 +320,66 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         return proposalId;
     }
 
-    // Голосовать за предложение
+    // Голосовать за предложение (холдер платит газ сам)
     function vote(uint256 _proposalId, bool _support) external nonReentrant {
+        _castVote(_proposalId, _support, msg.sender);
+    }
+
+    /// @notice Голос на этом peer: холдер подписал EIP-712, tx шлёт релейер. Сила — getPastVotes(подписант).
+    function voteBySignature(
+        uint256 _proposalId,
+        bool _support,
+        address _voter,
+        bytes calldata _signature
+    ) external nonReentrant {
+        if (_voter == address(0)) revert ErrZeroAddress();
+        Proposal storage proposal = proposals[_proposalId];
+        if (proposal.id != _proposalId) revert ErrProposalMissing();
+
+        bytes32 structHash = keccak256(abi.encode(
+            VOTE_TYPEHASH,
+            _proposalId,
+            _support,
+            _voter,
+            block.chainid,
+            proposal.snapshotTimepoint
+        ));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        _verifySigner(_voter, digest, _signature);
+        _castVote(_proposalId, _support, _voter);
+    }
+
+    function hasVoted(uint256 _proposalId, address _voter) external view returns (bool) {
+        Proposal storage proposal = proposals[_proposalId];
+        if (proposal.id != _proposalId) revert ErrProposalMissing();
+        return proposal.hasVoted[_voter];
+    }
+
+    function _verifySigner(address signer, bytes32 digest, bytes calldata signature) internal view {
+        if (signer.code.length > 0) {
+            try IERC1271(signer).isValidSignature(digest, signature) returns (bytes4 magic) {
+                if (magic != 0x1626ba7e) revert ErrBadSig1271();
+            } catch {
+                revert ErrBadSig1271();
+            }
+        } else {
+            address recovered = ECDSA.recover(digest, signature);
+            if (recovered != signer) revert ErrBadSig();
+        }
+    }
+
+    function _castVote(uint256 _proposalId, bool _support, address _voter) internal {
         Proposal storage proposal = proposals[_proposalId];
         if (proposal.id != _proposalId) revert ErrProposalMissing();
         if (block.timestamp >= proposal.deadline) revert ErrProposalEnded();
         if (proposal.executed) revert ErrProposalExecuted();
         if (proposal.canceled) revert ErrProposalCanceled();
-        if (proposal.hasVoted[msg.sender]) revert ErrAlreadyVoted();
-        // Проверяем, что текущая сеть поддерживается
+        if (proposal.hasVoted[_voter]) revert ErrAlreadyVoted();
         if (!supportedChains[block.chainid]) revert ErrUnsupportedChain();
 
-        uint256 votingPower = getPastVotes(msg.sender, proposal.snapshotTimepoint);
+        uint256 votingPower = getPastVotes(_voter, proposal.snapshotTimepoint);
         if (votingPower == 0) revert ErrNoPower();
-        proposal.hasVoted[msg.sender] = true;
+        proposal.hasVoted[_voter] = true;
 
         if (_support) {
             proposal.forVotes += votingPower;
@@ -337,7 +387,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             proposal.againstVotes += votingPower;
         }
 
-        emit ProposalVoted(_proposalId, msg.sender, _support, votingPower);
+        emit ProposalVoted(_proposalId, _voter, _support, votingPower);
     }
 
     function checkProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached) {
@@ -646,6 +696,11 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
 
         // Переводим токены от отправителя к получателю
         _transfer(_sender, _recipient, _amount);
+
+        // Иначе получатель с ErrNoPower: getPastVotes без delegate
+        if (delegates(_recipient) == address(0)) {
+            _delegate(_recipient, _recipient);
+        }
 
         emit TokensTransferredByGovernance(_sender, _recipient, _amount);
     }

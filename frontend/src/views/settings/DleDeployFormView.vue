@@ -923,6 +923,7 @@ import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import api from '@/api/axios';
+import { ethers } from 'ethers';
 import DeploymentWizard from '@/components/deployment/DeploymentWizard.vue';
 import eventBus from '@/utils/eventBus';
 import PageCloseButton from '@/components/PageCloseButton.vue';
@@ -2462,26 +2463,18 @@ const validatePrivateKey = async (chainId) => {
     }
     
     try {
-      // Отправляем запрос на бэкенд для валидации
-      const response = await api.post('/dle-v2/validate-private-key', {
-        privateKey: key
-      });
-      
-      if (response.data.success) {
-        keyValidation[chainId] = response.data.data;
-      } else {
-        keyValidation[chainId] = {
-          isValid: false,
-          address: null,
-          error: response.data.message
-        };
-      }
+      const normalized = key.startsWith('0x') ? key : `0x${key}`;
+      const wallet = new ethers.Wallet(normalized);
+      keyValidation[chainId] = {
+        isValid: true,
+        address: wallet.address,
+        error: null,
+      };
     } catch (error) {
-      console.error('Ошибка валидации приватного ключа:', error);
       keyValidation[chainId] = {
         isValid: false,
         address: null,
-        error: error.response?.data?.message || t('deploy.errors.privateKeyValidationFailed')
+        error: t('deploy.errors.privateKeyValidationFailed'),
       };
     }
   }, 300); // Задержка 300мс

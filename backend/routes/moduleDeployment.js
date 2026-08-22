@@ -37,15 +37,20 @@ router.post('/deploy', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTING
     }
 
     console.log(`[Module Deployment] Деплой модуля ${moduleType} для DLE: ${dleAddress} с данными из БД`);
-    
-    // Запускаем деплой модулей через скрипт
-    const scriptPath = path.join(__dirname, '../scripts/deploy/deploy-modules.js');
-    const deploymentId = (params && params.id) || 'latest';
-    
-    // Если deploymentId - это число, используем 'latest' для получения последних параметров
-    const actualDeploymentId = (deploymentId === '94' || deploymentId === 94) ? 'latest' : deploymentId;
-    
-    console.log(`[Module Deployment] Запускаем скрипт деплоя с deploymentId: ${deploymentId}`);
+
+    const { resolveModuleDeploymentId } = require('../services/bookDeployKeyService');
+    let actualDeploymentId;
+    try {
+      actualDeploymentId = await resolveModuleDeploymentId(dleAddress);
+    } catch (idErr) {
+      return res.status(idErr.status || 400).json({
+        success: false,
+        error: idErr.message,
+        code: idErr.code,
+      });
+    }
+
+    console.log(`[Module Deployment] Запускаем скрипт деплоя с deploymentId: ${actualDeploymentId}`);
     
     // Создаем сессию деплоя и уведомляем WebSocket клиентов
     console.log(`[Module Deployment] Создаем сессию деплоя для ${dleAddress}, модуль: ${moduleType}`);
@@ -82,7 +87,8 @@ router.post('/deploy', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTING
       env: {
         ...process.env,
         DEPLOYMENT_ID: actualDeploymentId,
-        MODULE_TYPE: moduleType
+        MODULE_TYPE: moduleType,
+        DLE_ADDRESS: dleAddress,
       }
     });
 

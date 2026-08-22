@@ -922,7 +922,7 @@
     "editorThresholdHelp": "Количество токенов для получения прав на редактирование и удаление",
     "addButton": "Добавить токен",
     "allFieldsRequired": "Все поля обязательны",
-    "thresholdInvalid": "Минимум токенов для Read-Only доступа должен быть меньше минимума для Editor доступа",
+    "thresholdInvalid": "Минимум токенов для Read-Only доступа не должен быть больше минимума для Editor доступа",
     "addError": "Ошибка при добавлении токена: {error}",
     "confirmDelete": "Удалить токен {name} ({address})?",
     "deleteError": "Ошибка при удалении токена: {error}",

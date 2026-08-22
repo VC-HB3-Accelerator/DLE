@@ -2222,8 +2222,9 @@
     },
     "management": {
       "noDeployedDles": "Нет развёрнутых DLE",
-      "createDleHint": "Создайте DLE в {link} для начала работы.",
+      "createDleHint": "Создайте DLE в {link} или подключите существующую книгу в {auth}.",
       "deployDleLink": "форме деплоя",
+      "attachAuthLink": "токенах авторизации",
       "multichainDeploy": "Мульти-чейн деплой:",
       "networksCount": "{deployed} из {total} сетей",
       "addressesByNetwork": "Адреса по сетям:",
@@ -2587,6 +2588,15 @@
       "noDleSelected": "DLE не выбран",
       "noDleSelectedDesc": "Для управления настройками необходимо выбрать DLE",
       "backToList": "Вернуться к списку DLE",
+      "tabGeneral": "Общие",
+      "tabModuleDeploy": "Деплой модулей",
+      "moduleDeployTitle": "Ключ деплоя модулей",
+      "moduleDeployHint": "RPC_URL — одно поле на сеть. Кнопка добавляет ещё RPC для мультидеплоя. Затем PRIVATE_KEY и ETHERSCAN_API_KEY. Модуль в книгу принимается голосом.",
+      "moduleDeployAddRpc": "Добавить RPC",
+      "moduleDeployConfigured": "Кошелёк {address}. Ключ скана: {scan}. Секреты повторно не показываются.",
+      "moduleDeployScanYes": "сохранён",
+      "moduleDeployScanNo": "нет",
+      "moduleDeploySave": "Сохранить",
       "alerts": {
         "editorOnlySetFooter": "❌ Только пользователи с ролью редактор могут устанавливать DLE для отображения в футере",
         "dleInfoNotLoaded": "Информация о DLE не загружена",
@@ -2608,7 +2618,11 @@
         "walletRequired": "❌ Необходимо подключить кошелек",
         "alreadyDeactivated": "❌ DLE уже деактивирован",
         "tokensRequired": "❌ Для деактивации DLE необходимо иметь токены",
-        "errorWithMessage": "❌ Ошибка: {message}"
+        "errorWithMessage": "❌ Ошибка: {message}",
+        "editorOnlyModuleDeploy": "❌ Только редактор может сохранить ключ деплоя модулей",
+        "moduleDeployFieldsRequired": "Укажите хотя бы RPC_URL, PRIVATE_KEY или ETHERSCAN_API_KEY",
+        "moduleDeploySaveFailed": "Не удалось сохранить ключ деплоя модулей",
+        "moduleDeploySaved": "✅ Ключ деплоя модулей сохранён. Адрес: {address}"
       },
       "errorPatterns": {
         "owner": "владелец",

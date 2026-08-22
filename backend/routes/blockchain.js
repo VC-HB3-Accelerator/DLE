@@ -843,155 +843,22 @@ router.post('/load-deactivation-proposals', async (req, res) => {
 // УДАЛЯЕМ эту функцию - голосование выполняется только через frontend с MetaMask
 // router.post('/vote-proposal', ...) - УДАЛЕНО
 
-// Исполнить предложение
+// Исполнить предложение ключом с клиента снято: шлёт кошелёк держателя.
 router.post('/execute-proposal', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, userAddress, privateKey } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !userAddress || !privateKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны, включая приватный ключ'
-      });
-    }
-
-    console.log(`[Blockchain] Исполнение предложения ${proposalId} в DLE: ${dleAddress}`);
-
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
-    const wallet = new ethers.Wallet(privateKey, provider);
-    
-    const dleAbi = [
-      "function executeProposal(uint256 _proposalId) external"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
-
-    // Исполняем предложение
-    const tx = await dle.executeProposal(proposalId);
-    const receipt = await tx.wait();
-
-    console.log(`[Blockchain] Предложение исполнено:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при исполнении предложения:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при исполнении предложения: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_execute_removed',
+    error: 'Исполнение шлёт кошелёк держателя, не ключ с запроса.',
+  });
 });
 
-// Отменить предложение
+// Отмена шлёт кошелёк держателя.
 router.post('/cancel-proposal', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, reason, userAddress } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !reason || !userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[Blockchain] Отмена предложения ${proposalId} в DLE: ${dleAddress}`);
-
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
-    
-    const dleAbi = [
-      "function cancelProposal(uint256 _proposalId, string calldata reason) external"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Отменяем предложение
-    const tx = await dle.cancelProposal(proposalId, reason);
-    const receipt = await tx.wait();
-
-    console.log(`[Blockchain] Предложение отменено:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при отмене предложения:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при отмене предложения: ' + error.message
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    code: 'os_cancel_removed',
+    error: 'Отмену шлёт кошелёк держателя, не ОС.',
+  });
 });
 
 // УДАЛЕНО: дублируется в dleMultichain.js

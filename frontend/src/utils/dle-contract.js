@@ -290,8 +290,7 @@ export async function voteForProposal(dleAddress, proposalId, support) {
       console.warn('⚠️ [VOTE DEBUG] Ошибка диагностики (продолжаем):', debugError.message);
     }
 
-    // Голосуем за предложение
-    console.log('🗳️ [VOTE] Отправляем транзакцию голосования...');
+    // Голос: транзакцию шлёт кошелёк держателя. Служебного ключа на ОС нет; казна газ не возвращает.
     const tx = await dle.vote(proposalId, support);
 
     // Ждем подтверждения транзакции
@@ -466,29 +465,36 @@ export async function checkTokenBalance(dleAddress, userAddress) {
  * @param {string} deploymentId - ID деплоя для получения приватного ключа (опционально)
  * @returns {Promise<Object>} - Результат создания предложения
  */
-export async function createAddModuleProposal(dleAddress, description, duration, moduleId, moduleAddress, chainId, deploymentId = null) {
+export async function createAddModuleProposal(dleAddress, description, duration, moduleId, moduleAddress, chainId) {
   try {
-    const requestData = {
-      dleAddress: dleAddress,
-      description: description,
-      duration: duration,
-      moduleId: moduleId,
-      moduleAddress: moduleAddress,
-      chainId: chainId
+    if (!window.ethereum) {
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
+    }
+    if (chainId) {
+      const switched = await switchToVotingNetwork(chainId);
+      if (!switched) {
+        throw new Error(t('dleContract.errors.createAddModuleProposalFailed'));
+      }
+    }
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const dle = new ethers.Contract(dleAddress, DLE_ABI, signer);
+    const tx = await dle.createAddModuleProposal(
+      description,
+      duration,
+      moduleId,
+      moduleAddress,
+      chainId
+    );
+    const receipt = await tx.wait();
+    return {
+      proposalId: receipt.logs[0]?.topics[1] || '0',
+      transactionHash: tx.hash,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed?.toString?.(),
     };
-
-    // Добавляем deploymentId если он передан
-    if (deploymentId) {
-      requestData.deploymentId = deploymentId;
-    }
-
-    const response = await api.post('/dle-modules/create-add-module-proposal', requestData);
-    
-    if (response.data.success) {
-      return response.data.data;
-    } else {
-      throw new Error(response.data.error || t('dleContract.errors.createAddModuleProposalFailed'));
-    }
   } catch (error) {
     console.error('Ошибка создания предложения о добавлении модуля:', error);
     throw error;
@@ -506,19 +512,27 @@ export async function createAddModuleProposal(dleAddress, description, duration,
  */
 export async function createRemoveModuleProposal(dleAddress, description, duration, moduleId, chainId) {
   try {
-    const response = await api.post('/blockchain/create-remove-module-proposal', {
-      dleAddress: dleAddress,
-      description: description,
-      duration: duration,
-      moduleId: moduleId,
-      chainId: chainId
-    });
-    
-    if (response.data.success) {
-      return response.data.data;
-    } else {
-      throw new Error(response.data.message || t('dleContract.errors.createRemoveModuleProposalFailed'));
+    if (!window.ethereum) {
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
+    if (chainId) {
+      const switched = await switchToVotingNetwork(chainId);
+      if (!switched) {
+        throw new Error(t('dleContract.errors.createRemoveModuleProposalFailed'));
+      }
+    }
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const dle = new ethers.Contract(dleAddress, DLE_ABI, signer);
+    const tx = await dle.createRemoveModuleProposal(description, duration, moduleId, chainId);
+    const receipt = await tx.wait();
+    return {
+      proposalId: receipt.logs[0]?.topics[1] || '0',
+      transactionHash: tx.hash,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+    };
   } catch (error) {
     console.error('Ошибка создания предложения об удалении модуля:', error);
     throw error;
@@ -1106,27 +1120,55 @@ export async function createTransferTokensProposal(dleAddress, transferData) {
  */
 export async function executeMultichainProposal(dleAddress, proposalId, userAddress) {
   try {
-    // Импортируем сервис мультиконтрактного исполнения
-    const { 
-      executeInAllTargetChains, 
-      getDeploymentId,
-      formatExecutionResult,
-      getExecutionErrors 
-    } = await import('@/services/multichainExecutionService');
-
-    // Получаем ID деплоя
-    const deploymentId = await getDeploymentId(dleAddress);
-    
-    // Исполняем во всех целевых сетях
-    const result = await executeInAllTargetChains(dleAddress, proposalId, deploymentId, userAddress);
-    
+    const { getProposalMultichainInfo, formatExecutionResult, getExecutionErrors } =
+      await import('@/services/multichainExecutionService');
+    const hexChain = await window.ethereum.request({ method: 'eth_chainId' });
+    const governanceChainId = parseInt(hexChain, 16);
+    const info = await getProposalMultichainInfo(dleAddress, proposalId, governanceChainId);
+    const chains = (info.targetChains && info.targetChains.length)
+      ? info.targetChains
+      : [governanceChainId];
+    const executionResults = [];
+    for (const chainId of chains) {
+      const switched = await switchToVotingNetwork(chainId);
+      if (!switched) {
+        executionResults.push({ chainId, success: false, error: `Не удалось переключить сеть ${chainId}` });
+        continue;
+      }
+      await new Promise((r) => setTimeout(r, 800));
+      try {
+        const result = await executeProposal(dleAddress, proposalId);
+        executionResults.push({
+          chainId,
+          success: true,
+          transactionHash: result.txHash,
+        });
+      } catch (error) {
+        executionResults.push({
+          chainId,
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+    const successful = executionResults.filter((r) => r.success).length;
+    const result = {
+      proposalId,
+      targetChains: chains,
+      executionResults,
+      summary: {
+        total: executionResults.length,
+        successful,
+        failed: executionResults.length - successful,
+      },
+    };
     return {
       success: true,
       result,
       summary: formatExecutionResult(result),
-      errors: getExecutionErrors(result)
+      errors: getExecutionErrors(result),
+      userAddress,
     };
-
   } catch (error) {
     console.error('Ошибка исполнения мультиконтрактного предложения:', error);
     throw error;
@@ -1143,25 +1185,18 @@ export async function executeMultichainProposal(dleAddress, proposalId, userAddr
  */
 export async function executeMultichainProposalInChain(dleAddress, proposalId, targetChainId, userAddress) {
   try {
-    // Импортируем сервис мультиконтрактного исполнения
-    const { 
-      executeInTargetChain, 
-      getDeploymentId,
-      getChainName 
-    } = await import('@/services/multichainExecutionService');
-
-    // Получаем ID деплоя
-    const deploymentId = await getDeploymentId(dleAddress);
-    
-    // Исполняем в конкретной сети
-    const result = await executeInTargetChain(dleAddress, proposalId, targetChainId, deploymentId, userAddress);
-    
+    const { getChainName } = await import('@/services/multichainExecutionService');
+    const switched = await switchToVotingNetwork(targetChainId);
+    if (!switched) {
+      throw new Error(`Не удалось переключить сеть ${targetChainId}`);
+    }
+    const result = await executeProposal(dleAddress, proposalId);
     return {
       success: true,
       result,
-      chainName: getChainName(targetChainId)
+      chainName: getChainName(targetChainId),
+      userAddress,
     };
-
   } catch (error) {
     console.error('Ошибка исполнения мультиконтрактного предложения в сети:', error);
     throw error;

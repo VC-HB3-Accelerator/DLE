@@ -2221,8 +2221,9 @@
     },
     "management": {
       "noDeployedDles": "No deployed DLEs",
-      "createDleHint": "Create a DLE in the {link} to get started.",
+      "createDleHint": "Create a DLE in the {link} or attach an existing book in {auth}.",
       "deployDleLink": "deploy form",
+      "attachAuthLink": "auth tokens",
       "multichainDeploy": "Multichain deployment:",
       "networksCount": "{deployed} of {total} networks",
       "addressesByNetwork": "Addresses by network:",
@@ -2586,6 +2587,15 @@
       "noDleSelected": "No DLE selected",
       "noDleSelectedDesc": "Select a DLE to manage settings",
       "backToList": "Back to DLE list",
+      "tabGeneral": "General",
+      "tabModuleDeploy": "Module deploy",
+      "moduleDeployTitle": "Module deploy key",
+      "moduleDeployHint": "RPC_URL is one field per network. Use the button to add more RPCs for multi-deploy. Then PRIVATE_KEY and ETHERSCAN_API_KEY. The book accepts the module by vote.",
+      "moduleDeployAddRpc": "Add RPC",
+      "moduleDeployConfigured": "Wallet {address}. Scanner key: {scan}. Secrets are not shown again.",
+      "moduleDeployScanYes": "saved",
+      "moduleDeployScanNo": "missing",
+      "moduleDeploySave": "Save",
       "alerts": {
         "editorOnlySetFooter": "❌ Only users with the Editor role can set the footer DLE",
         "dleInfoNotLoaded": "DLE information is not loaded",
@@ -2607,7 +2617,11 @@
         "walletRequired": "❌ A wallet must be connected",
         "alreadyDeactivated": "❌ DLE is already deactivated",
         "tokensRequired": "❌ Tokens are required to deactivate the DLE",
-        "errorWithMessage": "❌ Error: {message}"
+        "errorWithMessage": "❌ Error: {message}",
+        "editorOnlyModuleDeploy": "❌ Only an editor can save the module deploy key",
+        "moduleDeployFieldsRequired": "Enter at least RPC_URL, PRIVATE_KEY or ETHERSCAN_API_KEY",
+        "moduleDeploySaveFailed": "Failed to save the module deploy key",
+        "moduleDeploySaved": "✅ Module deploy key saved. Address: {address}"
       },
       "errorPatterns": {
         "owner": "owner",

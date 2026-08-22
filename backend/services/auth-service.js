@@ -699,82 +699,63 @@ class AuthService {
         return { level: ROLES.USER, tokenCount: 0, hasAccess: false };
       }
 
-      // Подсчитываем сумму токенов с достаточным балансом
-      let validTokenCount = 0;
+      // Порог двери — по каждой паре адрес+сеть отдельно. Балансы разных сетей одной книги не складываем.
+      const RANK = { [ROLES.USER]: 0, [ROLES.READONLY]: 1, [ROLES.EDITOR]: 2 };
+      let accessLevel = ROLES.USER;
+      let tokenCount = 0;
       const validTokens = [];
 
       for (const token of tokenBalances) {
         const balance = parseFloat(token.balance || '0');
         const minBalance = parseFloat(token.minBalance || '0');
-        
-        if (balance >= minBalance) {
-          validTokenCount += balance; // Суммируем баланс токенов, а не количество сетей
-          validTokens.push({
-            name: token.name,
-            network: token.network,
-            balance: balance,
-            minBalance: minBalance
-          });
+        if (!(balance >= minBalance) || balance <= 0) {
+          continue;
+        }
+
+        const readonlyThreshold = token.readonlyThreshold == null || token.readonlyThreshold === ''
+          ? 1
+          : Number(token.readonlyThreshold);
+        const editorThreshold = token.editorThreshold == null || token.editorThreshold === ''
+          ? 1
+          : Number(token.editorThreshold);
+
+        let level = ROLES.USER;
+        if (Number.isFinite(editorThreshold) && balance >= editorThreshold) {
+          level = ROLES.EDITOR;
+        } else if (Number.isFinite(readonlyThreshold) && balance >= readonlyThreshold) {
+          level = ROLES.READONLY;
+        }
+
+        if (level === ROLES.USER) {
+          continue;
+        }
+
+        validTokens.push({
+          name: token.tokenName || token.name,
+          network: token.network,
+          balance,
+          minBalance,
+          level,
+        });
+
+        if (RANK[level] > RANK[accessLevel] || (level === accessLevel && balance > tokenCount)) {
+          accessLevel = level;
+          tokenCount = balance;
         }
       }
 
-      logger.info(`Token validation for ${address}:`, {
+      const hasAccess = accessLevel !== ROLES.USER;
+
+      logger.info(`Access level determined for ${address}: ${accessLevel} (best-network balance ${tokenCount})`, {
         totalTokens: tokenBalances.length,
-        validTokens: validTokenCount,
-        validTokenDetails: validTokens
+        validTokenDetails: validTokens,
       });
-
-      // Определяем уровень доступа на основе настроек токенов
-      let accessLevel = ROLES.USER;
-      let hasAccess = false;
-      
-      // Получаем настройки порогов из токенов (используем самые низкие требования для максимального доступа)
-      let readonlyThreshold = Infinity;
-      let editorThreshold = Infinity;
-      
-      if (tokenBalances.length > 0) {
-        // Находим самые низкие пороги среди всех токенов
-        for (const token of tokenBalances) {
-          const tokenReadonlyThreshold = token.readonlyThreshold;
-          const tokenEditorThreshold = token.editorThreshold;
-          
-          if (tokenReadonlyThreshold < readonlyThreshold) {
-            readonlyThreshold = tokenReadonlyThreshold;
-          }
-          if (tokenEditorThreshold < editorThreshold) {
-            editorThreshold = tokenEditorThreshold;
-          }
-        }
-        
-        logger.info(`[AuthService] Определены пороги доступа: readonly=${readonlyThreshold}, editor=${editorThreshold} (из ${tokenBalances.length} токенов)`);
-      } else {
-        // Если токенов нет, пользователь не имеет доступа
-        logger.warn(`[AuthService] Токены не найдены, пользователь не имеет доступа`);
-        readonlyThreshold = Infinity;
-        editorThreshold = Infinity;
-      }
-
-      if (validTokenCount >= editorThreshold) {
-        // Достаточно токенов для полных прав редактора
-        accessLevel = ROLES.EDITOR;
-        hasAccess = true;
-      } else if (validTokenCount > 0) {
-        // Есть токены, но недостаточно для редактора - права только на чтение
-        accessLevel = ROLES.READONLY;
-        hasAccess = true;
-      } else {
-        // Нет токенов - обычный пользователь
-        accessLevel = ROLES.USER;
-        hasAccess = false;
-      }
-
-      logger.info(`Access level determined for ${address}: ${accessLevel} (${validTokenCount} tokens)`);
 
       return {
         level: accessLevel,
-        tokenCount: validTokenCount,
-        hasAccess: hasAccess,
-        validTokens: validTokens
+        tokenCount,
+        hasAccess,
+        validTokens,
       };
     } catch (error) {
       logger.error(`Error in getUserAccessLevel: ${error.message}`);

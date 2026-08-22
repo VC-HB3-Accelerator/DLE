@@ -275,6 +275,14 @@ async function assertEntitled(
     throw deny('no_auth_tokens', { dleContract: contract });
   }
 
+  let attachedBooks = new Set();
+  try {
+    attachedBooks = await require('./dleAttachService').listAttachedDleAddresses();
+  } catch {
+    attachedBooks = new Set();
+  }
+  attachedBooks.add(contract);
+
   const networkToChainId = await getNetworkMap();
   let sawRpcError = false;
   let sawNoTreasury = false;
@@ -290,6 +298,10 @@ async function assertEntitled(
     const tokenAddress = String(token.address || '').trim().toLowerCase();
     const network = String(token.network || '').trim();
     if (!isValidAddress(tokenAddress) || !network) {
+      continue;
+    }
+    // Дверь узла (адрес книги) ≠ лицензионный ERC-20 на казне
+    if (attachedBooks.has(tokenAddress)) {
       continue;
     }
 

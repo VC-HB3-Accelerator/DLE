@@ -19,6 +19,9 @@ const { getFeeOverrides, createProviderAndWallet, getNetworkInfo, createRPCConne
 const RPCConnectionManager = require('../../utils/rpcConnectionManager');
 const { nonceManager } = require('../../utils/nonceManager');
 
+/** RPC из формы настроек книги (ETHEREUM_NETWORK_URL), иначе RPC узла. */
+const rpcDeployOverrides = { rpcUrlsByChainId: {} };
+
 // WebSocket сервис удален - логи отправляются через главный процесс
 
 // Сервис для верификации контрактов
@@ -166,7 +169,7 @@ async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, con
   }
 }
 
-// Деплой модуля в одной сети с CREATE2
+// Деплой модуля в одной сети (CREATE + выравнивание nonce)
 async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce, moduleInit, moduleType) {
   const { ethers } = hre;
   
@@ -178,7 +181,8 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   // Используем новый менеджер RPC с retry логикой
   const { provider, wallet, network: rpcNetwork } = await createRPCConnection(chainId, pk, {
     maxRetries: 3,
-    timeout: 30000
+    timeout: 30000,
+    ...rpcDeployOverrides,
   });
   
   const net = rpcNetwork;
@@ -337,13 +341,9 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
         
         // Если текущий nonce больше целевого, обновляем targetNonce
         if (currentNonce > targetNonce) {
-          logger.info(`[MODULES_DBG] chainId=${chainId} current nonce ${currentNonce} > target nonce ${targetNonce}, updating target`);
-          targetNonce = currentNonce;
-          logger.info(`[MODULES_DBG] chainId=${chainId} updated targetNonce to: ${targetNonce}`);
-          
-          // Короткая задержка перед следующей попыткой
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          continue;
+          throw new Error(
+            `Nonce ${currentNonce} > target ${targetNonce} on chainId=${chainId}. Останавливаем, чтобы адреса модулей на сетях не разъехались.`
+          );
         }
         
         // Если текущий nonce меньше целевого, выравниваем его
@@ -374,9 +374,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
           }
         }
         
-        // ВАЖНО: Обновляем targetNonce на актуальный nonce для следующей попытки
-        targetNonce = currentNonce;
-        logger.info(`[MODULES_DBG] chainId=${chainId} updated targetNonce to: ${targetNonce}`);
+        // Не поднимаем targetNonce: CREATE на сетях должен идти с одним nonce.
         
         // Короткая задержка перед следующей попыткой
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -440,6 +438,7 @@ async function deployAndWireModuleBridge({
   const { provider, wallet } = await createRPCConnection(chainId, pk, {
     maxRetries: 3,
     timeout: 30000,
+    ...rpcDeployOverrides,
   });
 
   const BridgeFactory = await hre.ethers.getContractFactory(cfg.bridgeContract);
@@ -505,7 +504,8 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
   // Используем новый менеджер RPC с retry логикой
   const { provider, wallet, network } = await createRPCConnection(chainId, pk, {
     maxRetries: 3,
-    timeout: 30000
+    timeout: 30000,
+    ...rpcDeployOverrides,
   });
   
   const net = network;
@@ -558,7 +558,11 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
           
           // Проверяем, что контракт действительно задеплоен
           try {
-            const { provider } = await createRPCConnection(numericChainId, pk, { maxRetries: 3, timeout: 30000 });
+            const { provider } = await createRPCConnection(numericChainId, pk, {
+              maxRetries: 3,
+              timeout: 30000,
+              ...rpcDeployOverrides,
+            });
             const code = await provider.getCode(result.address);
             if (!code || code === '0x') {
               logger.warn(`[MODULES_DBG] Контракт ${moduleType} не найден по адресу ${result.address}, пропускаем верификацию`);
@@ -707,6 +711,12 @@ async function main() {
       const latestParams = await deployParamsService.getLatestDeployParams(1);
       if (latestParams.length > 0) {
         params = latestParams[0];
+        const dleAttachService = require('../../services/dleAttachService');
+        const needle = dleAttachService.normalizeAddress(process.env.DLE_ADDRESS);
+        const rowAddr = dleAttachService.normalizeAddress(params.dleAddress || params.dle_address);
+        if (needle && rowAddr && needle !== rowAddr) {
+          throw new Error('DEPLOYMENT_ID=latest указывает на другую книгу. Задайте id записи этой книги.');
+        }
         logger.info('✅ Параметры загружены из базы данных (последние)');
       } else {
         throw new Error('Параметры деплоя не найдены в базе данных');
@@ -726,11 +736,28 @@ async function main() {
     CREATE2_SALT: params.CREATE2_SALT
   });
 
+  // CREATE + выравнивание nonce на кошельке ДЕПЛОЯ. Не подставлять посторонний ключ ОС: его tx сдвинет nonce.
+  // его tx сдвинет nonce и адреса модулей на сетях разъедутся.
   const pk = params.privateKey || params.private_key || process.env.PRIVATE_KEY;
+  const pkSource = (params.privateKey || params.private_key)
+    ? 'deploy_params'
+    : process.env.PRIVATE_KEY
+      ? 'PRIVATE_KEY'
+      : 'none';
   const networks = params.rpcUrls || params.rpc_urls || [];
   const supportedChainIds = params.supportedChainIds || [];
   const dleAddress = params.dleAddress;
-  const salt = params.CREATE2_SALT || params.create2_salt;
+  const salt = params.CREATE2_SALT || params.create2_salt
+    || `0x${[...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+  const rpcUrlMap = (() => {
+    try {
+      return require('../../services/dleAttachService').parseRpcUrlMap(params.rpcUrls || params.rpc_urls);
+    } catch {
+      return {};
+    }
+  })();
+  rpcDeployOverrides.rpcUrlsByChainId = rpcUrlMap;
+  const rpcConnectOpts = { maxRetries: 3, timeout: 30000, ...rpcDeployOverrides };
   
   // Модули для деплоя (приоритет: аргументы командной строки > параметры из БД > по умолчанию)
   let modulesToDeploy;
@@ -747,14 +774,16 @@ async function main() {
   
   if (!pk) throw new Error('PRIVATE_KEY not found in params or environment');
   if (!dleAddress) throw new Error('DLE_ADDRESS not found in params');
-  if (!salt) throw new Error('CREATE2_SALT not found in params');
-  if (networks.length === 0) throw new Error('RPC URLs not found in params');
+  const hasRpc = Array.isArray(networks)
+    ? networks.length > 0
+    : Object.keys(rpcUrlMap).length > 0 || (networks && typeof networks === 'object' && Object.keys(networks).length > 0);
+  if (!hasRpc) throw new Error('RPC URLs not found in params');
 
   logger.info(`[MODULES_DBG] Starting modules deployment to ${networks.length} networks`);
   logger.info(`[MODULES_DBG] DLE Address: ${dleAddress}`);
   logger.info(`[MODULES_DBG] Modules to deploy: ${modulesToDeploy.join(', ')}`);
   logger.info(`[MODULES_DBG] Networks:`, networks);
-  logger.info(`[MODULES_DBG] Using private key from: ${params.privateKey ? 'database' : 'environment'}`);
+  logger.info(`[MODULES_DBG] Using signer from: ${pkSource}`);
   
   // Уведомляем WebSocket клиентов о начале деплоя
   if (moduleTypeFromArgs) {
@@ -786,10 +815,7 @@ async function main() {
     const ContractFactory = await hre.ethers.getContractFactory(moduleConfig.contractName);
     
     // Получаем аргументы конструктора для первой сети (для расчета init кода)
-    const firstConnection = await createRPCConnection(supportedChainIds[0], pk, {
-      maxRetries: 3,
-      timeout: 30000
-    });
+    const firstConnection = await createRPCConnection(supportedChainIds[0], pk, rpcConnectOpts);
     const firstProvider = firstConnection.provider;
     const firstWallet = firstConnection.wallet;
     const firstNetwork = firstConnection.network;
@@ -809,10 +835,7 @@ async function main() {
   // Подготовим провайдеры и вычислим общие nonce для каждого модуля
   // Создаем RPC соединения с retry логикой
   logger.info(`[MODULES_DBG] Создаем RPC соединения для ${supportedChainIds.length} сетей...`);
-  const connections = await createMultipleRPCConnections(supportedChainIds, pk, {
-    maxRetries: 3,
-    timeout: 30000
-  });
+  const connections = await createMultipleRPCConnections(supportedChainIds, pk, rpcConnectOpts);
   
   if (connections.length === 0) {
     throw new Error('Не удалось установить ни одного RPC соединения');

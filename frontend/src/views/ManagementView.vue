@@ -31,6 +31,9 @@
             <template #link>
               <a href="/settings/dle-v2-deploy" class="link">{{ t('smartcontracts.management.deployDleLink') }}</a>
             </template>
+            <template #auth>
+              <a href="/settings/security/auth" class="link">{{ t('smartcontracts.management.attachAuthLink') }}</a>
+            </template>
           </i18n-t>
         </div>
 
