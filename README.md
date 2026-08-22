@@ -138,8 +138,45 @@ Latest **v1.0.7** — full application template with Docker images, volumes, and
 - [Release v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — previous version
 
 ### Command to run the OS
+
+After the install block above, the OS directory is **`DLE`** in the home folder (`~/DLE`): that is where `setup.sh` clones the repository. Start Docker and wait until it is ready, then in the terminal go to that folder and start the stack.
+
+#### Linux
+
+Copy and paste into the terminal:
+
 ```bash
+sudo systemctl start docker
+cd ~/DLE
 docker-compose up -d
+```
+
+#### macOS
+
+Copy and paste into Terminal (wait for the Docker Desktop whale, then run `cd` and start if Desktop is still launching):
+
+```bash
+open -a Docker
+cd ~/DLE
+docker-compose up -d
+```
+
+#### Windows
+
+Step 5 of the install puts the OS in the WSL home directory: `~/DLE` (not the `C:` drive).
+
+**1.** Start the Docker Desktop app — copy into PowerShell:
+
+```powershell
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+```
+
+Wait for the green tray icon.
+
+**2.** Start the OS — copy into PowerShell:
+
+```powershell
+wsl bash -c "cd ~/DLE && docker-compose up -d"
 ```
 
 ### Application access
@@ -148,8 +185,20 @@ docker-compose up -d
 - **Frontend**: http://localhost:9000 (HTTP)
 
 ### Command to stop the OS
+
+From the same `~/DLE` folder:
+
+#### Linux and macOS
+
 ```bash
-docker-compose-down
+cd ~/DLE
+docker-compose down
+```
+
+#### Windows
+
+```powershell
+wsl bash -c "cd ~/DLE && docker-compose down"
 ```
 
 ### Contacts
