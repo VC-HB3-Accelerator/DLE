@@ -183,6 +183,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('treasury')"
                 :disabled="isDeploying || !canDeployModules"
@@ -207,6 +208,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('timelock')"
                 :disabled="isDeploying || !canDeployModules"
@@ -232,6 +234,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('reader')"
                 :disabled="isDeploying || !canDeployModules"
@@ -256,6 +259,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('communication')"
                 :disabled="isDeploying || !canDeployModules"
@@ -280,6 +284,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('application')"
                 :disabled="isDeploying || !canDeployModules"
@@ -304,6 +309,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('mint')"
                 :disabled="isDeploying || !canDeployModules"
@@ -328,6 +334,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('burn')"
                 :disabled="isDeploying || !canDeployModules"
@@ -353,6 +360,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('oracle')"
                 :disabled="isDeploying || !canDeployModules"
@@ -378,6 +386,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('inheritance')"
                 :disabled="isDeploying || !canDeployModules"
@@ -403,6 +412,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('vesting')"
                 :disabled="isDeploying || !canDeployModules"
@@ -428,6 +438,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('staking')"
                 :disabled="isDeploying || !canDeployModules"
@@ -453,6 +464,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('insurance')"
                 :disabled="isDeploying || !canDeployModules"
@@ -478,6 +490,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('compliance')"
                 :disabled="isDeploying || !canDeployModules"
@@ -503,6 +516,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('supplychain')"
                 :disabled="isDeploying || !canDeployModules"
@@ -528,6 +542,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('event')"
                 :disabled="isDeploying || !canDeployModules"
@@ -553,6 +568,7 @@
             </div>
             <div class="module-actions">
               <button 
+                v-if="canDeployModules"
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('hierarchicalVoting')"
                 :disabled="isDeploying || !canDeployModules"
@@ -626,15 +642,15 @@
           >
             <div class="module-header">
               <h5>{{ module.moduleName || t('smartcontracts.modules.list.unknownModule') }}</h5>
-              <span class="module-status" :class="{ 'active': module.isActive, 'inactive': !module.isActive }">
-                {{ module.isActive ? t('smartcontracts.modules.list.active') : t('smartcontracts.modules.list.inactive') }}
+              <span class="module-status" :class="moduleStatusClass(module)">
+                {{ moduleStatusLabel(module) }}
               </span>
             </div>
 
             <div class="module-details">
-              <div class="detail-item" v-if="module.moduleDescription">
+              <div class="detail-item" v-if="moduleDescriptionText(module)">
                 <strong>{{ t('smartcontracts.modules.list.labelDescription') }}</strong> 
-                <span>{{ module.moduleDescription }}</span>
+                <span>{{ moduleDescriptionText(module) }}</span>
               </div>
               
               <!-- Адреса модуля в разных сетях -->
@@ -655,9 +671,9 @@
                       {{ shortenAddress(addr.address) }}
                       <span class="ui-fa-fallback" aria-hidden="true">↗</span>
                     </a>
-                    <span class="verification-status" :class="addr.verificationStatus">
-                      <span class="ui-fa-fallback" aria-hidden="true" v-if="addr.verificationStatus === 'success'">✓</span>
-                      <span class="ui-fa-fallback" aria-hidden="true" v-else-if="addr.verificationStatus === 'failed'">✕</span>
+                    <span class="verification-status" :class="verificationCssClass(addr.verificationStatus)">
+                      <span class="ui-fa-fallback" aria-hidden="true" v-if="isVerificationOk(addr.verificationStatus)">✓</span>
+                      <span class="ui-fa-fallback" aria-hidden="true" v-else-if="isVerificationFailed(addr.verificationStatus)">✕</span>
                       <span class="ui-fa-fallback" aria-hidden="true" v-else>◷</span>
                     </span>
                     <div v-if="addr.bridgeAddress" class="bridge-row">
@@ -676,7 +692,7 @@
               </div>
 
               <div class="detail-item" v-if="module.bridgeAddress && !module.addresses?.some(a => a.bridgeAddress)">
-                <strong>TreasuryBridge:</strong>
+                <strong>{{ t('smartcontracts.modules.list.labelBridge') }}</strong>
                 <a
                   :href="getEtherscanUrl(module.bridgeAddress, 0, null)"
                   target="_blank"
@@ -707,15 +723,19 @@
                 <span>{{ module.dleJurisdiction }}</span>
               </div>
               
+              <div class="detail-item" v-if="module.inBook === false">
+                <p class="not-in-book-hint">{{ t('smartcontracts.modules.list.notInBookHint') }}</p>
+              </div>
+              
               <div class="detail-item" v-if="module.dleOkvedCodes && module.dleOkvedCodes.length > 0">
-                <strong>{{ t('smartcontracts.modules.list.labelOkved') }}</strong> 
+                <strong>{{ activityCodesLabel(module) }}</strong> 
                 <span>{{ module.dleOkvedCodes.join(', ') }}</span>
               </div>
             </div>
 
             <div class="module-actions">
               <button 
-                v-if="!module.isActive"
+                v-if="module.inBook !== false && !module.isActive"
                 class="btn btn-sm btn-success" 
                 @click="activateModule(module.moduleId)"
                 :disabled="isActivating === module.moduleId"
@@ -990,6 +1010,55 @@ function getEtherscanUrl(address, networkIndex, chainId) {
 function shortenAddress(address) {
   if (!address) return '';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function moduleDescriptionText(module) {
+  const type = module?.moduleType;
+  if (!type) return module?.moduleDescription || '';
+  const key = `smartcontracts.modules.${type}.description`;
+  const translated = t(key);
+  if (translated && translated !== key) return translated;
+  return module?.moduleDescription || '';
+}
+
+function isVerificationOk(status) {
+  const s = String(status || '').toLowerCase();
+  return s === 'success' || s === 'verified' || s === 'already_verified';
+}
+
+function isVerificationFailed(status) {
+  const s = String(status || '').toLowerCase();
+  return s === 'failed' || s === 'error';
+}
+
+function verificationCssClass(status) {
+  if (isVerificationOk(status)) return 'success';
+  if (isVerificationFailed(status)) return 'failed';
+  return 'pending';
+}
+
+function isRfJurisdiction(jurisdiction) {
+  return Number(jurisdiction) === 643;
+}
+
+function activityCodesLabel(module) {
+  return isRfJurisdiction(module?.dleJurisdiction)
+    ? t('smartcontracts.modules.list.labelOkved')
+    : t('smartcontracts.modules.list.labelIsic');
+}
+
+function moduleStatusLabel(module) {
+  if (module?.inBook === false) {
+    return t('smartcontracts.modules.list.notInBook');
+  }
+  return module?.isActive
+    ? t('smartcontracts.modules.list.active')
+    : t('smartcontracts.modules.list.inactive');
+}
+
+function moduleStatusClass(module) {
+  if (module?.inBook === false) return 'not-in-book';
+  return module?.isActive ? 'active' : 'inactive';
 }
 
 function formatDate(dateString) {
@@ -1692,6 +1761,16 @@ onUnmounted(() => {
 .module-status.inactive {
   background: #f8d7da;
   color: #721c24;
+}
+
+.module-status.not-in-book {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.not-in-book-hint {
+  margin: 0;
+  color: var(--theme-text-muted, #555);
 }
 
 .module-details {

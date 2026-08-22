@@ -29,7 +29,7 @@
         ></div>
       </div>
       <div class="progress-text">
-        {{ currentStage }} ({{ progressPercentage }}%)
+        {{ displayStage }} ({{ progressPercentage }}%)
       </div>
     </div>
 
@@ -164,7 +164,7 @@ const props = defineProps({
     autoVerifyAfterDeploy: {
       type: Boolean,
       required: false,
-      default: false
+      default: true
     }
 });
 
@@ -194,6 +194,25 @@ const logsContainer = ref(null);
 // Вычисляемые свойства
 const progressPercentage = computed(() => {
   return Math.round((progress.value || 0));
+});
+
+const displayStage = computed(() => {
+  const raw = String(currentStage.value || '').trim();
+  const map = {
+    'Деплой в процессе...': 'deployment.stageInProgress',
+    'Генерация ABI файла...': 'deployment.stageAbi',
+    'Генерация flattened контракта...': 'deployment.stageFlatten',
+    'Компиляция контрактов...': 'deployment.stageCompile',
+    'Загрузка параметров деплоя...': 'deployment.stageParams',
+    'Деплой контрактов в сети...': 'deployment.stageNetworks',
+    'Верификация контрактов...': 'deployment.stageVerify',
+    initializing: 'deployment.initialization',
+    initialization: 'deployment.initialization',
+  };
+  const key = map[raw];
+  if (key) return t(key);
+  if (!raw) return t('deployment.initialization');
+  return raw;
 });
 
 const statusClass = computed(() => {
@@ -228,7 +247,7 @@ const statusMessage = computed(() => {
   switch (deploymentStatus.value) {
     case 'not_started': return t('deployment.statusMsgReady');
     case 'in_progress': return t('deployment.statusMsgInProgress', {
-      stage: currentStage.value || t('deployment.initialization')
+      stage: displayStage.value
     });
     case 'completed': return t('deployment.statusMsgCompleted');
     case 'failed': return t('deployment.statusMsgFailed');
@@ -286,7 +305,7 @@ const startDeployment = async () => {
       logoURI: props.logoURI || '/uploads/logos/default-token.svg',
       privateKey: props.privateKey,
       etherscanApiKey: props.etherscanApiKey || '',
-            autoVerifyAfterDeploy: props.autoVerifyAfterDeploy !== undefined ? props.autoVerifyAfterDeploy : false
+            autoVerifyAfterDeploy: props.autoVerifyAfterDeploy !== undefined ? props.autoVerifyAfterDeploy : true
           };
           
     addLog(t('deployment.logSendingRequest'), 'info');
@@ -394,9 +413,41 @@ watch(deploymentStatus, (newStatus) => {
 .status-card {
   display: flex;
   align-items: center;
+  gap: 16px;
   padding: 20px;
   border-radius: 10px;
   border: 2px solid #bdc3c7;
+}
+
+.status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  font-size: 1.5em;
+  line-height: 1;
+  margin: 0;
+}
+
+.status-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.status-content h3 {
+  margin: 0;
+  line-height: 1.3;
+}
+
+.status-content p {
+  margin: 4px 0 0;
+  line-height: 1.4;
+  color: #7f8c8d;
 }
 
 .status-card.status-pending {
@@ -417,20 +468,6 @@ watch(deploymentStatus, (newStatus) => {
 .status-card.status-error {
   border-color: #e74c3c;
   background-color: #fdf2f2;
-}
-
-.status-icon {
-  font-size: 2em;
-  margin-right: 20px;
-}
-
-.status-content h3 {
-  margin: 0 0 10px 0;
-}
-
-.status-content p {
-  margin: 0;
-  color: #7f8c8d;
 }
 
 .logs-section {

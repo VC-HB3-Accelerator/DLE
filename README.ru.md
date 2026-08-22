@@ -190,19 +190,19 @@ wsl bash -c "cd ~/DLE && docker-compose up -d"
 
 ### Команда для остановки ОС
 
-Из той же папки `~/DLE`:
+Из той же папки `~/DLE`. Скрипт останавливает **этот** экземпляр (`dev` и сироты этого compose). Контейнеры другой папки не трогает.
 
 #### Linux и macOS
 
 ```bash
 cd ~/DLE
-docker-compose down
+./docker-compose-down
 ```
 
 #### Windows
 
 ```powershell
-wsl bash -c "cd ~/DLE && docker-compose down"
+wsl bash -c "cd ~/DLE && ./docker-compose-down"
 ```
 
 ### Контакты 

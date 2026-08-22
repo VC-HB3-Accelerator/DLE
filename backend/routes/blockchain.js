@@ -113,7 +113,8 @@ router.post('/read-dle-info', async (req, res) => {
       "function quorumPercentage() external view returns (uint256)",
       DLE_GET_CURRENT_CHAIN_ID,
       "function logoURI() external view returns (string memory)",
-      "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
+      "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
+      "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
@@ -225,21 +226,15 @@ router.post('/read-dle-info', async (req, res) => {
     // Читаем информацию о модулях (ASCII-padded MODULE_IDS, не keccak имени)
     const modules = {};
     try {
-      const { MODULE_IDS, MODULE_ID_TO_TYPE } = require('../constants/moduleIds');
+      const { resolveAllBookSlots } = require('../utils/bookModuleSlot');
       console.log(`[Blockchain] Читаем модули для DLE: ${dleAddress}`);
-      for (const [moduleId, moduleType] of Object.entries(MODULE_ID_TO_TYPE)) {
-        try {
-          const moduleAddress = await dle.getModuleAddress(moduleId);
-          if (moduleAddress && moduleAddress !== ethers.ZeroAddress) {
-            modules[moduleType] = moduleAddress;
-            console.log(`[Blockchain] Модуль ${moduleType}: ${moduleAddress}`);
-          }
-        } catch (moduleError) {
-          console.log(`[Blockchain] Ошибка при чтении модуля ${moduleType}:`, moduleError.message);
+      const slots = await resolveAllBookSlots(dle);
+      for (const [moduleType, slot] of Object.entries(slots)) {
+        if (slot.moduleAddress && slot.moduleAddress !== ethers.ZeroAddress) {
+          modules[moduleType] = slot.moduleAddress;
+          console.log(`[Blockchain] Модуль ${moduleType}: ${slot.moduleAddress}`);
         }
       }
-      // unused MODULE_IDS silence
-      void MODULE_IDS;
     } catch (modulesError) {
       console.log(`[Blockchain] Ошибка при чтении модулей:`, modulesError.message);
     }

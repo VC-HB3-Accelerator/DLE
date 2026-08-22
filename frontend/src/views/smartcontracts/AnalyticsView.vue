@@ -349,7 +349,8 @@ async function loadTokenomics() {
       
       // Получаем держателей токенов
       const holdersResponse = await api.post('/dle-tokens/get-token-holders', {
-        dleAddress: dleAddress.value
+        dleAddress: dleAddress.value,
+        limit: 50
       });
       
       if (holdersResponse.data.success) {
@@ -491,7 +492,9 @@ async function loadModules() {
     });
     
     if (response.data.success) {
-      modules.value = response.data.data.modules || [];
+      modules.value = (response.data.data.modules || []).filter(
+        (m) => m.inBook !== false
+      );
     }
   } catch (error) {
     console.error('[AnalyticsView] Ошибка загрузки модулей:', error);
@@ -517,7 +520,8 @@ async function loadMultichain() {
 async function loadTopHolders() {
   try {
     const response = await api.post('/dle-tokens/get-token-holders', {
-      dleAddress: dleAddress.value
+      dleAddress: dleAddress.value,
+      limit: 50
     });
     
     if (response.data.success) {

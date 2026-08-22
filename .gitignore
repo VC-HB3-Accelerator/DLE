@@ -243,6 +243,7 @@ dle-template.tar.gz.join.sh
 sync-to-vds.sh
 sync-ai-to-vds.sh
 push-to-mirrors.sh
+docker-compose-down
 
 # Версия инстанса пишется setup.sh / update.sh (не в git)
 DLE_VERSION

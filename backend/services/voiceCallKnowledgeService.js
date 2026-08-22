@@ -10,7 +10,8 @@ const logger = require('../utils/logger');
 const {
   pickAudienceSlug,
   canonicalAudience,
-  looksLikeRestrictedDealText
+  looksLikeRestrictedDealText,
+  audienceHintFromItText
 } = require('./assistantTurnContext');
 
 const { ragInputBudgetChars } = require('../utils/modelContextBudget');
@@ -302,9 +303,8 @@ function inferCallAudience(text) {
   if (/(я\s+)?инвестор|invest(or|ing)|stage\s*a|стейдж\s*a|раунд\s*a|\bask\b|условия\s+сделк|доля\s+инвестор/i.test(s)) {
     return 'investor-a';
   }
-  if (/партн[её]р|подрядчик|partnership|контрибьютор|contributor/i.test(s)) {
-    return 'partner';
-  }
+  const itHint = audienceHintFromItText(s);
+  if (itHint) return itHint;
   if (/я\s+(клиент|предприниматель)|для\s+(своей\s+)?компан|внедрить|купить\s+dle|операционн\w*\s+систем|меры\s+поддержк/i.test(s)) {
     return 'public-client';
   }

@@ -50,7 +50,14 @@ class DeployParamsService {
         // initialAmounts в человекочитаемом формате, умножение на 1e18 происходит при деплое
         initial_amounts: JSON.stringify(params.initial_amounts || []),
         supported_chain_ids: JSON.stringify(params.supported_chain_ids || []),
-        current_chain_id: params.current_chain_id || 1, // По умолчанию Ethereum
+        current_chain_id: (() => {
+          if (params.current_chain_id != null && params.current_chain_id !== '') {
+            return params.current_chain_id;
+          }
+          const ids = params.supported_chain_ids;
+          if (Array.isArray(ids) && ids.length) return ids[0];
+          return null;
+        })(),
         logo_uri: params.logo_uri,
         private_key: params.private_key, // Будет автоматически зашифрован
         etherscan_api_key: params.etherscan_api_key,
@@ -562,6 +569,13 @@ class DeployParamsService {
         delete mapped.privateKey;
         delete mapped.private_key;
         return mapped;
+      }).filter((d) => {
+        const ok = (a) => {
+          const s = String(a || '').trim();
+          return /^0x[a-fA-F0-9]{40}$/i.test(s) && !/^0x0+$/i.test(s);
+        };
+        if (ok(d.dleAddress)) return true;
+        return (d.deployedNetworks || []).some((n) => ok(n.address));
       });
       
     } catch (error) {

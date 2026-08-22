@@ -660,7 +660,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         if (bytes(_symbol).length == 0) revert ErrSymbolEmpty();
         if (bytes(_location).length == 0) revert ErrLocationEmpty();
         if (_jurisdiction == 0) revert ErrBadJurisdiction();
-        if (_kpp == 0) revert ErrBadKPP();
+        // КПП — реквизит РФ (ISO 643). Для остальных юрисдикций 0 допустим.
+        if (_jurisdiction == 643 && _kpp == 0) revert ErrBadKPP();
     }
 
     function _setPeerContract(uint256 _chainId, address _peer) internal {

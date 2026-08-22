@@ -13,7 +13,7 @@
 const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
-const { MODULE_IDS, MODULE_ID_TO_TYPE, MODULE_NAMES } = require('../constants/moduleIds');
+const { MODULE_ID_TO_TYPE, MODULE_NAMES, moduleTypeFromId } = require('../constants/moduleIds');
 const {
   DLE_GET_DLE_INFO,
   DLE_GET_CURRENT_CHAIN_ID,
@@ -101,11 +101,54 @@ router.post('/get-extended-history', async (req, res) => {
       },
     });
 
-    // Логи: короткое окно + чанки (Base Sepolia лимит ~2000 блоков)
+    async function fillProposalsFromSummary(seenIds) {
+      if (Number(proposalsCount) <= 0) return;
+      const summaryAbi = [
+        'function getProposalSummary(uint256) view returns (uint256 id, string description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] targetChains)',
+        'function getProposalState(uint256) view returns (uint8)',
+      ];
+      const dleSum = new ethers.Contract(dleAddress, summaryAbi, provider);
+      const n = Number(proposalsCount);
+      for (let i = 0; i < n; i++) {
+        if (seenIds.has(i)) continue;
+        try {
+          const s = await dleSum.getProposalSummary(i);
+          const st = Number(await dleSum.getProposalState(i));
+          const snap = Number(s.snapshotTimepoint);
+          const ts = snap > 1e9 ? snap * 1000 : Number(s.deadline) > 1e9 ? Number(s.deadline) * 1000 : Date.now();
+          history.push({
+            id: history.length + 1,
+            type: s.executed || st === 3 ? 'proposal_executed' : 'proposal_created',
+            title:
+              s.executed || st === 3
+                ? `Предложение #${i} исполнено`
+                : `Предложение #${i} создано`,
+            description: s.description,
+            timestamp: ts,
+            blockNumber: null,
+            transactionHash: null,
+            details: {
+              proposalId: i,
+              initiator: s.initiator,
+              state: st,
+              fromSummary: true,
+            },
+          });
+          seenIds.add(i);
+        } catch (e) {
+          console.log(`[DLE History] summary ${i}:`, e.message);
+        }
+      }
+    }
+
+    const seenProposalIds = new Set();
+    await fillProposalsFromSummary(seenProposalIds);
+
+    // Логи только в последних чанках RPC (лимит eth_getLogs ~1500–2000 блоков).
     const currentBlock = await provider.getBlockNumber();
-    const searchRange = 8_000;
     const chunkSize = 1_500;
-    const fromBlock = Math.max(0, currentBlock - searchRange);
+    const logChunks = 4;
+    const fromBlock = Math.max(0, currentBlock - chunkSize * logChunks);
 
     async function queryEventChunks(eventName) {
       const out = [];
@@ -130,12 +173,30 @@ router.post('/get-extended-history', async (req, res) => {
         type,
         title,
         description,
-        // blockNumber как ключ сортировки (не unix ms); FE это учитывает
         timestamp: Number(event.blockNumber) || 0,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
         details,
       });
+    }
+
+    async function attachBlockTimes() {
+      const nums = [...new Set(
+        history.filter((h) => Number(h.blockNumber) > 0).map((h) => Number(h.blockNumber))
+      )];
+      const times = new Map();
+      for (const n of nums) {
+        try {
+          const block = await provider.getBlock(n);
+          if (block?.timestamp) times.set(n, Number(block.timestamp) * 1000);
+        } catch (_) {
+          /* skip */
+        }
+      }
+      for (const h of history) {
+        const ms = times.get(Number(h.blockNumber));
+        if (ms) h.timestamp = ms;
+      }
     }
 
     try {
@@ -230,6 +291,9 @@ router.post('/get-extended-history', async (req, res) => {
 
       const proposalEvents = await queryEventChunks('ProposalCreated');
       for (const event of proposalEvents) {
+        const proposalId = Number(event.args.proposalId);
+        if (seenProposalIds.has(proposalId)) continue;
+        seenProposalIds.add(proposalId);
         pushEvent(
           'proposal_created',
           `Предложение #${Number(event.args.proposalId)} создано`,
@@ -245,6 +309,9 @@ router.post('/get-extended-history', async (req, res) => {
 
       const proposalExecutedEvents = await queryEventChunks('ProposalExecuted');
       for (const event of proposalExecutedEvents) {
+        const proposalId = Number(event.args.proposalId);
+        if (seenProposalIds.has(proposalId)) continue;
+        seenProposalIds.add(proposalId);
         pushEvent(
           'proposal_executed',
           `Предложение #${Number(event.args.proposalId)} исполнено`,
@@ -256,6 +323,9 @@ router.post('/get-extended-history', async (req, res) => {
 
       const proposalCancelledEvents = await queryEventChunks('ProposalCancelled');
       for (const event of proposalCancelledEvents) {
+        const proposalId = Number(event.args.proposalId);
+        if (seenProposalIds.has(proposalId)) continue;
+        seenProposalIds.add(proposalId);
         pushEvent(
           'proposal_cancelled',
           `Предложение #${Number(event.args.proposalId)} отменено`,
@@ -264,47 +334,11 @@ router.post('/get-extended-history', async (req, res) => {
           { proposalId: Number(event.args.proposalId), reason: event.args.reason }
         );
       }
-
-      // Fallback: если логов ProposalCreated нет — взять summary по count
-      if (proposalEvents.length === 0 && Number(proposalsCount) > 0) {
-        const summaryAbi = [
-          'function getProposalSummary(uint256) view returns (uint256 id, string description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] targetChains)',
-          'function getProposalState(uint256) view returns (uint8)',
-        ];
-        const dleSum = new ethers.Contract(dleAddress, summaryAbi, provider);
-        const n = Number(proposalsCount);
-        for (let i = 0; i < n; i++) {
-          try {
-            const s = await dleSum.getProposalSummary(i);
-            const st = Number(await dleSum.getProposalState(i));
-            const snap = Number(s.snapshotTimepoint);
-            const ts = snap > 1e9 ? snap * 1000 : Number(s.deadline) > 1e9 ? Number(s.deadline) * 1000 : Date.now();
-            history.push({
-              id: history.length + 1,
-              type: s.executed || st === 3 ? 'proposal_executed' : 'proposal_created',
-              title:
-                s.executed || st === 3
-                  ? `Предложение #${i} исполнено`
-                  : `Предложение #${i} создано`,
-              description: s.description,
-              timestamp: ts,
-              blockNumber: null,
-              transactionHash: null,
-              details: {
-                proposalId: i,
-                initiator: s.initiator,
-                state: st,
-                fromSummary: true,
-              },
-            });
-          } catch (e) {
-            console.log(`[DLE History] summary ${i}:`, e.message);
-          }
-        }
-      }
     } catch (error) {
       console.log(`[DLE History] Ошибка при получении событий:`, error.message);
     }
+
+    await attachBlockTimes();
 
     history.sort((a, b) => {
       const bt = Number(b.timestamp) || 0;
@@ -344,21 +378,17 @@ router.post('/get-extended-history', async (req, res) => {
 
 // Вспомогательные функции
 function getModuleName(moduleId) {
-  // Проверяем стандартные модули
-  if (MODULE_ID_TO_TYPE[moduleId]) {
-    const moduleType = MODULE_ID_TO_TYPE[moduleId];
+  let hex = moduleId;
+  try {
+    hex = typeof moduleId === 'string' ? moduleId : ethers.hexlify(moduleId);
+  } catch (_) {
+    hex = String(moduleId);
+  }
+  const moduleType = moduleTypeFromId(hex) || MODULE_ID_TO_TYPE[hex];
+  if (moduleType) {
     return MODULE_NAMES[moduleType] || moduleType;
   }
-  
-  // Дополнительные модули (если появятся в будущем)
-  const additionalModuleNames = {
-    '0x6d756c7469736967000000000000000000000000000000000000000000000000': 'Multisig',
-    '0x646561637469766174696f6e0000000000000000000000000000000000000000': 'Deactivation',
-    '0x616e616c79746963730000000000000000000000000000000000000000000000': 'Analytics',
-    '0x6e6f74696669636174696f6e7300000000000000000000000000000000000000': 'Notifications'
-  };
-  
-  return additionalModuleNames[moduleId] || `Module ${moduleId}`;
+  return `Module ${hex}`;
 }
 
 // Экспортируем функции для использования в других модулях

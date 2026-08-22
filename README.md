@@ -186,19 +186,19 @@ wsl bash -c "cd ~/DLE && docker-compose up -d"
 
 ### Command to stop the OS
 
-From the same `~/DLE` folder:
+From the same `~/DLE` folder. The script stops **this** instance (`dev` profile and orphans of this compose file). It does not remove containers that belong to another folder.
 
 #### Linux and macOS
 
 ```bash
 cd ~/DLE
-docker-compose down
+./docker-compose-down
 ```
 
 #### Windows
 
 ```powershell
-wsl bash -c "cd ~/DLE && docker-compose down"
+wsl bash -c "cd ~/DLE && ./docker-compose-down"
 ```
 
 ### Contacts

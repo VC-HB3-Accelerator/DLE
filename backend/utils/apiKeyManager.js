@@ -23,8 +23,8 @@ class ApiKeyManager {
     let apiKey = null;
     
     // 1. Из параметров деплоя (БД) - приоритет 1
-    if (params.etherscan_api_key) {
-      apiKey = params.etherscan_api_key;
+    if (params.etherscan_api_key || params.etherscanApiKey) {
+      apiKey = params.etherscan_api_key || params.etherscanApiKey;
       logger.info('[API_KEY] ✅ Ключ получен из параметров деплоя (БД)');
     }
     

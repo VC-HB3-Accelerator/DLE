@@ -631,27 +631,14 @@ class AuthService {
       const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
       const tokenBalances = [];
 
-      // Получаем все RPC провайдеры из базы данных для маппинга
-      const allRpcProviders = await rpcService.getAllRpcProviders();
-      const networkToChainId = {};
-      
-      // Создаем маппинг из базы данных
-      for (const provider of allRpcProviders) {
-        if (provider.network_id) {
-          networkToChainId[provider.network_id] = provider.chain_id;
-        }
-      }
-
       for (const token of tokens) {
-        // Получаем chain_id из названия сети из базы данных
-        const chainId = networkToChainId[token.network];
-        if (!chainId) {
-          logger.warn(`[getUserAccessLevel] Неизвестная сеть: ${token.network}`);
+        const resolved = await rpcService.resolveRpcForNetwork(token.network);
+        const chainId = resolved.chainId;
+        const rpcUrl = resolved.rpcUrl;
+        if (!rpcUrl) {
+          logger.warn(`[getUserAccessLevel] Нет RPC для сети: ${token.network}`);
           continue;
         }
-        
-        const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
-        if (!rpcUrl) continue;
         
         try {
           const provider = new ethers.JsonRpcProvider(rpcUrl);

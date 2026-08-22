@@ -32,11 +32,13 @@
           {{ t('common.loading') }}
         </div>
       </div>
-      <div v-if="!props.isAuthenticated" class="auth-notice">
+      <div v-if="!canGovern" class="auth-notice">
         <div class="alert alert-info">
           <UiGlyph name="info" />
-          <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
-          <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
+          <div class="alert-body">
+            <strong>{{ t('smartcontracts.createProposal.tokenHolderRequiredTitle') }}</strong>
+            <p>{{ t('smartcontracts.createProposal.tokenHolderRequiredHint') }}</p>
+          </div>
         </div>
       </div>
       
@@ -48,56 +50,56 @@
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.transferTokens.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.transferTokens.description') }}</p>
-                <button class="create-btn" @click="openTransferForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openTransferForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.updateDleInfo.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.updateDleInfo.description') }}</p>
-                <button class="create-btn" @click="openUpdateDLEInfoForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openUpdateDLEInfoForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.updateQuorum.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.updateQuorum.description') }}</p>
-                <button class="create-btn" @click="openUpdateQuorumForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openUpdateQuorumForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.updateVotingDurations.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.updateVotingDurations.description') }}</p>
-                <button class="create-btn" @click="openUpdateVotingDurationsForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openUpdateVotingDurationsForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.offchainAction.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.offchainAction.description') }}</p>
-                <button class="create-btn" @click="openOffchainActionForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openOffchainActionForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.addModule.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.addModule.description') }}</p>
-                <button class="create-btn" @click="openAddModuleForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openAddModuleForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.removeModule.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.removeModule.description') }}</p>
-                <button class="create-btn" @click="openRemoveModuleForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openRemoveModuleForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.setLogoUri.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.setLogoUri.description') }}</p>
-                <button class="create-btn" @click="openSetLogoURIForm" :disabled="!props.isAuthenticated">
+                <button class="create-btn" @click="openSetLogoURIForm" :disabled="!canGovern">
                   {{ t('common.create') }}
                 </button>
               </div>
@@ -127,7 +129,7 @@
                 <button 
                   class="create-btn" 
                   @click="openModuleOperationForm(moduleOperation.moduleType, operation)" 
-                  :disabled="!props.isAuthenticated || isLoadingModuleOperations"
+                  :disabled="!canGovern || isLoadingModuleOperations"
                 >
                   <span v-if="isLoadingModuleOperations">{{ t('common.loading') }}</span>
                   <span v-else>{{ t('common.create') }}</span>
@@ -146,6 +148,7 @@ import { ref, computed, onMounted, onUnmounted, defineProps, defineEmits } from 
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../../composables/useAuth';
+import { usePermissions } from '../../composables/usePermissions';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import UiGlyph from '../../components/UiGlyph.vue';
@@ -173,6 +176,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const { t } = useI18n();
 const { address, isAuthenticated, checkTokenBalances } = useAuthContext();
+const { canGovern } = usePermissions();
 const router = useRouter();
 const route = useRoute();
 
@@ -522,9 +526,20 @@ function getChainName(chainId) {
   color: #0c5460;
 }
 
-.alert i {
-  margin-top: 0.25rem;
+.alert :deep(.ui-glyph) {
+  margin-top: 0.15rem;
   flex-shrink: 0;
+}
+
+.alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.alert-body p {
+  margin: 0;
 }
 
 .operations-grid {

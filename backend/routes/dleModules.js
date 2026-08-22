@@ -25,8 +25,41 @@ const rpcProviderService = require('../services/rpcProviderService');
 const { rejectClientPrivateKey, getBookPrivateKey } = require('../services/bookDeployKeyService');
 const { spawn } = require('child_process');
 const path = require('path');
-const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS, MODULE_IDS } = require('../constants/moduleIds');
+const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS, MODULE_IDS, moduleTypeFromId } = require('../constants/moduleIds');
+const { resolveBookSlot } = require('../utils/bookModuleSlot');
 const fs = require('fs');
+
+async function slotAddr(dle, moduleType) {
+  const slot = await resolveBookSlot(dle, moduleType);
+  return slot.moduleAddress;
+}
+
+async function slotAddrFromId(dle, moduleId) {
+  const type = moduleTypeFromId(moduleId) || (MODULE_TYPE_TO_ID[moduleId] ? moduleId : null);
+  if (type) return slotAddr(dle, type);
+  return dle.getModuleAddress(moduleId);
+}
+
+async function readSlot(dle, moduleType) {
+  const slot = await resolveBookSlot(dle, moduleType);
+  let isActive = false;
+  if (slot.moduleAddress && slot.moduleAddress !== ethers.ZeroAddress) {
+    try {
+      isActive = await dle.isModuleActive(slot.moduleId);
+    } catch (_) {
+      isActive = true;
+    }
+  }
+  return { ...slot, isActive };
+}
+
+function mapVerificationStatus(raw) {
+  const s = String(raw || '').toLowerCase();
+  if (['success', 'verified', 'already_verified'].includes(s)) return 'success';
+  if (s === 'failed' || s === 'error') return 'failed';
+  if (!s || s === 'unknown' || s === 'skipped') return 'pending';
+  return s;
+}
 // broadcastModulesUpdate удален - используем deploymentWebSocketService
 const DeployParamsService = require('../services/deployParamsService');
 const { resolveDleProvider } = require('../services/dleNetworkResolveService');
@@ -90,6 +123,99 @@ async function getDeployedModulesInfo(dleAddress) {
     console.error('[DLE Modules] Ошибка при получении информации о модулях из файлов:', error);
     return [];
   }
+}
+
+async function readOnChainModuleBridge(provider, moduleAddress) {
+  if (!moduleAddress || moduleAddress === ethers.ZeroAddress) return null;
+  const c = new ethers.Contract(
+    moduleAddress,
+    [
+      'function moduleBridge() view returns (address)',
+      'function fundsBridge() view returns (address)',
+    ],
+    provider
+  );
+  let onChain = ethers.ZeroAddress;
+  try {
+    onChain = await c.moduleBridge();
+  } catch (_) {
+    try {
+      onChain = await c.fundsBridge();
+    } catch (__) {
+      return null;
+    }
+  }
+  if (!onChain || onChain === ethers.ZeroAddress) return null;
+  return onChain;
+}
+
+function metaFromModuleFile(file) {
+  if (!file) return null;
+  if (!file.dleName && file.dleLocation == null && file.dleJurisdiction == null) return null;
+  return {
+    dleName: file.dleName || null,
+    dleSymbol: file.dleSymbol || null,
+    dleLocation: file.dleLocation || null,
+    dleJurisdiction: file.dleJurisdiction ?? null,
+    dleOkvedCodes: Array.isArray(file.dleOkvedCodes) ? file.dleOkvedCodes : [],
+  };
+}
+
+function pickDleCardMeta(chainMeta, fromFile, fileModules) {
+  if (chainMeta && chainMeta.dleName) return chainMeta;
+  return (
+    metaFromModuleFile(fromFile) ||
+    (fileModules || []).map(metaFromModuleFile).find(Boolean) || {
+      dleName: null,
+      dleSymbol: null,
+      dleLocation: null,
+      dleJurisdiction: null,
+      dleOkvedCodes: [],
+    }
+  );
+}
+
+async function loadModuleAddedAtByAddress(provider, dleAddress) {
+  const byAddress = new Map();
+  const dleLogs = new ethers.Contract(
+    dleAddress,
+    ['event ModuleAdded(bytes32 moduleId, address moduleAddress)'],
+    provider
+  );
+  try {
+    const latest = await provider.getBlockNumber();
+    const chunk = 1500;
+    const maxChunks = 8;
+    const events = [];
+    for (let i = 0; i < maxChunks; i++) {
+      const toBlock = latest - i * chunk;
+      if (toBlock < 0) break;
+      const fromBlock = Math.max(0, toBlock - chunk + 1);
+      try {
+        const part = await dleLogs.queryFilter(dleLogs.filters.ModuleAdded(), fromBlock, toBlock);
+        events.push(...part);
+      } catch (chunkErr) {
+        console.log(`[DLE Modules] ModuleAdded chunk ${fromBlock}-${toBlock} skip: ${chunkErr.message}`);
+      }
+    }
+    const blockIds = [...new Set(events.map((ev) => ev.blockNumber))];
+    const tsByBlock = new Map();
+    await Promise.all(
+      blockIds.map(async (bn) => {
+        const block = await provider.getBlock(bn);
+        tsByBlock.set(bn, Number(block?.timestamp || 0));
+      })
+    );
+    for (const ev of events) {
+      const addr = String(ev.args?.moduleAddress || '').toLowerCase();
+      const ts = tsByBlock.get(ev.blockNumber) || 0;
+      if (!addr || !ts) continue;
+      byAddress.set(addr, new Date(ts * 1000).toISOString());
+    }
+  } catch (e) {
+    console.log(`[DLE Modules] ModuleAdded logs skip: ${e.message}`);
+  }
+  return byAddress;
 }
 
 // Утилитарная функция для автоматической компиляции контрактов
@@ -197,39 +323,32 @@ router.post('/is-module-active', async (req, res) => {
       });
     }
 
-    // Если chainId не указан, используем первый доступный
-    let targetChainId = chainId;
-    if (!targetChainId) {
-      const allProviders = await rpcProviderService.getAllRpcProviders();
-      if (allProviders.length === 0) {
-        return res.status(500).json({
-          success: false,
-          error: 'RPC провайдеры не найдены в базе данных'
-        });
-      }
-      targetChainId = allProviders[0].chain_id;
-    }
+    const { provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+      preferChainId: chainId,
+    });
 
     console.log(`[DLE Modules] Проверка активности модуля: ${moduleId} для DLE: ${dleAddress} в сети ${targetChainId}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(targetChainId);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: `RPC URL для сети ${targetChainId} не найден`
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
     const dleAbi = [
-      "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
+      'function isModuleActive(bytes32 _moduleId) external view returns (bool)',
+      'function getModuleAddress(bytes32 _moduleId) external view returns (address)',
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Проверяем активность модуля
-    const isActive = await dle.isModuleActive(moduleId);
+    const type = moduleTypeFromId(moduleId) || (MODULE_TYPE_TO_ID[moduleId] ? moduleId : null);
+    let isActive = false;
+    if (type) {
+      const slot = await readSlot(dle, type);
+      isActive = Boolean(slot && slot.isActive);
+    } else {
+      try {
+        isActive = await dle.isModuleActive(moduleId);
+      } catch (_) {
+        const addr = await slotAddrFromId(dle, moduleId);
+        isActive = Boolean(addr && addr !== ethers.ZeroAddress);
+      }
+    }
 
     console.log(`[DLE Modules] Активность модуля ${moduleId}: ${isActive}`);
 
@@ -292,18 +411,10 @@ router.post('/get-module-address', async (req, res) => {
       });
     }
 
-    const targetChainId = Number(chainId) || 11155111;
+    const { provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+      preferChainId: chainId,
+    });
     console.log(`[DLE Modules] Получение адреса модуля: ${moduleId} для DLE: ${dleAddress} в сети: ${targetChainId}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(targetChainId);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: `RPC URL для сети ${targetChainId} не найден`
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
@@ -311,8 +422,7 @@ router.post('/get-module-address', async (req, res) => {
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Получаем адрес модуля
-    const moduleAddress = await dle.getModuleAddress(moduleId);
+    const moduleAddress = await slotAddrFromId(dle, moduleId);
 
     console.log(`[DLE Modules] Адрес модуля ${moduleId} (chainId ${targetChainId}): ${moduleAddress}`);
 
@@ -372,9 +482,9 @@ router.post('/prepare-initialize-modules-all-networks', async (req, res) => {
 
         // Модули теперь инициализируются только через governance
         const already = false;
-        const treasuryAddress = await dle.getModuleAddress(moduleIds.treasury);
-        const timelockAddress = await dle.getModuleAddress(moduleIds.timelock);
-        const readerAddress = await dle.getModuleAddress(moduleIds.reader);
+        const treasuryAddress = await slotAddr(dle, 'treasury');
+        const timelockAddress = await slotAddr(dle, 'timelock');
+        const readerAddress = await slotAddr(dle, 'reader');
 
         if (
           treasuryAddress === '0x0000000000000000000000000000000000000000' ||
@@ -529,6 +639,7 @@ router.post('/get-all-modules', async (req, res) => {
       [
         'function getModuleAddress(bytes32) view returns (address)',
         'function isModuleActive(bytes32) view returns (bool)',
+        'function getDLEInfo() view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))',
       ],
       provider
     );
@@ -549,12 +660,31 @@ router.post('/get-all-modules', async (req, res) => {
       (fileModules || []).map((m) => [m.moduleType, m])
     );
 
+    let chainMeta = null;
+    try {
+      const info = await dle.getDLEInfo();
+      chainMeta = {
+        dleName: info.name,
+        dleSymbol: info.symbol,
+        dleLocation: info.location,
+        dleJurisdiction: info.jurisdiction != null ? Number(info.jurisdiction) : null,
+        dleOkvedCodes: Array.from(info.okvedCodes || []),
+      };
+    } catch (e) {
+      console.log(`[DLE Modules] getDLEInfo skip: ${e.message}`);
+    }
+
+    const addedAtByAddress = await loadModuleAddedAtByAddress(provider, dleAddress);
+
     const formattedModules = [];
-    for (const [moduleType, moduleId] of Object.entries(MODULE_TYPE_TO_ID)) {
+    for (const moduleType of Object.keys(MODULE_TYPE_TO_ID)) {
       let moduleAddress = ethers.ZeroAddress;
+      let moduleId = MODULE_TYPE_TO_ID[moduleType];
       let isActive = false;
       try {
-        moduleAddress = await dle.getModuleAddress(moduleId);
+        const slot = await resolveBookSlot(dle, moduleType);
+        moduleId = slot.moduleId;
+        moduleAddress = slot.moduleAddress;
         if (moduleAddress && moduleAddress !== ethers.ZeroAddress) {
           try {
             isActive = await dle.isModuleActive(moduleId);
@@ -577,26 +707,11 @@ router.post('/get-all-modules', async (req, res) => {
         fromFile?.networks?.[0]?.bridgeAddress ||
         null;
 
-      // Treasury: читать moduleBridge() on-chain (источник истины после wiring)
-      if (moduleType === 'treasury' && moduleAddress && moduleAddress !== ethers.ZeroAddress) {
-        try {
-          const treasury = new ethers.Contract(
-            moduleAddress,
-            ['function moduleBridge() view returns (address)', 'function fundsBridge() view returns (address)'],
-            provider
-          );
-          let onChainBridge = ethers.ZeroAddress;
-          try {
-            onChainBridge = await treasury.moduleBridge();
-          } catch (_) {
-            onChainBridge = await treasury.fundsBridge();
-          }
-          if (onChainBridge && onChainBridge !== ethers.ZeroAddress) {
-            bridgeAddress = onChainBridge;
-          }
-        } catch (e) {
-          console.log(`[DLE Modules] treasury.moduleBridge skip: ${e.message}`);
-        }
+      try {
+        const onChainBridge = await readOnChainModuleBridge(provider, moduleAddress);
+        if (onChainBridge) bridgeAddress = onChainBridge;
+      } catch (e) {
+        console.log(`[DLE Modules] ${moduleType}.moduleBridge skip: ${e.message}`);
       }
 
       const addresses = [
@@ -606,10 +721,13 @@ router.post('/get-all-modules', async (req, res) => {
           bridgeAddress: bridgeAddress || null,
           networkName: getNetworkName(Number(targetChainId)),
           isActive: Boolean(isActive),
-          verification: fromFile?.networks?.[0]?.verification || null,
-          verificationStatus: fromFile?.networks?.[0]?.verification || null,
+          verification: mapVerificationStatus(fromFile?.networks?.[0]?.verification),
+          verificationStatus: mapVerificationStatus(fromFile?.networks?.[0]?.verification),
         },
       ];
+
+      const cardMeta = pickDleCardMeta(chainMeta, fromFile, fileModules);
+      const deployedAt = addedAtByAddress.get(String(moduleAddress).toLowerCase()) || null;
 
       formattedModules.push({
         // AnalyticsView ждёт id/address; ModulesView — moduleName/addresses
@@ -622,14 +740,64 @@ router.post('/get-all-modules', async (req, res) => {
         moduleDescription: getModuleDescription(moduleType),
         addresses,
         isActive: Boolean(isActive),
-        deployedAt: fromFile?.deployTimestamp || null,
+        inBook: true,
+        deployedAt,
         source: 'on-chain',
-        dleName: fromFile?.dleName,
-        dleSymbol: fromFile?.dleSymbol,
+        ...cardMeta,
       });
     }
 
-    console.log(`[DLE Modules] On-chain модулей: ${formattedModules.length}`);
+    // Контракт модуля уже в сети, но ещё не addModule в книгу — тоже показываем
+    const listedTypes = new Set(formattedModules.map((m) => m.moduleType));
+    for (const fromFile of fileModules || []) {
+      const moduleType = fromFile.moduleType;
+      if (!moduleType || listedTypes.has(moduleType)) continue;
+      const moduleId = MODULE_TYPE_TO_ID[moduleType];
+      if (!moduleId) continue;
+
+      const nets = (fromFile.networks || []).filter(
+        (n) => n && n.address && n.address !== ethers.ZeroAddress
+      );
+      if (nets.length === 0) continue;
+
+      const prefer =
+        nets.find((n) => Number(n.chainId) === Number(targetChainId)) || nets[0];
+
+      let fileBridge = prefer.bridgeAddress || null;
+      try {
+        const onChainBridge = await readOnChainModuleBridge(provider, prefer.address);
+        if (onChainBridge) fileBridge = onChainBridge;
+      } catch (_) {}
+
+      const cardMeta = pickDleCardMeta(chainMeta, fromFile, fileModules);
+      const deployedAt = addedAtByAddress.get(String(prefer.address).toLowerCase()) || null;
+
+      formattedModules.push({
+        id: moduleType,
+        address: prefer.address,
+        bridgeAddress: fileBridge,
+        moduleId,
+        moduleName: MODULE_NAMES[moduleType] || moduleType.toUpperCase(),
+        moduleType,
+        moduleDescription: getModuleDescription(moduleType),
+        addresses: nets.map((n) => ({
+          chainId: Number(n.chainId),
+          address: n.address,
+          bridgeAddress: (Number(n.chainId) === Number(prefer.chainId) ? fileBridge : n.bridgeAddress) || null,
+          networkName: getNetworkName(Number(n.chainId)),
+          isActive: false,
+          verification: mapVerificationStatus(n.verification),
+          verificationStatus: mapVerificationStatus(n.verification),
+        })),
+        isActive: false,
+        inBook: false,
+        deployedAt,
+        source: 'deployed',
+        ...cardMeta,
+      });
+    }
+
+    console.log(`[DLE Modules] Модулей в ответе: ${formattedModules.length} (книга + файлы деплоя)`);
 
     let supportedNetworks = [
       {
@@ -1103,20 +1271,19 @@ router.post('/check-modules-status', async (req, res) => {
     const moduleIds = MODULE_TYPE_TO_ID;
 
     const modules = [];
-    for (const [name, moduleId] of Object.entries(moduleIds)) {
+    for (const name of Object.keys(moduleIds)) {
       try {
-        const isActive = await dle.isModuleActive(moduleId);
-        const address = await dle.getModuleAddress(moduleId);
+        const slot = await readSlot(dle, name);
         modules.push({
           name: name.toUpperCase(),
-          moduleId: moduleId,
-          isActive: isActive,
-          address: address
+          moduleId: slot.moduleId,
+          isActive: slot.isActive,
+          address: slot.moduleAddress
         });
       } catch (error) {
         modules.push({
           name: name.toUpperCase(),
-          moduleId: moduleId,
+          moduleId: moduleIds[name],
           isActive: false,
           address: null,
           error: error.message
@@ -1316,9 +1483,9 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
         console.log(`[DLE Modules] Модули инициализируются через governance предложения в сети ${network.chainId}`);
 
         // Получаем адреса модулей
-        const treasuryAddress = await dle.getModuleAddress(moduleIds.treasury);
-        const timelockAddress = await dle.getModuleAddress(moduleIds.timelock);
-        const readerAddress = await dle.getModuleAddress(moduleIds.reader);
+        const treasuryAddress = await slotAddr(dle, 'treasury');
+        const timelockAddress = await slotAddr(dle, 'timelock');
+        const readerAddress = await slotAddr(dle, 'reader');
 
         // Проверяем, что все модули задеплоены
         if (treasuryAddress === "0x0000000000000000000000000000000000000000" ||
@@ -1441,7 +1608,7 @@ router.post('/verify-modules-all-networks', async (req, res) => {
 
         for (const [moduleKey, moduleId] of Object.entries(moduleIds)) {
           try {
-            const moduleAddress = await dle.getModuleAddress(moduleId);
+            const moduleAddress = await slotAddrFromId(dle, moduleId);
             
             if (moduleAddress === "0x0000000000000000000000000000000000000000") {
               networkResults.modules[moduleKey] = {
@@ -1742,7 +1909,7 @@ router.post('/check-module-deployment-status', async (req, res) => {
             const dle = new ethers.Contract(dleAddress, dleAbi, provider);
             
             // Получаем адрес модуля
-            const moduleAddress = await dle.getModuleAddress(moduleId);
+            const moduleAddress = await slotAddrFromId(dle, moduleId);
             
             if (moduleAddress === "0x0000000000000000000000000000000000000000") {
               return {
@@ -2364,7 +2531,7 @@ router.post('/verify-module-all-networks', async (req, res) => {
             ], provider);
 
             // Получаем адрес модуля
-            const moduleAddress = await dle.getModuleAddress(moduleId);
+            const moduleAddress = await slotAddrFromId(dle, moduleId);
             
             if (moduleAddress === "0x0000000000000000000000000000000000000000") {
               return {
@@ -2519,14 +2686,14 @@ router.post('/initialize-module-all-networks', async (req, res) => {
             console.log(`[DLE Modules] Модули инициализируются через governance предложения в сети ${network.chainId}`);
 
             // Получаем адрес модуля
-            const moduleAddress = await dle.getModuleAddress(moduleId);
+            const slot = await readSlot(dle, moduleType);
+            const moduleAddress = slot.moduleAddress;
             
             if (moduleAddress === "0x0000000000000000000000000000000000000000") {
               throw new Error(`Модуль ${moduleType} не задеплоен`);
             }
 
-            // Проверяем, что модуль не активен (если активен, значит уже инициализирован)
-            const isActive = await dle.isModuleActive(moduleId);
+            const isActive = slot.isActive;
             
             if (isActive) {
               console.log(`[DLE Modules] Модуль ${moduleType} уже активен в сети ${network.chainId}`);
@@ -2669,10 +2836,11 @@ router.post('/final-deployment-check', async (req, res) => {
             const modulesStatus = {};
             let allModulesReady = true;
 
-            for (const [moduleType, moduleId] of Object.entries(moduleIds)) {
+            for (const moduleType of Object.keys(moduleIds)) {
               try {
-                const moduleAddress = await dle.getModuleAddress(moduleId);
-                const isActive = await dle.isModuleActive(moduleId);
+                const slot = await readSlot(dle, moduleType);
+                const moduleAddress = slot.moduleAddress;
+                const isActive = slot.isActive;
                 
                 if (moduleAddress === "0x0000000000000000000000000000000000000000") {
                   modulesStatus[moduleType] = {
@@ -2915,8 +3083,8 @@ router.post('/get-deployment-status', async (req, res) => {
               "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
             ], provider);
 
-            const moduleAddress = await dle.getModuleAddress(moduleIds[moduleGroup.type]);
-            const isActive = await dle.isModuleActive(moduleIds[moduleGroup.type]);
+            const moduleAddress = await slotAddr(dle, moduleGroup.type);
+            const isActive = (await readSlot(dle, moduleGroup.type)).isActive;
 
             return { moduleAddress, isActive };
           },
@@ -3044,13 +3212,48 @@ router.post('/get-module-operations', async (req, res) => {
 
     console.log(`[DLE Modules] Получение операций модулей для DLE: ${dleAddress}`);
 
-    // Получаем модули из файлов деплоя
-    const modules = await getDeployedModulesInfo(dleAddress);
-    console.log(`[DLE Modules] Найдено модулей: ${modules.length}`);
+    // Файлы деплоя — только на той ОС, где деплоили. Источник истины — слоты книги.
+    const modulesFromFiles = await getDeployedModulesInfo(dleAddress);
+    const byType = new Map();
+    for (const module of modulesFromFiles || []) {
+      if (module?.moduleType) byType.set(module.moduleType, module);
+    }
+
+    try {
+      const { provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {});
+      const dle = new ethers.Contract(
+        dleAddress,
+        ['function getModuleAddress(bytes32) view returns (address)'],
+        provider
+      );
+      for (const moduleType of Object.keys(MODULE_TYPE_TO_ID)) {
+        let moduleAddress = ethers.ZeroAddress;
+        try {
+          const slot = await resolveBookSlot(dle, moduleType);
+          moduleAddress = slot.moduleAddress;
+        } catch (e) {
+          console.log(`[DLE Modules] getModuleAddress ${moduleType}: ${e.message}`);
+          continue;
+        }
+        if (!moduleAddress || moduleAddress === ethers.ZeroAddress) continue;
+
+        const fromFile = byType.get(moduleType);
+        const nets = (fromFile?.networks || []).filter((n) => n && n.address);
+        byType.set(moduleType, {
+          moduleType,
+          networks: nets.length
+            ? nets
+            : [{ chainId: Number(targetChainId), address: moduleAddress }],
+        });
+      }
+    } catch (e) {
+      console.log(`[DLE Modules] on-chain операции модулей: ${e.message}`);
+    }
+
+    console.log(`[DLE Modules] Найдено модулей: ${byType.size}`);
 
     const moduleOperations = [];
-
-    for (const module of modules) {
+    for (const module of byType.values()) {
       const operations = getModuleOperationsByType(module.moduleType);
       moduleOperations.push({
         moduleType: module.moduleType,

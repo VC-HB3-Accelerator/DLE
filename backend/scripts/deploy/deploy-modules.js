@@ -148,14 +148,18 @@ async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, con
         env: envVars
       });
       
-      if (stdout.includes('Successfully verified')) {
-        logger.info(`✅ Модуль ${moduleType} успешно верифицирован через Hardhat!`);
-        logger.info(`📄 Вывод: ${stdout}`);
+      const out = `${stdout || ''}\n${stderr || ''}`;
+      if (/successfully verified|already verified/i.test(out)) {
+        logger.info(`Модуль ${moduleType} верифицирован (Hardhat / already verified)`);
         return { success: true, message: 'Верификация успешна' };
-      } else {
-        logger.error(`❌ Ошибка верификации модуля ${moduleType}: ${stderr || stdout}`);
-        return { success: false, error: stderr || stdout };
       }
+      const onExplorer = await isSourcePublishedOnExplorer(chainId, contractAddress, apiKey);
+      if (onExplorer) {
+        logger.info(`Hardhat verify вернул неуспех, но исходники на explorer уже открыты: ${moduleType}`);
+        return { success: true, message: 'Исходники уже на explorer' };
+      }
+      logger.warn(`Верификация через Hardhat не подтверждена для ${moduleType}: ${stderr || stdout}`);
+      return { success: false, error: stderr || stdout };
     } finally {
       // Удаляем временный файл
       if (fs.existsSync(tempArgsFile)) {
@@ -164,8 +168,37 @@ async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, con
     }
 
   } catch (error) {
-    logger.error(`❌ Ошибка при верификации модуля ${moduleType}: ${error.message}`);
-    return { success: false, error: error.message };
+    const msg = error.message || String(error);
+    if (/already verified/i.test(msg)) {
+      return { success: true, message: 'Already verified' };
+    }
+    const onExplorer = await isSourcePublishedOnExplorer(chainId, contractAddress, apiKey);
+    if (onExplorer) {
+      logger.info(
+        `Запрос Hardhat verify к API сканера не прошёл (часто HTML вместо JSON), исходники на explorer есть: ${moduleType}`
+      );
+      return { success: true, message: 'Исходники уже на explorer' };
+    }
+    logger.warn(`Верификация модуля ${moduleType} не подтверждена: ${msg}`);
+    return { success: false, error: msg };
+  }
+}
+
+/** Explorer UI может быть зелёным при Sourcify, пока hardhat-verify ловит HTML от API. */
+async function isSourcePublishedOnExplorer(chainId, contractAddress, apiKey) {
+  if (!apiKey || !contractAddress) return false;
+  const url =
+    `https://api.etherscan.io/v2/api?chainid=${Number(chainId)}` +
+    `&module=contract&action=getsourcecode&address=${contractAddress}&apikey=${encodeURIComponent(apiKey)}`;
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    const text = await res.text();
+    if (!text || text.trimStart().startsWith('<')) return false;
+    const json = JSON.parse(text);
+    const source = json?.result?.[0]?.SourceCode;
+    return typeof source === 'string' && source.length > 2;
+  } catch {
+    return false;
   }
 }
 
@@ -542,8 +575,14 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
       results[moduleType] = { ...result, success: true };
       logger.info(`[MODULES_DBG] Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
       
-      // Автоматическая верификация после успешного деплоя
-      if (result.address && params.etherscanApiKey && params.autoVerifyAfterDeploy) {
+      // Ключ Etherscan в параметрах/окружении = верифицируем. Флаг autoVerify не должен глушить это.
+      const etherscanKeyForVerify =
+        params.etherscanApiKey ||
+        params.etherscan_api_key ||
+        process.env.ETHERSCAN_API_KEY ||
+        process.env.ETHERSCAN_V2_API_KEY ||
+        '';
+      if (result.address && etherscanKeyForVerify) {
         try {
           logger.info(`🔍 Начинаем автоматическую верификацию модуля ${moduleType}...`);
           logger.info(`[MODULES_DBG] Начинаем верификацию модуля ${moduleType} в Etherscan...`);
@@ -566,7 +605,7 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
             const code = await provider.getCode(result.address);
             if (!code || code === '0x') {
               logger.warn(`[MODULES_DBG] Контракт ${moduleType} не найден по адресу ${result.address}, пропускаем верификацию`);
-              return { success: false, error: 'Контракт не найден' };
+              throw new Error('Контракт не найден по адресу после деплоя');
             }
             logger.info(`[MODULES_DBG] Контракт ${moduleType} найден, код: ${code.substring(0, 20)}...`);
           } catch (checkError) {
@@ -578,7 +617,7 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
             result.address,
             moduleType,
             constructorArgs,
-            params.etherscanApiKey,
+            etherscanKeyForVerify,
             params
           );
           
@@ -600,11 +639,7 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
         }
       } else {
         results[moduleType].verification = 'skipped';
-        if (!params.etherscanApiKey) {
-          logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
-        } else if (!params.autoVerifyAfterDeploy) {
-          logger.info(`ℹ️ Автоматическая верификация отключена, пропускаем верификацию модуля ${moduleType}`);
-        }
+        logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
       }
     } catch (error) {
       logger.error(`[MODULES_DBG] chainId=${chainId} ${moduleType} deployment failed:`, error.message);

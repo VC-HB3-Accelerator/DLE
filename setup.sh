@@ -652,7 +652,7 @@ main() {
   print_blue ""
   print_blue "🔧 Управление:"
   print_blue "   Запуск:   docker-compose up -d"
-  print_blue "   Остановка: docker-compose down"
+  print_blue "   Остановка: ./docker-compose-down"
   print_blue "   Логи:     docker-compose logs"
 }
 

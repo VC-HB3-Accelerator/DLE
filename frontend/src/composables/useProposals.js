@@ -17,6 +17,7 @@ import { useProposalValidation } from './useProposalValidation';
 import { voteForProposal, executeProposal as executeProposalUtil, cancelProposal as cancelProposalUtil, checkTokenBalance } from '@/utils/dle-contract';
 import api from '@/api/axios';
 import { i18n } from '@/locales/index.js';
+import { usePermissions } from './usePermissions';
 
 const t = (key, params) => i18n.global.t(key, params);
 
@@ -35,6 +36,39 @@ const PROPOSAL_STATUS_KEYS = {
 // Функция sendTransactionToWallet удалена - теперь используется прямое взаимодействие с контрактом
 
 // Вспомогательная функция для получения имени цепочки
+function toVoteWei(value) {
+  if (value == null || value === '') return 0n;
+  try {
+    return BigInt(value);
+  } catch {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return 0n;
+    return BigInt(Math.trunc(n));
+  }
+}
+
+function formatVoteTokens(value) {
+  try {
+    const asEther = ethers.formatEther(toVoteWei(value));
+    const [whole, frac = ''] = asEther.split('.');
+    const trimmedFrac = frac.replace(/0+$/, '').slice(0, 4);
+    return trimmedFrac ? `${whole}.${trimmedFrac}` : whole;
+  } catch {
+    return '0';
+  }
+}
+
+function voteSharePercent(part, whole) {
+  const p = toVoteWei(part);
+  const w = toVoteWei(whole);
+  if (w === 0n) return '0';
+  return (Number((p * 1000n) / w) / 10).toFixed(1);
+}
+
+function votesCastTotal(src) {
+  return (toVoteWei(src?.forVotes) + toVoteWei(src?.againstVotes)).toString();
+}
+
 function getChainName(chainId) {
   const chainNames = {
     1: 'Ethereum',
@@ -69,21 +103,31 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     validationStats,
     isValidating
   } = useProposalValidation();
+  const { canGovern } = usePermissions();
 
   const loadProposals = async () => {
     try {
       isLoading.value = true;
 
-      // Получаем информацию о всех DLE в разных цепочках
-      console.log('[Proposals] Получаем информацию о всех DLE...');
-      const dleResponse = await api.get('/dle-v2');
+      const queryAddr = String(dleAddress.value || '').trim();
+      let allDles = [];
 
-      if (!dleResponse.data.success) {
-        console.error('Не удалось получить список DLE');
-        return;
+      if (queryAddr) {
+        allDles = [{
+          dleAddress: queryAddr,
+          networks: [{ address: queryAddr }],
+          deployedNetworks: [{ address: queryAddr }],
+        }];
+      } else {
+        console.log('[Proposals] Получаем информацию о всех DLE...');
+        const dleResponse = await api.get('/dle-v2');
+        if (!dleResponse.data.success) {
+          console.error('Не удалось получить список DLE');
+          return;
+        }
+        allDles = dleResponse.data.data || [];
       }
 
-      const allDles = dleResponse.data.data || [];
       console.log(`[Proposals] Найдено DLE: ${allDles.length}`, allDles);
 
       // Группируем предложения по описанию для создания мульти-чейн представлений
@@ -225,27 +269,30 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         const groupState = chainsArray.length > 0 
           ? Math.min(...chainsArray.map(c => Number(c.state || 0)))
           : 0;
+        const primary = chainsArray[0];
         
         return {
           ...group,
           chains: chainsArray,
-          // Общий статус - число (0 = Active, 3 = Executed, 4 = Canceled, 5 = ReadyForExecution)
           state: groupState,
-          // Общий executed - выполнен если выполнен во всех цепочках
           executed: chainsArray.length > 0 && chainsArray.every(c => c.executed),
-          // Общий canceled - отменен если отменен в любой цепочке
-          canceled: chainsArray.some(c => c.canceled)
+          canceled: chainsArray.some(c => c.canceled),
+          forVotes: primary?.forVotes ?? 0,
+          againstVotes: primary?.againstVotes ?? 0,
+          quorumRequired: primary?.quorumRequired ?? 0,
+          totalSupply: primary?.totalSupply ?? 0,
+          contractQuorumPercentage: primary?.contractQuorumPercentage ?? 0,
+          chainId: primary?.chainId,
+          transactionHash: primary?.transactionHash ?? null,
         };
       });
 
       console.log(`[Proposals] Сгруппировано предложений: ${rawProposals.length}`);
       console.log(`[Proposals] Детали группировки:`, rawProposals);
 
-      // Применяем валидацию предложений
+      // Валидация — предупреждения, не отсев: on-chain список не должен исчезать из-за string wei.
       const validationResult = validateProposals(rawProposals);
-
-      // Фильтруем только реальные предложения
-      const realProposals = filterRealProposals(validationResult.validProposals);
+      const realProposals = filterRealProposals(rawProposals);
 
       console.log(`[Proposals] Валидных предложений: ${validationResult.validCount}`);
       console.log(`[Proposals] Реальных предложений: ${realProposals.length}`);
@@ -306,8 +353,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
 
   const voteOnProposal = async (proposalId, support) => {
     try {
-      console.log('🚀 [VOTE] Начинаем голосование через DLE контракт:', { proposalId, support, dleAddress: dleAddress.value, userAddress: userAddress.value });
       isVoting.value = true;
+      if (!canGovern.value) {
+        throw new Error(t('smartcontracts.proposals.tokenHolderVoteHint'));
+      }
       
       // Проверяем наличие MetaMask
       if (!window.ethereum) {
@@ -711,45 +760,23 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   };
 
   const getQuorumPercentage = (proposal) => {
-    // Получаем реальные данные из предложения
-    const forVotes = Number(proposal.forVotes || 0);
-    const againstVotes = Number(proposal.againstVotes || 0);
-    const totalVotes = forVotes + againstVotes;
-    
-    // Используем реальный totalSupply из предложения или fallback
-    const totalSupply = Number(proposal.totalSupply || 3e+24); // Fallback к 3M DLE
-    
-    console.log(`📊 [QUORUM] Предложение ${proposal.id}:`, {
-      forVotes: forVotes,
-      againstVotes: againstVotes,
-      totalVotes: totalVotes,
-      totalSupply: totalSupply,
-      forVotesFormatted: `${(forVotes / 1e+18).toFixed(2)} DLE`,
-      againstVotesFormatted: `${(againstVotes / 1e+18).toFixed(2)} DLE`,
-      totalVotesFormatted: `${(totalVotes / 1e+18).toFixed(2)} DLE`,
-      totalSupplyFormatted: `${(totalSupply / 1e+18).toFixed(2)} DLE`
-    });
-    
-    const percentage = totalSupply > 0 ? (totalVotes / totalSupply) * 100 : 0;
-    return percentage.toFixed(2);
+    const src = proposal?.chains?.[0] || proposal || {};
+    const supply = toVoteWei(src.totalSupply);
+    const voted = toVoteWei(src.forVotes) + toVoteWei(src.againstVotes);
+    if (supply === 0n) return '0.0';
+    return (Number((voted * 1000n) / supply) / 10).toFixed(1);
   };
 
   const getRequiredQuorumPercentage = (proposal) => {
-    // Получаем требуемый кворум из предложения
-    const requiredQuorum = Number(proposal.quorumRequired || 0);
-    
-    // Используем реальный totalSupply из предложения или fallback
-    const totalSupply = Number(proposal.totalSupply || 3e+24); // Fallback к 3M DLE
-    
-    console.log(`📊 [REQUIRED QUORUM] Предложение ${proposal.id}:`, {
-      requiredQuorum: requiredQuorum,
-      totalSupply: totalSupply,
-      requiredQuorumFormatted: `${(requiredQuorum / 1e+18).toFixed(2)} DLE`,
-      totalSupplyFormatted: `${(totalSupply / 1e+18).toFixed(2)} DLE`
-    });
-    
-    const percentage = totalSupply > 0 ? (requiredQuorum / totalSupply) * 100 : 0;
-    return percentage.toFixed(2);
+    const src = proposal?.chains?.[0] || proposal || {};
+    const fromContract = Number(src.contractQuorumPercentage);
+    if (Number.isFinite(fromContract) && fromContract > 0) {
+      return String(fromContract);
+    }
+    const supply = toVoteWei(src.totalSupply);
+    const required = toVoteWei(src.quorumRequired);
+    if (supply === 0n) return '0';
+    return (Number((required * 1000n) / supply) / 10).toFixed(1);
   };
 
   const canVote = (proposal) => {
@@ -1074,6 +1101,9 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     getProposalStatusText,
     getQuorumPercentage,
     getRequiredQuorumPercentage,
+    formatVoteTokens,
+    voteSharePercent,
+    votesCastTotal,
     canVote,
     canVoteMultichain,
     canExecute,

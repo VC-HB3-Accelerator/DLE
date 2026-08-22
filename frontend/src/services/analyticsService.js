@@ -20,7 +20,7 @@ import axios from 'axios';
  */
 export const getDLEStats = async (dleAddress) => {
   try {
-    const response = await axios.post('/dle-analytics/get-dle-stats', {
+    const response = await axios.post('/dle-analytics/get-dle-analytics', {
       dleAddress
     });
     return response.data;
@@ -37,7 +37,7 @@ export const getDLEStats = async (dleAddress) => {
  */
 export const getProposalsStats = async (dleAddress) => {
   try {
-    const response = await axios.post('/blockchain/get-proposals-stats', {
+    const response = await axios.post('/dle-proposals/get-proposals', {
       dleAddress
     });
     return response.data;
@@ -54,7 +54,7 @@ export const getProposalsStats = async (dleAddress) => {
  */
 export const getTokenStats = async (dleAddress) => {
   try {
-    const response = await axios.post('/blockchain/get-token-stats', {
+    const response = await axios.post('/dle-tokens/get-total-supply', {
       dleAddress
     });
     return response.data;
@@ -71,7 +71,7 @@ export const getTokenStats = async (dleAddress) => {
  */
 export const getModulesStats = async (dleAddress) => {
   try {
-    const response = await axios.post('/blockchain/get-modules-stats', {
+    const response = await axios.post('/dle-modules/get-all-modules', {
       dleAddress
     });
     return response.data;
@@ -106,7 +106,7 @@ export const getVotingStats = async (dleAddress) => {
  */
 export const getDLEActivity = async (dleAddress, period = 'month') => {
   try {
-    const response = await axios.post('/dle-analytics/get-dle-activity', {
+    const response = await axios.post('/dle-history/get-extended-history', {
       dleAddress,
       period
     });
@@ -125,7 +125,7 @@ export const getDLEActivity = async (dleAddress, period = 'month') => {
  */
 export const getTopTokenHolders = async (dleAddress, limit = 10) => {
   try {
-    const response = await axios.post('/blockchain/get-top-token-holders', {
+    const response = await axios.post('/dle-tokens/get-token-holders', {
       dleAddress,
       limit
     });
@@ -163,7 +163,7 @@ export const getTokenDistribution = async (dleAddress) => {
  */
 export const getEventHistory = async (dleAddress, eventType, fromBlock, toBlock) => {
   try {
-    const response = await axios.post('/dle-analytics/get-event-history', {
+    const response = await axios.post('/dle-history/get-extended-history', {
       dleAddress,
       eventType,
       fromBlock,

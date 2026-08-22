@@ -37,10 +37,22 @@ export function useProposalValidation() {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   };
 
-  // Проверка chainId
+  // Проверка chainId: любая положительная сеть из RPC книги, без хардкода Ethereum-only.
   const isValidChainId = (chainId) => {
-    const validChainIds = [1, 11155111, 17000, 421614, 84532, 8453]; // Mainnet, Sepolia, Holesky, Arbitrum Sepolia, Base Sepolia, Base
-    return validChainIds.includes(Number(chainId));
+    const n = Number(chainId);
+    return Number.isFinite(n) && n > 0;
+  };
+
+  // Бэкенд отдаёт forVotes/againstVotes/quorum как string (wei), не number.
+  const isNonNegativeNumeric = (value) => {
+    if (value === null || value === undefined || value === '') return false;
+    if (typeof value === 'number') return Number.isFinite(value) && value >= 0;
+    try {
+      const raw = typeof value === 'bigint' ? value : String(value).split('.')[0];
+      return BigInt(raw) >= 0n;
+    } catch {
+      return false;
+    }
   };
 
   // Валидация предложения
@@ -79,10 +91,8 @@ export function useProposalValidation() {
           } else if (!isValidChainId(chain.chainId)) {
             chainErrors.push(t('proposalValidation.chainUnsupportedChainId', { index: chainIndex, chainId: chain.chainId }));
           }
-          
-          if (!chain.transactionHash) {
-            chainErrors.push(t('proposalValidation.chainMissingTxHash', { index: chainIndex }));
-          } else if (!isValidTransactionHash(chain.transactionHash)) {
+
+          if (chain.transactionHash && !isValidTransactionHash(chain.transactionHash)) {
             chainErrors.push(t('proposalValidation.chainInvalidTxHash', { index: chainIndex }));
           }
           
@@ -90,15 +100,15 @@ export function useProposalValidation() {
             chainErrors.push(t('proposalValidation.chainMissingStatus', { index: chainIndex }));
           }
           
-          if (typeof chain.forVotes !== 'number' || chain.forVotes < 0) {
+          if (!isNonNegativeNumeric(chain.forVotes)) {
             chainErrors.push(t('proposalValidation.chainInvalidForVotes', { index: chainIndex }));
           }
           
-          if (typeof chain.againstVotes !== 'number' || chain.againstVotes < 0) {
+          if (!isNonNegativeNumeric(chain.againstVotes)) {
             chainErrors.push(t('proposalValidation.chainInvalidAgainstVotes', { index: chainIndex }));
           }
           
-          if (typeof chain.quorumRequired !== 'number' || chain.quorumRequired < 0) {
+          if (!isNonNegativeNumeric(chain.quorumRequired)) {
             chainErrors.push(t('proposalValidation.chainInvalidQuorum', { index: chainIndex }));
           }
           
@@ -115,9 +125,7 @@ export function useProposalValidation() {
       }
     } else {
       // Для одиночных предложений проверяем стандартные поля
-      if (!proposal.transactionHash) {
-        errors.push(t('proposalValidation.missingTxHash'));
-      } else if (!isValidTransactionHash(proposal.transactionHash)) {
+      if (proposal.transactionHash && !isValidTransactionHash(proposal.transactionHash)) {
         errors.push(t('proposalValidation.invalidTxHash'));
       }
 
@@ -127,16 +135,15 @@ export function useProposalValidation() {
         errors.push(t('proposalValidation.unsupportedChainId'));
       }
 
-      // Проверка числовых значений для одиночных предложений
-      if (typeof proposal.forVotes !== 'number' || proposal.forVotes < 0) {
+      if (!isNonNegativeNumeric(proposal.forVotes)) {
         errors.push(t('proposalValidation.invalidForVotes'));
       }
 
-      if (typeof proposal.againstVotes !== 'number' || proposal.againstVotes < 0) {
+      if (!isNonNegativeNumeric(proposal.againstVotes)) {
         errors.push(t('proposalValidation.invalidAgainstVotes'));
       }
 
-      if (typeof proposal.quorumRequired !== 'number' || proposal.quorumRequired < 0) {
+      if (!isNonNegativeNumeric(proposal.quorumRequired)) {
         errors.push(t('proposalValidation.invalidQuorum'));
       }
     }
@@ -227,38 +234,33 @@ export function useProposalValidation() {
     };
   });
 
-  // Проверка, является ли предложение реальным (на основе хеша транзакции)
-  // Важно: после группировки мультичейн-предложений хеши транзакций могут жить только в proposal.chains[].transactionHash,
-  // поэтому проверяем и верхний уровень, и цепочки.
+  // Реальное предложение: слот в книге (getProposalSummary). Хеш tx не обязателен —
+  // список читается по индексу, логи RPC часто недоступны.
   const isRealProposal = (proposal) => {
     const isRealTxHash = (txHash) => {
       if (!txHash || typeof txHash !== 'string') return false;
-
-      // Проверяем, что хеш имеет правильный формат
       if (!isValidTransactionHash(txHash)) return false;
-
       const lower = txHash.toLowerCase();
-
-      // Проверяем, что это не тестовые/фейковые хеши
       const fakeHashes = [
         '0x0000000000000000000000000000000000000000000000000000000000000000',
         '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
       ];
-
-      if (fakeHashes.includes(lower)) return false;
-
-      return true;
+      return !fakeHashes.includes(lower);
     };
 
-    // 1) Одиночные предложения (или если бэкенд положил хеш на верхний уровень)
     if (isRealTxHash(proposal?.transactionHash)) return true;
-
-    // 2) Сгруппированные предложения: проверяем любую цепочку
     if (proposal?.chains && Array.isArray(proposal.chains) && proposal.chains.length > 0) {
-      return proposal.chains.some(chain => isRealTxHash(chain?.transactionHash));
+      if (proposal.chains.some((chain) => isRealTxHash(chain?.transactionHash))) return true;
+      return proposal.chains.some(
+        (chain) =>
+          (chain?.id === 0 || Number(chain?.id) > 0 || chain?.id) &&
+          Number(chain?.chainId) > 0 &&
+          Boolean(chain?.initiator || proposal?.initiator)
+      );
     }
 
-    return false;
+    const hasId = proposal?.id === 0 || Number(proposal?.id) >= 0;
+    return Boolean(hasId && proposal?.initiator && Number(proposal?.chainId) > 0);
   };
 
   // Фильтрация только реальных предложений

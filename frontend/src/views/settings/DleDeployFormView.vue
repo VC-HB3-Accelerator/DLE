@@ -30,7 +30,7 @@
             :key="country.numeric" 
             :value="country.numeric"
           >
-            {{ country.title }} ({{ country.code }})
+            {{ countryDisplayName(country, locale) }} ({{ country.code }})
           </option>
         </select>
       </div>
@@ -689,7 +689,7 @@
         <div v-if="selectedCountryInfo" class="preview-section">
           <h4>{{ $t('deploy.form.юрисдикция') }}</h4>
           <div class="preview-item">
-            <strong>{{ $t('deploy.form.страна') }}</strong> {{ selectedCountryInfo.title }}
+            <strong>{{ $t('deploy.form.страна') }}</strong> {{ countryDisplayName(selectedCountryInfo, locale) }}
           </div>
           <div class="preview-item">
             <strong>{{ $t('deploy.form.код') }}</strong> {{ selectedCountryInfo.code }}
@@ -901,7 +901,8 @@
 
     <!-- Мастер поэтапного деплоя -->
     <div v-if="showDeploymentWizard" class="deployment-wizard-overlay">
-      <div class="wizard-container">
+      <div class="wizard-container page-with-close">
+        <PageCloseButton :on-navigate="closeDeploymentWizard" />
         <DeploymentWizard
           :private-key="unifiedPrivateKey"
           :selected-networks="selectedNetworks"
@@ -926,7 +927,7 @@ import api from '@/api/axios';
 import { ethers } from 'ethers';
 import DeploymentWizard from '@/components/deployment/DeploymentWizard.vue';
 import eventBus from '@/utils/eventBus';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+import { countryDisplayName } from '@/utils/countryDisplayName';
 
 const router = useRouter();
 // Нормализация приватного ключа: убираем пробелы/"0x", посторонние символы,
@@ -1957,8 +1958,9 @@ const verifyAddress = async () => {
   }
 
   // Имя страны в запросе усиливает локализацию; countrycodes жёстко режет выдачу
-  const searchQuery = country?.title
-    ? `${fullAddressQuery}, ${country.title}`
+  const countryName = countryDisplayName(country, locale.value);
+  const searchQuery = countryName
+    ? `${fullAddressQuery}, ${countryName}`
     : fullAddressQuery;
 
   isVerifyingAddress.value = true;
@@ -1988,7 +1990,7 @@ const verifyAddress = async () => {
         addr.isVerified = false;
         dleSettings.coordinates = '';
         addressVerifyError.value = t('deploy.form.address_country_mismatch', {
-          country: country.title || countryIso.toUpperCase()
+          country: countryName || countryIso.toUpperCase()
         });
         return;
       }
@@ -2027,7 +2029,7 @@ const verifyAddress = async () => {
       addr.isVerified = false;
       dleSettings.coordinates = '';
       addressVerifyError.value = t('deploy.form.address_not_found_in_country', {
-        country: country.title || countryIso.toUpperCase()
+        country: countryName || countryIso.toUpperCase()
       });
     }
   } catch (error) {
@@ -2891,6 +2893,10 @@ const startStagedDeployment = async () => {
   } catch (error) {
     console.error('Ошибка при запуске деплоя:', error);
   }
+}
+
+function closeDeploymentWizard() {
+  showDeploymentWizard.value = false;
 }
 
 // Обработчик завершения поэтапного деплоя

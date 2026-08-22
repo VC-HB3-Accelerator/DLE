@@ -1,28 +1,24 @@
 {
-  "deploymentId": "modules-deploy-1785783575068",
-  "dleAddress": "0xB55060a59D7c1135984CAA273ED9bd453A651350",
-  "dleName": "MultiTest DLE",
-  "dleSymbol": "MTDLE",
-  "dleLocation": "Testnets",
-  "dleJurisdiction": 643,
-  "dleCoordinates": "0,0",
+  "deploymentId": "modules-deploy-1787431144177",
+  "dleAddress": "0xcFC8faAAD6E3Dfc6A75b28d834d376c4C24AAb06",
+  "dleName": "VC HB3 Accelerator test",
+  "dleSymbol": "TEST",
+  "dleLocation": "Abu Dhabi Global Market, Abu Dhabi Global Market Street - Second, Al Maryah Island, Abu Dhabi, Abu Dhabi Emirate, United Arab Emirates",
+  "dleJurisdiction": 784,
+  "dleCoordinates": "24.5013163,54.3885386",
   "dleOkvedCodes": [
-    "62.01"
+    "6499",
+    "6202"
   ],
-  "dleKpp": "770101001",
-  "dleLogoURI": null,
+  "dleKpp": "0",
+  "dleLogoURI": "/uploads/logos/default-token.svg",
   "dleSupportedChainIds": [
-    11155111,
-    421614,
-    84532
+    11155111
   ],
-  "totalNetworks": 3,
-  "successfulNetworks": 3,
+  "totalNetworks": 1,
+  "successfulNetworks": 1,
   "modulesDeployed": [
-    "treasury",
-    "timelock",
-    "reader",
-    "hierarchicalVoting"
+    "treasury"
   ],
   "networks": [
     {
@@ -31,114 +27,14 @@
       "modules": [
         {
           "type": "treasury",
-          "address": "0x0e2aE4a0B93312942de00bd584B1208A1C7EA0c5",
-          "bridgeAddress": "0x213d596e36094DD6409E8913E2612fe1F5202FBa",
+          "address": "0xf4E9566Af3BF52b4B0Daa846C7B8e06402e5240f",
+          "bridgeAddress": "0x0DC541a091382742002cE11431281120bC9bcCeA",
           "bridgeWired": true,
           "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "timelock",
-          "address": "0x0699eBbAF4536D41ED63906eEfE391Fae87793DB",
-          "bridgeAddress": "0xFaDA695E7f2FaDF44A9527D7E1Cc8d57C52EC982",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "reader",
-          "address": "0xfbf66Bb0804E24822224e9F5D7967B94b06B8EBB",
-          "bridgeAddress": "0x876cDC87c3DFB16807A4471f49f6b05C7996C43C",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "hierarchicalVoting",
-          "address": "0x0B8e6D177f1B2C8bc96d209aCD90CE7F16861928",
-          "bridgeAddress": "0x8C5664Fa4C2C18ed74fEbC11DCA242077e523CF3",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        }
-      ]
-    },
-    {
-      "chainId": 421614,
-      "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
-      "modules": [
-        {
-          "type": "treasury",
-          "address": "0x0e2aE4a0B93312942de00bd584B1208A1C7EA0c5",
-          "bridgeAddress": "0x213d596e36094DD6409E8913E2612fe1F5202FBa",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "timelock",
-          "address": "0x0699eBbAF4536D41ED63906eEfE391Fae87793DB",
-          "bridgeAddress": "0xFaDA695E7f2FaDF44A9527D7E1Cc8d57C52EC982",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "reader",
-          "address": "0xfbf66Bb0804E24822224e9F5D7967B94b06B8EBB",
-          "bridgeAddress": "0x876cDC87c3DFB16807A4471f49f6b05C7996C43C",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "hierarchicalVoting",
-          "address": "0x0B8e6D177f1B2C8bc96d209aCD90CE7F16861928",
-          "bridgeAddress": "0x8C5664Fa4C2C18ed74fEbC11DCA242077e523CF3",
-          "bridgeWired": true,
-          "success": true,
-          "verification": "skipped"
-        }
-      ]
-    },
-    {
-      "chainId": 84532,
-      "rpcUrl": "https://sepolia.base.org",
-      "modules": [
-        {
-          "type": "treasury",
-          "address": "0x0e2aE4a0B93312942de00bd584B1208A1C7EA0c5",
-          "bridgeAddress": "0x213d596e36094DD6409E8913E2612fe1F5202FBa",
-          "bridgeWired": false,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "timelock",
-          "address": "0x0699eBbAF4536D41ED63906eEfE391Fae87793DB",
-          "bridgeAddress": "0x77db1c46890D85fe18fe96D747a70f51eb782047",
-          "bridgeWired": false,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "reader",
-          "address": "0xfbf66Bb0804E24822224e9F5D7967B94b06B8EBB",
-          "bridgeAddress": "0xFaDA695E7f2FaDF44A9527D7E1Cc8d57C52EC982",
-          "bridgeWired": false,
-          "success": true,
-          "verification": "skipped"
-        },
-        {
-          "type": "hierarchicalVoting",
-          "address": "0x0B8e6D177f1B2C8bc96d209aCD90CE7F16861928",
-          "bridgeAddress": "0x68865C4c03692247e7B1d9f9a8267CabC5c8C4f3",
-          "bridgeWired": false,
-          "success": true,
-          "verification": "skipped"
+          "verification": "failed"
         }
       ]
     }
   ],
-  "timestamp": "2026-08-03T18:59:35.068Z"
+  "timestamp": "2026-08-22T20:39:04.177Z"
 }

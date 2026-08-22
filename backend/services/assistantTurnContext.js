@@ -122,6 +122,10 @@ const CONFIRM_YES_RE = /^(да|верно|именно|подтверждаю|ye
 const ROLE_CLAIM_RE = /(^|\s)я\s+(инвестор|партн[её]р|клиент|предприниматель|контрибьютор)(\s|[!,.?]|$)/i;
 /** «я работаю в ит» = партнёр (IT). \\b после кириллицы в JS не работает. */
 const IT_OCCUPATION_RE = /я\s+работаю\s+в\s+(ит|айти|it)(?=\s|[!,.?]|$)/i;
+/** Самоопределение подрядчика/узла, не «IT-компания хочет ОС». */
+const IT_CONTRACTOR_SELF_RE = /мы\s+(ит|айти|it)[\s-]*(аутсорс|подряд|интегратор)|я\s+из\s+(ит|айти|it)[\s-]*компан.{0,24}(аутсорс|подряд|интегратор)|хотим\s+(страновой\s+)?узел|мы\s+хотим\s+стать\s+партн|(ит|айти|it)[\s-]*аутсорс/i;
+/** Вопрос про продукт для IT-компании — не тег CRM. */
+const IT_PRODUCT_CLIENT_RE = /(для\s+(ит|айти|it)[\s-]*компан|(информац\w*|есть ли).{0,48}(ит|айти|it)[\s-]*компан|подходит ли.{0,40}(ит|айти|it)|(ит|айти|it)[\s-]*компан\w*.{0,48}(хочет|нужна|купит|внедрить|ось|ос\s*dle|цифров|купить)|софтверн\w*\s+компан)/i;
 /** «я из компании / продукт для бизнеса» = public-client, не интерес к теме. */
 const BUSINESS_CLIENT_RE = /из\s+компании|для\s+(моего\s+|нашего\s+)?бизнеса|продукт\S{0,12}\s+для\s+бизнеса/i;
 const SELF_INTRO_RE = /(^|\s)я\s+|мне\s+нужн/i;
@@ -186,8 +190,24 @@ function claimedAudienceFromText(text) {
   const src = String(text || '');
   const m = src.match(ROLE_CLAIM_RE);
   if (m) return audienceFromRoleWord(m[2]);
-  if (IT_OCCUPATION_RE.test(src)) return 'partner';
+  if (IT_OCCUPATION_RE.test(src) || IT_CONTRACTOR_SELF_RE.test(src)) return 'partner';
   if (SELF_INTRO_RE.test(src) && BUSINESS_CLIENT_RE.test(src)) return 'public-client';
+  return null;
+}
+
+/**
+ * Голос/поиск: IT как покупатель ОС vs подряд/узел.
+ * Не ставить CRM-тег с «для IT-компаний» — только claimedAudienceFromText.
+ */
+function audienceHintFromItText(text) {
+  const src = String(text || '');
+  if (!src.trim()) return null;
+  if (/партн[её]р|подрядчик|контрибьютор|contributor|partnership/i.test(src)
+    || IT_OCCUPATION_RE.test(src)
+    || IT_CONTRACTOR_SELF_RE.test(src)) {
+    return 'partner';
+  }
+  if (IT_PRODUCT_CLIENT_RE.test(src)) return 'public-client';
   return null;
 }
 
@@ -402,9 +422,9 @@ function corpusAudiencesForContext(ctx) {
 const GUEST_PROFILE_HINT = 'Гость без карточки CRM. Теги не ставить. Не вызывай и не печатай update_user_tags / update_user_name / get_user_profile.';
 
 /** Инструкция модели: смысл намерения, не словарь ярлыков. Только user с карточкой. */
-const QUALIFY_PROFILE_HINT = 'Тег ЦА в CRM пуст. Квалифицируй по смыслу, не по списку слов. investor-a — человек вкладывает капитал (ангел, фонд). partner — подряд/поставка/совместный контур. public-client — своя компания хочет продукт/ОС. Кнопки welcome и фразы «Хочу узнать о…» / «Интересует партнёрство» — тема разговора, НЕ самоопределение: update_user_tags с них не вызывать. Тег — только после явного «я инвестор/партнёр/клиент» или «да» на ваш вопрос подтверждения. Если роли нет — ответь по текущей теме и задай один уточняющий вопрос своими словами, без меню из трёх ярлыков.';
+const QUALIFY_PROFILE_HINT = 'Тег ЦА в CRM пуст. Квалифицируй по смыслу, не по списку слов. investor-a — человек вкладывает капитал (ангел, фонд). partner — подряд/поставка/совместный контур (в т.ч. «я работаю в IT», аутсорс, узел). public-client — своя компания хочет продукт/ОС, в том числе IT-компания как покупатель. Вопрос «есть ли информация для IT-компаний» — тема продукта, не тег partner. Кнопки welcome и фразы «Хочу узнать о…» / «Интересует партнёрство» — тема разговора, НЕ самоопределение: update_user_tags с них не вызывать. Тег — только после явного «я инвестор/партнёр/клиент» или «да» на ваш вопрос подтверждения. Если роли нет — ответь по текущей теме и задай один уточняющий вопрос своими словами, без меню из трёх ярлыков.';
 
-const UPDATE_TAGS_TOOL_DESCRIPTION = 'Записать тег ЦА только после явного самоопределения («я инвестор/партнёр/клиент») или «да» на вопрос подтверждения. Кнопка welcome и «хочу узнать о…» / «интересует партнёрство» — тема, не тег: tool не вызывать. Один slug: investor-a — вкладывает капитал; partner — подряд/поставка; public-client — компания хочет продукт/ОС. Слой sales/support не ставить.';
+const UPDATE_TAGS_TOOL_DESCRIPTION = 'Записать тег ЦА только после явного самоопределения («я инвестор/партнёр/клиент») или «да» на вопрос подтверждения. Кнопка welcome, «хочу узнать о…», «интересует партнёрство» и «информация для IT-компаний» — тема, не тег: tool не вызывать. Один slug: investor-a — вкладывает капитал; partner — подряд/поставка/узел; public-client — компания хочет продукт/ОС. Слой sales/support не ставить.';
 
 /**
  * Блок «Информация о пользователе» в system prompt (без БД).
@@ -483,6 +503,7 @@ module.exports = {
   corpusAudiencesForContext,
   hasExplicitRoleConfirm,
   claimedAudienceFromText,
+  audienceHintFromItText,
   claimedAudienceFromTurn,
   mergeAudienceIntoTagNames,
   applyAudienceTagUpdate,

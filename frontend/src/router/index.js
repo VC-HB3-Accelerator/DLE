@@ -73,6 +73,7 @@ const routes = [
         path: 'dle-v2-deploy',
         name: 'settings-dle-v2-deploy',
         component: () => import('../views/settings/DleDeployFormView.vue'),
+        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
       },
       {
         path: 'security/rpc',
@@ -516,12 +517,14 @@ const routes = [
   {
     path: '/management/add-module',
     name: 'management-add-module',
-    component: () => import('../views/smartcontracts/AddModuleFormView.vue')
+    component: () => import('../views/smartcontracts/AddModuleFormView.vue'),
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal' },
   },
   {
     path: '/management/transfer-tokens',
     name: 'management-transfer-tokens',
-    component: () => import('../views/smartcontracts/TransferTokensFormView.vue')
+    component: () => import('../views/smartcontracts/TransferTokensFormView.vue'),
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal' },
   },
   {
     path: '/management/modules',

@@ -54,14 +54,26 @@ async function resolveChainId(network) {
   if (!key) return null;
 
   const providers = await rpcProviderService.getAllRpcProviders();
+  const keyNorm = rpcProviderService.normalizeNetworkId(key);
+  const keyAsNum = Number(key);
   for (const provider of providers || []) {
-    if (String(provider.network_id || '').trim() === key && provider.chain_id != null) {
+    if (provider.chain_id == null) continue;
+    if (String(provider.network_id || '').trim() === key) {
+      return Number(provider.chain_id);
+    }
+    if (rpcProviderService.normalizeNetworkId(provider.network_id) === keyNorm) {
+      return Number(provider.chain_id);
+    }
+    if (Number.isInteger(keyAsNum) && Number(provider.chain_id) === keyAsNum) {
       return Number(provider.chain_id);
     }
   }
 
   if (NETWORK_CHAIN_FALLBACK[key] != null) {
     return NETWORK_CHAIN_FALLBACK[key];
+  }
+  if (NETWORK_CHAIN_FALLBACK[keyNorm] != null) {
+    return NETWORK_CHAIN_FALLBACK[keyNorm];
   }
   const asNum = Number(key);
   if (Number.isInteger(asNum) && asNum > 0) {
@@ -250,21 +262,16 @@ async function syncAuthDoorFromDeployment({ address, chainId, name }) {
   if (!isValidAddress(address)) {
     return { synced: false, reason: 'bad_address' };
   }
-  let network = chainId != null && chainId !== '' ? String(chainId) : '';
+  const authTokenService = require('./authTokenService');
+  let network;
   try {
-    const providers = await rpcProviderService.getAllRpcProviders();
-    const match = (providers || []).find((p) => Number(p.chain_id) === Number(chainId));
-    if (match?.network_id) {
-      network = String(match.network_id).trim();
-    }
+    network = await authTokenService.resolveStoredNetworkId(chainId, address);
   } catch (error) {
     logger.warn(`[dleAttach] сеть для auth door: ${error.message}`);
   }
   if (!network) {
     return { synced: false, reason: 'unknown_network' };
   }
-
-  const authTokenService = require('./authTokenService');
   const existing = (await authTokenService.getAllAuthTokens()).find(
     (t) =>
       normalizeAddress(t.address) === normalizeAddress(address)

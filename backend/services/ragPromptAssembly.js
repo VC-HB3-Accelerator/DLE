@@ -366,7 +366,11 @@ const CORE_PRODUCT_FAQ = [
   'что такое dle',
   'что входит в лицензию',
   'чем dle не является',
-  'глоссарий'
+  'глоссарий',
+  'подходит ли dle it',
+  'информация для it',
+  'it-компан',
+  'заменяет ли dle'
 ];
 
 const CORE_INVESTOR_FAQ = [
@@ -414,7 +418,7 @@ function boostFaqHitsByAnchors(results, anchors, { penaltyRe, coreBoost = 1.45, 
 function isProductPresentationQuery(query) {
   const q = normalizeFaqText(query);
   if (!q) return false;
-  return /операционн|для бизнеса|что такое dle|консультац|предпринимат|тариф|как начать|о с\b|ос dle|логистик|компани|vc hb3|accelerator|кто вы/.test(q);
+  return /операционн|для бизнеса|что такое dle|консультац|предпринимат|тариф|как начать|о с\b|ос dle|логистик|компани|vc hb3|accelerator|кто вы|it компан|ит компан|айти компан|софтверн/.test(q);
 }
 
 function isInvestorPresentationQuery(query) {
@@ -426,7 +430,7 @@ function isInvestorPresentationQuery(query) {
 function isPartnerPresentationQuery(query) {
   const q = normalizeFaqText(query);
   if (!q) return false;
-  return /партн|контрибьютор|contributor|it.?компани|узел/.test(q);
+  return /партн|контрибьютор|contributor|узел|аутсорс|подрядчик|я работаю в (ит|айти|it)/.test(q);
 }
 
 /**
@@ -436,7 +440,7 @@ function preferCoreProductFaqHits(results, query) {
   if (!isProductPresentationQuery(query)) return results || [];
   return boostFaqHitsByAnchors(results, CORE_PRODUCT_FAQ, {
     penaltyRe: /аудит|токен-лиценз|evm|блокчейн|регулятор|исходник|безопасна ли/,
-    extra: (question) => (/как начать|тариф|сколько стоит|хочу узнать об ос/.test(question) ? 0.35 : 0)
+    extra: (question) => (/как начать|тариф|сколько стоит|хочу узнать об ос|it.?компан|информация для it/.test(question) ? 0.35 : 0)
   });
 }
 

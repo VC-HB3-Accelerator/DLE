@@ -12,6 +12,39 @@
 
 const { ethers } = require('ethers');
 const encryptedDb = require('./encryptedDatabaseService');
+const rpcProviderService = require('./rpcProviderService');
+
+/** Пишем только network_id из rpc_providers, не сырой chainId вроде «1». */
+async function resolveStoredNetworkId(rawNetwork, address) {
+  const key = String(rawNetwork || '').trim();
+  const list = (await rpcProviderService.getAllRpcProviders()) || [];
+  const norm = (id) => rpcProviderService.normalizeNetworkId(String(id || ''));
+
+  if (key) {
+    const byName = list.find((p) => p.network_id && norm(p.network_id) === norm(key));
+    if (byName?.network_id) return String(byName.network_id).trim();
+    const asNum = Number(key);
+    if (Number.isInteger(asNum) && asNum > 0) {
+      const byChain = list.find((p) => Number(p.chain_id) === asNum);
+      if (byChain?.network_id) return String(byChain.network_id).trim();
+    }
+  }
+
+  const addr = String(address || '').trim();
+  if (/^0x[a-fA-F0-9]{40}$/.test(addr)) {
+    for (const p of list) {
+      if (!p.rpc_url || !p.network_id) continue;
+      try {
+        const provider = new ethers.JsonRpcProvider(p.rpc_url);
+        const code = await provider.getCode(addr);
+        if (code && code !== '0x') return String(p.network_id).trim();
+      } catch (_) {
+        // следующий провайдер из БД
+      }
+    }
+  }
+  return null;
+}
 
 function canonicalizeAddress(address) {
   const raw = String(address || '').trim();
@@ -45,10 +78,15 @@ async function saveAllAuthTokens(authTokens) {
   
   // Сохраняем новые токены
   for (const token of authTokens) {
+    const address = canonicalizeAddress(token.address);
+    const network = await resolveStoredNetworkId(token.network, address);
+    if (!network) {
+      throw new Error('Сеть токена должна совпадать с RPC в настройках');
+    }
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,
-      address: canonicalizeAddress(token.address),
-      network: token.network,
+      address,
+      network,
       min_balance: token.minBalance == null ? 0 : Number(token.minBalance),
       readonly_threshold: token.readonlyThreshold == null ? null : Number(token.readonlyThreshold),
       editor_threshold: token.editorThreshold == null ? null : Number(token.editorThreshold)
@@ -68,7 +106,10 @@ async function upsertAuthToken(token) {
   console.log('[AuthTokenService] token.editorThreshold:', token.editorThreshold, 'тип:', typeof token.editorThreshold);
   
   const address = canonicalizeAddress(token.address);
-  const network = String(token.network || '').trim();
+  const network = await resolveStoredNetworkId(token.network, address);
+  if (!network) {
+    throw new Error('Сеть токена должна совпадать с RPC в настройках (network_id или chain_id из rpc_providers)');
+  }
   const minBalance = token.minBalance == null ? 0 : Number(token.minBalance);
   const readonlyThreshold = (token.readonlyThreshold === null || token.readonlyThreshold === undefined || token.readonlyThreshold === '') ? null : Number(token.readonlyThreshold);
   const editorThreshold = (token.editorThreshold === null || token.editorThreshold === undefined || token.editorThreshold === '') ? null : Number(token.editorThreshold);
@@ -88,18 +129,38 @@ async function upsertAuthToken(token) {
   console.log('[AuthTokenService] readonlyThreshold:', readonlyThreshold);
   console.log('[AuthTokenService] editorThreshold:', editorThreshold);
   
-  const existing = await findAuthTokenRow(address, network);
+  const all = await getAllAuthTokens();
+  const existing =
+    (await findAuthTokenRow(address, network))
+    || (all || []).find((t) => addressesEqual(t.address, address))
+    || null;
 
   if (existing) {
-    await encryptedDb.saveData('auth_tokens', {
-      name: token.name,
-      min_balance: minBalance,
-      readonly_threshold: readonlyThreshold,
-      editor_threshold: editorThreshold
-    }, {
-      address: existing.address,
-      network: existing.network
-    });
+    const sameNetwork = String(existing.network || '').trim() === network;
+    if (!sameNetwork) {
+      await encryptedDb.deleteData('auth_tokens', {
+        address: existing.address,
+        network: existing.network,
+      });
+      await encryptedDb.saveData('auth_tokens', {
+        name: token.name,
+        address,
+        network,
+        min_balance: minBalance,
+        readonly_threshold: readonlyThreshold,
+        editor_threshold: editorThreshold
+      });
+    } else {
+      await encryptedDb.saveData('auth_tokens', {
+        name: token.name,
+        min_balance: minBalance,
+        readonly_threshold: readonlyThreshold,
+        editor_threshold: editorThreshold
+      }, {
+        address: existing.address,
+        network: existing.network
+      });
+    }
   } else {
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,
@@ -147,4 +208,10 @@ async function deleteAuthToken(address, network) {
   }
 }
 
-module.exports = { getAllAuthTokens, saveAllAuthTokens, upsertAuthToken, deleteAuthToken }; 
+module.exports = {
+  getAllAuthTokens,
+  saveAllAuthTokens,
+  upsertAuthToken,
+  deleteAuthToken,
+  resolveStoredNetworkId,
+}; 

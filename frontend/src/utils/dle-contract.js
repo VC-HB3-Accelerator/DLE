@@ -14,8 +14,47 @@ import api from '@/api/axios';
 import { ethers } from 'ethers';
 import { DLE_ABI, DLE_DEACTIVATION_ABI, TOKEN_ABI } from './dle-abi';
 import { i18n } from '@/locales/index.js';
+import { candidateModuleIds, getCanonicalModuleId } from '@/constants/moduleIds';
 
 const t = (key, params) => i18n.global.t(key, params);
+
+const ERR_PROPOSAL_EXECUTED = '0x2d686f73';
+
+function extractRevertSelector(error) {
+  const raw = error?.data || error?.info?.error?.data || error?.error?.data;
+  if (typeof raw === 'string' && raw.startsWith('0x') && raw.length >= 10) {
+    return raw.slice(0, 10).toLowerCase();
+  }
+  return '';
+}
+
+/**
+ * Есть ли модуль уже в слоте книги (канонический или legacy ID).
+ */
+export async function findBookedModuleId(dleAddress, moduleType) {
+  if (!window.ethereum || !moduleType) return null;
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const dle = new ethers.Contract(
+    dleAddress,
+    [
+      'function getModuleAddress(bytes32) view returns (address)',
+      'function activeModules(bytes32) view returns (bool)',
+    ],
+    provider
+  );
+  for (const id of candidateModuleIds(moduleType)) {
+    try {
+      const addr = await dle.getModuleAddress(id);
+      if (addr && addr !== ethers.ZeroAddress) return id;
+      if (await dle.activeModules(id)) return id;
+    } catch (_) {
+      // следующий кандидат
+    }
+  }
+  return null;
+}
+
+export { getCanonicalModuleId };
 
 // Функция для переключения сети кошелька
 export async function switchToVotingNetwork(chainId) {
@@ -250,8 +289,10 @@ export async function voteForProposal(dleAddress, proposalId, support) {
       throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
-    // Запрашиваем подключение к кошельку
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    let accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!accounts || accounts.length === 0) {
+      accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    }
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
 
@@ -497,6 +538,9 @@ export async function createAddModuleProposal(dleAddress, description, duration,
     };
   } catch (error) {
     console.error('Ошибка создания предложения о добавлении модуля:', error);
+    if (extractRevertSelector(error) === ERR_PROPOSAL_EXECUTED) {
+      throw new Error(t('dleContract.errors.moduleAlreadyInBook'));
+    }
     throw error;
   }
 }
@@ -547,7 +591,7 @@ export async function createRemoveModuleProposal(dleAddress, description, durati
  */
 export async function isModuleActive(dleAddress, moduleId) {
   try {
-    const response = await api.post('/blockchain/is-module-active', {
+    const response = await api.post('/dle-modules/is-module-active', {
       dleAddress: dleAddress,
       moduleId: moduleId
     });

@@ -85,11 +85,9 @@
         <label class="form-label">{{ $t('settings.authTokens.network') }}</label>
         <select v-model="newToken.network" class="form-control" :disabled="!canManageSettings">
           <option value="">{{ $t('settings.authTokens.selectNetwork') }}</option>
-          <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
-            <option v-for="option in group.options" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </optgroup>
+          <option v-for="option in configuredNetworkOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
         </select>
       </div>
       <div class="form-group">
@@ -150,7 +148,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-import { reactive, onMounted, onUnmounted } from 'vue';
+import { reactive, onMounted, onUnmounted, computed } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
@@ -172,9 +170,16 @@ const newToken = reactive({
   editorThreshold: 1
 });
 
-const { networkGroups, networks } = useBlockchainNetworks();
+const { networkGroups, networks, fetchNetworks } = useBlockchainNetworks();
 const { checkTokenBalances, address, checkAuth, userAccessLevel, checkUserAccessLevel } = useAuthContext();
 const { canManageSettings, getLevelClass, getLevelDescription } = usePermissions();
+
+const configuredNetworkOptions = computed(() =>
+  (networks.value || []).map((n) => ({
+    value: n.value,
+    label: n.label || n.value,
+  }))
+);
 
 function handleClear() {
   newToken.name = '';
@@ -190,6 +195,7 @@ function handleRefresh() {
 }
 
 onMounted(() => {
+  fetchNetworks();
   window.addEventListener('clear-application-data', handleClear);
   window.addEventListener('refresh-application-data', handleRefresh);
 });
@@ -272,7 +278,11 @@ async function removeToken(index) {
 }
 
 function getNetworkLabel(networkId) {
-  const found = networks.value.find(n => n.value === networkId);
+  const fromRpc = networks.value.find((n) => n.value === networkId);
+  if (fromRpc) return fromRpc.label;
+  const found = networkGroups.value
+    .flatMap((g) => g.options)
+    .find((opt) => opt.value === networkId);
   return found ? found.label : networkId;
 }
 

@@ -47,6 +47,18 @@ async function resolveProviderForDle(dleAddress, preferredChainId) {
   return null;
 }
 
+async function requireDleProvider(res, dleAddress, preferredChainId) {
+  const resolved = await resolveProviderForDle(dleAddress, preferredChainId);
+  if (!resolved) {
+    res.status(404).json({
+      success: false,
+      error: 'DLE не найден ни в одной RPC-сети',
+    });
+    return null;
+  }
+  return resolved;
+}
+
 router.get('/relayer-status', async (req, res) => {
   res.json({
     success: true,
@@ -164,10 +176,10 @@ router.post('/get-proposals', async (req, res) => {
         console.log(`[DLE Proposals] Сеть ${chainId}: getProposalsCount=${count}`);
 
         let quorumPctCached = null;
-        let totalSupplyCached = null;
+        let totalSupplyCached = '0';
         try {
           quorumPctCached = Number(await dle.quorumPercentage());
-          totalSupplyCached = Number(await dle.totalSupply());
+          totalSupplyCached = (await dle.totalSupply()).toString();
         } catch (_) {}
 
         for (let proposalId = 0; proposalId < count; proposalId++) {
@@ -176,25 +188,20 @@ router.post('/get-proposals', async (req, res) => {
             const proposalState = await dle.getProposalState(proposalId);
             const result = await dle.checkProposalResult(proposalId);
 
-            const forVotes = Number(proposalData.forVotes);
-            const againstVotes = Number(proposalData.againstVotes);
+            const forVotes = proposalData.forVotes.toString();
+            const againstVotes = proposalData.againstVotes.toString();
             const snapshot = Number(proposalData.snapshotTimepoint);
-            let quorumRequired = 0;
+            let quorumRequired = '0';
             try {
-              const pastSupply = Number(await dle.getPastTotalSupply(snapshot));
+              const pastSupply = await dle.getPastTotalSupply(snapshot);
               const quorumPct = quorumPctCached != null ? quorumPctCached : Number(await dle.quorumPercentage());
-              quorumRequired = Math.floor((pastSupply * quorumPct) / 100);
+              quorumRequired = ((pastSupply * BigInt(quorumPct)) / 100n).toString();
             } catch (_) {}
 
             // snapshotTimepoint часто ≈ момент создания (clock); иначе fallback на deadline
             const deadline = Number(proposalData.deadline);
             const proposalTime =
               snapshot > 1_000_000_000 ? snapshot : deadline > 1_000_000_000 ? deadline : Math.floor(Date.now() / 1000);
-            const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
-            if (proposalTime < thirtyDaysAgo) {
-              console.log(`[DLE Proposals] Пропускаем старое предложение ${proposalId}`);
-              continue;
-            }
 
             const targetChains = (proposalData.targetChains || []).map((c) => Number(c));
             const stateNum = Number(proposalState);
@@ -209,7 +216,7 @@ router.post('/get-proposals', async (req, res) => {
               forVotes,
               againstVotes,
               quorumRequired,
-              totalSupply: totalSupplyCached != null ? totalSupplyCached : 0,
+              totalSupply: totalSupplyCached,
               contractQuorumPercentage: quorumPctCached != null ? quorumPctCached : 0,
               initiator: proposalData.initiator,
               blockNumber: null,
@@ -388,15 +395,9 @@ router.post('/get-proposal-state', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение состояния предложения ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function getProposalState(uint256 _proposalId) public view returns (uint8 state)"
@@ -440,15 +441,9 @@ router.post('/get-proposal-votes', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение голосов по предложению ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
@@ -501,15 +496,9 @@ router.post('/get-proposals-count', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение количества предложений для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function getProposalsCount() external view returns (uint256)"
@@ -552,15 +541,9 @@ router.post('/list-proposals', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение списка предложений для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory)"
@@ -605,15 +588,9 @@ router.post('/get-voting-power-at', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение голосующей силы для ${voter} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function getVotingPowerAt(address voter, uint256 timepoint) external view returns (uint256)"
@@ -658,15 +635,9 @@ router.post('/get-quorum-at', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение требуемого кворума для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function getQuorumAt(uint256 timepoint) external view returns (uint256)"
@@ -713,15 +684,9 @@ router.post('/execute-proposal', async (req, res) => {
 
     console.log(`[DLE Proposals] Подготовка исполнения предложения ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function executeProposal(uint256 _proposalId) external"
@@ -777,15 +742,9 @@ router.post('/get-proposals-count', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение количества предложений для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function getProposalsCount() external view returns (uint256)"
@@ -827,16 +786,9 @@ router.post('/list-proposals', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение списка предложений для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const listChainId = 11155111;
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider, chainId: listChainId } = resolved;
     
     const dleAbi = [
       "function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory)",
@@ -929,15 +881,9 @@ router.post('/vote-proposal', async (req, res) => {
 
     console.log(`[DLE Proposals] Голосование за предложение ${proposalId} в DLE: ${dleAddress}, поддержка: ${support}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     const dleAbi = [
       "function vote(uint256 _proposalId, bool _support) external"
@@ -1053,15 +999,9 @@ router.post('/track-vote-transaction', async (req, res) => {
 
     console.log(`[DLE Proposals] Отслеживание транзакции голосования: ${txHash}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     // Ждем подтверждения транзакции
     const receipt = await provider.waitForTransaction(txHash, 1, 60000); // 60 секунд таймаут
@@ -1111,15 +1051,9 @@ router.post('/track-execution-transaction', async (req, res) => {
 
     console.log(`[DLE Proposals] Отслеживание транзакции исполнения: ${txHash}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const resolved = await requireDleProvider(res, dleAddress, req.body.chainId);
+    if (!resolved) return;
+    const { provider } = resolved;
     
     // Ждем подтверждения транзакции
     const receipt = await provider.waitForTransaction(txHash, 1, 60000); // 60 секунд таймаут
@@ -1170,18 +1104,20 @@ router.post('/decode-proposal-data', async (req, res) => {
 
     console.log(`[DLE Proposals] Декодирование данных транзакции: ${transactionHash}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
+    let tx = null;
+    const candidateChainIds = await getSupportedChainIds();
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const p = new ethers.JsonRpcProvider(url);
+        const found = await p.getTransaction(transactionHash);
+        if (found) {
+          tx = found;
+          break;
+        }
+      } catch (_) {}
     }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    // Получаем данные транзакции
-    const tx = await provider.getTransaction(transactionHash);
     if (!tx) {
       return res.status(404).json({
         success: false,

@@ -49,32 +49,15 @@ async function getUserTokenBalances(address) {
   const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
   const results = [];
 
-  // Получаем все RPC провайдеры из базы данных для маппинга
-  const allRpcProviders = await rpcService.getAllRpcProviders();
-  const networkToChainId = {};
-  
-  // Создаем маппинг из базы данных
-  for (const provider of allRpcProviders) {
-    if (provider.network_id) {
-      networkToChainId[provider.network_id] = provider.chain_id;
-    }
-  }
-
   for (const token of tokens) {
-    // Получаем chain_id из названия сети из базы данных
-    const chainId = networkToChainId[token.network];
-    if (!chainId) {
-      logger.warn(`[tokenBalanceService] Неизвестная сеть: ${token.network}`);
-      continue;
-    }
-    
-    logger.info(`[tokenBalanceService] Ищем RPC для token.network: ${token.network} (chainId: ${chainId})`);
-    const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+    const resolved = await rpcService.resolveRpcForNetwork(token.network);
+    const rpcUrl = resolved.rpcUrl;
+    const chainId = resolved.chainId;
+    const displayNetwork = resolved.networkId || token.network;
     if (!rpcUrl) {
       logger.warn(`[tokenBalanceService] RPC URL не найден для сети ${token.network} (chainId: ${chainId})`);
-      // Пропускаем токен, если нет RPC URL
       results.push({
-        network: token.network,
+        network: displayNetwork,
         tokenAddress: token.address,
         tokenName: token.name,
         symbol: token.symbol || '',
@@ -86,7 +69,8 @@ async function getUserTokenBalances(address) {
       });
       continue;
     }
-    logger.info(`[tokenBalanceService] Найден RPC URL: ${rpcUrl}`);
+    logger.info(`[tokenBalanceService] Ищем RPC для token.network: ${token.network} (chainId: ${chainId || 'by network_id'})`);
+    logger.info(`[tokenBalanceService] Найден RPC URL для ${token.network}`);
     
     // Создаем провайдер с таймаутом
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
@@ -137,7 +121,7 @@ async function getUserTokenBalances(address) {
       
       // Добавляем информацию об ошибке в результат
       results.push({
-        network: token.network,
+        network: displayNetwork,
         tokenAddress: token.address,
         tokenName: token.name,
         symbol: token.symbol || '',
@@ -153,7 +137,7 @@ async function getUserTokenBalances(address) {
     
     // Добавляем успешный результат
     results.push({
-      network: token.network,
+      network: displayNetwork,
       tokenAddress: token.address,
       tokenName: token.name,
       symbol: token.symbol || '',

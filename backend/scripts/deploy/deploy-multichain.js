@@ -84,11 +84,6 @@ async function verifyDLEAfterDeploy(chainId, contractAddress, constructorArgs, a
       return { success: false, error: 'API ключ не предоставлен' };
     }
 
-    if (!params.autoVerifyAfterDeploy) {
-      logger.info(`ℹ️ Автоматическая верификация отключена, пропускаем верификацию DLE`);
-      return { success: false, error: 'Автоматическая верификация отключена' };
-    }
-
     logger.info(`🔍 Начинаем верификацию DLE контракта по адресу ${contractAddress} в сети ${chainId}`);
     
     // Retry логика для верификации (до 3 попыток)
@@ -472,7 +467,7 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
   // Автоматическая верификация DLE контракта после успешного деплоя
   let verificationResult = { success: false, error: 'skipped' };
   
-  if ((etherscanKey || params.etherscanApiKey) && params.autoVerifyAfterDeploy) {
+  if (etherscanKey || params.etherscanApiKey || params.etherscan_api_key) {
     try {
       logger.info(`🔍 Начинаем автоматическую верификацию DLE контракта...`);
       logger.info(`[VERIFY_DBG] dleConfig available: ${!!dleConfig}`);
@@ -517,7 +512,7 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
         Number(network.chainId),
         deployedAddress,
         constructorArgsHex,
-        etherscanKey || params.etherscanApiKey,
+        etherscanKey || params.etherscanApiKey || params.etherscan_api_key,
         params
       );
       logger.info(`[VERIFY_DBG] verifyDLEAfterDeploy completed`);
@@ -535,11 +530,7 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
       verificationResult = { success: false, error: errorMsg };
     }
   } else {
-    if (!(etherscanKey || params.etherscanApiKey)) {
-      logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию DLE`);
-    } else if (!params.autoVerifyAfterDeploy) {
-      logger.info(`ℹ️ Автоматическая верификация отключена, пропускаем верификацию DLE`);
-    }
+    logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию DLE`);
   }
 
     const finalChainId = Number(network.chainId);
@@ -636,7 +627,7 @@ async function main() {
     symbol: params.symbol,
     supportedChainIds: params.supportedChainIds,
     rpcUrls: params.rpcUrls || params.rpc_urls,
-    etherscanApiKey: params.etherscanApiKey || params.etherscan_api_key
+    etherscanApiKey: Boolean(params.etherscanApiKey || params.etherscan_api_key)
   });
 
   const pk = params.private_key || process.env.PRIVATE_KEY;

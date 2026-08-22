@@ -41,7 +41,7 @@
                 :key="country.numeric"
                 :value="country.numeric"
               >
-                {{ country.title }} ({{ country.code }})
+                {{ countryDisplayName(country, locale) }} ({{ country.code }})
               </option>
             </select>
           </section>
@@ -190,7 +190,7 @@ import PageCloseButton from '@/components/PageCloseButton.vue';
 import api from '@/api/axios';
 import legalPacksService from '../../services/legalPacksService';
 import { usePermissions } from '../../composables/usePermissions';
-import { PERMISSIONS } from '../../composables/permissions';
+import { countryDisplayName } from '@/utils/countryDisplayName';
 
 defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -371,7 +371,7 @@ function initFormFromPack(p) {
   }
   if (isBlank(next.jurisdiction_name)) {
     const country = countriesOptions.value.find((c) => String(c.numeric) === String(jurisdiction.value));
-    if (country?.title) next.jurisdiction_name = String(country.title);
+    if (country) next.jurisdiction_name = countryDisplayName(country, locale.value);
     else if (p.locale === 'en') next.jurisdiction_name = 'International';
   }
   applySiteDerivedFields(next);

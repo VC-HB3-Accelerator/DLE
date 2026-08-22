@@ -176,12 +176,18 @@ class WebSocketClient {
 
   // Удаление обработчика события
   off(event, callback) {
-    if (this.listeners.has(event)) {
-      const callbacks = this.listeners.get(event);
-      const index = callbacks.indexOf(callback);
-      if (index > -1) {
-        callbacks.splice(index, 1);
-      }
+    if (!this.listeners.has(event)) return;
+    if (!callback) {
+      this.listeners.delete(event);
+      return;
+    }
+    const callbacks = this.listeners.get(event);
+    const index = callbacks.indexOf(callback);
+    if (index > -1) {
+      callbacks.splice(index, 1);
+    }
+    if (callbacks.length === 0) {
+      this.listeners.delete(event);
     }
   }
 

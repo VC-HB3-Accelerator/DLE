@@ -67,7 +67,8 @@ const PERMISSIONS = {
   // Контент: юридические документы
   VIEW_BASIC_DOCS: 'view_basic_docs',      // Базовые документы для пользователей
   VIEW_LEGAL_DOCS: 'view_legal_docs',     // Юридические документы для читателей
-  MANAGE_LEGAL_DOCS: 'manage_legal_docs'  // Управление документами для редакторов
+  MANAGE_LEGAL_DOCS: 'manage_legal_docs',  // Управление документами для редакторов
+  GOVERNANCE_PROPOSAL: 'governance_proposal'  // Создать предложение и голосовать (держатель токенов)
 };
 
 // Матрица: какая роль имеет какие права
@@ -99,7 +100,8 @@ const PERMISSIONS_MAP = {
     // Базовые документы для пользователей
     PERMISSIONS.VIEW_BASIC_DOCS,
     // Чтение внутренних юридических документов
-    PERMISSIONS.VIEW_LEGAL_DOCS
+    PERMISSIONS.VIEW_LEGAL_DOCS,
+    PERMISSIONS.GOVERNANCE_PROPOSAL
   ],
   
   [ROLES.EDITOR]: [
@@ -124,7 +126,8 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_BASIC_DOCS,
     // Полный доступ к юридическим документам
     PERMISSIONS.VIEW_LEGAL_DOCS,
-    PERMISSIONS.MANAGE_LEGAL_DOCS
+    PERMISSIONS.MANAGE_LEGAL_DOCS,
+    PERMISSIONS.GOVERNANCE_PROPOSAL
   ]
 };
 

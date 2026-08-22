@@ -14,6 +14,7 @@ const rpcProviderService = require('./rpcProviderService');
 const updatesHubSettingsService = require('./updatesHubSettingsService');
 const updatesEntitlementAuditService = require('./updatesEntitlementAuditService');
 const { MODULE_IDS } = require('../constants/moduleIds');
+const { resolveBookSlot } = require('../utils/bookModuleSlot');
 
 const ZERO = ethers.ZeroAddress;
 const TOKEN_DECIMALS = 18;
@@ -88,6 +89,7 @@ async function buildNetworkMap() {
   for (const provider of providers) {
     if (provider.network_id != null && provider.chain_id != null) {
       networkToChainId[String(provider.network_id)] = Number(provider.chain_id);
+      networkToChainId[String(Number(provider.chain_id))] = Number(provider.chain_id);
     }
   }
   return networkToChainId;
@@ -104,12 +106,12 @@ async function resolveTreasuryAddress(dleContract, chainId) {
   return withRetries(async () => {
     const provider = createProvider(rpcUrl);
     const dle = new ethers.Contract(dleContract, DLE_ABI, provider);
-    const treasury = await withTimeout(
-      dle.getModuleAddress(MODULE_IDS.TREASURY),
+    const slot = await withTimeout(
+      resolveBookSlot(dle, 'treasury'),
       RPC_TIMEOUT_MS,
       'getModuleAddress'
     );
-    return String(treasury);
+    return String(slot.moduleAddress);
   });
 }
 
@@ -305,7 +307,11 @@ async function assertEntitled(
       continue;
     }
 
-    const chainId = networkToChainId[network];
+    let chainId = networkToChainId[network];
+    if (!chainId) {
+      const n = Number(network);
+      if (Number.isInteger(n) && n > 0) chainId = n;
+    }
     if (!chainId) {
       logger.warn(`[updates/entitlement] unknown network for auth_token: ${network}`);
       sawRpcError = true;

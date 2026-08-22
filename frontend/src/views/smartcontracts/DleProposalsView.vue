@@ -37,14 +37,14 @@
       </div>
 
       <!-- Уведомление о необходимости авторизации -->
-      <div v-if="!isAuthenticated" class="auth-notice">
+      <div v-if="!canGovern" class="auth-notice">
         <div class="alert alert-info">
-          <strong>{{ t('smartcontracts.proposals.authNoticeTitle') }}</strong> {{ t('smartcontracts.proposals.authNoticeMessage') }}
+          <strong>{{ t('smartcontracts.proposals.authNoticeTitle') }}</strong> {{ t('smartcontracts.proposals.tokenHolderVoteHint') }}
         </div>
       </div>
 
       <!-- Основной контент -->
-      <div v-else class="proposals-content">
+      <div class="proposals-content">
 
         <!-- Фильтры и поиск -->
         <div class="proposals-filters">
@@ -150,8 +150,8 @@
                     <div class="chain-detail-item">
                       <span class="detail-label">{{ t('smartcontracts.proposals.votesLabel') }}</span>
                       <span class="detail-value">
-                        {{ t('common.forVote') }} {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE |
-                        {{ t('common.againstVote') }} {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
+                        {{ t('common.forVote') }} {{ formatVoteTokens(chain.forVotes) }} ({{ voteSharePercent(chain.forVotes, votesCastTotal(chain)) }}%) |
+                        {{ t('common.againstVote') }} {{ formatVoteTokens(chain.againstVotes) }} ({{ voteSharePercent(chain.againstVotes, votesCastTotal(chain)) }}%)
                       </span>
                     </div>
                     <div class="chain-detail-item">
@@ -160,7 +160,7 @@
                         {{ chain.forVotes && chain.quorumRequired ? 
                           (Number(chain.forVotes) >= Number(chain.quorumRequired) ? t('smartcontracts.proposals.quorumReached') : t('smartcontracts.proposals.quorumNotReached')) : 
                           'N/A' }}
-                        {{ t('smartcontracts.proposals.quorumRequired', { amount: chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }) }}
+                        {{ t('smartcontracts.proposals.quorumRequired', { amount: formatVoteTokens(chain.quorumRequired) }) }}
                       </span>
                     </div>
                   </div>
@@ -202,8 +202,8 @@
                     <div class="chain-detail-item">
                       <span class="detail-label">{{ t('smartcontracts.proposals.votesLabel') }}</span>
                       <span class="detail-value">
-                        {{ t('common.forVote') }} {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE |
-                        {{ t('common.againstVote') }} {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
+                        {{ t('common.forVote') }} {{ formatVoteTokens(chain.forVotes) }} ({{ voteSharePercent(chain.forVotes, votesCastTotal(chain)) }}%) |
+                        {{ t('common.againstVote') }} {{ formatVoteTokens(chain.againstVotes) }} ({{ voteSharePercent(chain.againstVotes, votesCastTotal(chain)) }}%)
                       </span>
                     </div>
                     <div class="chain-detail-item">
@@ -212,7 +212,7 @@
                         {{ chain.forVotes && chain.quorumRequired ? 
                           (Number(chain.forVotes) >= Number(chain.quorumRequired) ? t('smartcontracts.proposals.quorumReached') : t('smartcontracts.proposals.quorumNotReached')) : 
                           'N/A' }}
-                        {{ t('smartcontracts.proposals.quorumRequired', { amount: chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }) }}
+                        {{ t('smartcontracts.proposals.quorumRequired', { amount: formatVoteTokens(chain.quorumRequired) }) }}
                       </span>
                     </div>
                   </div>
@@ -228,15 +228,15 @@
                 {{ t('smartcontracts.proposals.quorumProgress', { current: getQuorumPercentage(proposal), required: getRequiredQuorumPercentage(proposal) }) }}
               </div>
               <div class="votes-info">
-                <span class="vote-count">{{ t('smartcontracts.proposals.votesFor', { count: proposal.forVotes || 0 }) }}</span>
-                <span class="vote-count">{{ t('smartcontracts.proposals.votesAgainst', { count: proposal.againstVotes || 0 }) }}</span>
-                <span class="vote-count">{{ t('smartcontracts.proposals.votesTotal', { count: (Number(proposal.forVotes || 0) + Number(proposal.againstVotes || 0)) }) }}</span>
+                <span class="vote-count">{{ t('smartcontracts.proposals.votesFor', { count: formatVoteTokens(proposal.forVotes) + ' (' + voteSharePercent(proposal.forVotes, votesCastTotal(proposal)) + '%)' }) }}</span>
+                <span class="vote-count">{{ t('smartcontracts.proposals.votesAgainst', { count: formatVoteTokens(proposal.againstVotes) + ' (' + voteSharePercent(proposal.againstVotes, votesCastTotal(proposal)) + '%)' }) }}</span>
+                <span class="vote-count">{{ t('smartcontracts.proposals.votesTotal', { count: formatVoteTokens(votesCastTotal(proposal)) }) }}</span>
               </div>
             </div>
             
             <div class="proposal-actions">
               <button 
-                v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
+                v-if="canGovern && (proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal))" 
                 @click="voteOnProposal(proposal.id, true)" 
                 class="btn-action"
                 :disabled="isVoting"
@@ -244,7 +244,7 @@
                 {{ isVoting ? t('common.voting') : t('common.forVote') }}
               </button>
               <button 
-                v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
+                v-if="canGovern && (proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal))" 
                 @click="voteOnProposal(proposal.id, false)" 
                 class="btn-action"
                 :disabled="isVoting"
@@ -252,7 +252,7 @@
                 {{ isVoting ? t('common.voting') : t('common.againstVote') }}
               </button>
               <button 
-                v-if="proposal.chains && proposal.chains.length > 1 ? canExecuteMultichain(proposal) : canExecute(proposal)" 
+                v-if="canGovern && (proposal.chains && proposal.chains.length > 1 ? canExecuteMultichain(proposal) : canExecute(proposal))" 
                 @click="executeProposal(proposal.id)" 
                 class="btn-action"
                 :disabled="isExecuting"
@@ -260,7 +260,7 @@
                 {{ isExecuting ? t('common.executing') : t('common.execute') }}
               </button>
               <button 
-                v-if="canCancel(proposal)" 
+                v-if="canGovern && canCancel(proposal)" 
                 @click="cancelProposal(proposal.id)" 
                 class="btn-action"
                 :disabled="isCancelling"
@@ -281,6 +281,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { useProposals } from '@/composables/useProposals';
+import { usePermissions } from '@/composables/usePermissions';
 import BaseLayout from '@/components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 
@@ -313,6 +314,7 @@ export default {
     const route = useRoute();
     const { address } = useAuthContext();
     const { t } = useI18n();
+    const { canGovern } = usePermissions();
 
     const dleAddress = computed(() => {
       return route.query.address;
@@ -335,6 +337,9 @@ export default {
       getProposalStatusClass,
       getQuorumPercentage,
       getRequiredQuorumPercentage,
+      formatVoteTokens,
+      voteSharePercent,
+      votesCastTotal,
       canVote,
       canVoteMultichain,
       canExecute,
@@ -365,19 +370,19 @@ export default {
     };
 
     onMounted(() => {
-      if (props.isAuthenticated && dleAddress.value) {
+      if (dleAddress.value) {
         loadProposals();
       }
     });
 
-    watch(() => props.isAuthenticated, (newValue) => {
-      if (newValue && dleAddress.value) {
+    watch(() => props.isAuthenticated, () => {
+      if (dleAddress.value) {
         loadProposals();
       }
     });
 
     watch(dleAddress, (newAddress) => {
-      if (newAddress && props.isAuthenticated) {
+      if (newAddress) {
         loadProposals();
       }
     });
@@ -394,6 +399,7 @@ export default {
       searchQuery,
       dleAddress,
       isAuthenticated: props.isAuthenticated,
+      canGovern,
       loadProposals,
       filterProposals,
       voteOnProposal,
@@ -405,6 +411,9 @@ export default {
       getChainDisplayName,
       getQuorumPercentage,
       getRequiredQuorumPercentage,
+      formatVoteTokens,
+      voteSharePercent,
+      votesCastTotal,
       canVote,
       canVoteMultichain,
       canExecute,

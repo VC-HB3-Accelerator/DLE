@@ -24,7 +24,7 @@
       <HubCard
         :title="t('settings.index.blockchain.title')"
         :description="t('settings.index.blockchain.description')"
-        to="/settings/dle-v2-deploy"
+        @open="goToDeploy"
       />
       <HubCard
         :title="t('settings.index.server.title')"
@@ -86,5 +86,10 @@ async function goToSidebar() {
 async function goToUpdates() {
   if (!(await ensureCanManageSettings('settings.updates.adminOnly'))) return;
   router.push({ name: 'settings-updates' });
+}
+
+async function goToDeploy() {
+  if (!(await ensureCanManageSettings('settings.index.blockchain.adminOnly'))) return;
+  router.push({ name: 'settings-dle-v2-deploy' });
 }
 </script>

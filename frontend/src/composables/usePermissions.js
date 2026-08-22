@@ -80,6 +80,7 @@ export function usePermissions() {
   const canManageTags = computed(() => hasPermission(PERMISSIONS.MANAGE_TAGS));
   const canBlockUsers = computed(() => hasPermission(PERMISSIONS.BLOCK_USERS));
   const canManageSettings = computed(() => hasPermission(PERMISSIONS.MANAGE_SETTINGS));
+  const canGovern = computed(() => hasPermission(PERMISSIONS.GOVERNANCE_PROPOSAL));
 
   const isEditor = computed(() => currentRole.value === ROLES.EDITOR);
   
@@ -140,6 +141,7 @@ export function usePermissions() {
     canManageTags,
     canBlockUsers,
     canManageSettings,
+    canGovern,
     isEditor,
     
     // Утилиты

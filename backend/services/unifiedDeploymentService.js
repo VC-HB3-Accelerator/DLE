@@ -75,7 +75,7 @@ class UnifiedDeploymentService {
    * @param {Object} params - Параметры для валидации
    */
   validateDLEParams(params) {
-    const required = ['name', 'symbol', 'privateKey', 'supportedChainIds', 'jurisdiction', 'kpp', 'location'];
+    const required = ['name', 'symbol', 'privateKey', 'supportedChainIds', 'jurisdiction', 'location'];
     const missing = required.filter((field) => {
       const v = params[field];
       return v === undefined || v === null || v === '';
@@ -88,8 +88,9 @@ class UnifiedDeploymentService {
     if (Number(params.jurisdiction) === 0) {
       throw new Error('jurisdiction обязателен (ISO 3166-1 numeric, без дефолта)');
     }
-    if (Number(params.kpp) === 0) {
-      throw new Error('kpp обязателен (без страновых дефолтов)');
+    const isRf = Number(params.jurisdiction) === 643;
+    if (isRf && (params.kpp === undefined || params.kpp === null || params.kpp === '' || Number(params.kpp) === 0)) {
+      throw new Error('kpp обязателен для юрисдикции РФ');
     }
 
     if (params.quorumPercentage < 1 || params.quorumPercentage > 100) {
@@ -129,7 +130,7 @@ class UnifiedDeploymentService {
       coordinates: dleParams.coordinates || '',
       jurisdiction: Number(dleParams.jurisdiction),
       okved_codes: dleParams.okvedCodes || [],
-      kpp: Number(dleParams.kpp),
+      kpp: Number(dleParams.kpp) || 0,
       quorum_percentage: dleParams.quorumPercentage || 51,
       initial_partners: dleParams.initialPartners || [],
       // initialAmounts в человекочитаемом формате, умножение на 1e18 происходит при деплое
@@ -140,7 +141,7 @@ class UnifiedDeploymentService {
       etherscan_api_key: dleParams.etherscanApiKey,
       logo_uri: dleParams.logoURI || '',
       create2_salt: dleParams.CREATE2_SALT || `0x${Math.random().toString(16).substring(2).padStart(64, '0')}`,
-      auto_verify_after_deploy: dleParams.autoVerifyAfterDeploy || false,
+      auto_verify_after_deploy: Boolean(dleParams.etherscanApiKey),
       modules_to_deploy: dleParams.modulesToDeploy || [],
       rpc_urls: rpcUrls,
       deployment_status: 'pending'

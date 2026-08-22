@@ -1,19 +1,36 @@
 /**
- * Резолв адреса DLEReader: файлы модулей (карточка) → ончейн getModuleAddress(READER).
- * getGovernanceParams / listSupportedChains живут только на Reader, не на DLE.
+ * Резолв адреса DLEReader: файлы модулей (карточка) → ончейн слот reader
+ * (канонический ID и legacy padded-ASCII).
+ * Governance/chains: Reader, если есть; иначе те же поля с самой книги DLE.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { ethers } = require('ethers');
-const { MODULE_IDS } = require('../constants/moduleIds');
+const { resolveBookSlot } = require('../utils/bookModuleSlot');
 const {
   DLE_GET_MODULE_ADDRESS,
+  DLE_GET_CURRENT_CHAIN_ID,
+  DLE_GET_PROPOSALS_COUNT,
+  DLE_QUORUM_PERCENTAGE,
+  DLE_GET_SUPPORTED_CHAIN_COUNT,
+  DLE_GET_SUPPORTED_CHAIN_ID,
+  DLE_TOTAL_SUPPLY,
   READER_GET_GOVERNANCE_PARAMS,
   READER_LIST_SUPPORTED_CHAINS,
 } = require('../constants/dleReadAbi');
 
 const ZERO = ethers.ZeroAddress;
+
+const DLE_CHAIN_ABI = [
+  DLE_GET_CURRENT_CHAIN_ID,
+  DLE_GET_PROPOSALS_COUNT,
+  DLE_QUORUM_PERCENTAGE,
+  DLE_GET_SUPPORTED_CHAIN_COUNT,
+  DLE_GET_SUPPORTED_CHAIN_ID,
+  DLE_TOTAL_SUPPLY,
+  DLE_GET_MODULE_ADDRESS,
+];
 
 class ReaderNotFoundError extends Error {
   constructor(dleAddress) {
@@ -28,9 +45,6 @@ class ReaderNotFoundError extends Error {
   }
 }
 
-/**
- * Адрес reader из contracts-data/modules (если модуль деплоили через нашу систему).
- */
 function lookupReaderFromModulesFiles(dleAddress, chainId) {
   const modulesDir = path.join(__dirname, '../scripts/contracts-data/modules');
   if (!fs.existsSync(modulesDir)) return null;
@@ -72,10 +86,6 @@ async function isContract(provider, address) {
   }
 }
 
-/**
- * @param {{ dleAddress: string, provider: import('ethers').Provider, chainId?: number }} opts
- * @returns {Promise<string>} checksum address Reader
- */
 async function resolveReaderAddress({ dleAddress, provider, chainId }) {
   if (!dleAddress || !provider) {
     throw new Error('dleAddress и provider обязательны для resolveReaderAddress');
@@ -87,16 +97,13 @@ async function resolveReaderAddress({ dleAddress, provider, chainId }) {
   }
 
   const dle = new ethers.Contract(dleAddress, [DLE_GET_MODULE_ADDRESS], provider);
-  const onchain = await dle.getModuleAddress(MODULE_IDS.READER);
-  if (!(await isContract(provider, onchain))) {
+  const slot = await resolveBookSlot(dle, 'reader');
+  if (!(await isContract(provider, slot.moduleAddress))) {
     throw new ReaderNotFoundError(dleAddress);
   }
-  return ethers.getAddress(onchain);
+  return ethers.getAddress(slot.moduleAddress);
 }
 
-/**
- * Контракт Reader с ABI governance/chains.
- */
 async function getReaderContract({ dleAddress, provider, chainId }) {
   const readerAddress = await resolveReaderAddress({ dleAddress, provider, chainId });
   const reader = new ethers.Contract(
@@ -107,32 +114,69 @@ async function getReaderContract({ dleAddress, provider, chainId }) {
   return { readerAddress, reader };
 }
 
-/**
- * Параметры governance через Reader.
- */
-async function fetchGovernanceParams({ dleAddress, provider, chainId }) {
-  const { readerAddress, reader } = await getReaderContract({ dleAddress, provider, chainId });
-  const params = await reader.getGovernanceParams();
+async function listSupportedChainsFromDle(dleAddress, provider) {
+  const dle = new ethers.Contract(dleAddress, DLE_CHAIN_ABI, provider);
+  const n = Number(await dle.getSupportedChainCount());
+  const chains = [];
+  for (let i = 0; i < n; i++) {
+    chains.push(Number(await dle.getSupportedChainId(i)));
+  }
+  return chains;
+}
+
+async function fetchGovernanceParamsFromDle(dleAddress, provider) {
+  const dle = new ethers.Contract(dleAddress, DLE_CHAIN_ABI, provider);
+  const chains = await listSupportedChainsFromDle(dleAddress, provider);
   return {
-    readerAddress,
-    quorumPct: Number(params.quorumPct),
-    chainId: Number(params.chainId),
-    supportedCount: Number(params.supportedCount),
-    totalSupply: params.totalSupply,
-    proposalsCount: Number(params.proposalsCount),
+    readerAddress: null,
+    source: 'dle',
+    quorumPct: Number(await dle.quorumPercentage()),
+    chainId: Number(await dle.getCurrentChainId()),
+    supportedCount: chains.length,
+    totalSupply: await dle.totalSupply(),
+    proposalsCount: Number(await dle.getProposalsCount()),
   };
 }
 
-/**
- * Список chainId через Reader.
- */
+async function fetchGovernanceParams({ dleAddress, provider, chainId }) {
+  try {
+    const { readerAddress, reader } = await getReaderContract({ dleAddress, provider, chainId });
+    const params = await reader.getGovernanceParams();
+    return {
+      readerAddress,
+      source: 'reader',
+      quorumPct: Number(params.quorumPct),
+      chainId: Number(params.chainId),
+      supportedCount: Number(params.supportedCount),
+      totalSupply: params.totalSupply,
+      proposalsCount: Number(params.proposalsCount),
+    };
+  } catch (e) {
+    if (e instanceof ReaderNotFoundError || e.code === 'READER_NOT_FOUND') {
+      console.log(`[ReaderResolve] governance с книги DLE (reader нет): ${e.message}`);
+      return fetchGovernanceParamsFromDle(dleAddress, provider);
+    }
+    throw e;
+  }
+}
+
 async function fetchSupportedChains({ dleAddress, provider, chainId }) {
-  const { readerAddress, reader } = await getReaderContract({ dleAddress, provider, chainId });
-  const chains = await reader.listSupportedChains();
-  return {
-    readerAddress,
-    chains: chains.map((c) => Number(c)),
-  };
+  try {
+    const { readerAddress, reader } = await getReaderContract({ dleAddress, provider, chainId });
+    const chains = await reader.listSupportedChains();
+    return {
+      readerAddress,
+      source: 'reader',
+      chains: chains.map((c) => Number(c)),
+    };
+  } catch (e) {
+    if (e instanceof ReaderNotFoundError || e.code === 'READER_NOT_FOUND') {
+      console.log(`[ReaderResolve] сети с книги DLE (reader нет): ${e.message}`);
+      const chains = await listSupportedChainsFromDle(dleAddress, provider);
+      return { readerAddress: null, source: 'dle', chains };
+    }
+    throw e;
+  }
 }
 
 module.exports = {
@@ -142,4 +186,5 @@ module.exports = {
   getReaderContract,
   fetchGovernanceParams,
   fetchSupportedChains,
+  listSupportedChainsFromDle,
 };

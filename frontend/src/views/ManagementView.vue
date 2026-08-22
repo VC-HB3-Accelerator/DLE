@@ -121,7 +121,7 @@
                 <span class="quorum-info">{{ dle.quorumPercentage }}%</span>
               </div>
               <div class="detail-item">
-                <strong>{{ t('smartcontracts.management.okvedCodes') }}</strong> {{ dle.okvedCodes?.join(', ') || t('common.notSpecified') }}
+                <strong>{{ activityCodesLabel(dle) }}</strong> {{ dle.okvedCodes?.join(', ') || t('common.notSpecified') }}
               </div>
               <div class="detail-item">
                 <strong>{{ t('smartcontracts.management.status') }}</strong>
@@ -157,6 +157,20 @@ import api from '@/api/axios';
 import UiGlyph from '../components/UiGlyph.vue';
 
 const { t } = useI18n();
+
+/** ISO 3166-1 numeric: РФ — ОКВЭД, остальные юрисдикции — ISIC (поле контракта одно). */
+const RF_ISO_NUMERIC = 643;
+
+function isRfJurisdiction(jurisdiction) {
+  const n = Number(jurisdiction);
+  return Number.isFinite(n) && n === RF_ISO_NUMERIC;
+}
+
+function activityCodesLabel(dle) {
+  return isRfJurisdiction(dle?.jurisdiction)
+    ? t('smartcontracts.management.okvedCodes')
+    : t('smartcontracts.management.isicCodes');
+}
 
 // Определяем props
 const props = defineProps({
@@ -241,7 +255,7 @@ async function loadDeployedDles() {
             const dleAddress = dle.dleAddress || (dle.deployedNetworks && dle.deployedNetworks.length > 0 ? dle.deployedNetworks[0].address : null);
 
             if (!dleAddress) {
-              return dle;
+              return null;
             }
 
             const blockchainResponse = await api.post('/blockchain/read-dle-info', {
@@ -280,7 +294,7 @@ async function loadDeployedDles() {
         })
       );
 
-      deployedDles.value = dlesWithBlockchainData;
+      deployedDles.value = dlesWithBlockchainData.filter(Boolean);
     } else {
       console.error('[ManagementView] Ошибка при загрузке DLE:', response.data.message);
       deployedDles.value = [];

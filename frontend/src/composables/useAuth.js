@@ -107,8 +107,9 @@ const checkTokenBalances = async (address) => {
   try {
     const response = await axios.get(`/auth/check-tokens/${address}`);
     if (response.data.success) {
-      tokenBalances.value = response.data.data;
-      return response.data.data;
+      const list = Array.isArray(response.data.data) ? response.data.data : [];
+      tokenBalances.value = list;
+      return list;
     }
     return null;
   } catch (error) {

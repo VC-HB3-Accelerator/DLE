@@ -39,9 +39,14 @@
           <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
       </div>
+      <div v-else-if="!dleAddress" class="auth-notice">
+        <div class="alert alert-info">
+          {{ t('smartcontracts.addModule.missingDleAddress') }}
+        </div>
+      </div>
 
       <!-- Форма добавления модуля -->
-      <div v-if="props.isAuthenticated" class="add-module-form">
+      <div v-if="props.isAuthenticated && dleAddress" class="add-module-form">
         <form @submit.prevent="submitForm" class="form-container">
           <!-- Тип модуля -->
           <div class="form-group">
@@ -63,7 +68,7 @@
                 :key="module.moduleType" 
                 :value="module.moduleType"
               >
-                {{ getModuleDisplayName(module.moduleName) }} - {{ module.moduleDescription }}
+                {{ getModuleDisplayName(module.moduleType) }} - {{ module.moduleDescription }}
               </option>
             </select>
             <div v-if="availableModules.length === 0 && !isLoadingModules" class="no-modules-warning">
@@ -351,9 +356,8 @@ import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import { getAllModules, getDeploymentId } from '../../services/modulesService.js';
-import { createAddModuleProposal } from '../../utils/dle-contract.js';
+import { createAddModuleProposal, findBookedModuleId, getCanonicalModuleId } from '../../utils/dle-contract.js';
 import api from '../../api/axios';
-import { ethers } from 'ethers';
 
 const props = defineProps({
   isAuthenticated: Boolean,
@@ -479,33 +483,15 @@ const loadAvailableModules = async () => {
         }));
       }
       
-      const modules = response.data.modules.map(module => {
-        let moduleType = '';
-        switch(module.moduleName) {
-          case 'TREASURY':
-            moduleType = 'treasury';
-            break;
-          case 'TIMELOCK':
-            moduleType = 'timelock';
-            break;
-          case 'READER':
-            moduleType = 'reader';
-            break;
-          case 'HIERARCHICALVOTING':
-            moduleType = 'hierarchical-voting';
-            break;
-          default:
-            moduleType = module.moduleName.toLowerCase();
-        }
-        
-        return {
-          moduleType,
+      const modules = (response.data.modules || [])
+        .filter((module) => module.inBook === false)
+        .map((module) => ({
+          moduleType: module.moduleType,
           moduleName: module.moduleName,
           moduleDescription: module.moduleDescription,
-          addresses: module.addresses || []
-        };
-      });
-      
+          addresses: module.addresses || [],
+        }));
+
       availableModules.value = modules;
     } else {
       console.error('Modules load error:', response.error);
@@ -547,9 +533,10 @@ const moduleNameKeys = {
 };
 
 const getModuleDisplayName = (moduleName) => {
-  const key = moduleNameKeys[moduleName];
-  if (key) {
-    return t(`smartcontracts.addModule.moduleNames.${key}`);
+  const key = moduleNameKeys[moduleName] || moduleName;
+  const translated = t(`smartcontracts.addModule.moduleNames.${key}`);
+  if (translated && translated !== `smartcontracts.addModule.moduleNames.${key}`) {
+    return translated;
   }
   return moduleName;
 };
@@ -583,8 +570,6 @@ const closeSuccessModal = () => {
 };
 
 const openProposals = () => {
-  const proposalsUrl = `http://localhost:5173/management/proposals?address=${dleAddress.value}`;
-  window.open(proposalsUrl, '_blank');
   closeSuccessModal();
 };
 
@@ -633,8 +618,16 @@ const submitForm = async () => {
       }
     }
     
-    const moduleId = ethers.encodeBytes32String(formData.value.moduleType);
-    
+    const bookedId = await findBookedModuleId(dleAddress.value, formData.value.moduleType);
+    if (bookedId) {
+      throw new Error(t('smartcontracts.addModule.errors.alreadyInBook'));
+    }
+
+    const moduleId = getCanonicalModuleId(formData.value.moduleType);
+    if (!moduleId) {
+      throw new Error(t('smartcontracts.addModule.errors.unknownModuleType'));
+    }
+
     const result = await createAddModuleProposal(
       dleAddress.value,
       formData.value.description,
@@ -675,20 +668,11 @@ const submitForm = async () => {
 };
 
 onMounted(async () => {
-  if (dleAddress.value) {
-    await Promise.all([
-      loadDleData(),
-      loadAvailableModules()
-    ]);
-  } else {
-    const testAddress = '0x40A99dBEC8D160a226E856d370dA4f3C67713940';
-    router.replace(`/management/add-module?address=${testAddress}`);
-    
-    await Promise.all([
-      loadDleData(),
-      loadAvailableModules()
-    ]);
-  }
+  if (!dleAddress.value) return;
+  await Promise.all([
+    loadDleData(),
+    loadAvailableModules()
+  ]);
 });
 </script>
 

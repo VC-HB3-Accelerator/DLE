@@ -64,7 +64,6 @@ import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../composables/useAuth';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
-import { useTokenBalancesWebSocket } from '../composables/useTokenBalancesWebSocket';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { connectWithWallet } from '../services/wallet';
 import api from '../api/axios';
@@ -81,14 +80,10 @@ const { t } = useI18n();
 const auth = useAuthContext();
 const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
 
-// Используем useTokenBalancesWebSocket для получения актуального состояния загрузки
-const { isLoadingTokens: wsIsLoadingTokens } = useTokenBalancesWebSocket();
-
-// Определяем props, которые будут приходить от родительского View (оставляем для совместимости)
 const props = defineProps({
   isAuthenticated: Boolean,
   identities: Array,
-  tokenBalances: Object,
+  tokenBalances: { type: [Array, Object], default: () => [] },
   isLoadingTokens: Boolean,
   /**
    * Document-scroll: окно крутит страницу вместо внутренней колонки .main-content.
@@ -104,11 +99,13 @@ const emit = defineEmits(['auth-action-completed']);
 // Используем useAuth напрямую для получения актуальных данных
 const isAuthenticated = computed(() => auth.isAuthenticated.value);
 const identities = computed(() => auth.identities.value);
-const tokenBalances = computed(() => auth.tokenBalances.value);
-const isLoadingTokens = computed(() => {
-  // Приоритет: WebSocket состояние > пропс > false
-  return wsIsLoadingTokens.value || (props.isLoadingTokens !== undefined ? props.isLoadingTokens : false);
+const tokenBalances = computed(() => {
+  const fromAuth = auth.tokenBalances?.value;
+  if (Array.isArray(fromAuth) && fromAuth.length > 0) return fromAuth;
+  if (Array.isArray(props.tokenBalances) && props.tokenBalances.length > 0) return props.tokenBalances;
+  return Array.isArray(fromAuth) ? fromAuth : [];
 });
+const isLoadingTokens = computed(() => Boolean(props.isLoadingTokens));
 
 // Предоставляем данные дочерним компонентам через provide/inject
 provide('isAuthenticated', isAuthenticated);

@@ -2174,6 +2174,8 @@
       "description": "Create a new proposal for DLE member voting",
       "authRequiredTitle": "You must sign in to create proposals",
       "authRequiredHint": "Connect your wallet in the sidebar to create new proposals",
+      "tokenHolderRequiredTitle": "Only book token holders can create proposals",
+      "tokenHolderRequiredHint": "Sign in with a holder auth token or a wallet that holds this book’s tokens. Otherwise the Create buttons stay disabled.",
       "loadingModules": "Loading module operations...",
       "operations": {
         "transferTokens": {
@@ -2232,6 +2234,7 @@
       "jurisdiction": "Jurisdiction:",
       "quorum": "Quorum:",
       "okvedCodes": "OKVED codes:",
+      "isicCodes": "ISIC codes:",
       "status": "Status:",
       "totalTokenSupply": "Total token supply:",
       "creationDate": "Creation date:"
@@ -2385,6 +2388,7 @@
       "moduleTypeLabel": "Module type *",
       "moduleTypePlaceholder": "Select module type",
       "noModulesWarning": "No modules available for selection ({count} modules)",
+      "missingDleAddress": "Open this form from a DLE card so the page URL includes the address parameter.",
       "loadingModules": "Loading modules...",
       "addressesLabel": "Module addresses (auto-selected)",
       "active": "Active",
@@ -2431,7 +2435,9 @@
       "creating": "Creating proposal...",
       "errors": {
         "noModuleAddress": "Module address not found for the selected voting network",
-        "createFailed": "Error creating proposal: {message}"
+        "createFailed": "Error creating proposal: {message}",
+        "alreadyInBook": "This module is already in the book. Do not create another proposal — open the proposals list and execute the existing vote if it is not executed yet.",
+        "unknownModuleType": "Unknown module type"
       }
     },
     "dleManagement": {
@@ -2641,7 +2647,7 @@
         "disconnected": "Disconnected"
       },
       "deploy": {
-        "modalTitle": "🚀 Deploy module {module}",
+        "modalTitle": "Deploy module {module}",
         "preparing": "Preparing for deployment...",
         "button": "Deploy",
         "deploying": "Deploying...",
@@ -2696,16 +2702,20 @@
       "list": {
         "loading": "Loading modules...",
         "empty": "No modules yet",
-        "emptyHint": "Use the form above to add your first module",
+        "emptyHint": "Deploy a module with the button above, then add it to the book with an “Add module” proposal.",
         "unknownModule": "Unknown module",
         "active": "Active",
         "inactive": "Inactive",
+        "notInBook": "Not in the book",
+        "notInBookHint": "The contract is already on-chain. To register it in the book (and on other OS instances with the same book), create and execute an “Add module” proposal.",
         "labelDescription": "Description:",
         "labelAddresses": "Network addresses:",
+        "labelBridge": "Bridge:",
         "labelDeployDate": "Deployment date:",
         "labelLocation": "Location:",
         "labelJurisdiction": "Jurisdiction:",
         "labelOkved": "OKVED:",
+        "labelIsic": "ISIC:",
         "activate": "Activate",
         "activating": "Activating..."
       },
@@ -2928,6 +2938,13 @@
     "statusMsgCompleted": "DLE successfully deployed on all networks",
     "statusMsgFailed": "An error occurred during deployment. Check the logs.",
     "initialization": "Initialization",
+    "stageInProgress": "Deployment in progress",
+    "stageAbi": "Generating ABI",
+    "stageFlatten": "Generating flattened contract",
+    "stageCompile": "Compiling contracts",
+    "stageParams": "Loading deploy parameters",
+    "stageNetworks": "Deploying contracts on-chain",
+    "stageVerify": "Verifying contracts",
     "networkFallback": "Network {chainId}",
     "unknownError": "Unknown error",
     "logStartAsync": "🚀 Starting async deployment...",
@@ -2952,6 +2969,7 @@
       "proposalWrongState": "Proposal is in state {state}, voting is not possible",
       "noVotingPower": "User has no voting power (votingPower = 0)",
       "createAddModuleProposalFailed": "Failed to create add module proposal",
+      "moduleAlreadyInBook": "The module is already in the book. You cannot create another add-module proposal — execute the existing vote if it is still open.",
       "createRemoveModuleProposalFailed": "Failed to create remove module proposal",
       "moduleActiveCheckFailed": "Failed to check module activity",
       "moduleAddressFailed": "Failed to get module address",

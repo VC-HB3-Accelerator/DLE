@@ -65,6 +65,38 @@ async function deleteRpcProvider(networkId) {
   await encryptedDb.deleteData('rpc_providers', { network_id: networkId });
 }
 
+async function resolveRpcForNetwork(network) {
+  const key = String(network || '').trim();
+  const list = (await getAllRpcProviders()) || [];
+  const pick = (p) =>
+    p && p.rpc_url
+      ? { rpcUrl: p.rpc_url, chainId: Number(p.chain_id) || null, networkId: p.network_id }
+      : null;
+
+  if (!key) {
+    return { rpcUrl: null, chainId: null, networkId: null };
+  }
+
+  const byNetworkId = list.find(
+    (p) => p.network_id && normalizeNetworkId(p.network_id) === normalizeNetworkId(key)
+  );
+  if (byNetworkId) return pick(byNetworkId);
+
+  const asNum = Number(key);
+  if (Number.isInteger(asNum) && asNum > 0) {
+    const byChain = list.find((p) => Number(p.chain_id) === asNum);
+    if (byChain) return pick(byChain);
+  }
+
+  const namedUrl = await getRpcUrlByNetworkId(key);
+  if (namedUrl) {
+    const named = list.find((p) => p.rpc_url === namedUrl);
+    return pick(named) || { rpcUrl: namedUrl, chainId: null, networkId: key };
+  }
+
+  return { rpcUrl: null, chainId: null, networkId: key };
+}
+
 async function getRpcUrlByNetworkId(networkId) {
   // Сначала пробуем точное совпадение (для обратной совместимости)
   let providers = await encryptedDb.getData('rpc_providers', { network_id: networkId }, 1);
@@ -77,13 +109,26 @@ async function getRpcUrlByNetworkId(networkId) {
 }
 
 async function getRpcUrlByChainId(chainId) {
+  const cid = Number(chainId);
   console.log(`[RPC Service] Поиск RPC URL для chain_id: ${chainId}`);
-  const providers = await encryptedDb.getData('rpc_providers', { chain_id: chainId }, 1);
+  if (!Number.isInteger(cid) || cid <= 0) {
+    return null;
+  }
+  let providers = [];
+  try {
+    providers = await encryptedDb.getData('rpc_providers', { chain_id: cid }, 1);
+  } catch (_) {
+    providers = [];
+  }
+  if (!providers.length) {
+    const all = await getAllRpcProviders();
+    providers = (all || []).filter((p) => Number(p.chain_id) === cid).slice(0, 1);
+  }
   console.log(`[RPC Service] Найдено провайдеров: ${providers.length}`);
   if (providers.length > 0) {
     console.log(`[RPC Service] Найден RPC URL: ${providers[0].rpc_url}`);
   } else {
-    console.log(`[RPC Service] RPC URL для chain_id ${chainId} не найден`);
+    console.log(`[RPC Service] RPC URL для chain_id ${cid} не найден`);
   }
   return providers[0]?.rpc_url || null;
 }
@@ -100,4 +145,14 @@ async function getEtherscanApiUrlByChainId(chainId) {
   return providers[0]?.etherscan_api_url || null;
 }
 
-module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId, getRpcUrlByChainId, getEtherscanApiUrlByChainId }; 
+module.exports = {
+  getAllRpcProviders,
+  saveAllRpcProviders,
+  upsertRpcProvider,
+  deleteRpcProvider,
+  getRpcUrlByNetworkId,
+  getRpcUrlByChainId,
+  resolveRpcForNetwork,
+  getEtherscanApiUrlByChainId,
+  normalizeNetworkId,
+}; 
