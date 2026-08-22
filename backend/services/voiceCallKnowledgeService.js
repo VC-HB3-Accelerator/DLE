@@ -13,9 +13,14 @@ const {
   looksLikeRestrictedDealText
 } = require('./assistantTurnContext');
 
-const SNIPPET_LIMIT = 280;
-const MAX_HITS = 3;
-const MAX_INSTRUCTIONS = 3500;
+const { ragInputBudgetChars } = require('../utils/modelContextBudget');
+
+const MAX_HITS = 20;
+const MAX_INSTRUCTIONS = ragInputBudgetChars({
+  model: 'qwen3.5-omni-flash-realtime',
+  outputTokens: 2048,
+  usedChars: 0
+});
 
 const START_QUERY_RU = 'кто вы что такое DLE продукт компания для клиента кратко FAQ глоссарий термины';
 const START_QUERY_EN = 'who are you what is DLE product company for client brief FAQ glossary terms';
@@ -281,6 +286,10 @@ function wrapCallSystemPrompt(text, locale = 'ru') {
   return `${callIntroPrefixForLocale(locale)}\n${body}`;
 }
 
+function factKey(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+}
+
 function clip(text, max) {
   const s = String(text || '').replace(/\s+/g, ' ').trim();
   if (s.length <= max) return s;
@@ -364,7 +373,7 @@ function assembleCallInstructions({
   }
 
   const behavior = normalizeBehaviorSettings(behaviorSettings);
-  parts.push(
+    parts.push(
     p.newSession,
     loc === 'en' ? BARGE_CONTEXT_EN : BARGE_CONTEXT,
     behavior.forbid_abbreviations_in_voice ? (loc === 'en' ? SPEAK_FROM_KB_EN : SPEAK_FROM_KB) : '',
@@ -430,20 +439,38 @@ function assembleCallInstructions({
   }
 
   const hideDeal = !allowAsk;
-  const facts = (faqSnippets || [])
-    .map((item) => clip(String(item || ''), SNIPPET_LIMIT))
+  const rawFacts = (faqSnippets || [])
+    .map((item) => String(item || '').trim())
     .filter((text) => text && (!hideDeal || !looksLikeRestrictedDealText(text)))
     .map((text) => normalizeVoiceFaqSnippet(text, loc))
-    .map((text, idx) => `[${idx + 1}] ${text}`);
-  if (facts.length) {
-    parts.push(`${p.kbSnippets}\n${facts.join('\n')}`);
-  } else {
-    parts.push(p.noFacts);
+    .filter(Boolean);
+
+  const prefix = parts.join('\n\n');
+  if (!rawFacts.length) {
+    const out = `${prefix}\n\n${p.noFacts}`;
+    return out.length > MAX_INSTRUCTIONS ? `${out.slice(0, MAX_INSTRUCTIONS)}…` : out;
   }
 
-  let out = parts.join('\n\n');
-  if (out.length > MAX_INSTRUCTIONS) out = `${out.slice(0, MAX_INSTRUCTIONS)}…`;
-  return out;
+  const header = `\n\n${p.kbSnippets}\n`;
+  let remaining = MAX_INSTRUCTIONS - prefix.length - header.length;
+  const packedFacts = [];
+  for (const text of rawFacts) {
+    const line = `[${packedFacts.length + 1}] ${text}`;
+    if (remaining <= 0) break;
+    if (packedFacts.length && line.length + 1 > remaining) break;
+    if (!packedFacts.length && line.length > remaining) {
+      packedFacts.push(`[1] ${clip(text, Math.max(200, remaining - 8))}`);
+      remaining = 0;
+      break;
+    }
+    packedFacts.push(line);
+    remaining -= line.length + 1;
+  }
+
+  const out = packedFacts.length
+    ? `${prefix}${header}${packedFacts.join('\n')}`
+    : `${prefix}\n\n${p.noFacts}`;
+  return out.length > MAX_INSTRUCTIONS ? `${out.slice(0, MAX_INSTRUCTIONS)}…` : out;
 }
 
 function ownerToUserId(owner = {}) {
@@ -556,13 +583,15 @@ async function searchCallFaq(turnCtx, query, locale = 'ru') {
     return { snippets: [], systemPrompt: aiSettings?.system_prompt || '' };
   }
 
+  const ragConfig = await aiConfigService.getRAGConfig();
+  const searchLimit = Math.max(15, Math.min(50, Number(ragConfig.maxResults) || 8));
   let searchResults = { results: [] };
   try {
     searchResults = await ragPgvectorService.search({
       query,
       tableIds,
       ctx: turnCtx,
-      limit: 12
+      limit: searchLimit
     });
   } catch (error) {
     logger.warn('[voiceCallKnowledge] search:', error.message);
@@ -589,7 +618,7 @@ async function searchCallFaq(turnCtx, query, locale = 'ru') {
   }
 
   const hideDeal = !turnCtx.allowAsk;
-  const usedFacts = new Set((turnCtx.usedFacts || []).map((item) => clip(String(item || ''), SNIPPET_LIMIT)));
+  const usedFacts = new Set((turnCtx.usedFacts || []).map((item) => factKey(item)));
   const snippets = hits.map((r) => {
     const fallback = (r.metadata?.answer && String(r.metadata.answer).trim())
       || (r.metadata?.title && String(r.metadata.title).trim())
@@ -598,7 +627,7 @@ async function searchCallFaq(turnCtx, query, locale = 'ru') {
     return normalizeVoiceFaqSnippet(raw, locale);
   }).filter((text) => text && (!hideDeal || !looksLikeRestrictedDealText(text)));
 
-  const freshSnippets = snippets.filter((text) => !usedFacts.has(clip(String(text || ''), SNIPPET_LIMIT)));
+  const freshSnippets = snippets.filter((text) => !usedFacts.has(factKey(text)));
   const finalSnippets = freshSnippets.length ? freshSnippets : snippets;
 
   return { snippets: finalSnippets, systemPrompt: aiSettings?.system_prompt || '', rulesId: aiSettings?.rules_id || null };

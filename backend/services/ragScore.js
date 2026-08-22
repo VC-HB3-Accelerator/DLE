@@ -24,4 +24,23 @@ function pickBestRagHit(filtered, { relevanceThreshold = 0.1, l2Threshold = 300 
   }, null);
 }
 
-module.exports = { pickBestRagHit };
+/**
+ * Нормализация скоров в [0, 1] без инверсии.
+ * Cosine similarity и отрицательный L2: больший исходный score → ближе к 1.
+ */
+function normalizeScores(results) {
+  const rows = Array.isArray(results) ? results : [];
+  if (!rows.length) return [];
+
+  const scores = rows.map((r) => Number(r.score) || 0);
+  const maxScore = Math.max(...scores);
+  const minScore = Math.min(...scores);
+  const range = maxScore - minScore;
+
+  return rows.map((result) => ({
+    ...result,
+    score: range > 0 ? ((Number(result.score) || 0) - minScore) / range : 1
+  }));
+}
+
+module.exports = { pickBestRagHit, normalizeScores };

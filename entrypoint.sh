@@ -19,8 +19,11 @@ PRELOAD_FILE="/preload-shared/ollama_preload_model.txt"
 if [ -f "$PRELOAD_FILE" ]; then
   CHAT_MODEL=$(tr -d '\n\r' < "$PRELOAD_FILE")
 else
-  CHAT_MODEL="${OLLAMA_MODEL:-qwen2.5:1.5b}"
+  CHAT_MODEL="${OLLAMA_MODEL:-}"
 fi
+case "$CHAT_MODEL" in
+  qwen2.5:1.5b|qwen2.5:1.5b:latest) CHAT_MODEL="" ;;
+esac
 
 # Сначала эмбеддинги (при OLLAMA_MAX_LOADED_MODELS=1 в RAM останется последняя загруженная — чат)
 EMBED_MODEL="${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}"

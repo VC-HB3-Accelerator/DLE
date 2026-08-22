@@ -56,7 +56,7 @@
   const { locale } = useI18n();
   const router = useRouter();
   const elementPlusLocale = computed(
-    () => elementPlusLocales[locale.value] || elementPlusLocales.ru
+    () => elementPlusLocales[locale.value] || elementPlusLocales.en
   );
   
   // Импорт стилей

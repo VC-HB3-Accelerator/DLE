@@ -20,31 +20,32 @@ const ru = mergeLocale(ruBase, settingsRu, deployRu);
 const en = mergeLocale(enBase, settingsEn, deployEn);
 
 const STORAGE_KEY = 'dle-ui-locale';
-const SUPPORTED = ['ru', 'en'];
+const SUPPORTED = ['en', 'ru'];
+const DEFAULT_LOCALE = 'en';
+
+function localeFromEnv() {
+  const fromEnv = import.meta.env.VITE_DEFAULT_LOCALE;
+  if (fromEnv && SUPPORTED.includes(fromEnv)) {
+    return fromEnv;
+  }
+  return DEFAULT_LOCALE;
+}
 
 function resolveInitialLocale() {
   if (typeof window === 'undefined') {
-    return import.meta.env.VITE_DEFAULT_LOCALE || 'ru';
+    return localeFromEnv();
   }
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored && SUPPORTED.includes(stored)) {
     return stored;
   }
-  const fromEnv = import.meta.env.VITE_DEFAULT_LOCALE;
-  if (fromEnv && SUPPORTED.includes(fromEnv)) {
-    return fromEnv;
-  }
-  const browser = navigator.language?.toLowerCase() || '';
-  if (browser.startsWith('en')) {
-    return 'en';
-  }
-  return 'ru';
+  return localeFromEnv();
 }
 
 export const i18n = createI18n({
   legacy: false,
   locale: resolveInitialLocale(),
-  fallbackLocale: 'ru',
+  fallbackLocale: DEFAULT_LOCALE,
   messages: { ru, en },
 });
 

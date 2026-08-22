@@ -12,19 +12,26 @@
  *   node backend/scripts/ingest-corpus-rag.js
  *   node backend/scripts/ingest-corpus-rag.js --dry-run --audience public-client
  *   node backend/scripts/ingest-corpus-rag.js --target pages --apply
- *   node backend/scripts/ingest-corpus-rag.js --target faq --faq-table-id 14 --apply
- *   node backend/scripts/ingest-corpus-rag.js --target both --faq-table-id 14 --apply
+ *   node backend/scripts/ingest-corpus-rag.js --faq-seed --apply
  *   node backend/scripts/ingest-corpus-rag.js --faq-seed --dry-run
+ *
+ * Таблица FAQ — по имени «FAQ» (RAG=Да), не по числу id.
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const ROOT = process.env.DLE_APP_ROOT
-  || path.resolve(__dirname, '..', '..');
+function detectRoot() {
+  const envRoot = process.env.DLE_APP_ROOT;
+  if (envRoot && fs.existsSync(path.join(envRoot, 'data-room'))) return envRoot;
+  if (fs.existsSync('/host-project/data-room')) return '/host-project';
+  return path.resolve(__dirname, '..', '..');
+}
+
+const ROOT = detectRoot();
 const MANIFEST_PATH = path.join(ROOT, 'data-room', 'Public_Data_Room', '_meta', 'manifest.json');
-const FAQ_SEED_PATH = path.join(ROOT, 'data-room', 'Public_Data_Room', '_meta', 'B1-FAQ-SEED.ru.md');
+const FAQ_SEED_PATH = path.join(ROOT, 'data-room', 'rag-test', 'B1-FAQ-SEED.ru.md');
 
 function parseArgs(argv) {
   const args = {
@@ -38,17 +45,22 @@ function parseArgs(argv) {
     faqSeed: false,
     help: false
   };
+  let targetSet = false;
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') args.help = true;
     else if (a === '--dry-run') { args.dryRun = true; args.apply = false; }
     else if (a === '--apply') { args.apply = true; args.dryRun = false; }
     else if (a === '--faq-seed') args.faqSeed = true;
-    else if (a === '--target' && argv[i + 1]) args.target = argv[++i];
+    else if (a === '--target' && argv[i + 1]) {
+      args.target = argv[++i];
+      targetSet = true;
+    }
     else if (a === '--audience' && argv[i + 1]) args.audiences.push(argv[++i]);
     else if (a === '--pack' && argv[i + 1]) args.packs.push(argv[++i]);
     else if (a === '--faq-table-id' && argv[i + 1]) args.faqTableId = Number(argv[++i]);
   }
+  if (args.faqSeed && !targetSet) args.target = 'faq';
   args.audience = args.audiences[0] || null;
   if (!['pages', 'faq', 'both'].includes(args.target)) {
     throw new Error(`Invalid --target ${args.target}; use pages|faq|both`);
@@ -61,6 +73,33 @@ function loadManifest() {
     throw new Error(`Manifest not found: ${MANIFEST_PATH}`);
   }
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+}
+
+function emptyManifest() {
+  return { version: 'faq-seed', updated: '-', documents: [] };
+}
+
+function loadManifestIfPresent() {
+  if (!fs.existsSync(MANIFEST_PATH)) return emptyManifest();
+  return JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+}
+
+async function resolveFaqTableId(explicitId) {
+  if (explicitId) return Number(explicitId);
+  const encryptedDb = require('../services/encryptedDatabaseService');
+  const tables = await encryptedDb.getData('user_tables', {});
+  const hit = (tables || []).find((t) => {
+    const n = String(t.name || '').trim().toLowerCase();
+    const rag = Number(t.is_rag_source_id || t.is_rag_source) === 1;
+    return rag && n === 'faq';
+  });
+  if (!hit) {
+    throw new Error(
+      'Таблица «FAQ» (RAG=Да) не найдена по имени. Передайте --faq-table-id или заведите таблицу FAQ.'
+    );
+  }
+  console.log(`FAQ table resolved by name: id=${hit.id}`);
+  return hit.id;
 }
 
 function filterDocs(manifest, { audience, audiences, packs } = {}) {
@@ -401,14 +440,16 @@ function printHelp() {
   --target pages|faq|both
   --audience <name>    repeatable; filter manifest audience / FAQ seed
   --pack <folder>      repeatable; path prefix (public-client, partner, investor-a, company)
-  --faq-table-id <id>  required for faq --apply (HB3 SoT: 14)
-  --faq-seed           plan/apply from B1-FAQ-SEED.ru.md (Canon FAQ)
+  --faq-table-id <id>  optional for faq --apply; иначе таблица по имени «FAQ»
+  --faq-seed           plan/apply from data-room/rag-test/B1-FAQ-SEED.ru.md
+                       (без --target сам ставит target=faq; манифест страниц не нужен)
 
 Examples:
   node backend/scripts/ingest-corpus-rag.js --dry-run
   node backend/scripts/ingest-corpus-rag.js --target pages --apply
   node backend/scripts/ingest-corpus-rag.js --pack public-client --pack partner --target pages --apply
-  node backend/scripts/ingest-corpus-rag.js --faq-seed --faq-table-id 14 --apply
+  node backend/scripts/ingest-corpus-rag.js --faq-seed --dry-run
+  node backend/scripts/ingest-corpus-rag.js --faq-seed --apply
 `);
 }
 
@@ -419,7 +460,8 @@ async function main() {
     return;
   }
 
-  const manifest = loadManifest();
+  const needPages = args.target === 'pages' || args.target === 'both';
+  const manifest = needPages ? loadManifest() : loadManifestIfPresent();
   const docs = filterDocs(manifest, { audiences: args.audiences, packs: args.packs });
   const mode = args.apply ? 'APPLY' : 'DRY-RUN';
 
@@ -474,13 +516,11 @@ async function main() {
     results.pages = await applyPages(pagePlan);
   }
   if (args.target === 'faq' || args.target === 'both') {
-    if (!args.faqTableId) {
-      throw new Error('--faq-table-id required for FAQ apply (HB3 SoT table 14)');
-    }
     if (!faqSeedRows.length) {
       throw new Error('No FAQ seed rows; check B1-FAQ-SEED.ru.md or --audience filter');
     }
-    results.faq = await applyFaq(faqSeedRows, args.faqTableId);
+    const tableId = await resolveFaqTableId(args.faqTableId);
+    results.faq = await applyFaq(faqSeedRows, tableId);
   }
 
   console.log('\n=== done ===');
@@ -501,5 +541,7 @@ module.exports = {
   parseFaqSeed,
   parseFaqSectionHeading,
   planPages,
-  pageTitle
+  pageTitle,
+  detectRoot,
+  resolveFaqTableId
 };

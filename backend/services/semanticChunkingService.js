@@ -64,11 +64,11 @@ class SemanticChunkingService {
 
       let chunks = [];
 
-      if (useLLM) {
-        // Используем LLM для определения структуры
+      if (/^#{1,3}\s+\S/m.test(text)) {
+        chunks = this.chunkByMarkdownHeadings(text, maxChunkSize, overlap);
+      } else if (useLLM) {
         chunks = await this.chunkWithLLM(text, maxChunkSize, overlap);
       } else {
-        // Простая разбивка по параграфам и предложениям
         chunks = await this.chunkByStructure(text, maxChunkSize, overlap);
       }
 
@@ -88,7 +88,11 @@ class SemanticChunkingService {
     try {
       // Получаем конфигурацию Ollama
       const ollamaConfig_data = await ollamaConfig.getConfigAsync();
-      const model = ollamaConfig_data.defaultModel || 'qwen2.5:1.5b';
+      const { resolveOllamaChatModel } = require('../utils/ollamaChatDefaults');
+      const model = resolveOllamaChatModel(ollamaConfig_data.defaultModel);
+      if (!model) {
+        return this.chunkByStructure(text, maxChunkSize, overlap);
+      }
 
       // Если текст очень большой, анализируем первые 10000 символов для определения структуры
       const analysisText = text.length > 10000 ? text.substring(0, 10000) : text;
@@ -195,6 +199,60 @@ ${analysisText}${text.length > 10000 ? '\n\n[Документ продолжае
       // Fallback на простую разбивку
       return this.chunkByStructure(text, maxChunkSize, overlap);
     }
+  }
+
+  /**
+   * Нарезка по markdown-заголовкам (# / ## / ###). Секция целиком, если короче maxChunkSize.
+   */
+  chunkByMarkdownHeadings(text, maxChunkSize, overlap) {
+    const lines = String(text || '').split('\n');
+    const sections = [];
+    let title = 'Документ';
+    let buf = [];
+    const flush = () => {
+      const body = buf.join('\n').trim();
+      if (body) sections.push({ title, text: body });
+      buf = [];
+    };
+    for (const line of lines) {
+      const m = line.match(/^(#{1,3})\s+(.+)$/);
+      if (m) {
+        flush();
+        title = m[2].replace(/<[^>]+>/g, '').trim() || title;
+        buf.push(line);
+      } else {
+        buf.push(line);
+      }
+    }
+    flush();
+    if (!sections.length) return [];
+
+    const chunks = [];
+    for (const section of sections) {
+      if (section.text.length <= maxChunkSize) {
+        chunks.push({
+          text: section.text,
+          index: chunks.length,
+          start: 0,
+          end: section.text.length,
+          metadata: { section: section.title, isComplete: true }
+        });
+        continue;
+      }
+      const sub = this.splitLargeSection(section.text, section.title, maxChunkSize, overlap);
+      for (const piece of sub) {
+        chunks.push({
+          ...piece,
+          index: chunks.length,
+          metadata: {
+            ...(piece.metadata || {}),
+            section: section.title,
+            parentSection: section.title
+          }
+        });
+      }
+    }
+    return chunks;
   }
 
   /**

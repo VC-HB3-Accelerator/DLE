@@ -8,6 +8,8 @@
 **Status:** model agreement (Model Agreement / Template).  
 Does not automatically become a binding contract until the parties complete the `[LOCAL]` fields, attach details, and sign.
 
+**Do not confuse:** this Agreement is Author ↔ authorized contributor (territory, sales, royalties, updates). Repository contribution rules are in [CONTRIBUTING.md](CONTRIBUTING.md). A repository contribution does not replace this Agreement and does not appoint a second contributor.
+
 ---
 
 ## How to use this document (for counsel)

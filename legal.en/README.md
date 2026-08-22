@@ -23,7 +23,7 @@ This section contains legal documentation for the protection of the
 
 **Copyright and licenses:**
 - [AUTHORS.md](AUTHORS.md) — author information
-- [CONTRIBUTING.md](CONTRIBUTING.md) — contributor guidelines
+- [CONTRIBUTING.md](CONTRIBUTING.md) — repository contribution rules (not authorized-contributor status)
 - [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) — Authorized Contributor license (sales, royalty, modification)
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — copyright notice templates
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — third-party npm/Python package licenses
@@ -39,7 +39,7 @@ This section contains legal documentation for the protection of the
 | File | Purpose |
 |------|---------|
 | [AUTHORS.md](AUTHORS.md) | Author details and contact information |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Participation rules for project contributors |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Repository contribution rules; does not replace the authorized-contributor agreement |
 | [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Model Author ↔ Contributor agreement |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Copyright notice templates |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Licenses of third-party npm and Python dependencies |

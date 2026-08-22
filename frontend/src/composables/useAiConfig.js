@@ -7,12 +7,12 @@ import axios from 'axios';
 
 const defaults = () => ({
   ollama_base_url: 'http://ollama:11434',
-  ollama_llm_model: 'qwen2.5:1.5b',
+  ollama_llm_model: '',
   ollama_embedding_model: 'mxbai-embed-large:latest',
   rag_settings: {
     threshold: 300,
     searchMethod: 'hybrid',
-    maxResults: 3,
+    maxResults: 8,
     searchWeights: { semantic: 70, keyword: 30 }
   },
   llm_parameters: {
@@ -54,15 +54,15 @@ const defaults = () => ({
   },
   timeouts: {
     ollamaChat: 600000,
-    ollamaEmbedding: 90000,
+    ollamaEmbedding: 300000,
     ollamaHealth: 5000,
     ollamaTags: 10000
   },
   dialog_settings: {
     historyTurns: 4,
-    ragSnippetLength: 300,
+        ragSnippetLength: 1200,
     memorySnippetLength: 160,
-    docSnippetLength: 350,
+    docSnippetLength: 1200,
     memoryMaxChars: 900,
     compressEvery: 4,
     minCyrillicPercent: 10,

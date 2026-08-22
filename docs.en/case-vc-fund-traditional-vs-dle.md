@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/case-vc-fund-traditional-vs-dle.md)
+**English** | [Русский](../docs.ru/case-openai-on-dle.md)
 
 # Case: OpenAI on the DLE operating system
 

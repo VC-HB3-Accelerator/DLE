@@ -19,7 +19,8 @@
       </select>
 
       <label class="form-label">{{ $t('settings.ai.assistant.maxResults') }}</label>
-      <input type="number" v-model.number="local.maxResults" class="form-control form-control--narrow" min="1" max="20" />
+      <input type="number" v-model.number="local.maxResults" class="form-control form-control--narrow" min="1" max="40" />
+      <small class="form-hint">{{ $t('settings.ai.assistant.maxResultsHelp') }}</small>
 
       <div v-if="local.searchMethod === 'hybrid'" class="search-weights">
         <h4>{{ $t('settings.ai.assistant.searchWeights') }}</h4>
@@ -70,7 +71,7 @@ const emit = defineEmits(['save']);
 const local = reactive({
   threshold: 300,
   searchMethod: 'hybrid',
-  maxResults: 3,
+  maxResults: 8,
   searchWeights: { semantic: 70, keyword: 30 }
 });
 const behavior = reactive({
@@ -83,7 +84,7 @@ watch(() => props.ragSettings, (v) => {
   if (!v) return;
   local.threshold = v.threshold ?? 300;
   local.searchMethod = v.searchMethod || 'hybrid';
-  local.maxResults = v.maxResults ?? 3;
+  local.maxResults = v.maxResults ?? 8;
   local.searchWeights = {
     semantic: v.searchWeights?.semantic ?? 70,
     keyword: v.searchWeights?.keyword ?? 30

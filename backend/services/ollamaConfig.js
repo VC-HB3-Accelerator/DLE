@@ -43,7 +43,7 @@ async function _updateSyncCache() {
     // Используем дефолты
     syncCache = {
       baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-      defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
+      defaultModel: require('../utils/ollamaChatDefaults').resolveOllamaChatModel(process.env.OLLAMA_MODEL),
       embeddingModel: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest'
     };
   }
@@ -56,22 +56,24 @@ async function _updateSyncCache() {
 function _getFromSyncCache(key) {
   const now = Date.now();
   if (!syncCache || (now - syncCacheTimestamp) > SYNC_CACHE_TTL) {
-    // Обновляем кэш асинхронно (не блокируя)
-    _updateSyncCache().catch(err => logger.warn('[ollamaConfig] Sync cache update failed:', err.message));
+    if (!require('../db').isMochaProcess()) {
+      _updateSyncCache().catch(err => logger.warn('[ollamaConfig] Sync cache update failed:', err.message));
+    }
   }
-  
-  // Если кэш есть - используем его
-  if (syncCache && syncCache[key]) {
-    return syncCache[key];
-  }
-  
-  // Иначе используем дефолты
+
+  const { resolveOllamaChatModel } = require('../utils/ollamaChatDefaults');
   const defaults = {
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-    defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
+    defaultModel: resolveOllamaChatModel(process.env.OLLAMA_MODEL),
     embeddingModel: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest'
   };
-  
+
+  if (syncCache && Object.prototype.hasOwnProperty.call(syncCache, key)) {
+    if (key === 'defaultModel') return syncCache.defaultModel || '';
+    if (syncCache[key]) return syncCache[key];
+  }
+
+  if (key === 'defaultModel') return defaults.defaultModel || '';
   return defaults[key] || defaults.baseUrl;
 }
 
@@ -168,7 +170,7 @@ async function _updateTimeoutsCache() {
     // Используем дефолты
     timeoutsCache = {
       ollamaChat: 600000,
-      ollamaEmbedding: 90000,
+      ollamaEmbedding: 300000,
       ollamaHealth: 5000,
       ollamaTags: 10000,
       cacheLLM: 86400000,
@@ -190,8 +192,9 @@ async function _updateTimeoutsCache() {
 function getTimeouts() {
   const now = Date.now();
   if (!timeoutsCache || (now - timeoutsCacheTimestamp) > SYNC_CACHE_TTL) {
-    // Обновляем кэш асинхронно (не блокируя)
-    _updateTimeoutsCache().catch(err => logger.warn('[ollamaConfig] Timeouts cache update failed:', err.message));
+    if (!require('../db').isMochaProcess()) {
+      _updateTimeoutsCache().catch(err => logger.warn('[ollamaConfig] Timeouts cache update failed:', err.message));
+    }
   }
   
   // Если кэш есть - используем его
@@ -202,7 +205,7 @@ function getTimeouts() {
   // Иначе используем дефолты
   return {
     ollamaChat: 600000,
-    ollamaEmbedding: 90000,
+    ollamaEmbedding: 300000,
     ollamaHealth: 5000,
     ollamaTags: 10000,
     cacheLLM: 86400000,
@@ -343,12 +346,15 @@ async function checkHealth() {
 }
 
 // Инициализация синхронного кэша при загрузке модуля
-_updateSyncCache().catch(err => {
-  logger.warn('[ollamaConfig] Initial sync cache update failed:', err.message);
-});
-_updateTimeoutsCache().catch(err => {
-  logger.warn('[ollamaConfig] Initial timeouts cache update failed:', err.message);
-});
+const { isMochaProcess } = require('../db');
+if (!isMochaProcess()) {
+  _updateSyncCache().catch(err => {
+    logger.warn('[ollamaConfig] Initial sync cache update failed:', err.message);
+  });
+  _updateTimeoutsCache().catch(err => {
+    logger.warn('[ollamaConfig] Initial timeouts cache update failed:', err.message);
+  });
+}
 
 module.exports = {
   getBaseUrl,

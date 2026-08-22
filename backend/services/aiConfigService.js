@@ -34,7 +34,9 @@ class AIConfigService {
     // Дефолтные значения (fallback)
     this.defaults = {
       ollama_base_url: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-      ollama_llm_model: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
+      ollama_llm_model: require('../utils/ollamaChatDefaults').resolveOllamaChatModel(
+        process.env.OLLAMA_MODEL
+      ),
       ollama_preload_model: null,
       ollama_embedding_model: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest',
       embedding_parameters: {
@@ -57,7 +59,7 @@ class AIConfigService {
       },
       rag_settings: {
         threshold: 300,
-        maxResults: 3,
+        maxResults: 8,
         searchMethod: 'hybrid',
         relevanceThreshold: 0.1,
         keywordExtraction: {
@@ -91,7 +93,7 @@ class AIConfigService {
       },
       timeouts: {
         ollamaChat: 600000,
-        ollamaEmbedding: 90000,
+        ollamaEmbedding: 300000,
         ollamaHealth: 5000,
         ollamaTags: 10000
       },
@@ -106,9 +108,9 @@ class AIConfigService {
       },
       dialog_settings: {
         historyTurns: 4,
-        ragSnippetLength: 300,
+        ragSnippetLength: 1200,
         memorySnippetLength: 160,
-        docSnippetLength: 350,
+        docSnippetLength: 1200,
         memoryMaxChars: 900,
         compressEvery: 4,
         minCyrillicPercent: 10,
@@ -368,11 +370,12 @@ class AIConfigService {
    * @returns {Promise<Object>}
    */
   async getOllamaConfig() {
+    const { resolveOllamaChatModel } = require('../utils/ollamaChatDefaults');
     const config = await this.getConfig();
     return {
       baseUrl: config.ollama_base_url || this.defaults.ollama_base_url,
-      llmModel: config.ollama_llm_model || this.defaults.ollama_llm_model,
-      preloadModel: config.ollama_preload_model || null,
+      llmModel: resolveOllamaChatModel(config.ollama_llm_model, process.env.OLLAMA_MODEL),
+      preloadModel: resolveOllamaChatModel(config.ollama_preload_model, null) || null,
       embeddingModel: config.ollama_embedding_model || this.defaults.ollama_embedding_model
     };
   }

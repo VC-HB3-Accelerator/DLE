@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/case-traditional-vs-dle.md)
+**English**
 
 # Case: two paths to organize a business
 

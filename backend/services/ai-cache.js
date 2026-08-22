@@ -27,7 +27,9 @@ class AICache {
     this.ttl = 86400000;
     this.ragTtl = 300000;
     this.enabled = true;
-    this._loadSettings();
+    if (!require('../db').isMochaProcess()) {
+      this._loadSettings();
+    }
     if (typeof aiConfigService.onChange === 'function') {
       aiConfigService.onChange(() => { this._loadSettings().catch(() => {}); });
     }

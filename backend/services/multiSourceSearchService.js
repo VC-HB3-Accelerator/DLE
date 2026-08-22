@@ -12,13 +12,14 @@
 
 const vectorSearch = require('./vectorSearchClient');
 const ragService = require('./ragService');
+const { normalizeScores } = require('./ragScore');
 const aiConfigService = require('./aiConfigService');
 const userContextService = require('./userContextService');
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const logger = require('../utils/logger');
 
-const DOCUMENT_SNIPPET_LENGTH_DEFAULT = 350;
+const DOCUMENT_SNIPPET_LENGTH_DEFAULT = 1200;
 
 function resolveDocumentIdFromResult(result) {
   if (!result) {
@@ -730,8 +731,8 @@ class MultiSourceSearchService {
   combineSearchResults(semanticResults, keywordResults, semanticWeight, keywordWeight) {
     const combined = new Map();
 
-    const normalizedSemantic = this.normalizeScores(semanticResults);
-    const normalizedKeyword = this.normalizeScores(keywordResults);
+    const normalizedSemantic = normalizeScores(semanticResults);
+    const normalizedKeyword = normalizeScores(keywordResults);
 
     normalizedSemantic.forEach(result => {
       const key = `${result.source}_${result.sourceId}_${result.rowId || 'unknown'}`;
@@ -771,22 +772,8 @@ class MultiSourceSearchService {
     return Array.from(combined.values());
   }
 
-  /**
-   * Нормализация скоров в [0, 1] без инверсии.
-   * pgvector отдаёт cosine similarity (больше = лучше).
-   */
   normalizeScores(results) {
-    if (!results.length) return [];
-
-    const scores = results.map((r) => Number(r.score) || 0);
-    const maxScore = Math.max(...scores);
-    const minScore = Math.min(...scores);
-    const range = maxScore - minScore;
-
-    return results.map((result) => ({
-      ...result,
-      score: range > 0 ? ((Number(result.score) || 0) - minScore) / range : 1
-    }));
+    return normalizeScores(results);
   }
 
   /**

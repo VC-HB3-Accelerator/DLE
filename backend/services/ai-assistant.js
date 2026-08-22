@@ -75,7 +75,7 @@ class AIAssistant {
     try {
       logger.info(`[AIAssistant] Генерация ответа для канала ${channel}, пользователь ${userId}`);
 
-      // 0. Проверяем язык сообщения (только русский)
+      // 0. Язык: русский или английский
       const languageCheck = await shouldProcessWithAI(userQuestion, { hasMedia: Boolean(media?.data) });
       if (!languageCheck.shouldProcess) {
         logger.info(`[AIAssistant] ⚠️ Пропуск обработки: ${languageCheck.reason} (user: ${userId}, channel: ${channel})`);
@@ -83,7 +83,7 @@ class AIAssistant {
           success: false,
           reason: languageCheck.reason,
           skipped: true,
-          message: 'AI обрабатывает только сообщения на русском языке'
+          message: 'AI обрабатывает сообщения на русском или английском языке'
         };
       }
 
@@ -300,7 +300,7 @@ class AIAssistant {
         try {
           logger.info(`[AIAssistant] pgvector search: "${String(ragQuery).substring(0, 50)}..."`);
           const searchStartTime = Date.now();
-          const oversample = 15;
+          const oversample = Math.max(15, Math.min(50, Number(ragConfig.maxResults) || 8));
           searchResults = await ragPgvectorService.search({
             query: ragQuery,
             tableIds,
@@ -345,7 +345,10 @@ class AIAssistant {
             });
             nextHits.sort((a, b) => (Number(b.combinedScore != null ? b.combinedScore : b.score) || 0)
               - (Number(a.combinedScore != null ? a.combinedScore : a.score) || 0));
-            const promptLimit = Math.max(3, Math.min(Number(ragConfig.maxResults) || 5, 8));
+            const promptLimit = Math.max(
+              nextHits.length,
+              1
+            );
             searchResults.results = pickSourcesForPrompt(nextHits, promptLimit);
           }
 
@@ -360,24 +363,6 @@ class AIAssistant {
               date: bestResult.metadata?.date || null,
               score: bestResult.score || 0
             };
-
-            const allResultsContext = searchResults.results
-              .slice(0, Math.max(3, Math.min(Number(ragConfig.maxResults) || 5, 8)))
-              .map((r, idx) => {
-                const sourceLabel = r.sourceType === 'table' ? 'База знаний' : 'Документ';
-                const fallbackText = (r.metadata?.answer && String(r.metadata.answer).trim())
-                  || (r.metadata?.title && String(r.metadata.title).trim())
-                  || '(текст отсутствует)';
-                const text = (r.text && r.text.trim()) || fallbackText;
-                const snippetLimit = r.sourceType === 'table' ? 1200 : 1800;
-                const truncatedText = text.length > snippetLimit
-                  ? `${text.slice(0, snippetLimit)}...`
-                  : text;
-                return `[${idx + 1}] ${sourceLabel}: ${truncatedText}`;
-              })
-              .join('\n\n');
-
-            ragResult.context = allResultsContext;
           }
         } catch (error) {
           logger.error(`[AIAssistant] Ошибка pgvector поиска (fail-closed, без FAISS):`, error.message);

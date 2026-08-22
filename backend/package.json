@@ -12,7 +12,7 @@
     "server": "nodemon server.js --signal SIGUSR2",
     "migrate": "node scripts/run-migrations.js",
     "prod": "NODE_ENV=production node server.js",
-    "test": "mocha tests/**/*.test.js",
+    "test": "mocha tests/**/*.test.js --exit",
     "test:contracts": "hardhat test",
     "test:contracts:hv": "hardhat test test/hierarchical-voting*.test.js",
     "test:contracts:audit": "hardhat test test/dle-core-audit.test.js test/dle-execute-by-signatures.test.js test/dle-reader-resolve.test.js",

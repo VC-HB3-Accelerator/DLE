@@ -56,6 +56,46 @@ function buildConversationSummary(history, options = {}) {
 
 const ASK_FORBID_GUEST = 'ЗАПРЕТ: не называй ask раунда, доли инвестора, 75/25, DEAL, 8500 токенов, $8.5M/$1.9M/$6.6M — даже если это есть в источниках. Для этой аудитории условия сделки не раскрываются. Не подменяй ответ квалификацией инвестора Stage A, если текущая тема — компания, продукт или партнёрство. Если спросили цифры раунда — скажи, что они не для этой консультации, и продолжи по текущей теме.';
 
+/** Кандидаты в промпт; фактический объём режет окно модели, не 300/1200 символов. */
+const DEFAULT_PROMPT_SOURCES = 40;
+
+function formatSourceForPrompt(r, idx, snippetLimit) {
+  const sourceName = isTableHit(r)
+    ? 'База знаний'
+    : `Документ: ${r.metadata?.title || r.context || 'Без названия'}`;
+  const fallbackText = (r.metadata?.answer && String(r.metadata.answer).trim())
+    || (r.metadata?.title && String(r.metadata.title).trim())
+    || '(текст отсутствует)';
+  const sourceText = (r.text && r.text.trim()) || fallbackText;
+  const cap = Number(snippetLimit);
+  const truncatedText = Number.isFinite(cap) && cap > 0 && sourceText.length > cap
+    ? `${sourceText.slice(0, cap)}...`
+    : sourceText;
+  const contextPart = r.context ? `\nКонтекст: ${r.context}` : '';
+  return `[Источник ${idx + 1}: ${sourceName}]\n${truncatedText}${contextPart}`;
+}
+
+function packHitsToCharBudget(hits, { maxChars = 0, snippetLimit = 0 } = {}) {
+  const list = Array.isArray(hits) ? hits : [];
+  const budget = Number(maxChars);
+  if (!Number.isFinite(budget) || budget <= 0) return list;
+  const packed = [];
+  let used = 0;
+  for (const r of list) {
+    const block = formatSourceForPrompt(r, packed.length, snippetLimit);
+    const extra = block.length + 8;
+    if (packed.length && used + extra > budget) break;
+    if (!packed.length && extra > budget) {
+      const raw = String((r.text && r.text.trim()) || r.metadata?.answer || '');
+      packed.push({ ...r, text: raw.slice(0, Math.max(200, budget - 120)) });
+      break;
+    }
+    packed.push(r);
+    used += extra;
+  }
+  return packed;
+}
+
 /**
  * User-prompt body for generateLLMResponse (без system rules / placeholders).
  * T01/T02/T06/T07/T08: facts from answer / multiSource / memory.
@@ -71,7 +111,9 @@ function assembleGenerateUserPrompt({
   multiSourceResults = null,
   conversationMemory = null,
   history = null,
-  snippetLimit = 300,
+  snippetLimit = 0,
+  sourceLimit = DEFAULT_PROMPT_SOURCES,
+  maxPromptChars = 0,
   generateIfNoRag = false,
   allowAsk = false
 } = {}) {
@@ -90,21 +132,17 @@ function assembleGenerateUserPrompt({
   let prompt = '';
 
   if (multiSourceResults && multiSourceResults.results && multiSourceResults.results.length > 0) {
-    const sourcesInfo = pickSourcesForPrompt(multiSourceResults.results, 3)
-      .map((r, idx) => {
-        const sourceName = r.sourceType === 'table'
-          ? 'База знаний'
-          : `Документ: ${r.metadata?.title || r.context || 'Без названия'}`;
-        const fallbackText = (r.metadata?.answer && String(r.metadata.answer).trim())
-          || (r.metadata?.title && String(r.metadata.title).trim())
-          || '(текст отсутствует)';
-        const sourceText = (r.text && r.text.trim()) || fallbackText;
-        const truncatedText = sourceText.length > snippetLimit
-          ? `${sourceText.slice(0, snippetLimit)}...`
-          : sourceText;
-        const contextPart = r.context ? `\nКонтекст: ${r.context}` : '';
-        return `[Источник ${idx + 1}: ${sourceName}]\n${truncatedText}${contextPart}`;
-      })
+    const hits = multiSourceResults.results;
+    const cap = Number(sourceLimit) > 0
+      ? Math.min(Number(sourceLimit), hits.length)
+      : hits.length;
+    const candidates = pickSourcesForPrompt(hits, Math.max(1, cap));
+    const packed = packHitsToCharBudget(candidates, {
+      maxChars: maxPromptChars,
+      snippetLimit
+    });
+    const sourcesInfo = packed
+      .map((r, idx) => formatSourceForPrompt(r, idx, snippetLimit))
       .join('\n\n---\n\n');
 
     prompt = `${memoryBlock}База знаний содержит следующую информацию из разных источников:\n\n${sourcesInfo}\n\nВопрос пользователя: ${userQuestion}\n\nТы консультант в живом чате, не киоск документов. Используй факты из источников как якоря (цифры, определения), но отвечай своими словами: кратко, по делу, под аудиторию. Задай один уточняющий вопрос или предложи следующий шаг (боль → решение). Не вываливай сырой текст источников целиком. Не выдумывай цифры и условия, которых нет в источниках.\n${allowAsk
@@ -127,7 +165,7 @@ function assembleGenerateUserPrompt({
     if (generateIfNoRag) {
       prompt += `\n\nДополнительно: база знаний пуста по этому вопросу; ответь по общим инструкциям (generateIfNoRag=true).`;
     } else {
-      prompt += `\n\nДополнительно: если в контексте нет фактов по вопросу — не придумывай. Ответь обычным связным текстом на русском по системным инструкциям, без JSON, без кавычек вокруг всего ответа, без иероглифов и латиницы внутри русских слов.\n${allowAsk
+      prompt += `\n\nДополнительно: если в контексте нет фактов по вопросу — не придумывай. Ответь обычным связным текстом на языке последнего сообщения пользователя (русский или английский) по системным инструкциям, без JSON, без кавычек вокруг всего ответа, без иероглифов. Канон «кто мы» и цифры из источников — дословно.\n${allowAsk
         ? 'Ask / долю / суммы называй только из фактов этого сообщения.'
         : ASK_FORBID_GUEST}`;
     }
@@ -420,7 +458,7 @@ function preferCorePartnerFaqHits(results, query) {
   });
 }
 
-function pickSourcesForPrompt(results, limit = 3) {
+function pickSourcesForPrompt(results, limit = DEFAULT_PROMPT_SOURCES) {
   const list = Array.isArray(results) ? results : [];
   const tables = list.filter(isTableHit);
   const docs = list.filter(isDocumentHit);
@@ -507,6 +545,9 @@ function corpusHitAllowedForAudiences(hit, allowedAudiences, opts = {}) {
 
 module.exports = {
   ASK_FORBID_GUEST,
+  DEFAULT_PROMPT_SOURCES,
+  formatSourceForPrompt,
+  packHitsToCharBudget,
   buildConversationSummary,
   assembleGenerateUserPrompt,
   filterHitsByAssignTags,

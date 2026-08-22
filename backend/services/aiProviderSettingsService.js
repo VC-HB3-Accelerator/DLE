@@ -392,7 +392,7 @@ async function getAllLLMModels() {
     } catch (ollamaError) {
       // console.error('Error checking Ollama models:', ollamaError);
       // Если не удалось проверить Ollama, добавляем базовые модели
-      allModels.push({ id: 'qwen2.5:1.5b', provider: 'ollama' });
+      allModels.push({ id: 'qwen2.5:7b', provider: 'ollama' });
     }
 
     // DeepSeek: список моделей из API (OpenAI-compatible)

@@ -260,9 +260,8 @@ router.get('/search', requireAuth, async (req, res) => {
 
   try {
     const popularModels = [
-      'qwen2.5:1.5b',
+      'qwen2.5:7b',
       'qwen2.5:3b',
-      'qwen2.5:0.5b',
       'llama2:7b',
       'mistral:7b',
       'codellama:7b',

@@ -4,7 +4,7 @@
 
 # Digital Legal Entity (DLE) — скачать шаблон ОС для создания цифрового профиля юридического лица
 
-Операционная система для онлайн-регистрации профиля цифрового юридического лица в стране фактического осуществления коммерческой деятельности.
+Собственная операционная система для программного управления бизнесом: внутри её программного контура создаётся профиль цифрового юридического лица, к которому подключаются модули бизнес-процессов.
 
 **Начните обслуживать местных клиентов уже через 15 минут.**
 
@@ -77,7 +77,7 @@ wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Acceler
 
 ## Что это
 
-**DLE** — шаблон персональной операционной системы для юридического лица. Ставите на своей инфраструктуре (в том числе локально **в стране деятельности**); в ядре — **EVM** и **AI**. Бессрочная лицензия: установленный экземпляр — **ваш актив**, а не аренда чужого кабинета ([LICENSE.ru](LICENSE.ru)). Данные и операционка остаются у вас; в шаблоне — обезличивание, шифрование и хранение ПДн под требования регулятора страны, с возможностью локализации на своей площадке ([security.md](docs.ru/security.md#соответствие-требованиям-по-персональным-данным)).
+**DLE** — шаблон собственной операционной системы для программного управления бизнесом. Система развёртывается на инфраструктуре компании, в том числе локально в стране деятельности. Внутри ОС создаётся профиль цифрового юридического лица на основе смарт-контракта с токенами управления; к профилю подключаются модули бизнес-процессов. Бессрочная лицензия: установленный экземпляр — **ваш актив**, а не аренда чужого кабинета ([LICENSE.ru](LICENSE.ru)). Данные и операционная работа остаются у вас; в шаблоне — обезличивание, шифрование и хранение персональных данных под требования регулятора страны с возможностью локализации на своей площадке ([security.md](docs.ru/security.md#9-персональные-данные-и-юридические-документы)).
 
 ## Зачем
 
@@ -91,9 +91,9 @@ wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Acceler
 
 Иллюстративные сценарии применения DLE. Упоминание известных компаний и брендов — **демонстрация модели**, а не описание реального сотрудничества, пилота или внедрения у указанных организаций.
 
-- [Кейс: два пути организации бизнеса](docs.ru/case-traditional-vs-dle.md)
-- [Кейс: OpenAI на DLE](docs.ru/case-vc-fund-traditional-vs-dle.md)
+- [Кейс: OpenAI на DLE](docs.ru/case-openai-on-dle.md)
 - [Кейс: Coca-Cola на DLE](docs.ru/case-coca-cola-on-dle.md)
+- [Кейс: BlackRock, Andreessen Horowitz и VC HB3](docs.ru/case-vc-fund-traditional-vs-dle.md)
 
 ## Как начать
 
@@ -115,16 +115,19 @@ wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Acceler
 
 | Файл | Описание |
 | --- | --- |
-| [LICENSE.ru](LICENSE.ru) | EULA — лицензия, IP, неотзыв |
-| [service-terms.md](legal.ru/service-terms.md) | Условия приобретения и обслуживания |
-| [contributor-client-agreement.md](legal.ru/templates/contributor-client-agreement.md) | Шаблон договора с контрибьютором |
-| [contributor-client-specification.md](legal.ru/templates/contributor-client-specification.md) | Спецификация / счёт |
-| [contributor-client-acceptance-act.md](legal.ru/templates/contributor-client-acceptance-act.md) | Акт приёмки и фиксации токена |
-| [ai-agent-glossary.ru.md](docs.ru/ai-agent-glossary.ru.md) | Глоссарий для ИИ-агента: как говорить термины корпуса |
+| [LICENSE.ru](LICENSE.ru) | Индексируемый корпус лицензионного соглашения: лицензия, интеллектуальная собственность, неотзыв и прекращение |
+| [service-terms.md](legal.ru/service-terms.md) | Индексируемый корпус условий приобретения и обслуживания |
+| [contributor-client-agreement.md](legal.ru/templates/contributor-client-agreement.md) | Partner-only корпус: незаполненный международный шаблон договора |
+| [contributor-client-specification.md](legal.ru/templates/contributor-client-specification.md) | Partner-only корпус: незаполненный шаблон спецификации / счёта |
+| [contributor-client-acceptance-act.md](legal.ru/templates/contributor-client-acceptance-act.md) | Partner-only корпус: незаполненный шаблон акта приёмки и фиксации токена |
+| [GLOSSARY.md](data-room/Source_Documents/ru/GLOSSARY.md) | Единый русский корпус терминов: поисковые сокращения и полные формулировки для речи ИИ-ассистента |
+| [DISCLAIMERS.md](data-room/Source_Documents/ru/DISCLAIMERS.md) | Единый русский корпус общих предупреждений для загрузки в индекс |
+| [CONTACTS.md](data-room/Source_Documents/ru/CONTACTS.md) | Единый русский корпус контактных данных и ссылки на запись на встречу |
 | [os-dle-presentation.md](docs.ru/os-dle-presentation.md) | ОС DLE — презентация для бизнеса (каркас) |
-| [ai-assistant.md](docs.ru/ai-assistant.md) | ИИ-агенты: архитектура, примеры, настройка |
-| [blockchain-for-business.md](docs.ru/blockchain-for-business.md) | Блокчейн для бизнеса и практические кейсы |
-| [security.md](docs.ru/security.md) | Безопасность и соответствие регуляторам |
+| [ai-assistant.md](docs.ru/ai-assistant.md) | Полный индексируемый корпус агентов: типы, знания, аудитории и модели |
+| [blockchain-for-business.md](docs.ru/blockchain-for-business.md) | Полный индексируемый блокчейн-корпус: профиль, управление, модули и регуляторные цели |
+| [security.md](docs.ru/security.md) | Полный индексируемый корпус безопасности и границ ответственности |
+| [governance.md](data-room/Source_Documents/ru/governance.md) | Индексируемый инвесторский корпус целевой модели управления фондом |
 | [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/ru/FAQ.md) | Частые вопросы |
 
 ### Релизы и артефакты

@@ -108,16 +108,29 @@ async function ensureEmbeddingDimension(dim) {
   return { changed: true, dimension: n, from: current };
 }
 
-function stripHtml(html) {
+function htmlToTextWithHeadings(html) {
   return String(html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n\n# $1\n\n')
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n\n## $1\n\n')
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n\n### $1\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|table|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
-function splitOversized(text, maxLen = 400) {
+function splitOversized(text, maxLen = 1800) {
   const src = String(text || '').trim();
   if (src.length <= maxLen) return [src];
   const parts = [];
@@ -144,7 +157,7 @@ function corpusAudienceFromSeo(seo) {
 }
 
 async function reindexCorpusPage(page) {
-  const text = stripHtml(page.content || '');
+  const text = htmlToTextWithHeadings(page.content || '');
   if (!text) return { id: page.id, skipped: true, chunks: 0 };
   const url = page.visibility === 'public' && page.status === 'published'
     ? `/public/page/${page.id}`
@@ -156,24 +169,28 @@ async function reindexCorpusPage(page) {
   }
   const semanticChunkingService = require('./semanticChunkingService');
   const chunks = await semanticChunkingService.chunkDocument(text, {
-    maxChunkSize: 400,
-    overlap: 40,
+    maxChunkSize: 1500,
+    overlap: 80,
     useLLM: false
   });
   const pieces = [];
   for (const chunk of chunks) {
-    for (const part of splitOversized(chunk.text, 400)) {
-      pieces.push(part);
+    for (const part of splitOversized(chunk.text, 1800)) {
+      pieces.push({
+        text: part,
+        section: chunk.metadata?.section || 'Документ'
+      });
     }
   }
   const audience = corpusAudienceFromSeo(page.seo);
   const pgChunks = pieces.map((part, index) => ({
     row_id: pieces.length > 1 ? `${page.id}_chunk_${index}` : String(page.id),
-    text: part,
+    text: part.text,
     audience_tags: audience,
     metadata: {
       doc_id: page.id,
       chunk_index: index,
+      section: part.section,
       title: page.title,
       url: pieces.length > 1 ? `${url}#chunk_${index}` : url,
       visibility: page.visibility,
@@ -196,7 +213,9 @@ async function rebuildPublishedCorpusPages() {
   const out = [];
   for (const page of rows || []) {
     try {
-      out.push(await reindexCorpusPage(page));
+      const done = await reindexCorpusPage(page);
+      logger.info(`[ragPgvector] corpus page=${page.id} chunks=${done.chunks} skipped=${Boolean(done.skipped)}`);
+      out.push(done);
     } catch (err) {
       logger.error(`[ragPgvector] corpus page=${page.id}: ${err.message}`);
       out.push({ id: page.id, skipped: true, chunks: 0, error: err.message });
@@ -251,8 +270,9 @@ async function rebuildAllRagIndex() {
   if (faqChunks === 0 && (corpus.chunks || 0) === 0) {
     const firstErr = faqFailed[0]?.error
       || corpus.error
-      || (corpus.pages || []).find((p) => p.error)?.error;
-    if (firstErr) throw new Error(firstErr);
+      || (corpus.pages || []).find((p) => p.error)?.error
+      || 'Индекс пустой: 0 FAQ-чанков и 0 страниц [Corpus]. Сначала ingest v1 (rag-test-ingest-pages.js) или проверьте колонки вопрос/ответ у таблицы FAQ.';
+    throw new Error(firstErr);
   }
   return {
     provider: runtime.provider,
@@ -332,9 +352,16 @@ async function collectFaqChunks(tableId) {
     ? await encryptedDb.getData('user_cell_values', { row_id: { $in: rows.map((r) => r.id) } })
     : [];
   const getCol = (purpose) => columns.find((c) => c.options?.purpose === purpose);
-  const questionCol = getCol('question');
-  const answerCol = getCol('answer');
-  if (!questionCol || !answerCol) return [];
+  const questionCol = getCol('question')
+    || columns.find((c) => /вопрос|question/i.test(String(c.name || '')));
+  const answerCol = getCol('answer')
+    || columns.find((c) => /ответ|answer/i.test(String(c.name || '')));
+  if (!questionCol || !answerCol) {
+    logger.warn(
+      `[ragPgvector] FAQ table=${tableId}: нет колонок вопрос/ответ (purpose или имя). columns=${(columns || []).map((c) => c.name).join(',')}`
+    );
+    return [];
+  }
 
   const contextCol = getCol('context');
   const userTagsCol = getCol('userTags') || getCol('audienceTags');
@@ -378,6 +405,10 @@ async function collectFaqChunks(tableId) {
 async function replaceSourceChunks(source, tableId, chunks) {
   const ok = await ensureSchema();
   if (!ok) throw new Error('pgvector недоступен');
+  if (!chunks.length) {
+    logger.warn(`[ragPgvector] ${source} table=${tableId}: 0 чанков — индекс не очищаю`);
+    return { count: 0 };
+  }
   if (source === 'faq') {
     await query()('DELETE FROM rag_chunks WHERE source = $1 AND table_id = $2', ['faq', Number(tableId)]);
   } else if (tableId == null) {
@@ -385,7 +416,6 @@ async function replaceSourceChunks(source, tableId, chunks) {
   } else {
     await query()('DELETE FROM rag_chunks WHERE source = $1 AND table_id = $2', ['document', Number(tableId)]);
   }
-  if (!chunks.length) return { count: 0 };
   const { model, vectors } = await embedTexts(chunks.map((c) => c.text));
   if (vectors.length !== chunks.length) {
     throw new Error(`embed count ${vectors.length} != chunks ${chunks.length}`);
@@ -541,6 +571,124 @@ function sqlPreFilter(ctx) {
   return { guestLike, aud, mode, corpus };
 }
 
+function lexicalPatterns(userQuery) {
+  const stop = new Set([
+    'какой', 'какая', 'какие', 'какое', 'что', 'это', 'для', 'как', 'или',
+    'the', 'and', 'хочу', 'узнать', 'можно', 'есть', 'про', 'вам', 'чем'
+  ]);
+  return String(userQuery || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s$%]/gu, ' ')
+    .split(/\s+/)
+    .map((w) => w.replace(/[%_]/g, ''))
+    .filter((w) => w.length >= 4 && !stop.has(w))
+    .slice(0, 8)
+    .map((w) => `%${w}%`);
+}
+
+function mapSearchRow(row, ctx, guestLike) {
+  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+  const hit = {
+    source: row.source === 'document' ? 'document' : 'table',
+    sourceType: row.source === 'document' ? 'document' : 'table',
+    sourceId: row.table_id,
+    rowId: row.row_id,
+    text: row.text,
+    context: metadata.question || metadata.title || metadata.context || '',
+    score: Number(row.score) || 0,
+    metadata: {
+      ...metadata,
+      userTags: row.audience_tags || metadata.userTags || [],
+      serviceMode: row.service_mode || metadata.serviceMode || null,
+      corpus_audience: row.source === 'document' ? (row.audience_tags || []) : metadata.corpus_audience
+    }
+  };
+  if (row.source === 'faq' && !resolveFaqRowVisible({
+    audience_tags: row.audience_tags,
+    service_mode: row.service_mode
+  }, ctx)) {
+    return null;
+  }
+  if (guestLike && looksLikeRestrictedDealText(`${hit.text || ''} ${hit.context || ''}`)) {
+    return null;
+  }
+  if (guestLike && row.source === 'document' && !documentTagsAllowedForGuest(row.audience_tags)) {
+    return null;
+  }
+  return hit;
+}
+
+function mergeSearchHits(vectorHits, lexicalHits, weights = { semantic: 0.7, keyword: 0.3 }) {
+  const semanticW = Number.isFinite(Number(weights.semantic)) ? Number(weights.semantic) : 0.7;
+  const keywordW = Number.isFinite(Number(weights.keyword)) ? Number(weights.keyword) : 0.3;
+  const byKey = new Map();
+  const keyOf = (h) => `${h.sourceType}:${h.sourceId}:${h.rowId}`;
+
+  for (const h of vectorHits || []) {
+    const k = keyOf(h);
+    byKey.set(k, {
+      ...h,
+      vectorScore: Number(h.score) || 0,
+      lexicalScore: 0,
+      lexical: false
+    });
+  }
+  for (const h of lexicalHits || []) {
+    const k = keyOf(h);
+    const lex = Number(h.score) || 0.62;
+    const prev = byKey.get(k);
+    if (prev) {
+      prev.lexicalScore = Math.max(Number(prev.lexicalScore) || 0, lex);
+      prev.lexical = true;
+    } else {
+      byKey.set(k, {
+        ...h,
+        vectorScore: 0,
+        lexicalScore: lex,
+        lexical: true
+      });
+    }
+  }
+
+  return [...byKey.values()].map((h) => {
+    const lexicalBoost = h.lexical ? Math.max(Number(h.lexicalScore) || 0, 0.85) : 0;
+    const combined = semanticW * (Number(h.vectorScore) || 0) + keywordW * lexicalBoost;
+    return { ...h, score: combined, combinedScore: combined };
+  }).sort((a, b) => (Number(b.combinedScore) || 0) - (Number(a.combinedScore) || 0));
+}
+
+async function searchFaqLexical({ userQuery, tableIds, ctx, limit = 12 }) {
+  const patterns = lexicalPatterns(userQuery);
+  if (!patterns.length) return [];
+  const { guestLike, aud, mode } = sqlPreFilter(ctx);
+  const tableFilter = Array.isArray(tableIds) && tableIds.length
+    ? tableIds.map(Number).filter((n) => n > 0)
+    : null;
+  const { rows } = await query()(
+    `SELECT source, table_id, row_id, text, audience_tags, service_mode, metadata,
+            0.62::float AS score
+       FROM rag_chunks
+      WHERE source = 'faq'
+        AND embedding IS NOT NULL
+        AND ($5::int[] IS NULL OR table_id = ANY($5::int[]))
+        AND (
+          metadata->>'question' ILIKE ANY($1::text[])
+          OR text ILIKE ANY($1::text[])
+        )
+        AND (
+          ($2::boolean AND audience_tags && $3::text[]
+            AND (service_mode IS NULL OR service_mode = ANY($4::text[])))
+          OR
+          (NOT $2::boolean
+            AND (audience_tags = '{}'::text[] OR audience_tags && $3::text[])
+            AND (service_mode IS NULL OR service_mode = ANY($4::text[])))
+        )
+      LIMIT $6`,
+    [patterns, guestLike, aud, mode, tableFilter, Math.max(5, Math.min(Number(limit) || 12, 30))]
+  );
+  return (rows || []).map((row) => mapSearchRow(row, ctx, guestLike)).filter(Boolean);
+}
+
 async function assertSearchDimension() {
   const runtime = await embeddingRuntimeService.resolveRuntime();
   const columnDimension = await getEmbeddingColumnDimension();
@@ -614,41 +762,32 @@ async function search({ query: userQuery, tableIds = [], ctx, limit = 15 }) {
     [qvec, guestLike, aud, mode, tableFilter, corpus, Math.max(5, Math.min(Number(limit) || 15, 50))]
   );
 
-  const results = (rows || [])
-    .map((row) => {
-      const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
-      const hit = {
-        source: row.source === 'document' ? 'document' : 'table',
-        sourceType: row.source === 'document' ? 'document' : 'table',
-        sourceId: row.table_id,
-        rowId: row.row_id,
-        text: row.text,
-        context: metadata.question || metadata.title || metadata.context || '',
-        score: Number(row.score) || 0,
-        metadata: {
-          ...metadata,
-          userTags: row.audience_tags || metadata.userTags || [],
-          serviceMode: row.service_mode || metadata.serviceMode || null,
-          corpus_audience: row.source === 'document' ? (row.audience_tags || []) : metadata.corpus_audience
-        }
-      };
-      if (row.source === 'faq' && !resolveFaqRowVisible({
-        audience_tags: row.audience_tags,
-        service_mode: row.service_mode
-      }, ctx)) {
-        return null;
-      }
-      if (guestLike && looksLikeRestrictedDealText(`${hit.text || ''} ${hit.context || ''}`)) {
-        return null;
-      }
-      if (guestLike && row.source === 'document' && !documentTagsAllowedForGuest(row.audience_tags)) {
-        return null;
-      }
-      return hit;
-    })
-    .filter(Boolean);
+  let searchMethod = 'hybrid';
+  let hybridWeights = { semantic: 0.7, keyword: 0.3 };
+  try {
+    const aiConfigService = require('./aiConfigService');
+    const rag = await aiConfigService.getRAGConfig();
+    searchMethod = String(rag.searchMethod || 'hybrid').toLowerCase();
+    hybridWeights = aiConfigService.resolveHybridWeights(rag);
+    if (searchMethod === 'keyword') {
+      hybridWeights = { semantic: 0.15, keyword: 0.85 };
+    } else if (searchMethod === 'semantic') {
+      hybridWeights = { semantic: 1, keyword: 0 };
+    }
+  } catch (_) { /* дефолт hybrid 70/30 */ }
 
-  logger.info(`[ragPgvector] search hits=${results.length} guestLike=${guestLike} aud=${aud.join(',')} hint=${ctx?.ragHint || ''}`);
+  const vectorHits = (rows || []).map((row) => mapSearchRow(row, ctx, guestLike)).filter(Boolean);
+  const lexicalHits = searchMethod === 'semantic'
+    ? []
+    : await searchFaqLexical({
+      userQuery: q,
+      tableIds,
+      ctx,
+      limit: Math.max(8, Math.min(Number(limit) || 15, 20))
+    });
+  const results = mergeSearchHits(vectorHits, lexicalHits, hybridWeights);
+
+  logger.info(`[ragPgvector] search hits=${results.length} method=${searchMethod} guestLike=${guestLike} aud=${aud.join(',')} hint=${ctx?.ragHint || ''}`);
   return { results };
 }
 
@@ -828,6 +967,7 @@ module.exports = {
   removeFaqRows,
   search,
   searchUnfiltered,
+  mergeSearchHits,
   collectFaqChunks,
   health
 };

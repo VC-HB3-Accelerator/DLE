@@ -241,6 +241,7 @@ dle-template.tar.gz.join.sh
 
 # Локальные скрипты разработки
 sync-to-vds.sh
+sync-ai-to-vds.sh
 push-to-mirrors.sh
 
 # Версия инстанса пишется setup.sh / update.sh (не в git)

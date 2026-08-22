@@ -254,20 +254,35 @@ async function embedTextsOllama(texts, runtime) {
   const ollama = ollamaConfig();
   const ollamaUrl = ollama.getBaseUrl();
   const timeouts = ollama.getTimeouts();
-  const timeoutMs = timeouts.ollamaEmbedding || 120000;
-  const batchSize = Math.min(runtime.batchSize || 8, 32);
+  const timeoutMs = Math.max(timeouts.ollamaEmbedding || 0, 300000);
+  const batchSize = Math.min(runtime.batchSize || 4, 8);
   const vectors = [];
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize);
-    const res = await axios.post(`${ollamaUrl}/api/embed`, {
-      model: runtime.model,
-      input: batch
-    }, { timeout: timeoutMs });
-    const part = res.data?.embeddings || res.data?.embedding || [];
-    if (!Array.isArray(part) || part.length !== batch.length) {
-      throw new Error('Ollama /api/embed вернул пустые embeddings');
+
+  async function embedBatch(batch) {
+    try {
+      const res = await axios.post(`${ollamaUrl}/api/embed`, {
+        model: runtime.model,
+        input: batch
+      }, { timeout: timeoutMs });
+      const part = res.data?.embeddings || res.data?.embedding || [];
+      if (!Array.isArray(part) || part.length !== batch.length) {
+        throw new Error('Ollama /api/embed вернул пустые embeddings');
+      }
+      return part;
+    } catch (err) {
+      const timedOut = /timeout/i.test(String(err.message || '')) || err.code === 'ECONNABORTED';
+      if (timedOut && batch.length > 1) {
+        const mid = Math.ceil(batch.length / 2);
+        const left = await embedBatch(batch.slice(0, mid));
+        const right = await embedBatch(batch.slice(mid));
+        return [...left, ...right];
+      }
+      throw err;
     }
-    vectors.push(...part);
+  }
+
+  for (let i = 0; i < texts.length; i += batchSize) {
+    vectors.push(...await embedBatch(texts.slice(i, i + batchSize)));
   }
   return vectors;
 }
@@ -276,7 +291,7 @@ async function embedTextsCloud(texts, runtime, deps = {}) {
   const client = deps.createClient
     ? await deps.createClient(runtime.provider)
     : await createCloudEmbedClient(runtime.provider);
-  const timeoutMs = 120000;
+  const timeoutMs = 180000;
   const providerCap = runtime.provider === 'qwencloud' ? 10 : 16;
   const batchSize = Math.min(runtime.batchSize || 8, providerCap);
   const vectors = [];

@@ -1,21 +1,29 @@
 **English** | [Русский](../legal.ru/CONTRIBUTING.md)
 
-# Contributor Guidelines
+# Repository contribution guidelines
+
+These rules cover **source-code contributions**. They do not make the submitter
+ an authorized country contributor and do not grant a right to sell licenses.
+
+**Authorized contributor** (joint local legal entity, license sales, modification
+ for customers) is a separate model agreement:
+ [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md).
 
 ## Licensing
 
-**Code development (CONTRIBUTING):** by submitting changes to the repository you
+**Code development (this file):** by submitting changes to the repository you
  agree to the **Proprietary Software License**; rights in the contribution are
  assigned to the project Author (see below).
 
 **Commercial activity (license sales, modification for customers):**
  is governed separately — [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md).
  Without accepting CONTRIBUTOR_LICENSE, selling licenses and modifying code for
- third parties is **not permitted**.
+ third parties is **not permitted**. A repository contribution does not replace
+ that agreement.
 
 ## Copyright
 
-All contributors must:
+Everyone who submits code to the repository must:
 - Include their name in commits
 - Agree to assign rights in the code to the project Author
 - Not infringe third-party copyrights

@@ -145,7 +145,7 @@
         </div>
         <div class="step">
           <strong>{{ t('ai.ollama.step3') }}</strong>
-          <code>ollama pull qwen2.5:1.5b</code>
+          <code>ollama pull qwen2.5:7b</code>
         </div>
         <div class="step">
           <strong>{{ t('ai.ollama.step4') }}</strong>
@@ -190,7 +190,7 @@ function extractErrorMessage(error) {
 }
 
 const popularModels = [
-  'qwen2.5:1.5b',
+  'qwen2.5:7b',
   'llama2:7b',
   'mistral:7b',
   'codellama:7b',

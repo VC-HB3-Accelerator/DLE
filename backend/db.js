@@ -81,14 +81,19 @@ process.on('SIGTERM', async () => {
 
 // console.log('Пул создан:', pool.options || pool); // Убрано избыточное логирование
 
-// Проверяем подключение к базе данных
-pool.query('SELECT NOW()')
-  .then(res => {
-    // console.log('Успешное подключение к базе данных:', res.rows[0]); // Убрано избыточное логирование
-  })
-  .catch(err => {
-    console.error('Ошибка подключения к базе данных:', err);
-  });
+function isMochaProcess() {
+  return process.argv.some((arg) => String(arg).includes('mocha'));
+}
+
+if (!isMochaProcess()) {
+  pool.query('SELECT NOW()')
+    .then(res => {
+      // console.log('Успешное подключение к базе данных:', res.rows[0]); // Убрано избыточное логирование
+    })
+    .catch(err => {
+      console.error('Ошибка подключения к базе данных:', err);
+    });
+}
 
 function getPool() {
   return pool;
@@ -232,8 +237,11 @@ async function waitForOllamaModel(modelName) {
 }
 
 async function seedAIAssistantSettings() {
-  const modelName = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
-  await waitForOllamaModel(modelName);
+  const { resolveOllamaChatModel } = require('./utils/ollamaChatDefaults');
+  const modelName = resolveOllamaChatModel(process.env.OLLAMA_MODEL);
+  if (modelName) {
+    await waitForOllamaModel(modelName);
+  }
   const res = await pool.query('SELECT COUNT(*) FROM ai_assistant_settings');
   if (parseInt(res.rows[0].count, 10) === 0) {
     // Получаем ключ шифрования
@@ -259,4 +267,4 @@ async function seedAIAssistantSettings() {
 }
 
 // Экспортируем функции для работы с базой данных
-module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback, initDbPool, seedAIAssistantSettings };
+module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback, initDbPool, seedAIAssistantSettings, isMochaProcess };

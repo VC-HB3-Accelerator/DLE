@@ -18,6 +18,7 @@ const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const universalMediaProcessor = require('./UniversalMediaProcessor');
 const emailBounceService = require('./emailBounceService');
+const { shouldSkipNoReplyEmail } = require('../utils/emailNoReplyFilter');
 
 /**
  * EmailBot - обработчик Email сообщений
@@ -35,6 +36,7 @@ class EmailBot {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
     this.periodicCheckInterval = null;
+    this.ignoredFromEmails = new Set();
   }
 
   /**
@@ -52,6 +54,8 @@ class EmailBot {
         this.status = 'not_configured';
         return { success: false, reason: 'not_configured' };
       }
+
+      await this.refreshIgnoredFromEmails();
 
       // Создаем SMTP транспортер
       this.transporter = await this.createTransporter();
@@ -102,6 +106,49 @@ class EmailBot {
       logger.error('[EmailBot] Ошибка загрузки настроек:', error);
       throw error;
     }
+  }
+
+  static normalizeMailboxEmail(value) {
+    const s = String(value || '').trim().toLowerCase();
+    if (!s.includes('@')) return null;
+    return s;
+  }
+
+  /**
+   * Адреса ящиков рассылки / поддержки: входящие с них не кормим в ИИ
+   * (копии исходящих, автоответы на from_email, петля IMAP).
+   */
+  async refreshIgnoredFromEmails() {
+    const own = new Set();
+    const add = (value) => {
+      const email = EmailBot.normalizeMailboxEmail(value);
+      if (email) own.add(email);
+    };
+    if (this.settings) {
+      add(this.settings.from_email);
+      add(this.settings.smtp_user);
+      add(this.settings.imap_user);
+    }
+    try {
+      const rows = await encryptedDb.getData('email_settings', {}, 1000, 'id ASC');
+      for (const row of rows || []) {
+        add(row.from_email);
+        add(row.smtp_user);
+        add(row.imap_user);
+      }
+    } catch (err) {
+      logger.warn(`[EmailBot] Не удалось прочитать email_settings для фильтра From: ${err.message}`);
+    }
+    this.ignoredFromEmails = own;
+    if (own.size) {
+      logger.info(`[EmailBot] Фильтр From рассылки/поддержки: ${[...own].join(', ')}`);
+    }
+  }
+
+  isIgnoredSupportMailbox(fromEmail) {
+    const email = EmailBot.normalizeMailboxEmail(fromEmail);
+    if (!email) return true;
+    return this.ignoredFromEmails.has(email);
   }
 
   /**
@@ -290,6 +337,9 @@ class EmailBot {
   checkEmails() {
     try {
       logger.info('[EmailBot] Проверка входящих писем...');
+      this.refreshIgnoredFromEmails().catch((err) => {
+        logger.warn(`[EmailBot] refreshIgnoredFromEmails: ${err.message}`);
+      });
       this.imap.openBox('INBOX', false, (err, box) => {
         if (err) {
           logger.error('[EmailBot] Ошибка открытия INBOX:', err);
@@ -483,6 +533,17 @@ class EmailBot {
       );
       
       if (isSystemEmail || !fromEmail || !fromEmail.includes('@')) {
+        return null;
+      }
+
+      if (this.isIgnoredSupportMailbox(fromEmail)) {
+        logger.info(`[EmailBot] Письмо от адреса рассылки/поддержки пропущено: ${fromEmail}`);
+        return null;
+      }
+
+      const noReply = shouldSkipNoReplyEmail(parsed);
+      if (noReply.skip) {
+        logger.info(`[EmailBot] Письмо без ответа (${noReply.reason}) от ${fromEmail}: ${String(subject).slice(0, 80)}`);
         return null;
       }
 

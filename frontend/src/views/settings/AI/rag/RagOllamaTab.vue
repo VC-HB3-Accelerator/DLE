@@ -15,7 +15,7 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">{{ $t('settings.ai.assistant.llmModelDefault') }}</label>
-          <input type="text" v-model="local.llmModel" class="form-control" placeholder="qwen2.5:1.5b" />
+          <input type="text" v-model="local.llmModel" class="form-control" placeholder="qwen2.5:7b" />
         </div>
         <div class="form-group">
           <label class="form-label">{{ $t('settings.ai.assistant.embeddingModelDefault') }}</label>
@@ -51,7 +51,7 @@ const emit = defineEmits(['save']);
 
 const local = reactive({
   baseUrl: 'http://ollama:11434',
-  llmModel: 'qwen2.5:1.5b',
+  llmModel: '',
   embeddingModel: 'mxbai-embed-large:latest'
 });
 

@@ -23,7 +23,7 @@
 
 **Авторские права и лицензии:**
 - [AUTHORS.md](AUTHORS.md) — информация об авторах
-- [CONTRIBUTING.md](CONTRIBUTING.md) — правила для контрибьюторов
+- [CONTRIBUTING.md](CONTRIBUTING.md) — правила вклада в репозиторий исходного кода (не статус авторизованного контрибьютора)
 - [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) — лицензия авторизованного контрибьютора (продажа, роялти, модификация)
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — шаблоны копирайтов
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — лицензии сторонних npm/Python-пакетов
@@ -39,7 +39,7 @@
 | Файл | Назначение |
 |------|------------|
 | [AUTHORS.md](AUTHORS.md) | Сведения об авторах и контактная информация |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Правила участия для контрибьюторов проекта |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Правила вклада в репозиторий; не заменяет договор авторизованного контрибьютора |
 | [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Модельный договор Автор ↔ Контрибьютор |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Шаблоны уведомлений об авторских правах |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Лицензии сторонних npm- и Python-зависимостей |

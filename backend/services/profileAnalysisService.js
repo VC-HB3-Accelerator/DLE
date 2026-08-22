@@ -53,9 +53,15 @@ async function extractName(message) {
     }
 
     let llmModel = await ollamaConfig.getDefaultModelAsync();
-    // На части VDS в БД ещё лежит короткий тег «qwen2.5» без размера — нормализуем
-    if (!llmModel || llmModel === 'qwen2.5' || !String(llmModel).includes(':')) {
-      llmModel = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
+    const { resolveOllamaChatModel } = require('../utils/ollamaChatDefaults');
+    llmModel = resolveOllamaChatModel(llmModel);
+    if (!llmModel) {
+      logger.info('[ProfileAnalysis] Нет локальной чат-модели Ollama — имя только эвристикой');
+      return {
+        name: heuristicName || null,
+        should_update_name: Boolean(heuristicName),
+        confidence: heuristicName ? 0.7 : 0
+      };
     }
     const timeouts = await aiConfigService.getTimeouts();
     const nameExtractionTimeout = Math.min(timeouts.ollamaChat || 60000, 45000);

@@ -36,7 +36,9 @@ export function useChat(auth) {
   const messages = ref([]);
   const newMessage = ref('');
   const attachments = ref([]); // Теперь это массив File объектов
-  const userLanguage = ref('ru');
+  const userLanguage = computed(() => (
+    String(i18n.global.locale?.value || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en'
+  ));
   const isLoading = ref(false); // Общая загрузка (например, при отправке)
   const hasUserSentMessage = ref(getFromStorage('hasUserSentMessage') === true);
 

@@ -767,32 +767,7 @@ async function generateLLMResponse({
       date
     }, 'generateLLMResponse');
     
-    // Одна «память» в промпте: либо долговременная из БД, либо краткий срез history.
-    // Не дублируем оба блока — экономим токены на CPU-моделях.
-    const { assembleGenerateUserPrompt } = require('./ragPromptAssembly');
-    let snippetLimit = 300;
-    try {
-      const dialog = await aiConfigService.getDialogSettings();
-      if (dialog && Number(dialog.ragSnippetLength) > 0) snippetLimit = Number(dialog.ragSnippetLength);
-    } catch (_) {}
-
-    let prompt = assembleGenerateUserPrompt({
-      userQuestion,
-      answer,
-      context,
-      product,
-      priority,
-      date,
-      userTags,
-      multiSourceResults,
-      conversationMemory,
-      history,
-      snippetLimit,
-      generateIfNoRag: Boolean(generateIfNoRag),
-      allowAsk: Boolean(allowAsk)
-    });
-
-    // --- ДОБАВЛЕНО: подстановка плейсхолдеров ---
+    // Системный слой (правила, поведение, профиль) — до сборки RAG, чтобы бюджет окна модели считался честно.
     let finalSystemPrompt = systemPrompt;
     if (systemPrompt && systemPrompt.includes('{')) {
       // Подставляем плейсхолдеры таблиц (переменные для ИИ)
@@ -897,8 +872,43 @@ async function generateLLMResponse({
       }
     }
 
+    const { assembleGenerateUserPrompt, DEFAULT_PROMPT_SOURCES } = require('./ragPromptAssembly');
+    const { ragInputBudgetChars } = require('../utils/modelContextBudget');
+    const llmParametersForBudget = await aiConfigService.getLLMParameters();
+    const ollamaForBudget = await ollamaConfig.getConfigAsync();
+    const modelForBudget = model || ollamaForBudget.defaultModel;
+    let historyTurnsForBudget = 4;
+    try {
+      const dialog = await aiConfigService.getDialogSettings();
+      if (dialog && Number(dialog.historyTurns) > 0) historyTurnsForBudget = Number(dialog.historyTurns);
+    } catch (_) {}
+    const historySlice = Array.isArray(history) ? history.slice(-historyTurnsForBudget) : [];
+    const historyChars = historySlice.reduce((n, h) => n + String(h?.content || '').length, 0);
+    const maxPromptChars = ragInputBudgetChars({
+      model: modelForBudget,
+      outputTokens: llmParametersForBudget.maxTokens,
+      usedChars: String(finalSystemPrompt || '').length + historyChars
+    });
+    const hitCount = Array.isArray(multiSourceResults?.results) ? multiSourceResults.results.length : 0;
+    let prompt = assembleGenerateUserPrompt({
+      userQuestion,
+      answer,
+      context,
+      product,
+      priority,
+      date,
+      userTags,
+      multiSourceResults,
+      conversationMemory,
+      history,
+      snippetLimit: 0,
+      sourceLimit: hitCount || DEFAULT_PROMPT_SOURCES,
+      maxPromptChars,
+      generateIfNoRag: Boolean(generateIfNoRag),
+      allowAsk: Boolean(allowAsk)
+    });
+
     // Системный промпт полностью настраивается пользователем в /settings/ai/assistant
-    // RAG ответ уже добавлен в prompt выше
 
     console.log(`[RAG] Сформированный промпт:`, prompt.substring(0, 200) + '...');
 

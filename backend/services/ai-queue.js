@@ -50,7 +50,9 @@ class AIQueue extends EventEmitter {
       lastProcessedAt: null,
       initializedAt: Date.now()
     };
-    this._reloadFromConfig().catch(() => {});
+    if (!require('../db').isMochaProcess()) {
+      this._reloadFromConfig().catch(() => {});
+    }
     if (typeof aiConfigService.onChange === 'function') {
       aiConfigService.onChange(() => { this._reloadFromConfig().catch(() => {}); });
     }

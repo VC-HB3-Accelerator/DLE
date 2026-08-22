@@ -13,11 +13,11 @@
         </div>
         <div class="form-group">
           <label class="form-label">{{ $t('settings.ai.rag.ragSnippetLength') }}</label>
-          <input type="number" v-model.number="dialog.ragSnippetLength" class="form-control form-control--narrow" min="50" max="2000" />
+          <input type="number" v-model.number="dialog.ragSnippetLength" class="form-control form-control--narrow" min="0" max="8000" />
         </div>
         <div class="form-group">
           <label class="form-label">{{ $t('settings.ai.rag.docSnippetLength') }}</label>
-          <input type="number" v-model.number="dialog.docSnippetLength" class="form-control form-control--narrow" min="50" max="2000" />
+          <input type="number" v-model.number="dialog.docSnippetLength" class="form-control form-control--narrow" min="0" max="8000" />
         </div>
         <div class="form-group">
           <label class="form-label">{{ $t('settings.ai.rag.memoryMaxChars') }}</label>
@@ -74,8 +74,8 @@ const emit = defineEmits(['save']);
 
 const dialog = reactive({
   historyTurns: 4,
-  ragSnippetLength: 300,
-  docSnippetLength: 350,
+  ragSnippetLength: 1200,
+  docSnippetLength: 1200,
   memoryMaxChars: 900,
   compressEvery: 4,
   minCyrillicPercent: 10,

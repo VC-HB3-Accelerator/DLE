@@ -179,12 +179,12 @@ let pollTimer = null;
 
 const recommendedModels = computed(() => ([
   {
-    name: 'qwen2.5:1.5b',
-    ram: t('contacts.broadcast.agent.models.ram15'),
-    speed: t('contacts.broadcast.agent.models.speedFast'),
-    russian: t('contacts.broadcast.agent.models.russianGood'),
-    description: t('contacts.broadcast.agent.models.desc15'),
-    libraryUrl: 'https://ollama.com/library/qwen2.5:1.5b'
+    name: 'qwen2.5:7b',
+    ram: t('contacts.broadcast.agent.models.ram3'),
+    speed: t('contacts.broadcast.agent.models.speedMedium'),
+    russian: t('contacts.broadcast.agent.models.russianBetter'),
+    description: t('contacts.broadcast.agent.models.desc3'),
+    libraryUrl: 'https://ollama.com/library/qwen2.5:7b'
   },
   {
     name: 'qwen2.5:3b',

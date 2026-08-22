@@ -9,7 +9,7 @@ const ollamaMemoryService = require('../services/ollamaMemoryService');
 
 /**
  * Проверяет, загружена ли модель в память через /api/ps
- * @param {string} modelName - название модели (например: qwen2.5:1.5b)
+ * @param {string} modelName - название модели (например: qwen2.5:7b)
  * @returns {Promise<boolean>} true если модель в памяти
  */
 async function isModelLoaded(modelName) {

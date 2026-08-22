@@ -34,7 +34,7 @@ setAppLocale(initialLocale);
 
 app.use(i18n);
 app.use(router);
-app.use(ElementPlus, { locale: elementPlusLocales[initialLocale] || elementPlusLocales.ru });
+app.use(ElementPlus, { locale: elementPlusLocales[initialLocale] || elementPlusLocales.en });
 
 // Не используем заглушки, так как сервер работает
 // if (import.meta.env.DEV) {

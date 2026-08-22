@@ -438,7 +438,7 @@ const emailList = ref([]);
 const llmModels = ref([]);
 const embeddingModels = ref([]);
 const ollamaConfig = ref({
-  llmModel: 'qwen2.5:1.5b',
+  llmModel: '',
   embeddingModel: 'mxbai-embed-large:latest'
 });
 const placeholders = ref([]);

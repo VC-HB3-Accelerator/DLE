@@ -134,6 +134,8 @@ onUnmounted(() => {
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .contact-details-content:has(.contact-chat-panel) {

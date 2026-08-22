@@ -193,8 +193,12 @@ async function compressViaQueue(memoryKey, currentSummary, expectedTurnCount) {
   const aiQueue = require('./ai-queue');
   const { PRIORITY } = require('./ai-queue');
   let model = await ollamaConfig.getDefaultModelAsync();
-  if (!model || model === 'qwen2.5' || !String(model).includes(':')) {
-    model = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
+  const { resolveOllamaChatModel } = require('../utils/ollamaChatDefaults');
+  model = resolveOllamaChatModel(model);
+  if (!model) {
+    logger.info('[conversationMemory] Нет локальной чат-модели Ollama — сжатие пропущено');
+    compressingKeys.delete(memoryKey);
+    return null;
   }
 
   const { maxChars } = await getMemoryLimits();

@@ -34,7 +34,7 @@ async function checkOllamaModels() {
 
       console.log('\nДля использования конкретной модели, укажите ее в .env файле:');
       console.log('OLLAMA_EMBEDDINGS_MODEL=mxbai-embed-large:latest');
-      console.log('OLLAMA_MODEL=qwen2.5:1.5b');
+      console.log('OLLAMA_MODEL=qwen2.5:7b');
     } else {
       console.log('Не удалось получить список моделей');
     }

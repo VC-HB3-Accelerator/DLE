@@ -23,8 +23,8 @@ const DEFAULT_AUTH_METHODS = {
   password: false,
 };
 
-/** Поддерживаемые языки UI (порядок отображения). */
-const KNOWN_LOCALES = ['ru', 'en'];
+/** Поддерживаемые языки UI (порядок отображения: первый — по умолчанию). */
+const KNOWN_LOCALES = ['en', 'ru'];
 const DEFAULT_LOCALES = [...KNOWN_LOCALES];
 
 function normalizeButtons(raw) {
@@ -68,7 +68,7 @@ function normalizeLocales(raw) {
     }
   }
 
-  return out.length ? out : ['ru'];
+  return out.length ? out : ['en'];
 }
 
 async function getGiteaStatus() {
