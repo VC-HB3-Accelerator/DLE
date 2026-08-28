@@ -29,6 +29,22 @@
           {{ t('common.loading') }}
         </div>
       </div>
+      <div v-if="dleAddress" class="voting-chain-hub">
+        <VotingChainSelect
+          v-model="votingChain"
+          :chains="votingChains"
+          :is-loading="isLoadingVotingChains"
+          :label="t('smartcontracts.analytics.networkLabel')"
+          :placeholder="t('smartcontracts.analytics.networkPlaceholder')"
+          :hint="t('smartcontracts.analytics.networkHint')"
+          select-id="analyticsChain"
+        />
+        <p class="voting-chain-hub__note">{{ t('smartcontracts.analytics.networkNote') }}</p>
+      </div>
+      <div v-if="!hasVotingChain" class="select-network-first">
+        <p>{{ t('smartcontracts.analytics.selectNetworkFirst') }}</p>
+      </div>
+      <template v-else>
       <div class="info-section">
         <h2>{{ t('smartcontracts.analytics.basicInfo') }}</h2>
         <div class="info-grid">
@@ -79,6 +95,52 @@
             <h3>{{ t('smartcontracts.analytics.topHolder') }}</h3>
             <p class="tokenomics-value">{{ tokenomics.topHolderPercentage }}%</p>
             <p class="tokenomics-label">{{ formatAddress(tokenomics.topHolderAddress) }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Казна -->
+      <div class="treasury-section">
+        <h2>{{ t('smartcontracts.analytics.treasuryTitle') }}</h2>
+        <div v-if="treasuryHoldings.length === 0" class="treasury-card">
+          <p class="no-modules">{{ t('smartcontracts.analytics.treasuryEmpty') }}</p>
+        </div>
+        <div v-else class="treasury-chains">
+          <div
+            v-for="chain in treasuryHoldings"
+            :key="chain.chainId"
+            class="treasury-card"
+          >
+            <h3>{{ chain.networkName || getChainName(chain.chainId) }}</h3>
+            <p v-if="chain.treasuryAddress" class="treasury-addr">{{ chain.treasuryAddress }}</p>
+            <p v-if="chain.error" class="treasury-error">{{ chain.error }}</p>
+            <div v-else-if="!chain.tokens?.length" class="no-modules">
+              {{ t('smartcontracts.analytics.treasuryNoTokens') }}
+            </div>
+            <div v-else class="treasury-table-wrap">
+            <table class="treasury-table">
+              <thead>
+                <tr>
+                  <th>{{ t('smartcontracts.analytics.treasurySymbol') }}</th>
+                  <th>{{ t('smartcontracts.analytics.treasuryType') }}</th>
+                  <th>{{ t('smartcontracts.analytics.treasuryBalance') }}</th>
+                  <th>{{ t('smartcontracts.analytics.treasuryTokenAddress') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="tok in chain.tokens" :key="`${chain.chainId}-${tok.address}`">
+                  <td>{{ tok.symbol || '—' }}</td>
+                  <td>{{ tok.type === 'native'
+                    ? t('smartcontracts.analytics.treasuryTypeNative')
+                    : t('smartcontracts.analytics.treasuryTypeErc20') }}</td>
+                  <td>{{ tok.balanceHuman }}</td>
+                  <td class="treasury-token-addr">{{ tok.isNative || tok.address === '0x0000000000000000000000000000000000000000'
+                    ? t('smartcontracts.analytics.treasuryNativeAddress')
+                    : formatAddress(tok.address) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
           </div>
         </div>
       </div>
@@ -223,16 +285,19 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, onMounted } from 'vue';
+import { ref, defineProps, defineEmits, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import VotingChainSelect from '@/components/VotingChainSelect.vue';
+import { useVotingChains } from '@/composables/useVotingChains.js';
 import api from '../../api/axios';
 
 const { t, locale } = useI18n();
@@ -253,6 +318,44 @@ const route = useRoute();
 
 // Получаем адрес DLE из URL параметров
 const dleAddress = ref(route.query.address || '');
+
+const {
+  chains: votingChains,
+  votingChain,
+  isLoading: isLoadingVotingChains,
+  hasVotingChain,
+} = useVotingChains(dleAddress);
+
+function selectedChainId() {
+  const n = Number(votingChain.value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function withChain(extra = {}) {
+  const body = { dleAddress: dleAddress.value, ...extra };
+  const cid = selectedChainId();
+  if (cid) body.chainId = cid;
+  return body;
+}
+
+function persistChainQuery() {
+  const cid = selectedChainId();
+  if (!cid) return;
+  if (String(route.query.votingChain || '') === String(cid)) return;
+  router.replace({
+    query: {
+      ...route.query,
+      address: dleAddress.value,
+      votingChain: String(cid),
+    },
+  });
+}
+
+function proposalsForSelectedChain(proposals) {
+  const cid = selectedChainId();
+  if (!cid) return proposals || [];
+  return (proposals || []).filter((p) => Number(p.chainId) === cid);
+}
 
 // Функция возврата к блокам управления
 const goBackToBlocks = () => {
@@ -299,21 +402,19 @@ const multichain = ref({
 });
 
 const topHolders = ref([]);
+const treasuryHoldings = ref([]);
 
 // Загрузка данных DLE
 async function loadDleData() {
   try {
     isLoadingDle.value = true;
     
-    if (!dleAddress.value) {
-      console.error('Адрес DLE не указан');
+    if (!dleAddress.value || !selectedChainId()) {
       return;
     }
 
     // Читаем данные из блокчейна
-    const response = await api.post('/blockchain/read-dle-info', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/blockchain/read-dle-info', withChain());
     
     if (response.data.success) {
       selectedDle.value = response.data.data;
@@ -325,7 +426,8 @@ async function loadDleData() {
         loadProposalsStats(),
         loadModules(),
         loadMultichain(),
-        loadTopHolders()
+        loadTopHolders(),
+        loadTreasuryHoldings(),
       ]);
     } else {
       console.error('[AnalyticsView] Ошибка загрузки DLE:', response.data.error);
@@ -340,18 +442,15 @@ async function loadDleData() {
 // Загрузка токеномики
 async function loadTokenomics() {
   try {
-    const response = await api.post('/dle-tokens/get-total-supply', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/dle-tokens/get-total-supply', withChain());
     
     if (response.data.success) {
       tokenomics.value.totalSupply = response.data.data.totalSupply;
       
       // Получаем держателей токенов
-      const holdersResponse = await api.post('/dle-tokens/get-token-holders', {
-        dleAddress: dleAddress.value,
+      const holdersResponse = await api.post('/dle-tokens/get-token-holders', withChain({
         limit: 50
-      });
+      }));
       
       if (holdersResponse.data.success) {
         const holders = holdersResponse.data.data.holders;
@@ -372,33 +471,27 @@ async function loadTokenomics() {
 // Загрузка данных управления
 async function loadGovernance() {
   try {
-    const response = await api.post('/dle-core/get-governance-params', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/dle-core/get-governance-params', withChain());
     
     if (response.data.success) {
       const data = response.data.data;
       governance.value.quorumPercentage = data.quorumPct;
-      governance.value.currentChainId = data.chainId;
+      governance.value.currentChainId = selectedChainId() || data.chainId;
       governance.value.supportedChainsCount = data.supportedCount;
     }
     
     // Получаем количество предложений
-    const proposalsResponse = await api.post('/dle-proposals/get-proposals-count', {
-      dleAddress: dleAddress.value
-    });
+    const proposalsResponse = await api.post('/dle-proposals/get-proposals-count', withChain());
     
     if (proposalsResponse.data.success) {
       governance.value.totalProposals = proposalsResponse.data.data.count;
     }
     
     // Получаем статистику предложений
-    const listResponse = await api.post('/dle-proposals/get-proposals', {
-      dleAddress: dleAddress.value
-    });
+    const listResponse = await api.post('/dle-proposals/get-proposals', withChain());
     
     if (listResponse.data.success) {
-      const proposals = listResponse.data.data.proposals || [];
+      const proposals = proposalsForSelectedChain(listResponse.data.data.proposals);
       let executed = 0;
       let defeated = 0;
       
@@ -418,12 +511,10 @@ async function loadGovernance() {
 // Загрузка статистики предложений
 async function loadProposalsStats() {
   try {
-    const response = await api.post('/dle-proposals/get-proposals', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/dle-proposals/get-proposals', withChain());
     
     if (response.data.success) {
-      const proposals = response.data.data.proposals || [];
+      const proposals = proposalsForSelectedChain(response.data.data.proposals);
       const stats = {
         pending: 0,
         succeeded: 0,
@@ -487,9 +578,7 @@ async function loadProposalsStats() {
 // Загрузка модулей
 async function loadModules() {
   try {
-    const response = await api.post('/dle-modules/get-all-modules', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/dle-modules/get-all-modules', withChain());
     
     if (response.data.success) {
       modules.value = (response.data.data.modules || []).filter(
@@ -504,9 +593,7 @@ async function loadModules() {
 // Загрузка мульти-чейн данных
 async function loadMultichain() {
   try {
-    const response = await api.post('/dle-multichain/get-supported-chains', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/dle-multichain/get-supported-chains', withChain());
     
     if (response.data.success) {
       multichain.value.supportedChains = response.data.data.chains || [];
@@ -519,16 +606,51 @@ async function loadMultichain() {
 // Загрузка топ держателей
 async function loadTopHolders() {
   try {
-    const response = await api.post('/dle-tokens/get-token-holders', {
-      dleAddress: dleAddress.value,
+    const response = await api.post('/dle-tokens/get-token-holders', withChain({
       limit: 50
-    });
+    }));
     
     if (response.data.success) {
       topHolders.value = response.data.data.holders || [];
     }
   } catch (error) {
     console.error('[AnalyticsView] Ошибка загрузки топ держателей:', error);
+  }
+}
+
+async function loadTreasuryHoldings() {
+  const cid = selectedChainId();
+  if (!cid || !dleAddress.value) {
+    treasuryHoldings.value = [];
+    return;
+  }
+  try {
+    const response = await api.post('/dle-modules/get-treasury-holdings', withChain());
+    if (response.data.success) {
+      const chains = response.data.data.chains || [];
+      treasuryHoldings.value = cid
+        ? chains.filter((c) => Number(c.chainId) === cid)
+        : chains;
+      return;
+    }
+    treasuryHoldings.value = [{
+      chainId: cid,
+      networkName: getChainName(cid),
+      tokens: [],
+      error: response.data.error || t('smartcontracts.analytics.treasuryEmpty'),
+    }];
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки казны:', error);
+    const status = error.response?.status;
+    treasuryHoldings.value = [{
+      chainId: cid,
+      networkName: getChainName(cid),
+      treasuryAddress: null,
+      tokens: [],
+      error: status === 404
+        ? t('smartcontracts.analytics.treasuryBackendStale')
+        : (error.response?.data?.error || error.message || t('smartcontracts.analytics.treasuryEmpty')),
+    }];
   }
 }
 
@@ -565,8 +687,9 @@ const getChainName = (chainId) => {
 };
 
 // Загружаем данные при монтировании компонента
-onMounted(() => {
-  if (dleAddress.value) {
+watch(votingChain, (cid) => {
+  if (Number(cid) > 0) {
+    persistChainQuery();
     loadDleData();
   }
 });
@@ -581,6 +704,22 @@ onMounted(() => {
   border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
   margin-bottom: 20px;
+}
+
+.voting-chain-hub {
+  max-width: 520px;
+  margin: 0 0 1.5rem;
+}
+
+.voting-chain-hub__note {
+  margin: -8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-grey-dark, #555);
+}
+
+.select-network-first {
+  padding: 12px 0 24px;
+  color: var(--color-grey-dark, #555);
 }
 
 .close-btn {
@@ -609,6 +748,7 @@ onMounted(() => {
 
 .info-section,
 .tokenomics-section,
+.treasury-section,
 .governance-section,
 .proposals-section,
 .modules-section,
@@ -619,6 +759,7 @@ onMounted(() => {
 
 .info-section h2,
 .tokenomics-section h2,
+.treasury-section h2,
 .governance-section h2,
 .proposals-section h2,
 .modules-section h2,
@@ -638,6 +779,7 @@ onMounted(() => {
 
 .info-card,
 .tokenomics-card,
+.treasury-card,
 .governance-card,
 .proposals-card,
 .modules-card,
@@ -829,6 +971,58 @@ onMounted(() => {
   color: var(--color-dark, #333);
   min-width: 56px;
   text-align: right;
+}
+
+.treasury-chains {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.treasury-card h3 {
+  color: var(--color-dark, #333);
+  margin-bottom: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.treasury-addr {
+  font-size: 0.8rem;
+  color: var(--color-grey, #6c757d);
+  margin: 0 0 12px;
+  word-break: break-all;
+}
+
+.treasury-error {
+  color: var(--color-danger, #c0392b);
+  margin: 0;
+}
+
+.treasury-table-wrap {
+  overflow-x: auto;
+}
+
+.treasury-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.treasury-table th,
+.treasury-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-grey-light, #e9ecef);
+}
+
+.treasury-table th {
+  font-weight: 600;
+  color: var(--color-grey, #6c757d);
+}
+
+.treasury-token-addr {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
 }
 
 @media (max-width: 768px) {

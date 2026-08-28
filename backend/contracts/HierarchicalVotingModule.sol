@@ -161,7 +161,11 @@ contract HierarchicalVotingModule is ReentrancyGuard {
                 "Only DLE or initializer"
             );
         } else {
-            require(msg.sender == dleContract, "Only DLE contract can call this");
+            // Смена моста через governance: DLE → oldBridge.setModuleBridge → module
+            require(
+                msg.sender == dleContract || msg.sender == opsBridge,
+                "Only DLE or current ops bridge"
+            );
         }
         opsBridge = bridge;
         emit ModuleBridgeSet(bridge);
@@ -171,7 +175,13 @@ contract HierarchicalVotingModule is ReentrancyGuard {
         return opsBridge;
     }
 
-    function setTreasuryModule(address _treasuryModule) external onlyDLEOrInitializer {
+    function setTreasuryModule(address _treasuryModule) external {
+        require(
+            msg.sender == dleContract
+                || msg.sender == opsBridge
+                || msg.sender == IDLEHierarchy(dleContract).initializer(),
+            "Only DLE, bridge or initializer"
+        );
         require(_treasuryModule != address(0), "Treasury module cannot be zero");
         require(_treasuryModule.code.length > 0, "Treasury module contract does not exist");
         treasuryModule = _treasuryModule;
@@ -182,7 +192,13 @@ contract HierarchicalVotingModule is ReentrancyGuard {
         address dleAddress,
         string memory name,
         string memory symbol
-    ) external onlyDLEOrInitializer {
+    ) external {
+        require(
+            msg.sender == dleContract
+                || msg.sender == opsBridge
+                || msg.sender == IDLEHierarchy(dleContract).initializer(),
+            "Only DLE, bridge or initializer"
+        );
         require(dleAddress != address(0), "DLE address cannot be zero");
         require(!externalDLEs[dleAddress].isActive, "External DLE already added");
         require(bytes(name).length > 0, "Name cannot be empty");

@@ -18,61 +18,73 @@
   >
     <HubGrid>
       <HubCard
+        v-if="canAccessPath('/settings/ai/openai')"
         :title="t('settings.ai.openai.title')"
         :description="t('settings.ai.openai.description')"
         @open="goTo('/settings/ai/openai')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/deepseek')"
         :title="t('settings.ai.deepseek.title')"
         :description="t('settings.ai.deepseek.description')"
         @open="goTo('/settings/ai/deepseek')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/qwencloud')"
         :title="t('settings.ai.qwencloud.title')"
         :description="t('settings.ai.qwencloud.description')"
         @open="goTo('/settings/ai/qwencloud')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/vpn')"
         :title="t('settings.ai.vpn.title')"
         :description="t('settings.ai.vpn.cardDescription')"
         @open="goTo('/settings/ai/vpn')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/ollama')"
         :title="t('settings.ai.ollama.title')"
         :description="t('settings.ai.ollama.description')"
         @open="goTo('/settings/ai/ollama')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/telegram')"
         :title="t('settings.ai.telegram.title')"
         :description="t('settings.ai.telegram.description')"
         @open="goTo('/settings/ai/telegram')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/email')"
         :title="t('settings.ai.email.title')"
         :description="t('settings.ai.email.description')"
         @open="goTo('/settings/ai/email')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/database')"
         :title="t('settings.ai.database.title')"
         :description="t('settings.ai.database.description')"
         @open="goTo('/settings/ai/database')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/rag')"
         :title="t('settings.ai.rag.title')"
         :description="t('settings.ai.rag.description')"
         @open="goTo('/settings/ai/rag')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/security/roles')"
         :title="t('settings.ai.agentAccess.title')"
         :description="t('settings.ai.agentAccess.description')"
-        @open="goTo('/settings/ai/agent-access')"
+        @open="goTo('/settings/security/roles?tab=ai')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/voice-call')"
         :title="t('settings.ai.voiceCall.pageTitle')"
         :description="t('settings.ai.voiceCall.linkFromAssistantDesc')"
         @open="goTo('/settings/ai/voice-call')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/assistant')"
         :title="t('settings.ai.assistant.title')"
         :description="t('settings.ai.assistant.description')"
         @open="goTo('/settings/ai/assistant')"
@@ -98,6 +110,7 @@ import NoAccessModal from '@/components/NoAccessModal.vue';
 import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import HubGrid from '@/components/admin/HubGrid.vue';
 import HubCard from '@/components/admin/HubCard.vue';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -106,6 +119,7 @@ const { canManageSettings } = usePermissions();
 const showNoAccessModal = ref(false);
 
 onMounted(async () => {
+  await ensureScreenAccessLoaded();
   await checkAuth();
   if (isAuthenticated.value && address.value) {
     await checkUserAccessLevel(address.value);

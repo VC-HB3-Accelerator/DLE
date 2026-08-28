@@ -958,11 +958,23 @@ class AuthService {
       }
 
       // Добавляем новый идентификатор для пользователя
-      await encryptedDb.saveData('user_identities', {
-        user_id: userId,
-        provider: provider,
-        provider_id: normalizedProviderId
-      });
+      const identityService = require('./identity-service');
+      if (identityService.isMultiRowProvider(provider)) {
+        const added = await identityService.addContactIdentity(userId, provider, normalizedProviderId, {
+          makePrimary: false,
+          label: ''
+        });
+        if (!added.success) {
+          throw new Error(added.error || 'Failed to link identity');
+        }
+      } else {
+        await encryptedDb.saveData('user_identities', {
+          user_id: userId,
+          provider: provider,
+          provider_id: normalizedProviderId,
+          is_primary: true
+        });
+      }
 
       // Проверяем и обновляем роль администратора, если это идентификатор кошелька
       let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };

@@ -796,56 +796,12 @@ async function generateLLMResponse({
     }
 
     try {
-      const {
-        normalizeBehaviorSettings
-      } = require('./aiAssistantSettingsService');
-      const behavior = normalizeBehaviorSettings(behaviorSettings || {});
-      const behaviorLines = [
-        behavior.tone === 'warm'
-          ? 'Тон чата: тёплый и поддерживающий, но без фамильярности.'
-          : behavior.tone === 'neutral'
-            ? 'Тон чата: нейтральный и спокойный.'
-            : 'Тон чата: деловой, уважительный и собранный.',
-        behavior.response_length === 'short'
-          ? 'Длина ответа по умолчанию: коротко и по сути.'
-          : behavior.response_length === 'detailed'
-            ? 'Длина ответа по умолчанию: подробно, но структурированно и без воды.'
-            : 'Длина ответа по умолчанию: сбалансированно, сначала краткий ответ, затем детали при необходимости.',
-        behavior.formality === 'strict'
-          ? 'Формальность: строго профессиональная.'
-          : behavior.formality === 'soft'
-            ? 'Формальность: мягкая и вежливая.'
-            : 'Формальность: обычная деловая.',
-        behavior.adapt_to_user
-          ? 'Подстраивай сложность ответа под пользователя уважительно.'
-          : 'Сохраняй единый стабильный стиль ответа и не зеркаль манеру пользователя.',
-        behavior.explanation_level_default === 'plain'
-          ? 'Уровень объяснения по умолчанию: простой, без лишнего жаргона.'
-          : behavior.explanation_level_default === 'expert'
-            ? 'Уровень объяснения по умолчанию: экспертный, но понятный.'
-            : behavior.explanation_level_default === 'balanced'
-              ? 'Уровень объяснения по умолчанию: сбалансированный.'
-              : 'Уровень объяснения по умолчанию: автоматический, по уровню запроса пользователя.',
-        behavior.allow_gentle_rephrase_offer
-          ? 'Если видишь непонимание, можно мягко предложить объяснить проще или на примере.'
-          : '',
-        behavior.avoid_jargon_by_default
-          ? 'Избегай жаргона по умолчанию.'
-          : '',
-        behavior.quality_over_speed
-          ? 'Качество ответа важнее скорости. Если точных данных недостаточно, не выдумывай.'
-          : 'Старайся отвечать компактно без лишней паузы, но не выдумывай факты.',
-        behavior.fallback_if_not_confident === 'chat'
-          ? 'Если точного ответа нет, предложи продолжить общение в чате.'
-          : behavior.fallback_if_not_confident === 'staff'
-            ? 'Если точного ответа нет, предложи перевод на сотрудника.'
-            : 'Если точного ответа нет, предложи либо продолжить в чате, либо обратиться к сотруднику.',
-        behavior.forbid_vulgar_tone ? 'Вульгарный или грубый тон запрещён.' : '',
-        behavior.forbid_patronizing_tone ? 'Снисходительный тон запрещён.' : '',
-        behavior.forbid_slang_mirroring ? 'Не зеркаль сленг, ошибки или грубость пользователя.' : ''
-      ].filter(Boolean);
-      if (behaviorLines.length) {
-        const behaviorBlock = `Настройки поведения чата:\n${behaviorLines.join('\n')}`;
+      const { normalizeBehaviorSettings } = require('./aiAssistantSettingsService');
+      const { buildChatBehaviorPromptBlock } = require('./chatBehaviorPrompt');
+      const behaviorBlock = buildChatBehaviorPromptBlock(
+        normalizeBehaviorSettings(behaviorSettings || {})
+      );
+      if (behaviorBlock) {
         finalSystemPrompt = finalSystemPrompt
           ? `${finalSystemPrompt}\n\n${behaviorBlock}`
           : behaviorBlock;

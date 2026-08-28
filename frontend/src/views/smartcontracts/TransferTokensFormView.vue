@@ -149,19 +149,16 @@
             </small>
           </div>
 
-          <!-- Информация о мульти-чейн развертывании -->
-          <div v-if="dleInfo?.deployedNetworks && dleInfo.deployedNetworks.length > 1" class="multichain-info">
-            <span class="ui-fa-fallback" aria-hidden="true">ℹ</span>
-            <strong>{{ t('smartcontracts.transferTokens.multichainInfo', {
-              count: dleInfo.deployedNetworks.length,
-              networks: dleInfo.deployedNetworks.map(net => getChainName(net.chainId)).join(', ')
-            }) }}</strong>
-          </div>
+          <VotingChainSelect
+            v-model="votingChain"
+            :chains="votingChains"
+            :is-loading="isLoadingVotingChains"
+          />
 
           <!-- Кнопки -->
           <div class="form-actions">
 
-            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+            <button type="submit" class="btn-primary" :disabled="isSubmitting || !hasVotingChain">
               <span class="ui-fa-fallback" :class="{ 'ui-fa-fallback--spin': isSubmitting }" aria-hidden="true">➤</span>
               {{ isSubmitting ? t('smartcontracts.transferTokens.creating') : t('smartcontracts.transferTokens.createProposal') }}
             </button>
@@ -220,6 +217,8 @@ import api from '@/api/axios';
 import { ethers } from 'ethers';
 import { createProposal, switchToVotingNetwork } from '@/utils/dle-contract';
 import { useAuthContext } from '../../composables/useAuth';
+import VotingChainSelect from '@/components/VotingChainSelect.vue';
+import { useVotingChains } from '@/composables/useVotingChains.js';
 
 // Определяем props
 const props = defineProps({
@@ -240,13 +239,20 @@ const route = useRoute();
 const { address: currentUserAddress } = useAuthContext();
 
 // Реактивные данные
-const dleAddress = ref(route.query.address || '');
+const dleAddress = computed(() => route.query.address || '');
 const selectedDle = ref(null);
 const isLoadingDle = ref(false);
 const dleInfo = ref(null);
-const supportedChains = ref([]);
 const isSubmitting = ref(false);
 const proposalResult = ref(null);
+
+const {
+  chains: votingChains,
+  votingChain,
+  isLoading: isLoadingVotingChains,
+  hasVotingChain,
+  hubQuery,
+} = useVotingChains(dleAddress);
 
 // Форма
 const formData = ref({
@@ -255,7 +261,6 @@ const formData = ref({
   amount: null,
   description: '',
   votingDuration: '',
-  governanceChain: ''
 });
 
 // Загрузка информации о DLE
@@ -287,15 +292,6 @@ async function loadDleInfo() {
           ...foundDle,
           deployedNetworks: foundDle.deployedNetworks || []
         };
-
-        if (dleInfo.value.deployedNetworks && dleInfo.value.deployedNetworks.length > 0) {
-          supportedChains.value = dleInfo.value.deployedNetworks.map(net => ({
-            chainId: net.chainId,
-            name: getChainName(net.chainId)
-          }));
-        } else {
-          supportedChains.value = [];
-        }
       } else {
         const blockchainResponse = await api.post('/blockchain/read-dle-info', {
           dleAddress: dleAddress.value
@@ -473,85 +469,79 @@ async function submitForm() {
       throw new Error(t('smartcontracts.transferTokens.errors.votingDurationRequired'));
     }
 
-    if (!dleInfo.value?.deployedNetworks || dleInfo.value.deployedNetworks.length === 0) {
+    if (!hasVotingChain.value) {
+      throw new Error(t('smartcontracts.createProposal.votingChainRequired'));
+    }
+
+    const chainId = Number(votingChain.value);
+    const networkInfo = dleInfo.value?.deployedNetworks?.find((net) => Number(net.chainId) === chainId);
+    const contractAddress = networkInfo?.address || dleAddress.value;
+    if (!contractAddress) {
       throw new Error(t('smartcontracts.transferTokens.errors.noDeployedNetworks'));
     }
 
-    const allChains = dleInfo.value.deployedNetworks.map(net => net.chainId);
-
-    if (allChains.length === 0) {
-      throw new Error(t('smartcontracts.transferTokens.errors.noChains'));
-    }
-
     const results = [];
-    
-    for (let index = 0; index < allChains.length; index++) {
-      const chainId = allChains[index];
 
-      try {
-        const networkSwitched = await switchToVotingNetwork(chainId);
-        
-        if (!networkSwitched) {
-          throw new Error(t('smartcontracts.transferTokens.errors.networkSwitchFailed', { chainId }));
-        }
+    try {
+      const networkSwitched = await switchToVotingNetwork(chainId);
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        const senderAddress = await signer.getAddress();
-
-        if (senderAddress.toLowerCase() !== formData.value.sender.toLowerCase()) {
-          throw new Error(t('smartcontracts.transferTokens.errors.signerMismatch', {
-            signer: senderAddress,
-            sender: formData.value.sender
-          }));
-        }
-
-        const transferCallData = encodeTransferTokensCall(
-          senderAddress,
-          formData.value.recipient,
-          formData.value.amount
-        );
-
-        const proposalData = {
-          description: formData.value.description,
-          duration: parseInt(formData.value.votingDuration),
-          operation: transferCallData,
-          targetChains: [chainId],
-          timelockDelay: 0
-        };
-
-        const networkInfo = dleInfo.value?.deployedNetworks?.find(net => net.chainId === chainId);
-        const contractAddress = networkInfo?.address || dleAddress.value;
-        
-        const result = await retryWithBackoff(
-          async () => createProposal(contractAddress, proposalData),
-          3,
-          2000
-        );
-
-        if (result.success && result.txHash) {
-          const delay = chainId === 84532 ? 5000 : 3000;
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-
-        results.push({
-          chainId,
-          success: result.success,
-          proposalId: result.proposalId,
-          txHash: result.txHash,
-          error: result.error,
-          contractAddress
-        });
-      } catch (error) {
-        results.push({
-          chainId,
-          success: false,
-          error: error.message || t('common.unknownError'),
-          contractAddress: dleInfo.value?.deployedNetworks?.find(net => net.chainId === chainId)?.address || dleAddress.value
-        });
+      if (!networkSwitched) {
+        throw new Error(t('smartcontracts.transferTokens.errors.networkSwitchFailed', { chainId }));
       }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const senderAddress = await signer.getAddress();
+
+      if (senderAddress.toLowerCase() !== formData.value.sender.toLowerCase()) {
+        throw new Error(t('smartcontracts.transferTokens.errors.signerMismatch', {
+          signer: senderAddress,
+          sender: formData.value.sender
+        }));
+      }
+
+      const transferCallData = encodeTransferTokensCall(
+        senderAddress,
+        formData.value.recipient,
+        formData.value.amount
+      );
+
+      const proposalData = {
+        description: formData.value.description,
+        duration: parseInt(formData.value.votingDuration),
+        operation: transferCallData,
+        targetChains: [chainId],
+        timelockDelay: 0
+      };
+
+      const result = await retryWithBackoff(
+        async () => createProposal(contractAddress, proposalData),
+        3,
+        2000
+      );
+
+      if (result.success && result.txHash) {
+        const delay = chainId === 84532 ? 5000 : 3000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+
+      results.push({
+        chainId,
+        success: result.success,
+        proposalId: result.proposalId,
+        txHash: result.txHash,
+        error: result.error,
+        contractAddress
+      });
+    } catch (error) {
+      results.push({
+        chainId,
+        success: false,
+        error: error.message || t('common.unknownError'),
+        contractAddress
+      });
     }
 
     const successful = results.filter(r => r.success);
@@ -562,7 +552,7 @@ async function submitForm() {
         success: true,
         message: t('smartcontracts.transferTokens.successMessage', {
           success: successful.length,
-          total: allChains.length
+          total: results.length
         }),
         results,
         successfulChains: successful,
@@ -578,7 +568,6 @@ async function submitForm() {
           amount: null,
           description: '',
           votingDuration: '',
-          governanceChain: ''
         };
       }
     } else {
@@ -597,11 +586,10 @@ async function submitForm() {
 
 // Навигация
 function goBackToProposals() {
-  if (dleAddress.value) {
-    router.push(`/management/create-proposal?address=${dleAddress.value}`);
-  } else {
-    router.push('/management/create-proposal');
-  }
+  router.push({
+    path: '/management/create-proposal',
+    query: hubQuery(),
+  });
 }
 
 // Инициализация

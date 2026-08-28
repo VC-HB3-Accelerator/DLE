@@ -13,6 +13,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
@@ -72,7 +75,7 @@ enum PostOpMode {
  * - Валидация всех входных параметров
  * - Поддержка emergency pause
  */
-contract TreasuryModule is ReentrancyGuard {
+contract TreasuryModule is ReentrancyGuard, IERC721Receiver {
     using SafeERC20 for IERC20;
     using Address for address payable;
 
@@ -139,6 +142,13 @@ contract TreasuryModule is ReentrancyGuard {
         uint256 amount,
         uint256 remainingBalance,
         bytes32 indexed proposalId
+    );
+    event NFTTransferred(
+        address indexed nftContract,
+        address indexed to,
+        uint256 indexed tokenId,
+        uint256 amount,
+        bytes32 proposalId
     );
     event BatchTransferExecuted(
         uint256 transferCount,
@@ -215,8 +225,10 @@ contract TreasuryModule is ReentrancyGuard {
      */
     function setHierarchicalVotingModule(address module) external {
         require(
-            msg.sender == dleContract || msg.sender == ITreasuryDLE(dleContract).initializer(),
-            "Only DLE or initializer"
+            msg.sender == dleContract
+                || msg.sender == fundsBridge
+                || msg.sender == ITreasuryDLE(dleContract).initializer(),
+            "Only DLE, funds bridge or initializer"
         );
         require(module != address(0), "HV module cannot be zero");
         require(module.code.length > 0, "HV module has no code");
@@ -225,7 +237,9 @@ contract TreasuryModule is ReentrancyGuard {
     }
 
     /**
-     * @dev Привязать TreasuryBridge. Первый раз — DLE или initializer; далее только DLE.
+     * @dev Привязать TreasuryBridge.
+     * Первый раз — DLE или initializer; далее — DLE или текущий fundsBridge
+     * (чтобы governance мог сменить мост: DLE → oldBridge.setFundsBridge → treasury).
      */
     function setFundsBridge(address bridge) external {
         require(bridge != address(0), "Bridge cannot be zero");
@@ -237,7 +251,10 @@ contract TreasuryModule is ReentrancyGuard {
                 "Only DLE or initializer"
             );
         } else {
-            require(msg.sender == dleContract, "Only DLE contract can call this");
+            require(
+                msg.sender == dleContract || msg.sender == fundsBridge,
+                "Only DLE or current funds bridge"
+            );
         }
         fundsBridge = bridge;
         emit FundsBridgeSet(bridge);
@@ -305,7 +322,7 @@ contract TreasuryModule is ReentrancyGuard {
         address tokenAddress,
         string memory symbol,
         uint8 decimals
-    ) external onlyDLE whenNotPaused {
+    ) external onlyDLEOrFundsBridge whenNotPaused {
         require(!supportedTokens[tokenAddress].isActive, "Token already supported");
         require(bytes(symbol).length > 0, "Symbol cannot be empty");
         require(bytes(symbol).length <= 20, "Symbol too long");
@@ -347,7 +364,7 @@ contract TreasuryModule is ReentrancyGuard {
      * @dev Удалить токен из казны (только через DLE governance)
      * @param tokenAddress Адрес токена для удаления
      */
-    function removeToken(address tokenAddress) external onlyDLE whenNotPaused validToken(tokenAddress) {
+    function removeToken(address tokenAddress) external onlyDLEOrFundsBridge whenNotPaused validToken(tokenAddress) {
         require(tokenAddress != address(0), "Cannot remove native token");
         
         TokenInfo memory tokenInfo = supportedTokens[tokenAddress];
@@ -376,7 +393,7 @@ contract TreasuryModule is ReentrancyGuard {
      * @param tokenAddress Адрес токена
      * @param isActive Новый статус
      */
-    function setTokenStatus(address tokenAddress, bool isActive) external onlyDLE {
+    function setTokenStatus(address tokenAddress, bool isActive) external onlyDLEOrFundsBridge {
         require(supportedTokens[tokenAddress].tokenAddress == tokenAddress, "Token not found");
         require(tokenAddress != address(0), "Cannot deactivate native token");
         
@@ -423,6 +440,74 @@ contract TreasuryModule is ReentrancyGuard {
             tokenInfo.balance,
             proposalId
         );
+    }
+
+    /**
+     * @dev Перевести ERC-721 из казны (только DLE / funds bridge / governance)
+     */
+    function transferERC721(
+        address nftContract,
+        address recipient,
+        uint256 tokenId,
+        bytes32 proposalId
+    ) external onlyDLEOrFundsBridge whenNotPaused nonReentrant {
+        require(nftContract != address(0), "NFT contract zero");
+        require(recipient != address(0), "Recipient cannot be zero");
+        require(IERC721(nftContract).ownerOf(tokenId) == address(this), "Treasury not owner");
+        IERC721(nftContract).safeTransferFrom(address(this), recipient, tokenId);
+        totalTransactions++;
+        emit NFTTransferred(nftContract, recipient, tokenId, 1, proposalId);
+    }
+
+    /**
+     * @dev Перевести ERC-1155 из казны (только DLE / funds bridge / governance)
+     */
+    function transferERC1155(
+        address nftContract,
+        address recipient,
+        uint256 tokenId,
+        uint256 amount,
+        bytes32 proposalId
+    ) external onlyDLEOrFundsBridge whenNotPaused nonReentrant {
+        require(nftContract != address(0), "NFT contract zero");
+        require(recipient != address(0), "Recipient cannot be zero");
+        require(amount > 0, "Amount must be positive");
+        require(
+            IERC1155(nftContract).balanceOf(address(this), tokenId) >= amount,
+            "Insufficient NFT balance"
+        );
+        IERC1155(nftContract).safeTransferFrom(address(this), recipient, tokenId, amount, "");
+        totalTransactions++;
+        emit NFTTransferred(nftContract, recipient, tokenId, amount, proposalId);
+    }
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
+
+    function onERC1155Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return this.onERC1155BatchReceived.selector;
     }
 
     /**

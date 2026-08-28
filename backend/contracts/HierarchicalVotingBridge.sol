@@ -3,13 +3,19 @@ pragma solidity ^0.8.20;
 
 /**
  * @title HierarchicalVotingBridge
- * @dev Тонкий пульт HV. Только DLE → bridge → module.
+ * @dev Тонкий пульт HV. Только DLE → bridge → HierarchicalVotingModule.
  */
 interface IHVOps {
     function setTreasuryModule(address _treasuryModule) external;
+
+    function setModuleBridge(address bridge) external;
+
     function addExternalDLE(address dleAddress, string memory name, string memory symbol) external;
+
     function removeExternalDLE(address dleAddress) external;
+
     function updateExternalDLEBalance(address dleAddress) external;
+
     function updateAllExternalDLEBalances() external;
 }
 
@@ -33,6 +39,11 @@ contract HierarchicalVotingBridge {
 
     function setTreasuryModule(address _treasuryModule) external onlyDLE {
         IHVOps(module).setTreasuryModule(_treasuryModule);
+    }
+
+    /// @dev Смена моста через governance (module принимает вызов от текущего opsBridge).
+    function setModuleBridge(address bridge) external onlyDLE {
+        IHVOps(module).setModuleBridge(bridge);
     }
 
     function addExternalDLE(address dleAddress, string calldata name, string calldata symbol) external onlyDLE {

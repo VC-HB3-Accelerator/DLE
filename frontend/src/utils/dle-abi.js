@@ -3,7 +3,7 @@
  * АВТОМАТИЧЕСКИ СГЕНЕРИРОВАНО - НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ
  * Для обновления запустите: node backend/scripts/generate-abi.js
  * 
- * Последнее обновление: 2026-08-04T11:24:40.444Z
+ * Последнее обновление: 2026-08-27T23:32:12.063Z
  */
 
 export const DLE_ABI = [
@@ -13,10 +13,9 @@ export const DLE_ABI = [
   "function allProposalIds(uint256) returns (uint256)",
   "function allowance(address owner, address spender) returns (uint256)",
   "function approve(address, uint256) returns (bool)",
-  "function balanceOf(address account) returns (uint256)",
+  "function balanceOf(address account) view returns (uint256)",
   "function cancelProposal(uint256 _proposalId, string reason)",
   "function checkProposalResult(uint256 _proposalId) returns (bool, bool)",
-  "function checkpoints(address account, uint32 pos) returns (tuple)",
   "function clock() returns (uint48)",
   "function createAddModuleProposal(string _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) returns (uint256)",
   "function createProposal(string _description, uint256 _duration, bytes _operation, uint256[] _targetChains, uint256) returns (uint256)",
@@ -24,13 +23,13 @@ export const DLE_ABI = [
   "function decimals() returns (uint8)",
   "function delegate(address delegatee)",
   "function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s)",
-  "function delegates(address account) returns (address)",
+  "function delegates(address account) view returns (address)",
   "function dleInfo() returns (string, string, string, string, uint256, uint256, uint256, bool)",
   "function eip712Domain() returns (bytes1, string, string, uint256, address, bytes32, uint256[])",
   "function executeProposal(uint256 _proposalId)",
   "function executeProposalBySignatures(uint256 _proposalId, address[] signers, bytes[] signatures)",
   "function getCurrentChainId() returns (uint256)",
-  "function getDLEInfo() returns (tuple)",
+  "function getDLEInfo() view returns (string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive)",
   "function getModuleAddress(bytes32 _moduleId) returns (address)",
   "function getMultichainAddresses() returns (uint256[], address[])",
   "function getMultichainInfo() returns (uint256[], uint256)",
@@ -42,7 +41,7 @@ export const DLE_ABI = [
   "function getSupportedChainCount() returns (uint256)",
   "function getSupportedChainId(uint256 _index) returns (uint256)",
   "function getVotes(address account) returns (uint256)",
-  "function hasVoted(uint256 _proposalId, address _voter) view returns (bool)",
+  "function hasVoted(uint256 _proposalId, address _voter) returns (bool)",
   "function initializeLogoURI(string _logoURI)",
   "function initializer() returns (address)",
   "function isActive() returns (bool)",

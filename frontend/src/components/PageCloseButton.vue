@@ -10,26 +10,15 @@
   GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
-<template>
-  <button
-    type="button"
-    class="page-close-btn"
-    :aria-label="label"
-    :title="label"
-    @click="onClose"
-  >×</button>
-</template>
-
 <script setup>
-import { computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useI18n } from 'vue-i18n';
-
 /**
- * Единый крестик закрытия страницы (правый верхний угол).
+ * Регистрация закрытия страницы для крестика в Header (рядом с бургером).
+ * UI не рендерит — кнопка живёт в Header.vue.
  * По умолчанию: явный parent (fallback). history.back — только preferBack (TZ UR1).
- * Родитель: .page-with-close { position: relative }.
  */
+import { watch, onBeforeUnmount } from 'vue';
+import { usePageClose } from '@/composables/usePageClose';
+
 const props = defineProps({
   /** Маршрут-parent (строка пути или объект vue-router) */
   fallback: {
@@ -49,77 +38,39 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
-const router = useRouter();
-const { t } = useI18n();
+const { registerPageClose } = usePageClose();
 
-const label = computed(() => t('common.close'));
+let unregister = null;
 
-function hasHistoryBack() {
-  try {
-    const state = window.history.state;
-    if (state && state.back != null) return true;
-  } catch {
-    /* ignore */
+function syncRegistration() {
+  if (unregister) {
+    unregister();
+    unregister = null;
   }
-  return window.history.length > 1;
+  unregister = registerPageClose({
+    fallback: props.fallback,
+    onNavigate: typeof props.onNavigate === 'function' ? props.onNavigate : null,
+    preferBack: props.preferBack,
+    onClose: () => emit('close'),
+  });
 }
 
-function goFallback() {
-  if (props.fallback != null && props.fallback !== '') {
-    router.push(props.fallback);
-    return;
-  }
-  router.push('/');
-}
+watch(
+  () => [props.fallback, props.onNavigate, props.preferBack],
+  () => {
+    syncRegistration();
+  },
+  { immediate: true }
+);
 
-function onClose() {
-  emit('close');
-  if (typeof props.onNavigate === 'function') {
-    props.onNavigate();
-    return;
+onBeforeUnmount(() => {
+  if (unregister) {
+    unregister();
+    unregister = null;
   }
-  if (props.preferBack && hasHistoryBack()) {
-    router.back();
-    return;
-  }
-  goFallback();
-}
+});
 </script>
 
-<style scoped>
-.page-close-btn {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 20;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm, 4px);
-  background: transparent;
-  box-shadow: none;
-  color: var(--theme-text, #444);
-  font-size: 1.5rem;
-  font-weight: 400;
-  line-height: 1;
-  cursor: pointer;
-  transition: color var(--transition-fast, 0.15s ease), background var(--transition-fast, 0.15s ease);
-}
-
-.page-close-btn:hover {
-  color: var(--theme-text, #222);
-  background: color-mix(in srgb, var(--color-border, #e5e7eb) 60%, transparent);
-}
-
-.page-close-btn:focus-visible {
-  outline: 2px solid var(--color-primary, #2563eb);
-  outline-offset: 2px;
-}
-</style>
+<template>
+  <!-- Крестик перенесён в Header рядом с бургером -->
+</template>

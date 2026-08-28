@@ -19,8 +19,17 @@ const SettingsInterfaceView = () => import('../views/settings/Interface/Interfac
 
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
-import { PERMISSIONS, hasPermission } from './permissions.js';
-import { isScreenAllowed } from '@/shared/roleScreenAllowlist.js';
+import { PERMISSIONS } from './permissions.js';
+import {
+  ensureScreenAccessLoaded,
+  canAccessPath,
+  syncScreenAccessRole
+} from '@/composables/useScreenAccess.js';
+import {
+  ensureActionAccessLoaded,
+  syncActionAccessRole,
+  hasActionAccess
+} from '@/composables/useActionAccess.js';
 
 // console.log('router/index.js: Script loaded');
 
@@ -50,6 +59,7 @@ const routes = [
   {
     path: '/crm',
     name: 'crm',
+    meta: { closeFallback: 'management' },
     component: () => import('../views/CrmView.vue'),
   },
   {
@@ -61,11 +71,13 @@ const routes = [
       {
         path: '',
         name: 'settings-index',
+        meta: { closeFallback: 'crm' },
         component: () => import('@/views/settings/SettingsIndexView.vue'),
       },
       {
         path: 'ai',
         name: 'settings-ai',
+        meta: { closeFallback: 'settings-index' },
         component: SettingsAiView,
       },
 
@@ -78,11 +90,13 @@ const routes = [
       {
         path: 'security/rpc',
         name: 'settings-security-rpc',
+        meta: { closeFallback: 'settings-security' },
         component: () => import('../views/settings/RpcProvidersSettingsView.vue'),
       },
       {
         path: 'security/auth',
         name: 'settings-security-auth',
+        meta: { closeFallback: 'settings-security' },
         component: () => import('../views/settings/AuthTokensSettingsView.vue'),
       },
       {
@@ -92,13 +106,27 @@ const routes = [
         meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-security', permissionFallback: 'settings-security' },
       },
       {
+        path: 'security/roles/messages',
+        redirect: { name: 'settings-security-roles', query: { tab: 'messages' } },
+      },
+      {
+        path: 'security/roles/screens',
+        redirect: { name: 'settings-security-roles', query: { tab: 'screens' } },
+      },
+      {
+        path: 'security/roles/ai-agent',
+        redirect: { name: 'settings-security-roles', query: { tab: 'ai' } },
+      },
+      {
         path: 'security',
         name: 'settings-security',
+        meta: { closeFallback: 'settings-index' },
         component: SettingsSecurityView,
       },
       {
         path: 'interface',
         name: 'settings-interface',
+        meta: { closeFallback: 'settings-index' },
         component: SettingsInterfaceView,
         // children: [
         //   {
@@ -220,8 +248,7 @@ const routes = [
   {
     path: '/settings/ai/agent-access',
     name: 'ai-agent-access-settings',
-    component: () => import('@/views/settings/AI/AiAgentAccessView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    redirect: { name: 'settings-security-roles', query: { tab: 'ai' } },
   },
   {
     path: '/settings/ai/voice-call',
@@ -239,33 +266,38 @@ const routes = [
     path: '/settings/interface/webssh',
     name: 'webssh-settings',
     component: () => import('@/views/settings/Interface/InterfaceWebSshView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, closeFallback: 'settings-interface' }
   },
   {
     path: '/tables',
     name: 'tables-list',
+    meta: { closeFallback: 'crm' },
     component: () => import('../views/tables/TablesListView.vue')
   },
   {
     path: '/tables/create',
     name: 'create-table',
+    meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/CreateTableView.vue')
   },
   {
     path: '/tables/:id',
     name: 'user-table-view',
+    meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/TableView.vue'),
     props: true
   },
   {
     path: '/tables/:id/edit',
     name: 'edit-table',
+    meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/EditTableView.vue'),
     props: true
   },
   {
     path: '/tables/:id/delete',
     name: 'delete-table',
+    meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/DeleteTableView.vue'),
     props: true
   },
@@ -287,11 +319,13 @@ const routes = [
       {
         path: '',
         name: 'contact-details',
+        meta: { closeFallback: 'contacts-list' },
         component: () => import('../views/contacts/ContactChatView.vue'),
       },
       {
         path: 'profile',
         name: 'contact-profile',
+        meta: { closeFallback: 'contacts-list' },
         component: () => import('../views/contacts/ContactProfileView.vue'),
       },
       {
@@ -302,17 +336,19 @@ const routes = [
           {
             path: '',
             name: 'contact-conference',
+            meta: { closeFallback: 'contacts-list' },
             component: () => import('../views/contacts/ConferenceSettingsView.vue'),
           },
           {
             path: 'agent',
             name: 'contact-conference-agent',
             component: () => import('../views/contacts/ConferenceAgentView.vue'),
-            meta: { editorOnly: true },
+            meta: { editorOnly: true, closeFallback: 'contact-conference' },
           },
           {
             path: 'live/:sessionId',
             name: 'contact-conference-live',
+            meta: { closeFallback: 'contact-conference' },
             component: () => import('../views/contacts/ConferenceLiveView.vue'),
           },
         ],
@@ -334,27 +370,31 @@ const routes = [
       {
         path: '',
         name: 'hub-conferences',
+        meta: { closeFallback: 'crm' },
         component: () => import('../views/contacts/ConferenceHubHomeView.vue'),
       },
       {
         path: 'schedule',
         name: 'hub-conference-schedule',
+        meta: { closeFallback: 'hub-conferences' },
         component: () => import('../views/contacts/VoiceCallScheduleView.vue'),
       },
       {
         path: ':sessionId',
         name: 'hub-conference',
+        meta: { closeFallback: 'hub-conferences' },
         component: () => import('../views/contacts/ConferenceHubSettingsView.vue'),
       },
       {
         path: ':sessionId/agent',
         name: 'hub-conference-agent',
         component: () => import('../views/contacts/ConferenceAgentView.vue'),
-        meta: { editorOnly: true },
+        meta: { editorOnly: true, closeFallback: 'hub-conferences' },
       },
       {
         path: ':sessionId/live',
         name: 'hub-conference-live',
+        meta: { closeFallback: 'hub-conferences' },
         component: () => import('../views/contacts/ConferenceLiveView.vue'),
       },
     ],
@@ -363,7 +403,13 @@ const routes = [
     path: '/contacts-list',
     name: 'contacts-list',
     component: () => import('../views/ContactsView.vue'),
-    // meta: { permission: PERMISSIONS.VIEW_CONTACTS } // Временно убираем проверку прав
+    meta: { permission: PERMISSIONS.VIEW_CONTACTS, closeFallback: 'crm' },
+  },
+  {
+    path: '/contacts-list/import',
+    name: 'contacts-import',
+    meta: { permission: PERMISSIONS.EDIT_CONTACTS, closeFallback: 'contacts-list' },
+    component: () => import('../views/contacts/ContactImportView.vue'),
   },
   {
     path: '/contacts-list/parser',
@@ -373,6 +419,7 @@ const routes = [
       {
         path: '',
         name: 'contacts-site-parser',
+        meta: { closeFallback: 'contacts-list' },
         component: () => import('../views/contacts/ContactSiteParserView.vue'),
       },
     ],
@@ -385,21 +432,25 @@ const routes = [
       {
         path: '',
         name: 'contacts-broadcast',
+        meta: { closeFallback: 'contacts-list' },
         component: () => import('../views/contacts/BroadcastCreateView.vue'),
       },
       {
         path: 'agent',
         name: 'contacts-broadcast-agent',
+        meta: { closeFallback: 'contacts-broadcast' },
         component: () => import('../views/contacts/BroadcastAgentView.vue'),
       },
       {
         path: 'analytics',
         name: 'contacts-broadcast-analytics',
+        meta: { closeFallback: 'contacts-broadcast' },
         component: () => import('../views/contacts/BroadcastAnalyticsView.vue'),
       },
       {
         path: 'history',
         name: 'contacts-broadcast-history',
+        meta: { closeFallback: 'contacts-broadcast' },
         component: () => import('../views/contacts/BroadcastHistoryView.vue'),
       },
     ],
@@ -408,13 +459,13 @@ const routes = [
     path: '/admin-chat/:adminId',
     name: 'admin-chat',
     component: () => import('../views/AdminChatView.vue'),
-    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS }
+    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'personal-messages' }
   },
   {
     path: '/personal-messages',
     name: 'personal-messages',
     component: () => import('../views/PersonalMessagesView.vue'),
-    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS }
+    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'crm' }
   },
 
   {
@@ -432,6 +483,7 @@ const routes = [
   {
     path: '/content',
     name: 'content-list',
+    meta: { closeFallback: 'crm' },
     component: () => import('../views/content/ContentListView.vue'),
   },
   {
@@ -441,58 +493,148 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-list', permissionFallback: 'content-list' },
   },
   {
+    path: '/content/store',
+    name: 'content-store',
+    component: () => import('../views/content/StoreCatalogEditorView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-list', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/content/store/settings',
+    name: 'content-store-settings',
+    component: () => import('../views/content/StoreSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/content/store/sections',
+    name: 'content-store-sections',
+    component: () => import('../views/content/StoreSectionsManageView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/content/store/sections/new',
+    name: 'content-store-section-new',
+    component: () => import('../views/content/StoreSectionEditView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store-sections', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/content/store/sections/:id',
+    name: 'content-store-section-edit',
+    component: () => import('../views/content/StoreSectionEditView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store-sections', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/content/store/product/new',
+    name: 'content-store-product-new',
+    component: () => import('../views/content/StoreProductEditView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/content/store/product/:id',
+    name: 'content-store-product-edit',
+    component: () => import('../views/content/StoreProductEditView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+  },
+  {
+    path: '/crm/store',
+    name: 'crm-store',
+    component: () => import('../views/crm/StoreOrdersView.vue'),
+    meta: { permission: PERMISSIONS.VIEW_CRM, closeFallback: 'crm', permissionFallback: 'crm' },
+  },
+  {
+    path: '/store',
+    name: 'storefront',
+    component: () => import('../views/store/StorefrontView.vue'),
+    meta: { closeFallback: 'home' },
+  },
+  {
+    path: '/store/cart',
+    name: 'store-cart',
+    component: () => import('../views/store/StoreCartView.vue'),
+    meta: { closeFallback: 'storefront' },
+  },
+  {
+    path: '/store/pay/:id',
+    name: 'store-pay',
+    component: () => import('../views/store/StorePayView.vue'),
+    meta: { closeFallback: 'store-cart' },
+  },
+  {
+    path: '/store/s/:slug',
+    name: 'store-section',
+    component: () => import('../views/store/StorefrontView.vue'),
+    props: true,
+    meta: { closeFallback: 'storefront' },
+  },
+  {
+    path: '/store/:id',
+    name: 'store-product',
+    component: () => import('../views/store/StoreProductView.vue'),
+    meta: { closeFallback: 'storefront' },
+  },
+  {
     path: '/content/templates',
     name: 'content-templates',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/TemplatesListView.vue'),
   },
   {
     path: '/content/published',
     name: 'content-published',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/PublishedListView.vue'),
   },
   {
     path: '/content/published/:slug',
     name: 'content-published-slug',
+    meta: { closeFallback: 'content-published' },
     component: () => import('../views/content/PublishedPageView.vue'),
   },
   {
     path: '/content/internal',
     name: 'content-internal',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/InternalListView.vue'),
   },
   {
     path: '/content/create',
     name: 'content-create',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/ContentPageView.vue'),
   },
   {
     path: '/content/settings',
     name: 'content-settings',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/ContentSettingsView.vue'),
   },
   {
     path: '/content/system-messages/table',
     name: 'content-system-messages-table',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/system-messages/SystemMessagesTableView.vue'),
   },
   {
     path: '/content/page/:id',
     name: 'page-view',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/PageView.vue'),
   },
   {
     path: '/public/page/:id',
     name: 'public-page-view',
+    meta: { closeFallback: 'content-list' },
     component: () => import('../views/content/PublicPageView.vue'),
   },
   {
     path: '/management',
     name: 'management',
+    meta: { closeFallback: 'home' },
     component: () => import('../views/ManagementView.vue')
   },
   {
     path: '/management/dle',
     name: 'management-dle',
+    meta: { closeFallback: 'management' },
     component: () => import('../views/smartcontracts/DleManagementView.vue')
   },
   {
@@ -502,33 +644,61 @@ const routes = [
   {
     path: '/management/dle-blocks',
     name: 'management-dle-blocks',
+    meta: { closeFallback: 'management' },
     component: () => import('../views/smartcontracts/DleBlocksManagementView.vue')
   },
   {
     path: '/management/proposals',
     name: 'management-proposals',
+    meta: { closeFallback: 'management-dle-blocks' },
     component: () => import('../views/smartcontracts/DleProposalsView.vue')
   },
   {
     path: '/management/create-proposal',
     name: 'management-create-proposal',
+    meta: { closeFallback: 'management-dle-blocks' },
     component: () => import('../views/smartcontracts/CreateProposalView.vue')
   },
   {
     path: '/management/add-module',
     name: 'management-add-module',
     component: () => import('../views/smartcontracts/AddModuleFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal' },
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
   },
   {
     path: '/management/transfer-tokens',
     name: 'management-transfer-tokens',
     component: () => import('../views/smartcontracts/TransferTokensFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal' },
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+  },
+  {
+    path: '/management/dle-core-op',
+    name: 'management-dle-core-op',
+    component: () => import('../views/smartcontracts/DleCoreOpFormView.vue'),
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+  },
+  {
+    path: '/management/remove-module',
+    name: 'management-remove-module',
+    component: () => import('../views/smartcontracts/RemoveModuleFormView.vue'),
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+  },
+  {
+    path: '/management/module-bridge-op',
+    name: 'management-module-bridge-op',
+    component: () => import('../views/smartcontracts/ModuleBridgeOpFormView.vue'),
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+  },
+  {
+    path: '/management/treasury-bridge-op',
+    name: 'management-treasury-bridge-op',
+    component: () => import('../views/smartcontracts/TreasuryBridgeOpFormView.vue'),
+    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
   },
   {
     path: '/management/modules',
     name: 'management-modules',
+    meta: { closeFallback: 'management-dle-blocks' },
     component: () => import('../views/smartcontracts/ModulesView.vue')
   },
   // {
@@ -541,23 +711,26 @@ const routes = [
   {
     path: '/management/analytics',
     name: 'management-analytics',
+    meta: { closeFallback: 'management-dle-blocks' },
     component: () => import('../views/smartcontracts/AnalyticsView.vue')
   },
   {
     path: '/management/history',
     name: 'management-history',
+    meta: { closeFallback: 'management-dle-blocks' },
     component: () => import('../views/smartcontracts/HistoryView.vue')
   },
   {
     path: '/management/settings',
     name: 'management-settings',
+    meta: { closeFallback: 'management-dle-blocks' },
     component: () => import('../views/smartcontracts/SettingsView.vue')
   },
   {
     path: '/vds',
     name: 'vds-management',
     component: () => import('../views/VdsManagementView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS }
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'crm' }
   },
   {
     path: '/connect-wallet',
@@ -578,6 +751,7 @@ const routes = [
   {
     path: '/groups',
     name: 'groups',
+    meta: { closeFallback: 'crm' },
     component: () => import('../views/groups/GroupsView.vue')
   },
 ];
@@ -589,7 +763,7 @@ const router = createRouter({
 
 // console.log('router/index.js: Router created');
 
-// Защита маршрутов — meta.permission / meta.requiresAuth + allowlist гостя (ТЗ P2)
+// Защита маршрутов — meta.permission / meta.requiresAuth + матрица экранов по роли
 router.beforeEach(async (to, from, next) => {
   if (!to.matched.length) {
     return next({ name: 'home' });
@@ -598,13 +772,31 @@ router.beforeEach(async (to, from, next) => {
   const requiredPermission = to.meta?.permission;
   const requiresAuth = to.meta?.requiresAuth;
   const editorOnly = to.matched.some((r) => r.meta?.editorOnly);
-  const guestDenied = !isScreenAllowed('guest', to.path);
-
-  if (!requiredPermission && !requiresAuth && !editorOnly && !guestDenied) {
-    return next();
-  }
 
   try {
+    await ensureScreenAccessLoaded();
+    await ensureActionAccessLoaded();
+    if (!canAccessPath(to.path)) {
+      console.log('[Router] Экран скрыт матрицей ролей:', to.path);
+      if (to.meta?.permissionFallback) {
+        return next({ name: to.meta.permissionFallback });
+      }
+      return next({ name: 'home' });
+    }
+
+    if (!requiredPermission && !requiresAuth && !editorOnly) {
+      if (to.path.startsWith('/management/')) {
+        const response = await axios.get('/auth/check');
+        if (response.data?.authenticated && response.data.userAccessLevel) {
+          const role = response.data.userAccessLevel.level;
+          if (role === 'readonly' || role === 'editor' || role === 'user') {
+            await syncActionAccessRole(role);
+          }
+        }
+      }
+      return next();
+    }
+
     const response = await axios.get('/auth/check');
     const authData = response.data;
 
@@ -624,7 +816,11 @@ router.beforeEach(async (to, from, next) => {
       userRole = 'editor';
     }
 
-    if (!isScreenAllowed(userRole, to.path)) {
+    const screenRole = userRole === 'user' ? 'guest' : userRole;
+    await syncScreenAccessRole(screenRole);
+    await syncActionAccessRole(userRole);
+
+    if (!canAccessPath(to.path)) {
       return next({ name: 'home' });
     }
 
@@ -652,12 +848,19 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'home' });
     }
 
-    if (!hasPermission(userRole, requiredPermission)) {
-      console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права ${requiredPermission}`);
-      if (to.meta?.permissionFallback) {
-        return next({ name: to.meta.permissionFallback });
+    if (!hasActionAccess(requiredPermission)) {
+      const level = userAccessLevel?.level;
+      const governanceFallback =
+        requiredPermission === PERMISSIONS.GOVERNANCE_PROPOSAL
+        && userAccessLevel?.hasAccess
+        && (level === 'readonly' || level === 'editor');
+      if (!governanceFallback) {
+        console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права ${requiredPermission}`);
+        if (to.meta?.permissionFallback) {
+          return next({ name: to.meta.permissionFallback });
+        }
+        return next({ name: 'home' });
       }
-      return next({ name: 'home' });
     }
 
     next();

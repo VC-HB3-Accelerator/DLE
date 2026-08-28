@@ -129,6 +129,13 @@ function fetchOnce(parsedUrl, { timeoutMs, maxBytes, method = 'GET' }) {
   };
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    };
+
     const req = lib.request(
       {
         protocol: parsedUrl.protocol,
@@ -144,17 +151,10 @@ function fetchOnce(parsedUrl, { timeoutMs, maxBytes, method = 'GET' }) {
         const status = res.statusCode || 0;
         const location = res.headers.location;
         const contentType = res.headers['content-type'] || '';
-        const contentLength = Number(res.headers['content-length'] || 0);
-
-        if (contentLength > maxBytes) {
-          res.resume();
-          reject(new Error('Response too large (Content-Length)'));
-          return;
-        }
 
         if (status >= 300 && status < 400) {
           res.resume();
-          resolve({
+          settle(resolve, {
             kind: 'redirect',
             status,
             location: location ? String(location) : null,
@@ -167,53 +167,69 @@ function fetchOnce(parsedUrl, { timeoutMs, maxBytes, method = 'GET' }) {
 
         if (status < 200 || status >= 300) {
           res.resume();
-          reject(new Error(`HTTP ${status}`));
+          settle(reject, new Error(`HTTP ${status}`));
           return;
         }
 
         if (!contentTypeAllowed(contentType)) {
           res.resume();
-          reject(new Error(`Unsupported Content-Type: ${contentType || 'unknown'}`));
+          settle(reject, new Error(`Unsupported Content-Type: ${contentType || 'unknown'}`));
           return;
         }
 
         const chunks = [];
         let size = 0;
-        let aborted = false;
+        let truncated = false;
 
         res.on('data', (chunk) => {
-          if (aborted) return;
-          size += chunk.length;
-          if (size > maxBytes) {
-            aborted = true;
-            req.destroy();
-            reject(new Error('Response too large'));
+          if (truncated || settled) return;
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          if (size + buf.length > maxBytes) {
+            const remain = maxBytes - size;
+            if (remain > 0) chunks.push(buf.subarray(0, remain));
+            size = maxBytes;
+            truncated = true;
+            res.resume();
+            settle(resolve, {
+              kind: 'body',
+              status,
+              location: null,
+              contentType,
+              finalUrl: parsedUrl.toString(),
+              body: Buffer.concat(chunks).toString('utf8'),
+              truncated: true
+            });
             return;
           }
-          chunks.push(chunk);
+          size += buf.length;
+          chunks.push(buf);
         });
 
         res.on('end', () => {
-          if (aborted) return;
-          resolve({
+          if (truncated || settled) return;
+          settle(resolve, {
             kind: 'body',
             status,
             location: null,
             contentType,
             finalUrl: parsedUrl.toString(),
-            body: Buffer.concat(chunks).toString('utf8')
+            body: Buffer.concat(chunks).toString('utf8'),
+            truncated: false
           });
         });
 
-        res.on('error', reject);
+        res.on('error', (err) => {
+          if (truncated || settled) return;
+          settle(reject, err);
+        });
       }
     );
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Fetch timeout'));
+      settle(reject, new Error('Fetch timeout'));
     });
-    req.on('error', reject);
+    req.on('error', (err) => settle(reject, err));
     req.end();
   });
 }

@@ -18,6 +18,7 @@ const conversationService = require('./conversationService');
 const adminLogicService = require('./adminLogicService');
 const universalGuestService = require('./UniversalGuestService');
 const identityService = require('./identity-service');
+const { isUserBlocked } = require('../utils/userUtils');
 
 /**
  * Определить тип сообщения по контексту
@@ -193,6 +194,12 @@ async function processMessage(messageData) {
     
     // 5. Определяем нужно ли генерировать AI ответ
     let shouldGenerateAi = shouldGenerateAiReply(messageType, recipientId, userId);
+
+    // Заблокированный контакт: сообщение сохраняем (видно в карточке), автоответ ИИ не генерируем
+    if (shouldGenerateAi && await isUserBlocked(userId)) {
+      logger.info(`[UnifiedMessageProcessor] Пользователь ${userId} заблокирован — AI-ответ пропущен`);
+      shouldGenerateAi = false;
+    }
 
     logger.info('[UnifiedMessageProcessor] Генерация AI:', { shouldGenerateAi, userRole, isAdmin });
 

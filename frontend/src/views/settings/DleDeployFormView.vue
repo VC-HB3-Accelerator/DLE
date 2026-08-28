@@ -214,6 +214,7 @@
                     :placeholder="$t('deploy.form.например_vc_hb3_accelerator_eth')"
                     class="form-control"
                     @blur="resolveEnsAvatar"
+                    @change="resolveEnsAvatar"
                   >
                   <small class="form-help">{{ $t('deploy.form.если_указан_попытаемся_получить_аватар') }}</small>
                   <div v-if="ensResolvedUrl" class="logo-preview logo-preview--ens">
@@ -899,10 +900,21 @@
       </div>
     </div>
 
-    <!-- Мастер поэтапного деплоя -->
-    <div v-if="showDeploymentWizard" class="deployment-wizard-overlay">
-      <div class="wizard-container page-with-close">
-        <PageCloseButton :on-navigate="closeDeploymentWizard" />
+    <!-- Мастер поэтапного деплоя (без fullscreen blackout — баг: Header/крестик были под z-index 9999) -->
+    <div
+      v-if="showDeploymentWizard"
+      class="deployment-wizard-overlay"
+      @click.self="onWizardBackdropClick"
+    >
+      <div class="wizard-container" role="dialog" aria-modal="true" :aria-label="t('deployment.wizardTitle')">
+        <button
+          type="button"
+          class="wizard-close-btn"
+          :aria-label="t('common.close')"
+          @click="closeDeploymentWizard"
+        >
+          ×
+        </button>
         <DeploymentWizard
           :private-key="unifiedPrivateKey"
           :selected-networks="selectedNetworks"
@@ -911,6 +923,8 @@
           :etherscan-api-key="etherscanApiKey"
           :auto-verify-after-deploy="autoVerifyAfterDeploy"
           @deployment-completed="handleDeploymentCompleted"
+          @deployment-failed="handleDeploymentFailed"
+          @request-close="closeDeploymentWizard"
         />
       </div>
     </div>
@@ -1104,6 +1118,8 @@ const unifiedPrivateKey = ref('');
 
 // Состояние мастера деплоя
 const showDeploymentWizard = ref(false);
+/** Закрытие оверлея кликом по фону / Esc — только когда деплой не идёт */
+const wizardCanDismiss = ref(false);
 const deployedDLEAddress = ref('');
 const privateKeys = reactive({});
 const privateKeyVisibility = reactive({});
@@ -1213,6 +1229,12 @@ const selectedIsicLevel1 = ref('');
 const selectedIsicLevel2 = ref('');
 const selectedIsicLevel3 = ref('');
 const selectedIsicLevel4 = ref('');
+
+// Логотип / ENS — объявлять ДО watch/saveFormData (иначе TDZ → пустой экран)
+const logoFile = ref(null);
+const logoPreviewUrl = ref('');
+const ensDomain = ref('');
+const ensResolvedUrl = ref('');
 
 // Текущий выбранный код ОКВЭД
 const currentSelectedOkvedCode = ref('');
@@ -1655,9 +1677,15 @@ const saveFormData = () => {
     try {
       const dataToSave = {
         ...dleSettings,
-        // Сохраняем также выбранные уровни ОКВЭД
+        // Сохраняем также выбранные уровни ОКВЭД / ISIC и ENS
         selectedOkvedLevel1: selectedOkvedLevel1.value,
         selectedOkvedLevel2: selectedOkvedLevel2.value,
+        selectedIsicLevel1: selectedIsicLevel1.value,
+        selectedIsicLevel2: selectedIsicLevel2.value,
+        selectedIsicLevel3: selectedIsicLevel3.value,
+        selectedIsicLevel4: selectedIsicLevel4.value,
+        ensDomain: ensDomain.value,
+        ensResolvedUrl: ensResolvedUrl.value,
         postalCodeInput: postalCodeInput.value,
         searchResults: searchResults.value,
         lastApiResult: lastApiResult.value,
@@ -1724,9 +1752,20 @@ const loadFormData = () => {
         privateKey: parsedData.privateKey || ''
       });
 
-      // Восстанавливаем состояние ОКВЭД
+      // Восстанавливаем состояние ОКВЭД / ISIC
       selectedOkvedLevel1.value = parsedData.selectedOkvedLevel1 || '';
       selectedOkvedLevel2.value = parsedData.selectedOkvedLevel2 || '';
+      selectedIsicLevel1.value = parsedData.selectedIsicLevel1 || '';
+      selectedIsicLevel2.value = parsedData.selectedIsicLevel2 || '';
+      selectedIsicLevel3.value = parsedData.selectedIsicLevel3 || '';
+      selectedIsicLevel4.value = parsedData.selectedIsicLevel4 || '';
+
+      // ENS (логотип)
+      ensDomain.value = parsedData.ensDomain || '';
+      ensResolvedUrl.value = parsedData.ensResolvedUrl || '';
+      if (ensResolvedUrl.value && !logoFile.value) {
+        logoPreviewUrl.value = ensResolvedUrl.value;
+      }
       
       // Восстанавливаем состояние поиска адреса
       postalCodeInput.value = parsedData.postalCodeInput || '';
@@ -2135,6 +2174,12 @@ const loadClassifiers = async () => {
       if (selectedIsicLevel1.value) {
         await fetchIsicCodes(2, selectedIsicLevel1.value, isicLevel2Options, isLoadingIsicLevel2);
       }
+      if (selectedIsicLevel2.value) {
+        await fetchIsicCodes(3, selectedIsicLevel2.value, isicLevel3Options, isLoadingIsicLevel3);
+      }
+      if (selectedIsicLevel3.value) {
+        await fetchIsicCodes(4, selectedIsicLevel3.value, isicLevel4Options, isLoadingIsicLevel4);
+      }
     }
   } catch (error) {
     console.error('Ошибка при загрузке классификаторов:', error);
@@ -2492,34 +2537,32 @@ watch(() => dleSettings.jurisdiction, (newJurisdiction, oldJurisdiction) => {
   console.log('Юрисдикция изменена:', oldJurisdiction, '->', newJurisdiction);
 
   const isRf = newJurisdiction === '643';
+  // Гидратация из localStorage: old пустой → new заполнен. Нельзя сбрасывать ISIC/ОКВЭД —
+  // иначе коды стираются сразу после loadFormData и уезжают в localStorage пустыми.
+  const isRealCountryChange = Boolean(oldJurisdiction) && oldJurisdiction !== newJurisdiction;
 
-  // Коды деятельности и КПП зависят от страны — сбрасываем при смене
-  dleSettings.mainOkvedCode = '';
-  dleSettings.selectedOkved = [];
-  selectedOkvedLevel1.value = '';
-  selectedOkvedLevel2.value = '';
-  selectedIsicLevel1.value = '';
-  selectedIsicLevel2.value = '';
-  selectedIsicLevel3.value = '';
-  selectedIsicLevel4.value = '';
+  if (isRealCountryChange) {
+    dleSettings.mainOkvedCode = '';
+    dleSettings.selectedOkved = [];
+    selectedOkvedLevel1.value = '';
+    selectedOkvedLevel2.value = '';
+    selectedIsicLevel1.value = '';
+    selectedIsicLevel2.value = '';
+    selectedIsicLevel3.value = '';
+    selectedIsicLevel4.value = '';
 
-  // КПП существует только для РФ
-  if (!isRf) {
-    dleSettings.kppCode = '';
-    kppCodes.value = [];
-  }
+    if (!isRf) {
+      dleSettings.kppCode = '';
+      kppCodes.value = [];
+    }
 
-  // При реальной смене страны сбрасываем юр. адрес (он привязан к юрисдикции)
-  if (oldJurisdiction && oldJurisdiction !== newJurisdiction) {
     clearAddress();
   }
 
-  // Загружаем классификаторы в зависимости от выбранной страны
   if (newJurisdiction) {
     loadClassifiers();
   }
 
-  // Автосохранение
   saveFormData();
 });
 
@@ -2537,6 +2580,15 @@ watch([selectedOkvedLevel1, selectedOkvedLevel2, postalCodeInput], () => {
     saveFormData();
   }, 100);
 });
+
+watch(
+  [ensDomain, ensResolvedUrl, selectedIsicLevel1, selectedIsicLevel2, selectedIsicLevel3, selectedIsicLevel4],
+  () => {
+    setTimeout(() => {
+      saveFormData();
+    }, 100);
+  }
+);
 
 // Сохраняем Etherscan API ключ и флаг авто-верификации при изменении
 watch(etherscanApiKey, () => {
@@ -2628,9 +2680,16 @@ onMounted(() => {
   // Синхронизируем selectedNetworks с dleSettings
   selectedNetworks.value = dleSettings.selectedNetworks || [];
   
-  // Если данные были загружены и выбрана Россия, загружаем российские классификаторы
+  // Классификаторы: watcher юрисдикции тоже дергает loadClassifiers при гидратации,
+  // но для РФ оставляем явный путь; для остальных — на случай если watcher не сработал.
   if (dataLoaded && dleSettings.jurisdiction === '643') {
     loadRussianClassifiers();
+  } else if (dataLoaded && dleSettings.jurisdiction) {
+    loadClassifiers();
+  }
+
+  if (dataLoaded && (ensDomain.value || '').trim()) {
+    resolveEnsAvatar();
   }
   
   // Автозаполнение первого партнера подключенным кошельком
@@ -2786,129 +2845,93 @@ const maskedPrivateKey = computed(() => {
 const deploySmartContracts = async () => {
   console.log('🚀 Начало поэтапного деплоя DLE...');
   try {
-    // Валидация данных
     if (!isFormValid.value) {
       alert(t('deploy.alerts.fillRequiredFields'));
       return;
     }
 
-    // Сразу показываем мастер деплоя
+    await ensureLogoUriBeforeDeploy();
+
+    // Precheck ДО мастера: иначе wizard сразу шлёт POST и жжёт газ при stuck nonce
+    try {
+      const pre = await api.post('/dle-v2/precheck', {
+        supportedChainIds: selectedNetworks.value || [],
+        privateKey: unifiedPrivateKey.value
+      });
+      const preData = pre.data?.data;
+      if (pre.data?.success && preData) {
+        if (preData.summary && !preData.summary.ok) {
+          const reason = preData.summary.blockedReason;
+          if (reason === 'stuck_pending') {
+            const details = (preData.stuckPending || [])
+              .map((s) => `chain ${s.chainId}: latest=${s.latest} pending=${s.pending}`)
+              .join('; ');
+            alert(
+              `В mempool есть незакрытые tx — деплой остановлен (иначе сгорит газ на replacement):\n${details || 'см. precheck'}`
+            );
+            return;
+          }
+          if (reason === 'nonce_gap_too_large') {
+            const gap = preData.nonceSpread?.gap ?? '?';
+            alert(
+              `Слишком большой разрыв nonce между сетями (${gap}). ` +
+                `Деплой остановлен — выравнивание сожгло бы много filler tx.`
+            );
+            return;
+          }
+          if (reason === 'insufficient_funds') {
+            alert(t('deploy.alerts.insufficientFunds'));
+            return;
+          }
+          alert(`Precheck не прошёл (${reason || 'unknown'}). Деплой не запущен.`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Ошибка проверки балансов:', e.message);
+      alert(`Precheck не прошёл: ${e.message || e}. Деплой не запущен.`);
+      return;
+    }
+
+    wizardCanDismiss.value = false;
     showDeploymentWizard.value = true;
-    
-    // Запускаем деплой DLE в фоне
-    startStagedDeployment();
-    
   } catch (error) {
     console.error('Ошибка деплоя DLE:', error);
     alert(t('deploy.alerts.deployError', { message: error.message }));
   }
 };
 
-// Функция запуска поэтапного деплоя
+// Оставлено для совместимости; мастер сам шлёт POST /dle-v2
 const startStagedDeployment = async () => {
-  console.log('🚀 Запуск поэтапного деплоя...');
-  
-  // Сначала выполняем стандартный деплой DLE контракта
-  try {
-
-    // Подготовка данных для деплоя
-    console.log('DEBUG: dleSettings.selectedNetworks:', dleSettings.selectedNetworks);
-    console.log('DEBUG: selectedNetworks.value:', selectedNetworks.value);
-    const deployData = {
-      // Основная информация DLE
-      name: dleSettings.name,
-      symbol: dleSettings.tokenSymbol,
-
-      location: dleSettings.addressData.fullAddress || t('deploy.errors.notSpecified'),
-      coordinates: dleSettings.coordinates || '0,0',
-      jurisdiction: parseInt(dleSettings.jurisdiction) || 0,
-      okvedCodes: dleSettings.selectedOkved || [],
-      kpp: dleSettings.kppCode || '',
-      
-      // Настройки кворума
-      quorumPercentage: dleSettings.governanceQuorum || 51,
-      
-      // Партнеры и токены
-      initialPartners: dleSettings.partners.map(p => p.address).filter(addr => addr),
-      initialAmounts: dleSettings.partners.map(p => p.amount).filter(amount => amount > 0),
-      
-      // Мульти-чейн настройки
-      supportedChainIds: selectedNetworks.value || [],
-      
-      // Текущая цепочка (будет установлена при деплое)
-      currentChainId: selectedNetworks.value[0] || 1,
-      // Приватный ключ для деплоя
-      privateKey: unifiedPrivateKey.value,
-      // Верификация через Etherscan V2
-      etherscanApiKey: etherscanApiKey.value,
-      autoVerifyAfterDeploy: autoVerifyAfterDeploy.value
-    };
-
-    // Обработка логотипа
-    try {
-      if (logoFile.value) {
-        const form = new FormData();
-        form.append('logo', logoFile.value);
-        const uploadResp = await api.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-        const uploaded = uploadResp.data?.data?.url || uploadResp.data?.data?.path;
-        if (uploaded) {
-          deployData.logoURI = uploaded;
-        }
-      } else if (ensResolvedUrl.value) {
-        deployData.logoURI = ensResolvedUrl.value;
-      } else {
-        deployData.logoURI = '/uploads/logos/default-token.svg';
-      }
-    } catch (error) {
-      console.warn('Ошибка при обработке логотипа:', error.message);
-      deployData.logoURI = '/uploads/logos/default-token.svg';
-    }
-
-    console.log('Данные для деплоя DLE:', deployData);
-
-    // Предварительная проверка балансов (через приватный ключ)
-    try {
-      const pre = await api.post('/dle-v2/precheck', {
-        supportedChainIds: deployData.supportedChainIds,
-        privateKey: unifiedPrivateKey.value
-      });
-      const preData = pre.data?.data;
-      if (pre.data?.success && preData) {
-        const lacks = (preData.insufficient || []);
-        if (lacks.length > 0) {
-          alert(t('deploy.alerts.insufficientFunds'));
-          return;
-        }
-        console.log('✅ Проверка балансов пройдена:', preData.summary);
-      }
-    } catch (e) {
-      console.warn('⚠️ Ошибка проверки балансов:', e.message);
-    }
-    
-    // Показываем мастер деплоя
-    showDeploymentWizard.value = true;
-    
-    // Мастер деплоя сам выполнит деплой
-    return;
-  } catch (error) {
-    console.error('Ошибка при запуске деплоя:', error);
-  }
-}
+  console.log('🚀 startStagedDeployment: no-op (deploy goes through DeploymentWizard)');
+};
 
 function closeDeploymentWizard() {
   showDeploymentWizard.value = false;
+  wizardCanDismiss.value = false;
+}
+
+function onWizardBackdropClick() {
+  if (!wizardCanDismiss.value) return;
+  closeDeploymentWizard();
 }
 
 // Обработчик завершения поэтапного деплоя
 const handleDeploymentCompleted = (result) => {
   console.log('🎉 Поэтапный деплой завершен:', result);
   showDeploymentWizard.value = false;
+  wizardCanDismiss.value = false;
   
   // Эмитируем событие о завершении деплоя для обновления Header
   eventBus.emit('dle-deployed', result);
   
   // Перенаправляем на главную страницу управления
   router.push('/management');
+};
+
+const handleDeploymentFailed = (payload) => {
+  console.error('Деплой провален:', payload);
+  wizardCanDismiss.value = true;
 };
 
 // Валидация формы
@@ -2965,11 +2988,6 @@ const validateCoordinates = (coordinates) => {
   return coordRegex.test(String(coordinates).trim());
 };
 
-const logoFile = ref(null);
-const logoPreviewUrl = ref('');
-const ensDomain = ref('');
-const ensResolvedUrl = ref('');
-
 function onLogoSelected(e) {
   const file = e?.target?.files?.[0];
   logoFile.value = file || null;
@@ -2980,38 +2998,46 @@ function onLogoSelected(e) {
 }
 
 async function resolveEnsAvatar() {
-  ensResolvedUrl.value = '';
   const name = (ensDomain.value || '').trim();
-  if (!name) return;
+  if (!name) {
+    ensResolvedUrl.value = '';
+    return;
+  }
   try {
     const resp = await api.get(`/ens/avatar`, { params: { name } });
     const url = resp.data?.data?.url;
     if (url) {
       ensResolvedUrl.value = url;
-      // если файл не выбран – используем ENS для предпросмотра
       if (!logoFile.value) logoPreviewUrl.value = url;
-    } else {
-      // фолбэк на дефолт
-      ensResolvedUrl.value = '/uploads/logos/default-token.svg';
-      if (!logoFile.value) logoPreviewUrl.value = ensResolvedUrl.value;
+      saveFormData();
+      return;
     }
-  } catch (_) {
-    ensResolvedUrl.value = '/uploads/logos/default-token.svg';
-    if (!logoFile.value) logoPreviewUrl.value = ensResolvedUrl.value;
+    // Нет аватара у ENS — не подменяем дефолтом (иначе в деплой уходит default-token.svg)
+    ensResolvedUrl.value = '';
+    console.warn('[DleDeployForm] ENS avatar empty for', name);
+  } catch (e) {
+    ensResolvedUrl.value = '';
+    console.warn('[DleDeployForm] ENS resolve failed:', e?.message || e);
   }
 }
 
 // Функция для получения URI логотипа
 function getLogoURI() {
   if (logoFile.value) {
-    // Если выбран файл, возвращаем временный URL для предпросмотра
-    // В реальности файл будет загружен на сервер и получен настоящий URL
     return logoPreviewUrl.value || '/uploads/logos/default-token.svg';
-  } else if (ensResolvedUrl.value) {
-    return ensResolvedUrl.value;
-  } else {
-    return '/uploads/logos/default-token.svg';
   }
+  if (ensResolvedUrl.value && !ensResolvedUrl.value.includes('default-token.svg')) {
+    return ensResolvedUrl.value;
+  }
+  return '/uploads/logos/default-token.svg';
+}
+
+async function ensureLogoUriBeforeDeploy() {
+  if (logoFile.value) return getLogoURI();
+  if ((ensDomain.value || '').trim()) {
+    await resolveEnsAvatar();
+  }
+  return getLogoURI();
 }
 
 async function submitDeploy() {
@@ -4846,29 +4872,53 @@ async function submitDeploy() {
     font-weight: 500;
   }
 
-  /* Стили для мастера деплоя */
+  /* Мастер деплоя: светлый scrim, не глухой blackout (Header/навигация остаются читаемыми) */
   .deployment-wizard-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: color-mix(in srgb, Canvas 35%, transparent);
+    backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
+    z-index: 1200;
     padding: 20px;
   }
 
   .wizard-container {
-    background-color: white;
+    position: relative;
+    background-color: Canvas;
+    color: CanvasText;
     border-radius: 16px;
     max-width: 1200px;
     width: 100%;
     max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    box-shadow: 0 20px 40px color-mix(in srgb, CanvasText 18%, transparent);
+    border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  }
+
+  .wizard-close-btn {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.75rem;
+    z-index: 2;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: none;
+    border-radius: 8px;
+    background: color-mix(in srgb, CanvasText 8%, Canvas);
+    color: CanvasText;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .wizard-close-btn:hover {
+    background: color-mix(in srgb, CanvasText 14%, Canvas);
   }
 
   .deploy-buttons {

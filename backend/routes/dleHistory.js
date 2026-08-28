@@ -233,8 +233,19 @@ router.post('/get-extended-history', async (req, res) => {
       const moduleAddedEvents = await queryEventChunks('ModuleAdded');
       for (const event of moduleAddedEvents) {
         const moduleName = getModuleName(event.args.moduleId);
+        const hex = (() => {
+          try {
+            return typeof event.args.moduleId === 'string'
+              ? event.args.moduleId
+              : ethers.hexlify(event.args.moduleId);
+          } catch (_) {
+            return String(event.args.moduleId);
+          }
+        })();
+        const moduleType = moduleTypeFromId(hex) || MODULE_ID_TO_TYPE[hex] || null;
         pushEvent('module_added', 'Модуль добавлен', `Добавлен модуль "${moduleName}"`, event, {
           moduleId: event.args.moduleId,
+          moduleType,
           moduleName,
           moduleAddress: event.args.moduleAddress,
         });
@@ -243,8 +254,19 @@ router.post('/get-extended-history', async (req, res) => {
       const moduleRemovedEvents = await queryEventChunks('ModuleRemoved');
       for (const event of moduleRemovedEvents) {
         const moduleName = getModuleName(event.args.moduleId);
+        const hex = (() => {
+          try {
+            return typeof event.args.moduleId === 'string'
+              ? event.args.moduleId
+              : ethers.hexlify(event.args.moduleId);
+          } catch (_) {
+            return String(event.args.moduleId);
+          }
+        })();
+        const moduleType = moduleTypeFromId(hex) || MODULE_ID_TO_TYPE[hex] || null;
         pushEvent('module_removed', 'Модуль удален', `Удален модуль "${moduleName}"`, event, {
           moduleId: event.args.moduleId,
+          moduleType,
           moduleName,
         });
       }

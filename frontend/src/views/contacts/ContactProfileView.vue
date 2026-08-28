@@ -38,25 +38,75 @@
           </span>
         </div>
 
-        <div class="info-row">
+        <div class="info-row info-row--stack">
           <span class="info-label">{{ t('contacts.details.email') }}</span>
-          <span class="info-value info-value--with-consent">
-            <input
-              v-if="canEditContacts"
-              v-model="draftEmail"
-              class="edit-input"
-              type="email"
-              :placeholder="t('contacts.email')"
-              @blur="saveIdentityField('email')"
-              @keyup.enter="saveIdentityField('email')"
-            />
-            <span
-              v-else
-              class="info-value personal-field"
-              :class="{ 'personal-field--revealed': isFieldRevealed('email') }"
-              :title="getFieldTitle('email', contact.email)"
-              @click="toggleFieldReveal('email')"
-            >{{ getPersonalFieldDisplay('email', contact.email) }}</span>
+          <span class="info-value info-value--stack">
+            <template v-if="isCreateMode && canEditContacts">
+              <input
+                v-model="draftEmail"
+                class="edit-input"
+                type="email"
+                :placeholder="t('contacts.email')"
+              />
+            </template>
+            <template v-else-if="canEditContacts">
+              <div
+                v-for="row in emailRows"
+                :key="row.id || row._key"
+                class="identity-line"
+              >
+                <label class="identity-primary" :title="t('contacts.details.primaryHint')">
+                  <input
+                    type="radio"
+                    name="primary-email"
+                    :checked="row.is_primary"
+                    :disabled="identityBusy"
+                    @change="setPrimaryIdentity(row, 'email')"
+                  />
+                  <span>{{ t('contacts.details.primaryShort') }}</span>
+                </label>
+                <input
+                  v-model="row.value"
+                  class="edit-input identity-value"
+                  type="email"
+                  :placeholder="t('contacts.email')"
+                  @blur="persistIdentityRow(row, 'email')"
+                  @keyup.enter="persistIdentityRow(row, 'email')"
+                />
+                <input
+                  v-model="row.label"
+                  class="edit-input identity-label"
+                  :placeholder="t('contacts.details.labelPlaceholder')"
+                  maxlength="80"
+                  @blur="persistIdentityRow(row, 'email')"
+                />
+                <button
+                  type="button"
+                  class="identity-remove"
+                  :disabled="identityBusy"
+                  :title="t('contacts.details.removeIdentity')"
+                  @click="removeIdentityRow(row, 'email')"
+                >×</button>
+              </div>
+              <button
+                type="button"
+                class="identity-add"
+                :disabled="identityBusy"
+                @click="addIdentityRow('email')"
+              >{{ t('contacts.details.addEmail') }}</button>
+            </template>
+            <template v-else>
+              <div v-for="row in emailRows" :key="row.id || row.value" class="identity-line identity-line--readonly">
+                <span class="identity-primary-badge" v-if="row.is_primary">{{ t('contacts.details.primaryShort') }}</span>
+                <span
+                  class="personal-field"
+                  :class="{ 'personal-field--revealed': isFieldRevealed('email-' + (row.id || row.value)) }"
+                  @click="toggleFieldReveal('email-' + (row.id || row.value))"
+                >{{ getPersonalFieldDisplay('email-' + (row.id || row.value), row.value) }}</span>
+                <span v-if="row.label" class="identity-label-text">{{ row.label }}</span>
+              </div>
+              <span v-if="!emailRows.length">-</span>
+            </template>
             <label
               v-if="!isCreateMode && identityPresent('email')"
               class="consent-check"
@@ -71,6 +121,78 @@
               />
               <span>{{ t('contacts.details.consentCheckbox') }}</span>
             </label>
+          </span>
+        </div>
+
+        <div class="info-row info-row--stack">
+          <span class="info-label">{{ t('contacts.details.phone') }}</span>
+          <span class="info-value info-value--stack">
+            <template v-if="isCreateMode && canEditContacts">
+              <input
+                v-model="draftPhone"
+                class="edit-input"
+                type="tel"
+                :placeholder="t('contacts.phone')"
+              />
+            </template>
+            <template v-else-if="canEditContacts">
+              <div
+                v-for="row in phoneRows"
+                :key="row.id || row._key"
+                class="identity-line"
+              >
+                <label class="identity-primary" :title="t('contacts.details.primaryHint')">
+                  <input
+                    type="radio"
+                    name="primary-phone"
+                    :checked="row.is_primary"
+                    :disabled="identityBusy"
+                    @change="setPrimaryIdentity(row, 'phone')"
+                  />
+                  <span>{{ t('contacts.details.primaryShort') }}</span>
+                </label>
+                <input
+                  v-model="row.value"
+                  class="edit-input identity-value"
+                  type="tel"
+                  :placeholder="t('contacts.phone')"
+                  @blur="persistIdentityRow(row, 'phone')"
+                  @keyup.enter="persistIdentityRow(row, 'phone')"
+                />
+                <input
+                  v-model="row.label"
+                  class="edit-input identity-label"
+                  :placeholder="t('contacts.details.labelPlaceholder')"
+                  maxlength="80"
+                  @blur="persistIdentityRow(row, 'phone')"
+                />
+                <button
+                  type="button"
+                  class="identity-remove"
+                  :disabled="identityBusy"
+                  :title="t('contacts.details.removeIdentity')"
+                  @click="removeIdentityRow(row, 'phone')"
+                >×</button>
+              </div>
+              <button
+                type="button"
+                class="identity-add"
+                :disabled="identityBusy"
+                @click="addIdentityRow('phone')"
+              >{{ t('contacts.details.addPhone') }}</button>
+            </template>
+            <template v-else>
+              <div v-for="row in phoneRows" :key="row.id || row.value" class="identity-line identity-line--readonly">
+                <span class="identity-primary-badge" v-if="row.is_primary">{{ t('contacts.details.primaryShort') }}</span>
+                <span
+                  class="personal-field"
+                  :class="{ 'personal-field--revealed': isFieldRevealed('phone-' + (row.id || row.value)) }"
+                  @click="toggleFieldReveal('phone-' + (row.id || row.value))"
+                >{{ getPersonalFieldDisplay('phone-' + (row.id || row.value), row.value) }}</span>
+                <span v-if="row.label" class="identity-label-text">{{ row.label }}</span>
+              </div>
+              <span v-if="!phoneRows.length">-</span>
+            </template>
           </span>
         </div>
 
@@ -215,24 +337,63 @@
           </span>
         </div>
 
-        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row">
+        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row info-row--stack">
           <span class="info-label">{{ t('contacts.link') }}</span>
-          <span class="info-value">
-            <input
-              v-if="canEditContacts"
-              v-model="draftLink"
-              class="edit-input"
-              type="url"
-              @blur="saveContactExtras"
-              @keyup.enter="saveContactExtras"
-            />
-            <a
-              v-else-if="contact.crm_link"
-              :href="contact.crm_link"
-              target="_blank"
-              rel="noopener noreferrer"
-            >{{ contact.crm_link }}</a>
-            <template v-else>-</template>
+          <span class="info-value info-value--stack">
+            <template v-if="canEditContacts">
+              <div
+                v-for="row in websiteRows"
+                :key="row.id || row._key"
+                class="identity-line"
+              >
+                <label class="identity-primary" :title="t('contacts.details.primaryHintWebsite')">
+                  <input
+                    type="radio"
+                    name="primary-website"
+                    :checked="row.is_primary"
+                    :disabled="identityBusy"
+                    @change="setPrimaryIdentity(row, 'website')"
+                  />
+                  <span>{{ t('contacts.details.primaryShort') }}</span>
+                </label>
+                <input
+                  v-model="row.value"
+                  class="edit-input identity-value"
+                  type="url"
+                  :placeholder="t('contacts.link')"
+                  @blur="persistIdentityRow(row, 'website')"
+                  @keyup.enter="persistIdentityRow(row, 'website')"
+                />
+                <input
+                  v-model="row.label"
+                  class="edit-input identity-label"
+                  :placeholder="t('contacts.details.labelPlaceholder')"
+                  maxlength="80"
+                  @blur="persistIdentityRow(row, 'website')"
+                />
+                <button
+                  type="button"
+                  class="identity-remove"
+                  :disabled="identityBusy"
+                  :title="t('contacts.details.removeIdentity')"
+                  @click="removeIdentityRow(row, 'website')"
+                >×</button>
+              </div>
+              <button
+                type="button"
+                class="identity-add"
+                :disabled="identityBusy"
+                @click="addIdentityRow('website')"
+              >{{ t('contacts.details.addWebsite') }}</button>
+            </template>
+            <template v-else>
+              <div v-for="row in websiteRows" :key="row.id || row.value" class="identity-line identity-line--readonly">
+                <span v-if="row.is_primary" class="identity-primary-badge">{{ t('contacts.details.primaryShort') }}</span>
+                <a :href="row.value" target="_blank" rel="noopener noreferrer">{{ row.value }}</a>
+                <span v-if="row.label" class="identity-label-text">{{ row.label }}</span>
+              </div>
+              <span v-if="!websiteRows.length">-</span>
+            </template>
           </span>
         </div>
 
@@ -368,10 +529,15 @@ const canRevokeConsent = computed(() => canDeleteData.value || isOwnProfile.valu
 const lastMessageDate = ref(null);
 const editableName = ref('');
 const draftEmail = ref('');
+const draftPhone = ref('');
 const draftTelegram = ref('');
 const draftWallet = ref('');
+const emailRows = ref([]);
+const phoneRows = ref([]);
+const websiteRows = ref([]);
+const identityBusy = ref(false);
+let identityRowSeq = 0;
 const draftComment = ref('');
-const draftLink = ref('');
 const isSavingCreate = ref(false);
 const isSavingName = ref(false);
 const isSavingIdentity = ref(null);
@@ -423,14 +589,191 @@ function syncFormFromContact() {
   if (!contact.value) return;
   editableName.value = contact.value.name || '';
   draftEmail.value = contact.value.email || '';
+  draftPhone.value = contact.value.phone || '';
   draftTelegram.value = contact.value.telegram || '';
   draftWallet.value = contact.value.wallet || '';
+  emailRows.value = normalizeIdentityList(contact.value.emails, contact.value.email, 'email');
+  phoneRows.value = normalizeIdentityList(contact.value.phones, contact.value.phone, 'phone');
+  websiteRows.value = normalizeIdentityList(
+    contact.value.websites,
+    contact.value.website || contact.value.crm_link,
+    'website'
+  );
   draftComment.value = stripAutoEnrichMarkers(contact.value.crm_comment || '');
-  draftLink.value = contact.value.crm_link || '';
   contactFiles.value = Array.isArray(contact.value.crm_files) ? contact.value.crm_files : [];
   selectedLanguages.value = Array.isArray(contact.value.preferred_language)
     ? contact.value.preferred_language
     : (contact.value.preferred_language ? [contact.value.preferred_language] : []);
+}
+
+function normalizeIdentityList(list, primaryScalar, provider) {
+  const rows = Array.isArray(list) ? list : [];
+  if (rows.length) {
+    return rows.map((r) => ({
+      id: r.id,
+      value: r.value || r.provider_id || '',
+      label: r.label || '',
+      is_primary: Boolean(r.is_primary),
+      _origValue: r.value || r.provider_id || '',
+      _origLabel: r.label || '',
+      _key: `id-${r.id}`
+    }));
+  }
+  if (primaryScalar) {
+    return [{
+      id: null,
+      value: primaryScalar,
+      label: '',
+      is_primary: true,
+      _origValue: primaryScalar,
+      _origLabel: '',
+      _key: `legacy-${provider}`
+    }];
+  }
+  return [];
+}
+
+function applyIdentityPayload(data) {
+  if (!data || !contact.value) return;
+  if (data.emails) contact.value.emails = data.emails;
+  if (data.phones) contact.value.phones = data.phones;
+  if (data.websites) contact.value.websites = data.websites;
+  if (data.email !== undefined) contact.value.email = data.email;
+  if (data.phone !== undefined) contact.value.phone = data.phone;
+  if (data.website !== undefined) {
+    contact.value.website = data.website;
+    contact.value.crm_link = data.website;
+  }
+  emailRows.value = normalizeIdentityList(data.emails || contact.value.emails, data.email ?? contact.value.email, 'email');
+  phoneRows.value = normalizeIdentityList(data.phones || contact.value.phones, data.phone ?? contact.value.phone, 'phone');
+  websiteRows.value = normalizeIdentityList(
+    data.websites || contact.value.websites,
+    data.website ?? contact.value.website ?? contact.value.crm_link,
+    'website'
+  );
+}
+
+async function addIdentityRow(provider) {
+  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id) return;
+  identityBusy.value = true;
+  try {
+    const placeholder = provider === 'email' ? `new${Date.now()}@example.invalid` : `+1000000${Date.now() % 100000}`;
+    // Better UX: add local empty row, persist on blur when value filled
+    const rows = provider === 'email' ? emailRows : provider === 'phone' ? phoneRows : websiteRows;
+    rows.value.push({
+      id: null,
+      value: '',
+      label: '',
+      is_primary: rows.value.length === 0,
+      _origValue: '',
+      _origLabel: '',
+      _key: `new-${++identityRowSeq}`,
+      _isNew: true
+    });
+  } finally {
+    identityBusy.value = false;
+  }
+}
+
+async function persistIdentityRow(row, provider) {
+  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id || !row) return;
+  const value = String(row.value || '').trim();
+  const label = String(row.label || '').trim();
+  if (!value) {
+    if (row.id) {
+      await removeIdentityRow(row, provider);
+    }
+    return;
+  }
+  if (!row._isNew && row.id && value === row._origValue && label === row._origLabel) {
+    return;
+  }
+  identityBusy.value = true;
+  try {
+    let data;
+    if (row.id) {
+      data = await contactsService.updateContactIdentity(contact.value.id, row.id, {
+        value,
+        label,
+        is_primary: row.is_primary || undefined
+      });
+    } else {
+      data = await contactsService.addContactIdentity(contact.value.id, {
+        provider,
+        value,
+        label,
+        is_primary: Boolean(row.is_primary) || (
+          provider === 'email' ? emailRows.value.length <= 1
+            : provider === 'phone' ? phoneRows.value.length <= 1
+              : websiteRows.value.length <= 1
+        )
+      });
+    }
+    applyIdentityPayload(data);
+    await reloadContact();
+  } catch (e) {
+    ElMessageBox.alert(
+      t('contacts.details.identitySaveError', {
+        error: e?.response?.data?.error || e?.message || e,
+      }),
+      t('common.error'),
+      { type: 'error' }
+    );
+    syncFormFromContact();
+  } finally {
+    identityBusy.value = false;
+  }
+}
+
+async function setPrimaryIdentity(row, provider) {
+  if (!row?.id || !contact.value?.id) {
+    row.is_primary = true;
+    return;
+  }
+  identityBusy.value = true;
+  try {
+    const data = await contactsService.updateContactIdentity(contact.value.id, row.id, {
+      is_primary: true
+    });
+    applyIdentityPayload(data);
+    await reloadContact();
+  } catch (e) {
+    ElMessageBox.alert(
+      t('contacts.details.identitySaveError', {
+        error: e?.response?.data?.error || e?.message || e,
+      }),
+      t('common.error'),
+      { type: 'error' }
+    );
+    syncFormFromContact();
+  } finally {
+    identityBusy.value = false;
+  }
+}
+
+async function removeIdentityRow(row, provider) {
+  if (!contact.value?.id) return;
+  if (!row.id) {
+    const rows = provider === 'email' ? emailRows : provider === 'phone' ? phoneRows : websiteRows;
+    rows.value = rows.value.filter((r) => r !== row);
+    return;
+  }
+  identityBusy.value = true;
+  try {
+    const data = await contactsService.deleteContactIdentity(contact.value.id, row.id);
+    applyIdentityPayload(data);
+    await reloadContact();
+  } catch (e) {
+    ElMessageBox.alert(
+      t('contacts.details.identitySaveError', {
+        error: e?.response?.data?.error || e?.message || e,
+      }),
+      t('common.error'),
+      { type: 'error' }
+    );
+  } finally {
+    identityBusy.value = false;
+  }
 }
 
 function isFieldRevealed(field) {
@@ -584,25 +927,15 @@ async function saveContactExtras() {
   if (String(contact.value.id).startsWith('guest_')) return;
   if (isSavingExtras.value) return;
 
-  const nextLink = (draftLink.value || '').trim();
-  if (nextLink && !/^https?:\/\//i.test(nextLink)) {
-    ElMessage.warning(t('contacts.invalidLink'));
-    syncFormFromContact();
-    return;
-  }
-
-  if (
-    draftComment.value === stripAutoEnrichMarkers(contact.value.crm_comment || '')
-    && nextLink === (contact.value.crm_link || '')
-  ) {
+  // Сайты правятся через identities (websiteRows); здесь только комментарий
+  if (draftComment.value === stripAutoEnrichMarkers(contact.value.crm_comment || '')) {
     return;
   }
 
   isSavingExtras.value = true;
   try {
     await contactsService.updateContact(contact.value.id, {
-      comment: draftComment.value,
-      link: nextLink || null
+      comment: draftComment.value
     });
     await reloadContact();
   } catch (e) {
@@ -668,8 +1001,8 @@ function getDraftIdentityValue(field) {
   return draftWallet.value;
 }
 
-function hasAtLeastOneIdentifier({ email, telegram, wallet }) {
-  return Boolean(email?.trim() || telegram?.trim() || wallet?.trim());
+function hasAtLeastOneIdentifier({ email, phone, telegram, wallet }) {
+  return Boolean(email?.trim() || phone?.trim() || telegram?.trim() || wallet?.trim());
 }
 
 async function saveIdentityField(field) {
@@ -685,6 +1018,7 @@ async function saveIdentityField(field) {
 
   const nextValues = {
     email: field === 'email' ? draftValue : (contact.value.email || ''),
+    phone: contact.value.phone || '',
     telegram: field === 'telegram' ? draftValue : (contact.value.telegram || ''),
     wallet: field === 'wallet' ? draftValue : (contact.value.wallet || ''),
   };
@@ -729,10 +1063,11 @@ function saveName() {
 
 async function saveNewContact() {
   const email = draftEmail.value.trim();
+  const phone = draftPhone.value.trim();
   const telegram = draftTelegram.value.trim();
   const wallet = draftWallet.value.trim();
 
-  if (!email && !telegram && !wallet) {
+  if (!email && !phone && !telegram && !wallet) {
     ElMessageBox.alert(
       t('contacts.create.identifierRequired'),
       t('common.error'),
@@ -746,6 +1081,7 @@ async function saveNewContact() {
     const result = await contactsService.createContact({
       name: editableName.value.trim(),
       email: email || undefined,
+      phone: phone || undefined,
       telegram: telegram || undefined,
       wallet: wallet || undefined,
       language: selectedLanguages.value,
@@ -815,6 +1151,12 @@ function deleteContact() {
 }
 
 function identityPresent(provider) {
+  if (provider === 'email') {
+    return emailRows.value.some((r) => String(r.value || '').trim()) || Boolean(contact.value?.email);
+  }
+  if (provider === 'phone') {
+    return phoneRows.value.some((r) => String(r.value || '').trim()) || Boolean(contact.value?.phone);
+  }
   const c = contact.value;
   if (!c) return false;
   const v = c[provider];
@@ -827,7 +1169,7 @@ function consentGranted(provider) {
 }
 
 function countContactIdentities() {
-  return ['email', 'telegram', 'wallet'].filter((p) => identityPresent(p)).length;
+  return ['email', 'phone', 'telegram', 'wallet'].filter((p) => identityPresent(p)).length;
 }
 
 async function onConsentToggle(provider, event) {
@@ -1058,6 +1400,73 @@ watch(contact, () => {
 .info-grid {
   display: flex;
   flex-direction: column;
+}
+
+.info-value--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.identity-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.identity-line--readonly {
+  gap: 10px;
+}
+
+.identity-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.identity-primary-badge {
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+
+.identity-value {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+.identity-label {
+  flex: 1 1 120px;
+  min-width: 100px;
+}
+
+.identity-label-text {
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+
+.identity-remove {
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-secondary, #666);
+  padding: 0 4px;
+}
+
+.identity-add {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--color-primary, #2b6cb0);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9em;
 }
 
 .info-row {

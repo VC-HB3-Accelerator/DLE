@@ -43,6 +43,22 @@
         </div>
       </div>
 
+      <!-- Делегация голосов (ERC20Votes) — без неё getPastVotes = 0 -->
+      <div v-if="showDelegationPrompt" class="delegation-notice">
+        <div class="alert alert-warning">
+          <strong>{{ t('smartcontracts.proposals.delegationNoticeTitle') }}</strong>
+          <p class="delegation-notice-text">{{ t('smartcontracts.proposals.delegationNoticeMessage') }}</p>
+          <button
+            type="button"
+            class="btn-action delegation-btn"
+            :disabled="isDelegating"
+            @click="handleDelegate"
+          >
+            {{ isDelegating ? t('smartcontracts.proposals.delegating') : t('smartcontracts.proposals.delegateButton') }}
+          </button>
+        </div>
+      </div>
+
       <!-- Основной контент -->
       <div class="proposals-content">
 
@@ -189,7 +205,7 @@
                     <span class="chain-status">
                       <span v-if="chain.executed">{{ t('smartcontracts.proposals.chainStatus.executed') }}</span>
                       <span v-else-if="chain.canceled">{{ t('smartcontracts.proposals.chainStatus.cancelled') }}</span>
-                      <span v-else-if="chain.state === 5">{{ t('smartcontracts.proposals.chainStatus.ready') }}</span>
+                      <span v-else-if="Number(chain.state) === 5">{{ t('smartcontracts.proposals.chainStatus.ready') }}</span>
                       <span v-else-if="Number(chain.state) === 0">{{ t('smartcontracts.proposals.chainStatus.active') }}</span>
                       <span v-else>{{ chain.state }}</span>
                     </span>
@@ -237,7 +253,7 @@
             <div class="proposal-actions">
               <button 
                 v-if="canGovern && (proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal))" 
-                @click="voteOnProposal(proposal.id, true)" 
+                @click="voteOnProposal(proposal.uniqueId, true)" 
                 class="btn-action"
                 :disabled="isVoting"
               >
@@ -245,7 +261,7 @@
               </button>
               <button 
                 v-if="canGovern && (proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal))" 
-                @click="voteOnProposal(proposal.id, false)" 
+                @click="voteOnProposal(proposal.uniqueId, false)" 
                 class="btn-action"
                 :disabled="isVoting"
               >
@@ -253,7 +269,7 @@
               </button>
               <button 
                 v-if="canGovern && (proposal.chains && proposal.chains.length > 1 ? canExecuteMultichain(proposal) : canExecute(proposal))" 
-                @click="executeProposal(proposal.id)" 
+                @click="executeProposal(proposal.uniqueId)" 
                 class="btn-action"
                 :disabled="isExecuting"
               >
@@ -261,7 +277,7 @@
               </button>
               <button 
                 v-if="canGovern && canCancel(proposal)" 
-                @click="cancelProposal(proposal.id)" 
+                @click="cancelProposal(proposal.uniqueId)" 
                 class="btn-action"
                 :disabled="isCancelling"
               >
@@ -282,6 +298,7 @@ import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { useProposals } from '@/composables/useProposals';
 import { usePermissions } from '@/composables/usePermissions';
+import { getDelegationStatus, delegateVotingPowerToSelf } from '@/utils/dle-contract';
 import BaseLayout from '@/components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 
@@ -347,6 +364,62 @@ export default {
       canCancel
     } = useProposals(dleAddress, computed(() => props.isAuthenticated), address);
 
+    const needsDelegation = ref(false);
+    const isDelegating = ref(false);
+    const connectedWallet = ref(null);
+
+    const showDelegationPrompt = computed(() => Boolean(connectedWallet.value && needsDelegation.value));
+
+    const votingChainId = computed(() => {
+      const first = proposals.value[0];
+      if (!first) return null;
+      return first.chainId || first.chains?.[0]?.chainId || null;
+    });
+
+    const refreshDelegationStatus = async () => {
+      if (!dleAddress.value) {
+        needsDelegation.value = false;
+        connectedWallet.value = null;
+        return;
+      }
+      try {
+        let wallet = address.value;
+        if (!wallet && window.ethereum) {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+          wallet = accounts?.[0] || null;
+        }
+        connectedWallet.value = wallet;
+        if (!wallet) {
+          needsDelegation.value = false;
+          return;
+        }
+        const status = await getDelegationStatus(dleAddress.value, wallet);
+        needsDelegation.value = status.needsDelegation;
+      } catch (err) {
+        console.warn('[Proposals] delegation check failed:', err?.message || err);
+        needsDelegation.value = false;
+      }
+    };
+
+    const handleDelegate = async () => {
+      if (!dleAddress.value) return;
+      isDelegating.value = true;
+      try {
+        const result = await delegateVotingPowerToSelf(dleAddress.value, votingChainId.value);
+        await refreshDelegationStatus();
+        if (result.alreadyDelegated) {
+          window.alert(t('smartcontracts.proposals.delegationAlreadyDone'));
+        } else {
+          window.alert(t('smartcontracts.proposals.delegationSuccess', { hash: result.txHash }));
+        }
+      } catch (err) {
+        console.error('[Proposals] delegate failed:', err);
+        window.alert(t('smartcontracts.proposals.delegationFailed', { message: err?.message || String(err) }));
+      } finally {
+        isDelegating.value = false;
+      }
+    };
+
     const proposalStatusKeys = {
       0: 'smartcontracts.proposals.status.active',
       1: 'smartcontracts.proposals.status.succeeded',
@@ -371,20 +444,24 @@ export default {
 
     onMounted(() => {
       if (dleAddress.value) {
-        loadProposals();
+        loadProposals().then(refreshDelegationStatus);
       }
     });
 
     watch(() => props.isAuthenticated, () => {
       if (dleAddress.value) {
-        loadProposals();
+        loadProposals().then(refreshDelegationStatus);
       }
     });
 
     watch(dleAddress, (newAddress) => {
       if (newAddress) {
-        loadProposals();
+        loadProposals().then(refreshDelegationStatus);
       }
+    });
+
+    watch([address, proposals], () => {
+      refreshDelegationStatus();
     });
 
     return {
@@ -418,7 +495,11 @@ export default {
       canVoteMultichain,
       canExecute,
       canExecuteMultichain,
-      canCancel
+      canCancel,
+      needsDelegation,
+      isDelegating,
+      showDelegationPrompt,
+      handleDelegate
     };
   }
 };
@@ -465,6 +546,18 @@ export default {
 
 .auth-notice {
   margin-bottom: 16px;
+}
+
+.delegation-notice {
+  margin-bottom: 16px;
+}
+
+.delegation-notice-text {
+  margin: 8px 0 12px;
+}
+
+.delegation-btn {
+  margin-top: 4px;
 }
 
 .alert {

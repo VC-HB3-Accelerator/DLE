@@ -75,7 +75,21 @@ class AIAssistant {
     try {
       logger.info(`[AIAssistant] Генерация ответа для канала ${channel}, пользователь ${userId}`);
 
-      // 0. Язык: русский или английский
+      // 0. Заблокированный пользователь — не отвечаем (defense-in-depth)
+      if (userId && !userContextService.isGuestId(userId)) {
+        const { isUserBlocked } = require('../utils/userUtils');
+        if (await isUserBlocked(userId)) {
+          logger.info(`[AIAssistant] ⚠️ Пользователь ${userId} заблокирован — ответ пропущен (channel: ${channel})`);
+          return {
+            success: false,
+            reason: 'user_blocked',
+            skipped: true,
+            message: 'Пользователь заблокирован'
+          };
+        }
+      }
+
+      // 1. Язык: русский или английский
       const languageCheck = await shouldProcessWithAI(userQuestion, { hasMedia: Boolean(media?.data) });
       if (!languageCheck.shouldProcess) {
         logger.info(`[AIAssistant] ⚠️ Пропуск обработки: ${languageCheck.reason} (user: ${userId}, channel: ${channel})`);

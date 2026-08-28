@@ -10,14 +10,62 @@ const deploymentTracker = require('../utils/deploymentTracker');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-// ContractVerificationService удален - используем Hardhat verify
+const { deployProcessLock } = require('../utils/deployProcessLock');
 const { getRpcUrlByChainId } = require('./rpcProviderService');
 const { ethers } = require('ethers');
+const { verifyWithStandardJson } = require('../utils/etherscanStandardJsonVerify');
 // Убираем прямой импорт broadcastDeploymentUpdate - используем только deploymentTracker
+
+function extractHardhatFailureMessage(stderr = '', stdout = '') {
+  const combined = `${stderr}\n${stdout}`;
+  const lines = combined
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const hardErrors = lines.filter((l) => {
+    const lower = l.toLowerCase();
+    if (lower.startsWith('warning:')) return false;
+    if (lower.includes('compilerwarning')) return false;
+    return (
+      lower.includes('error:') ||
+      lower.includes('syntaxerror') ||
+      lower.includes('nonce') ||
+      lower.includes('insufficient funds') ||
+      lower.includes('replacement') ||
+      lower.includes('underpriced') ||
+      lower.includes('hh:') ||
+      lower.includes('[nonce') ||
+      lower.includes('abort')
+    );
+  });
+
+  if (hardErrors.length) {
+    return hardErrors.slice(-8).join(' | ');
+  }
+
+  const nonWarnings = lines.filter((l) => !l.toLowerCase().startsWith('warning:'));
+  return (nonWarnings.slice(-5).join(' | ') || lines.slice(-3).join(' | ') || 'Неизвестная ошибка').slice(0, 2000);
+}
 
 class UnifiedDeploymentService {
   constructor() {
     this.deployParamsService = new DeployParamsService();
+  }
+
+  /**
+   * Валидация + подготовка + сохранение в БД (до трекера/hardhat).
+   * Нужно вызывать ДО createDeployment в tracker, иначе WS видит «параметры не найдены».
+   */
+  async prepareAndSave(dleParams, deploymentId) {
+    if (!deploymentId) {
+      deploymentId = `deploy_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    }
+    this.validateDLEParams(dleParams);
+    const deployParams = await this.prepareDeployParams(dleParams);
+    await this.deployParamsService.saveDeployParams(deploymentId, deployParams, 'pending');
+    logger.info(`💾 Параметры сохранены в БД: ${deploymentId}`);
+    return { deploymentId, deployParams };
   }
 
   /**
@@ -28,27 +76,16 @@ class UnifiedDeploymentService {
    */
   async createDLE(dleParams, deploymentId = null) {
     try {
-      // 1. Генерируем ID деплоя
       if (!deploymentId) {
         deploymentId = `deploy_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       }
 
       logger.info(`🚀 Начало создания DLE: ${deploymentId}`);
 
-      // 2. Валидируем параметры
-      this.validateDLEParams(dleParams);
+      await this.prepareAndSave(dleParams, deploymentId);
 
-      // 3. Подготавливаем параметры для деплоя
-      const deployParams = await this.prepareDeployParams(dleParams);
-
-      // 4. Сохраняем в БД
-      await this.deployParamsService.saveDeployParams(deploymentId, deployParams, 'pending');
-      logger.info(`💾 Параметры сохранены в БД: ${deploymentId}`);
-
-      // 5. Запускаем деплой
       const result = await this.executeDeployment(deploymentId);
 
-      // 6. Сохраняем результат
       await this.deployParamsService.updateDeploymentStatus(deploymentId, 'completed', result);
       logger.info(`✅ Деплой завершен: ${deploymentId}`);
 
@@ -61,9 +98,12 @@ class UnifiedDeploymentService {
     } catch (error) {
       logger.error(`❌ Ошибка деплоя ${deploymentId}:`, error);
       
-      // Обновляем статус на ошибку
       if (deploymentId) {
-        await this.deployParamsService.updateDeploymentStatus(deploymentId, 'failed', { error: error.message });
+        try {
+          await this.deployParamsService.updateDeploymentStatus(deploymentId, 'failed', { error: error.message });
+        } catch (dbErr) {
+          logger.error(`❌ Не удалось обновить failed-статус: ${dbErr.message}`);
+        }
       }
 
       throw error;
@@ -180,12 +220,66 @@ class UnifiedDeploymentService {
    * @returns {Promise<Object>} - Результат деплоя
    */
   async executeDeployment(deploymentId) {
+    await deployProcessLock.acquire(deploymentId);
+    try {
+      await this.ensureHardhatArtifactsHealthy();
+      return await this._spawnDeployMultichain(deploymentId);
+    } finally {
+      deployProcessLock.release(deploymentId);
+    }
+  }
+
+  /**
+   * Пустые/битые .dbg.json после параллельного hardhat → SyntaxError и abort после compile.
+   */
+  async ensureHardhatArtifactsHealthy() {
+    const backendRoot = path.join(__dirname, '..');
+    const dleArtifact = path.join(backendRoot, 'artifacts/contracts/DLE.sol/DLE.json');
+    let needsClean = !fs.existsSync(dleArtifact);
+    if (!needsClean) {
+      try {
+        JSON.parse(fs.readFileSync(dleArtifact, 'utf8'));
+      } catch (_) {
+        needsClean = true;
+      }
+    }
+    if (!needsClean) {
+      return;
+    }
+    logger.warn('[DEPLOY] Artifacts повреждены или отсутствуют — clean compile');
+    await new Promise((resolve, reject) => {
+      const child = spawn('npx', ['hardhat', 'clean'], {
+        cwd: backendRoot,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`hardhat clean exit ${code}`))));
+      child.on('error', reject);
+    });
+    await new Promise((resolve, reject) => {
+      let err = '';
+      const child = spawn('npx', ['hardhat', 'compile'], {
+        cwd: backendRoot,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      child.stderr.on('data', (d) => {
+        err += d.toString();
+      });
+      child.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`hardhat compile exit ${code}: ${extractHardhatFailureMessage(err)}`));
+      });
+      child.on('error', reject);
+    });
+  }
+
+  _spawnDeployMultichain(deploymentId) {
     return new Promise((resolve, reject) => {
       const scriptPath = path.join(__dirname, '../scripts/deploy/deploy-multichain.js');
       
       logger.info(`🚀 Запуск деплоя: ${scriptPath}`);
       
-      // Используем npx для более надежного запуска hardhat в Docker
       const child = spawn('npx', ['hardhat', 'run', scriptPath], {
         cwd: path.join(__dirname, '..'),
         env: {
@@ -203,7 +297,6 @@ class UnifiedDeploymentService {
         stdout += output;
         logger.info(`[DEPLOY] ${output.trim()}`);
         
-        // Определяем этап процесса по содержимому вывода
         let progress = 50;
         let message = 'Деплой в процессе...';
         
@@ -219,7 +312,7 @@ class UnifiedDeploymentService {
         } else if (output.includes('Загружены параметры')) {
           progress = 40;
           message = 'Загрузка параметров деплоя...';
-        } else if (output.includes('deploying DLE directly')) {
+        } else if (output.includes('deploying DLE') || output.includes('Pre-aligning')) {
           progress = 60;
           message = 'Деплой контрактов в сети...';
         } else if (output.includes('Верификация в сети')) {
@@ -227,7 +320,6 @@ class UnifiedDeploymentService {
           message = 'Верификация контрактов...';
         }
         
-        // Отправляем WebSocket сообщение о прогрессе через deploymentTracker
         deploymentTracker.updateDeployment(deploymentId, {
           status: 'in_progress',
           progress: progress,
@@ -239,49 +331,54 @@ class UnifiedDeploymentService {
       child.stderr.on('data', (data) => {
         const output = data.toString();
         stderr += output;
-        logger.error(`[DEPLOY ERROR] ${output.trim()}`);
+        const trimmed = output.trim();
+        // solc Warning на stderr — не error-level (раньше пугало и маскировало реальный fail)
+        if (/^warning:/i.test(trimmed) || trimmed.toLowerCase().includes('compilerwarning')) {
+          logger.warn(`[DEPLOY WARN] ${trimmed}`);
+        } else {
+          logger.error(`[DEPLOY ERROR] ${trimmed}`);
+        }
       });
 
       child.on('close', (code) => {
         if (code === 0) {
           try {
             const result = this.parseDeployResult(stdout);
+            if (!result || result.success !== true) {
+              const msg = result?.message || 'Мультидеплой завершился без успеха во всех сетях';
+              logger.error(`❌ Деплой exit 0, но результат неуспешен: ${msg}`);
+              this.deployParamsService.updateDeploymentStatus(deploymentId, 'failed', result)
+                .catch((dbError) => logger.error(`❌ Ошибка сохранения failed: ${dbError.message}`));
+              deploymentTracker.failDeployment(deploymentId, new Error(msg));
+              reject(new Error(msg));
+              return;
+            }
             
-            // Сохраняем результат в БД
             this.deployParamsService.updateDeploymentStatus(deploymentId, 'completed', result)
               .then(() => {
                 logger.info(`✅ Результат деплоя сохранен в БД: ${deploymentId}`);
-                
-                // Отправляем WebSocket сообщение о завершении через deploymentTracker
                 deploymentTracker.completeDeployment(deploymentId, result);
-                
                 resolve(result);
               })
               .catch(dbError => {
                 logger.error(`❌ Ошибка сохранения результата в БД: ${dbError.message}`);
-                resolve(result); // Все равно возвращаем результат
+                resolve(result);
               });
           } catch (error) {
             reject(new Error(`Ошибка парсинга результата: ${error.message}`));
           }
         } else {
-          // Логируем детали ошибки для отладки
+          const concise = extractHardhatFailureMessage(stderr, stdout);
           logger.error(`❌ Деплой завершился с ошибкой (код ${code})`);
-          logger.error(`📋 stdout: ${stdout}`);
-          logger.error(`📋 stderr: ${stderr}`);
+          logger.error(`📋 failure: ${concise}`);
           
-          // Извлекаем конкретную ошибку из вывода
-          const errorMessage = stderr || stdout || 'Неизвестная ошибка';
-          
-          // Создаем объект ошибки для сохранения в БД
           const errorResult = {
             success: false,
-            error: `Деплой завершился с ошибкой (код ${code}): ${errorMessage}`,
-            stdout: stdout,
-            stderr: stderr
+            error: `Деплой завершился с ошибкой (код ${code}): ${concise}`,
+            stdout: stdout.slice(-8000),
+            stderr: stderr.slice(-8000)
           };
           
-          // Сохраняем ошибку в БД
           this.deployParamsService.updateDeploymentStatus(deploymentId, 'failed', errorResult)
             .then(() => {
               logger.info(`✅ Результат ошибки сохранен в БД: ${deploymentId}`);
@@ -290,10 +387,12 @@ class UnifiedDeploymentService {
               logger.error(`❌ Ошибка сохранения результата ошибки в БД: ${dbError.message}`);
             });
           
-          // Отправляем WebSocket сообщение об ошибке через deploymentTracker
-          deploymentTracker.failDeployment(deploymentId, new Error(`Деплой завершился с ошибкой (код ${code}): ${errorMessage}`));
+          deploymentTracker.failDeployment(
+            deploymentId,
+            new Error(`Деплой завершился с ошибкой (код ${code}): ${concise}`)
+          );
           
-          reject(new Error(`Деплой завершился с ошибкой (код ${code}): ${errorMessage}`));
+          reject(new Error(`Деплой завершился с ошибкой (код ${code}): ${concise}`));
         }
       });
 
@@ -319,10 +418,10 @@ class UnifiedDeploymentService {
         const deployResults = JSON.parse(jsonStr);
         logger.info(`📊 Результаты деплоя: ${JSON.stringify(deployResults, null, 2)}`);
         
-        // Проверяем, что есть успешные деплои
-        const successfulDeploys = deployResults.filter(r => r.address && r.address !== '0x0000000000000000000000000000000000000000' && !r.error);
+        const successfulDeploys = deployResults.filter(r => r.address && r.address !== '0x0000000000000000000000000000000000000000' && !r.error && r.success !== false);
+        const failedDeploys = deployResults.filter(r => r.error || r.success === false || !r.address);
         
-        if (successfulDeploys.length > 0) {
+        if (successfulDeploys.length > 0 && failedDeploys.length === 0) {
           const dleAddress = successfulDeploys[0].address;
           logger.info(`✅ DLE адрес: ${dleAddress}`);
           
@@ -341,30 +440,29 @@ class UnifiedDeploymentService {
             message: `DLE успешно развернут в ${successfulDeploys.length} сетях`
           };
         } else {
-          // Если нет успешных деплоев, но есть результаты, возвращаем их с ошибками
-          const failedDeploys = deployResults.filter(r => r.error);
-          logger.warn(`⚠️ Все деплои неудачны. Ошибки: ${failedDeploys.map(d => d.error).join(', ')}`);
+          logger.warn(`⚠️ Деплой неполный или неудачен. Ошибки: ${failedDeploys.map(d => d.error).join(', ')}`);
           
           return {
             success: false,
             data: {
+              dleAddress: successfulDeploys[0]?.address || null,
               networks: deployResults.map(result => ({
                 chainId: result.chainId,
                 address: result.address || null,
-                success: false,
+                success: Boolean(result.address && result.success !== false && !result.error),
                 error: result.error || 'Unknown error'
               }))
             },
-            message: `Деплой неудачен во всех сетях. Ошибки: ${failedDeploys.map(d => d.error).join(', ')}`
+            message: `Мультидеплой неполный: ${successfulDeploys.length}/${deployResults.length}. ${failedDeploys.map(d => d.error).filter(Boolean).join(', ')}`
           };
         }
       }
       
-      // Fallback: создаем результат из текста
+      // Fallback: без MULTICHAIN_DEPLOY_RESULT нельзя считать успехом
       return {
-        success: true,
-        message: 'Деплой выполнен успешно',
-        output: stdout
+        success: false,
+        message: 'В выводе деплоя нет MULTICHAIN_DEPLOY_RESULT',
+        output: stdout.slice(-4000)
       };
     } catch (error) {
       logger.error('❌ Ошибка парсинга результата деплоя:', error);
@@ -452,27 +550,33 @@ class UnifiedDeploymentService {
         try {
           logger.info(`🔍 Верификация в сети ${network.chainId}...`);
           
-          const result = await etherscanV2.verifyContract({
-            contractAddress: network.dleAddress,
+          const rpcUrl = await getRpcUrlByChainId(network.chainId);
+          const result = await verifyWithStandardJson({
+            contractAddress: network.address || network.dleAddress,
             chainId: network.chainId,
-            deployParams,
-            apiKey
+            fullyQualifiedName: 'contracts/DLE.sol:DLE',
+            apiKey,
+            rpcUrl,
           });
 
           verificationResults.push({
             chainId: network.chainId,
-            address: network.dleAddress,
+            address: network.address || network.dleAddress,
             success: result.success,
             guid: result.guid,
-            message: result.message
+            message: result.message || result.error
           });
 
-          logger.info(`✅ Верификация в сети ${network.chainId} завершена`);
+          if (result.success) {
+            logger.info(`✅ Верификация в сети ${network.chainId} завершена`);
+          } else {
+            logger.warn(`⚠️ Верификация в сети ${network.chainId}: ${result.error || result.message}`);
+          }
         } catch (error) {
           logger.error(`❌ Ошибка верификации в сети ${network.chainId}:`, error);
           verificationResults.push({
             chainId: network.chainId,
-            address: network.dleAddress,
+            address: network.address || network.dleAddress,
             success: false,
             error: error.message
           });
@@ -498,9 +602,13 @@ class UnifiedDeploymentService {
   async checkBalances(chainIds, privateKey) {
     try {
       logger.info(`💰 Проверка балансов в ${chainIds.length} сетях`);
-      
+      const { nonceManager, MAX_NONCE_SPREAD } = require('../utils/nonceManager');
+
       const wallet = new ethers.Wallet(privateKey);
       const results = [];
+      const insufficient = [];
+      const stuckPending = [];
+      const nonces = [];
 
       for (const chainId of chainIds) {
         try {
@@ -514,21 +622,39 @@ class UnifiedDeploymentService {
             continue;
           }
 
-          // Убеждаемся, что rpcUrl - это строка
           const rpcUrlString = typeof rpcUrl === 'string' ? rpcUrl : rpcUrl.toString();
           const provider = new ethers.JsonRpcProvider(rpcUrlString);
           const balance = await provider.getBalance(wallet.address);
           const balanceEth = ethers.formatEther(balance);
+          const gap = await nonceManager.getNonceGap(wallet.address, rpcUrlString, chainId);
 
-          results.push({
+          const row = {
             chainId,
             success: true,
             address: wallet.address,
             balance: balanceEth,
-            balanceWei: balance.toString()
-          });
+            balanceWei: balance.toString(),
+            nonceLatest: gap.latest,
+            noncePending: gap.pending,
+            stuckPending: gap.stuck,
+          };
+          results.push(row);
+          nonces.push(gap.pending);
 
-          logger.info(`💰 Сеть ${chainId}: ${balanceEth} ETH`);
+          if (balance < ethers.parseEther('0.01')) {
+            insufficient.push(chainId);
+          }
+          if (gap.stuck) {
+            stuckPending.push({
+              chainId,
+              latest: gap.latest,
+              pending: gap.pending,
+            });
+          }
+
+          logger.info(
+            `💰 Сеть ${chainId}: ${balanceEth} ETH nonce latest=${gap.latest} pending=${gap.pending}`
+          );
         } catch (error) {
           logger.error(`❌ Ошибка проверки баланса в сети ${chainId}:`, error);
           results.push({
@@ -539,9 +665,26 @@ class UnifiedDeploymentService {
         }
       }
 
+      const maxNonce = nonces.length ? Math.max(...nonces) : 0;
+      const minNonce = nonces.length ? Math.min(...nonces) : 0;
+      const nonceGap = maxNonce - minNonce;
+
       return {
         success: true,
-        results
+        results,
+        insufficient,
+        stuckPending,
+        nonceSpread: { min: minNonce, max: maxNonce, gap: nonceGap },
+        summary: {
+          ok: insufficient.length === 0 && stuckPending.length === 0 && nonceGap <= MAX_NONCE_SPREAD,
+          blockedReason: stuckPending.length
+            ? 'stuck_pending'
+            : nonceGap > MAX_NONCE_SPREAD
+              ? 'nonce_gap_too_large'
+              : insufficient.length
+                ? 'insufficient_funds'
+                : null,
+        },
       };
     } catch (error) {
       logger.error('❌ Ошибка проверки балансов:', error);

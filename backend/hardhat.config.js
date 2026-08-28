@@ -100,10 +100,26 @@ module.exports = {
     apiKey: process.env.ETHERSCAN_API_KEY || '',
     customChains: [
       {
+        network: "chain_1",
+        chainId: 1,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://etherscan.io"
+        }
+      },
+      {
+        network: "chain_11155111",
+        chainId: 11155111,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://sepolia.etherscan.io"
+        }
+      },
+      {
         network: "sepolia",
         chainId: 11155111,
         urls: {
-          apiURL: "https://api-sepolia.etherscan.io/api",
+          apiURL: "https://api.etherscan.io/v2/api",
           browserURL: "https://sepolia.etherscan.io"
         }
       },
@@ -166,7 +182,7 @@ module.exports = {
     ]
   },
   sourcify: {
-    enabled: true  // Включаем Sourcify для децентрализованной верификации
+    enabled: false
   },
   solidityCoverage: {
     excludeContracts: [],

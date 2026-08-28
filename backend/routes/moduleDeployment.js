@@ -103,36 +103,43 @@ router.post('/deploy', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTING
       // Отправляем логи через WebSocket
       deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', output.trim());
       
-      // Анализируем логи и обновляем прогресс
-      if (output.includes('Compiling') || output.includes('Compilation')) {
-        deploymentWebSocketService.broadcastToDLE(dleAddress, {
-          type: 'deployment_status',
-          dleAddress: dleAddress,
-          moduleType: moduleType,
+      // Анализируем логи и обновляем прогресс (Hardhat пишет Compiled/Deploying в разных формах)
+      const lower = output.toLowerCase();
+      if (
+        lower.includes('compiling')
+        || lower.includes('compiled')
+        || lower.includes('compilation')
+        || lower.includes('downloading compiler')
+      ) {
+        deploymentWebSocketService.updateDeploymentStatus(dleAddress, {
           status: 'compiling',
           progress: 30,
           step: 2,
-          message: 'Компиляция контрактов...'
+          message: 'Компиляция контрактов...',
         });
-      } else if (output.includes('Deploying') || output.includes('deploying')) {
-        deploymentWebSocketService.broadcastToDLE(dleAddress, {
-          type: 'deployment_status',
-          dleAddress: dleAddress,
-          moduleType: moduleType,
+      } else if (
+        lower.includes('deploying')
+        || lower.includes('deployed')
+        || lower.includes('treasury module')
+        || lower.includes('contract address')
+        || lower.includes('nonce')
+      ) {
+        deploymentWebSocketService.updateDeploymentStatus(dleAddress, {
           status: 'deploying',
-          progress: 50,
+          progress: 55,
           step: 3,
-          message: 'Деплой в сетях...'
+          message: 'Деплой в сетях...',
         });
-      } else if (output.includes('verify') || output.includes('verification')) {
-        deploymentWebSocketService.broadcastToDLE(dleAddress, {
-          type: 'deployment_status',
-          dleAddress: dleAddress,
-          moduleType: moduleType,
+      } else if (
+        lower.includes('verify')
+        || lower.includes('verification')
+        || lower.includes('verified')
+      ) {
+        deploymentWebSocketService.updateDeploymentStatus(dleAddress, {
           status: 'verifying',
           progress: 80,
           step: 4,
-          message: 'Верификация контрактов...'
+          message: 'Верификация контрактов...',
         });
       }
     });
@@ -150,20 +157,35 @@ router.post('/deploy', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTING
       if (code === 0) {
         console.log(`[Module Deployment] Модуль ${moduleType} успешно задеплоен`);
         deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно задеплоен`);
+        deploymentWebSocketService.updateDeploymentStatus(dleAddress, {
+          status: 'completed',
+          progress: 100,
+          step: 5,
+          message: `Модуль ${moduleType} успешно задеплоен`,
+        });
         deploymentWebSocketService.finishDeploymentSession(dleAddress, true, `Модуль ${moduleType} успешно задеплоен`);
         res.json({
           success: true,
+          status: 'completed',
           message: `Модуль ${moduleType} успешно задеплоен`,
           stdout: stdout,
           stderr: stderr
         });
       } else {
         console.log(`[Module Deployment] Ошибка при деплое модуля ${moduleType}: код ${code}`);
-        deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка при деплое модуля ${moduleType}: код ${code}`);
-        deploymentWebSocketService.finishDeploymentSession(dleAddress, false, `Ошибка при деплое модуля ${moduleType}: код ${code}`);
+        const errMsg = `Ошибка при деплое модуля ${moduleType}: код ${code}`;
+        deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', errMsg);
+        if (stderr) deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', stderr.slice(-2000));
+        if (stdout) deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', stdout.slice(-2000));
+        deploymentWebSocketService.updateDeploymentStatus(dleAddress, {
+          status: 'failed',
+          step: Math.max(1, 1),
+          message: errMsg,
+        });
+        deploymentWebSocketService.finishDeploymentSession(dleAddress, false, errMsg);
         res.status(500).json({
           success: false,
-          error: `Ошибка при деплое модуля ${moduleType}: код ${code}`,
+          error: errMsg,
           stdout: stdout,
           stderr: stderr
         });

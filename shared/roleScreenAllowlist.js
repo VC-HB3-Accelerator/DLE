@@ -1,78 +1,37 @@
 /**
- * Allowlist экранов по роли ОС (ТЗ §5 P2).
- * Не заменяет PERMISSIONS_MAP: только запрет гостю admin-префиксов.
- * Гость: чат / публичное. Хаб /management и вкладки блоков — просмотр.
- * Без /settings (кроме exact allow), /tables, вложенного CRM.
+ * Allowlist экранов по роли ОС.
+ * Дефолты — roleScreenCaps; runtime-оверлей — матрица из БД (передаётся screensMap).
  */
 
-const GUEST_DENIED_PREFIXES = Object.freeze([
-  '/settings',
-  '/tables',
-  '/crm',
-  '/smartcontracts',
-  '/management',
-  '/vds',
-  '/webssh',
-  '/content/internal',
-  '/content/system-messages'
-]);
-
-const GUEST_ALLOWED_EXACT = Object.freeze([
-  '/management',
-  '/crm',
-  '/settings',
-  '/settings/security',
-  '/settings/ai',
-  '/content/published'
-]);
-
-const GUEST_ALLOWED_PREFIXES = Object.freeze([
-  '/management/dle-blocks',
-  '/management/proposals',
-  '/management/modules',
-  '/management/analytics',
-  '/management/history',
-  '/management/settings',
-  '/management/create-proposal',
-  '/management/dle'
-]);
-
-function normalizePath(path) {
-  const raw = String(path || '').split('?')[0].split('#')[0];
-  if (!raw) return '/';
-  const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  if (withSlash.length > 1 && withSlash.endsWith('/')) return withSlash.slice(0, -1);
-  return withSlash;
-}
-
-function pathEqualsOrUnder(path, prefix) {
-  const p = normalizePath(path);
-  const pre = normalizePath(prefix);
-  return p === pre || p.startsWith(`${pre}/`);
-}
-
-function matchesDeniedPrefix(path, prefix) {
-  const p = normalizePath(path);
-  const pre = normalizePath(prefix);
-  if (pre === '/management' && p === '/management') {
-    return false;
+function loadCaps() {
+  try {
+    return require('/app/shared/roleScreenCaps');
+  } catch (_) {
+    return require('./roleScreenCaps');
   }
-  return p === pre || p.startsWith(`${pre}/`);
 }
 
-function isScreenAllowed(role, path) {
-  const r = String(role || 'guest').trim().toLowerCase();
-  if (r && r !== 'guest') return true;
-  const p = normalizePath(path);
-  if (GUEST_ALLOWED_EXACT.includes(p)) return true;
-  if (GUEST_ALLOWED_PREFIXES.some((prefix) => pathEqualsOrUnder(p, prefix))) return true;
-  return !GUEST_DENIED_PREFIXES.some((prefix) => matchesDeniedPrefix(path, prefix));
+const {
+  normalizePath,
+  roleKeyForScreens,
+  isScreenAllowedByMap,
+  cloneDefaultScreens
+} = loadCaps();
+
+/**
+ * @param {string} role
+ * @param {string} path
+ * @param {Record<string, boolean>|null} [screensMap] матрица роли из БД; без неё — дефолты
+ */
+function isScreenAllowed(role, path, screensMap) {
+  const map = screensMap && typeof screensMap === 'object'
+    ? screensMap
+    : cloneDefaultScreens(roleKeyForScreens(role));
+  return isScreenAllowedByMap(map, path);
 }
 
 module.exports = {
-  GUEST_DENIED_PREFIXES,
-  GUEST_ALLOWED_EXACT,
-  GUEST_ALLOWED_PREFIXES,
   normalizePath,
-  isScreenAllowed
+  isScreenAllowed,
+  roleKeyForScreens
 };

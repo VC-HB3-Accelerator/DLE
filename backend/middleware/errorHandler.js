@@ -55,6 +55,16 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 400;
     errorCode = ERROR_CODES.BAD_REQUEST;
     errorMessage = err.message || 'Некорректный запрос';
+  } else if (
+    httpStatus === 413
+    || err.type === 'entity.too.large'
+    || err.name === 'PayloadTooLargeError'
+    || /request entity too large/i.test(String(err.message || ''))
+  ) {
+    statusCode = 413;
+    errorCode = ERROR_CODES.BAD_REQUEST;
+    errorMessage =
+      'Файл слишком большой для одной загрузки. Разбейте CSV/JSON на части (например по 10–20 тыс. строк) и импортируйте по очереди.';
   }
 
   // В режиме разработки возвращаем стек ошибки

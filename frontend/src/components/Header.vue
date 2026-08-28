@@ -28,6 +28,14 @@
       </div>
       <div class="header-actions">
         <button
+          v-if="showClose"
+          type="button"
+          class="header-close-btn"
+          :aria-label="closeLabel"
+          :title="closeLabel"
+          @click="closePage"
+        >×</button>
+        <button
           class="header-wallet-btn"
           :class="{ active: isSidebarOpen }"
           @click="toggleSidebar"
@@ -41,8 +49,10 @@
 
 <script setup>
 import { defineProps, defineEmits, onMounted, onBeforeUnmount, watch, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../composables/useAuth';
 import { useFooterDle } from '../composables/useFooterDle';
+import { usePageClose } from '../composables/usePageClose';
 import eventBus from '../utils/eventBus';
 
 const props = defineProps({
@@ -53,6 +63,10 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['toggle-sidebar']);
+
+const { t } = useI18n();
+const { showClose, closePage } = usePageClose();
+const closeLabel = computed(() => t('common.close'));
 
 const toggleSidebar = () => {
   emit('toggle-sidebar');
@@ -138,7 +152,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .header {
   background-color: var(--color-white);
-  padding: 30px 20px 25px 20px; /* Увеличиваем высоту шапки еще на 10px */
+  padding:
+    max(30px, env(safe-area-inset-top, 0px))
+    max(20px, env(safe-area-inset-right, 0px))
+    25px
+    max(20px, env(safe-area-inset-left, 0px));
   position: sticky;
   top: 0;
   z-index: 100; /* Ensure header stays on top */
@@ -169,6 +187,39 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--spacing-xs);
   flex-shrink: 0;
+}
+
+.header-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg, 8px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--theme-text, #444);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--transition-fast, 0.15s ease), background var(--transition-fast, 0.15s ease);
+  box-sizing: border-box;
+}
+
+.header-close-btn:hover {
+  color: var(--theme-text, #222);
+  background: var(--color-light, #f3f4f6);
+}
+
+.header-close-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
 }
 
 .footer-dle-info {
@@ -229,6 +280,7 @@ onBeforeUnmount(() => {
 .header-wallet-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   background-color: var(--color-white);
   color: var(--color-primary);
   border: none;
@@ -238,6 +290,9 @@ onBeforeUnmount(() => {
   transition: background-color var(--transition-normal);
   gap: var(--spacing-xs);
   box-shadow: none;
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 
 .header-wallet-btn:hover {
@@ -254,6 +309,7 @@ onBeforeUnmount(() => {
   background-color: var(--color-primary);
   position: relative;
   transition: all var(--transition-normal);
+  flex-shrink: 0;
 }
 
 .hamburger-line::before,
@@ -300,7 +356,11 @@ onBeforeUnmount(() => {
 /* Add some responsive styles if needed */
 @media (max-width: 768px) {
   .header {
-    padding: 16px 4px 14px;
+    padding:
+      max(14px, env(safe-area-inset-top, 0px))
+      max(12px, env(safe-area-inset-right, 0px))
+      12px
+      max(12px, env(safe-area-inset-left, 0px));
   }
 
   .title {
@@ -309,8 +369,14 @@ onBeforeUnmount(() => {
   .subtitle {
     font-size: 0.8rem;
   }
+  .header-close-btn,
   .header-wallet-btn {
-    padding: 6px;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 12px;
+  }
+  .header-close-btn {
+    font-size: 1.6rem;
   }
   .nav-btn-text {
     font-size: 0.8rem;
@@ -319,7 +385,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 480px) {
   .header {
-    padding: 12px 2px 10px;
+    padding:
+      max(12px, env(safe-area-inset-top, 0px))
+      max(14px, env(safe-area-inset-right, 0px))
+      10px
+      max(12px, env(safe-area-inset-left, 0px));
   }
 
   .title {
@@ -341,6 +411,17 @@ onBeforeUnmount(() => {
     min-width: 0;
     text-align: left;
     width: auto;
+  }
+  .header-close-btn,
+  .header-wallet-btn {
+    min-width: 48px;
+    min-height: 48px;
+    margin-right: 2px;
+  }
+  .header-close-btn {
+    font-size: 1.6rem;
+    padding: 0;
+    margin-right: 0;
   }
 }
 

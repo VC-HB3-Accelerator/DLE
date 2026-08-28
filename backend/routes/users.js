@@ -25,7 +25,7 @@ const { PERMISSIONS, ROLES, hasPermission } = require('../shared/permissions');
 function isCrmLimitedRole(role) {
   return role === ROLES.USER || role === ROLES.READONLY || role === 'user' || role === 'readonly';
 }
-const { deleteUserById, listConsentsForUser, buildConsentsPayload, revokeIdentityConsent } = require('../services/userDeleteService');
+const { deleteUserById, deleteUsersByIds, listConsentsForUser, buildConsentsPayload, revokeIdentityConsent } = require('../services/userDeleteService');
 const { getPrivacyDocsUrlPath } = (() => {
   // зеркало frontend getPrivacyDocsUrl (без Vue)
   const section = encodeURIComponent('политика и согласия');
@@ -127,10 +127,13 @@ router.get('/', requireAuth, async (req, res, next) => {
       limit: limitParam = '1000',
       offset: offsetParam = '0'
     } = req.query;
-    const allowedLimits = [100, 500, 1000];
+    const allowedLimits = [100, 500, 1000, 0];
     const parsedLimit = parseInt(limitParam, 10);
-    const limit = allowedLimits.includes(parsedLimit) ? parsedLimit : 1000;
-    const offset = Math.max(parseInt(offsetParam, 10) || 0, 0);
+    const unlimited = parsedLimit === 0;
+    const limit = unlimited
+      ? 0
+      : (allowedLimits.includes(parsedLimit) ? parsedLimit : 1000);
+    const offset = unlimited ? 0 : Math.max(parseInt(offsetParam, 10) || 0, 0);
     const adminId = req.user && req.user.id;
     const userRole = await getUserRole(req);
 
@@ -261,6 +264,31 @@ router.get('/', requireAuth, async (req, res, next) => {
     const countResult = await db.getQuery()(countSql, countParams);
     const userTotal = parseInt(countResult.rows[0]?.cnt || 0, 10);
 
+    // Лёгкий режим: только id для массового выбора (рассылка / парсинг) — без decrypt и лишних JOIN
+    const idsOnlyRaw = String(req.query.idsOnly || req.query.ids_only || '').toLowerCase();
+    const idsOnly = idsOnlyRaw === '1' || idsOnlyRaw === 'true' || idsOnlyRaw === 'yes';
+    if (idsOnly) {
+      let idsSql = 'SELECT u.id FROM users u';
+      if (where.length > 0) {
+        idsSql += ` WHERE ${where.join(' AND ')} `;
+      }
+      idsSql += ' ORDER BY u.id';
+      if (!unlimited) {
+        idsSql += ` LIMIT $${idx++} OFFSET $${idx++}`;
+        params.push(limit, offset);
+      }
+      const idsResult = await db.getQuery()(idsSql, params);
+      const ids = idsResult.rows.map((row) => row.id);
+      return res.json({
+        success: true,
+        ids,
+        total: userTotal,
+        limit: unlimited ? 0 : limit,
+        offset,
+        idsOnly: true
+      });
+    }
+
     // --- Основной SQL ---
     let sql = `
       SELECT u.id, 
@@ -278,7 +306,8 @@ router.get('/', requireAuth, async (req, res, next) => {
           WHEN u.role = 'readonly' THEN 'editor'  -- readonly админы тоже editor
           ELSE 'user'
         END as contact_type,
-        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
+        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) AND is_primary = true LIMIT 1) AS email,
+        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('phone', $${idx++}) AND is_primary = true LIMIT 1) AS phone,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('telegram', $${idx++}) LIMIT 1) AS telegram,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('wallet', $${idx++}) LIMIT 1) AS wallet,
         COALESCE(
@@ -292,7 +321,7 @@ router.get('/', requireAuth, async (req, res, next) => {
          WHERE m.user_id = u.id AND m.direction = 'outgoing') AS last_message_at
       FROM users u
     `;
-    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
+    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
 
     if (where.length > 0) {
       sql += ` WHERE ${where.join(' AND ')} `;
@@ -300,8 +329,10 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     sql += ' ORDER BY u.id ';
 
-    sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
-    params.push(limit, offset);
+    if (!unlimited) {
+      sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
+      params.push(limit, offset);
+    }
 
     // --- Выполняем запрос ---
     const usersResult = await db.getQuery()(sql, params);
@@ -312,6 +343,7 @@ router.get('/', requireAuth, async (req, res, next) => {
       id: u.id,
       name: [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || null,
       email: u.email || null,
+      phone: u.phone || null,
       telegram: u.telegram || null,
       wallet: u.wallet || null,
       created_at: u.created_at,
@@ -440,6 +472,7 @@ router.get('/', requireAuth, async (req, res, next) => {
             guest_identifier: g.guest_identifier,
             name: displayName,
             email: g.channel === 'email' ? rawId : null,
+            phone: null,
             telegram: g.channel === 'telegram' ? rawId : null,
             wallet: null,
             created_at: g.created_at,
@@ -622,7 +655,7 @@ router.patch('/:id/unblock', requireAuth, requirePermission(PERMISSIONS.BLOCK_US
 router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   try {
     const userId = req.params.id;
-    const { first_name, last_name, name, preferred_language, language, is_blocked, email, telegram, wallet, comment, link } = req.body;
+    const { first_name, last_name, name, preferred_language, language, is_blocked, email, phone, telegram, wallet, comment, link } = req.body;
     
     // Получаем ключ шифрования один раз
     const encryptionUtils = require('../utils/encryptionUtils');
@@ -744,10 +777,11 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
       return res.status(400).json({ success: false, error: 'Invalid user ID format' });
     }
 
-    if (email !== undefined || telegram !== undefined || wallet !== undefined) {
+    if (email !== undefined || phone !== undefined || telegram !== undefined || wallet !== undefined) {
       const identityService = require('../services/identity-service');
       const identityResult = await identityService.updateContactIdentities(userIdNum, {
         email,
+        phone,
         telegram,
         wallet,
       });
@@ -796,8 +830,41 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
         fields.push(`blocked_at = NULL`);
       }
     }
-    if (comment !== undefined || link !== undefined) {
-      await userContactFilesService.updateContactExtras(userIdNum, { comment, link }, encryptionKey);
+    if (comment !== undefined) {
+      await userContactFilesService.updateContactExtras(userIdNum, { comment }, encryptionKey);
+    }
+    if (link !== undefined) {
+      // Legacy PATCH link → primary website identity (syncs crm_link)
+      const identityService = require('../services/identity-service');
+      const raw = link == null ? '' : String(link).trim();
+      if (!raw) {
+        const webs = await identityService.listIdentitiesRaw(userIdNum, 'website');
+        for (const w of webs) {
+          await identityService.deleteContactIdentityRow(userIdNum, w.id);
+        }
+      } else {
+        const validation = identityService.validateContactIdentityValue('website', raw);
+        if (!validation.valid) {
+          return res.status(400).json({ success: false, error: validation.error });
+        }
+        const primary = await identityService.findPrimaryIdentity(userIdNum, 'website');
+        if (primary) {
+          const upd = await identityService.updateContactIdentityRow(userIdNum, primary.id, {
+            value: validation.value
+          });
+          if (!upd.success) {
+            return res.status(400).json({ success: false, error: upd.error });
+          }
+        } else {
+          const add = await identityService.addContactIdentity(userIdNum, 'website', validation.value, {
+            makePrimary: true,
+            label: ''
+          });
+          if (!add.success) {
+            return res.status(400).json({ success: false, error: add.error });
+          }
+        }
+      }
     }
 
     if (!fields.length && !identityUpdated && comment === undefined && link === undefined) {
@@ -908,6 +975,72 @@ router.post(
     }
   }
 );
+
+// POST /api/users/bulk-delete — пакетное удаление контактов
+router.post('/bulk-delete', requireAuth, requirePermission(PERMISSIONS.DELETE_USER_DATA), async (req, res) => {
+  try {
+    const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const numericIds = [];
+    const guestParams = [];
+
+    for (const raw of rawIds) {
+      const s = String(raw);
+      if (s.startsWith('guest_')) {
+        guestParams.push(s);
+      } else {
+        const n = Number(s);
+        if (Number.isInteger(n) && n > 0) numericIds.push(n);
+      }
+    }
+
+    let guestDeleted = 0;
+    if (guestParams.length) {
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+      for (const userIdParam of guestParams) {
+        const guestId = parseInt(userIdParam.replace('guest_', ''), 10);
+        if (Number.isNaN(guestId)) continue;
+        const identifierResult = await db.getQuery()(
+          `WITH decrypted_guest AS (
+             SELECT id,
+                    decrypt_text(identifier_encrypted, $2) as guest_identifier,
+                    channel
+             FROM unified_guest_messages
+             WHERE user_id IS NULL
+           )
+           SELECT guest_identifier, channel
+           FROM decrypted_guest
+           GROUP BY guest_identifier, channel
+           HAVING MIN(id) = $1
+           LIMIT 1`,
+          [guestId, encryptionKey]
+        );
+        if (!identifierResult.rows.length) continue;
+        const { guest_identifier: guestIdentifier, channel: guestChannel } = identifierResult.rows[0];
+        const deleteResult = await db.getQuery()(
+          `DELETE FROM unified_guest_messages
+           WHERE decrypt_text(identifier_encrypted, $2) = $1
+             AND channel = $3`,
+          [guestIdentifier, encryptionKey, guestChannel]
+        );
+        guestDeleted += deleteResult.rowCount || 0;
+      }
+    }
+
+    const result = await deleteUsersByIds(numericIds);
+    broadcastContactsUpdate();
+    logger.info(`[users/bulk-delete] users=${result.deleted} guestsRows=${guestDeleted} asked=${rawIds.length}`);
+    return res.json({
+      success: true,
+      deleted: result.deleted,
+      guestRowsDeleted: guestDeleted,
+      ids: result.ids,
+    });
+  } catch (e) {
+    logger.error('[users/bulk-delete]', e);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 // DELETE /api/users/:id — удалить контакт и все связанные данные
 // Удаление пользователя
@@ -1075,11 +1208,12 @@ router.put('/me/preferences/:key', requireAuth, async (req, res) => {
 // POST /api/users/create — создать контакт вручную (редактор)
 router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   try {
-    const { name, email, telegram, wallet, language } = req.body;
+    const { name, email, phone, telegram, wallet, language } = req.body;
     const identityService = require('../services/identity-service');
 
     const rawIdentities = [
       email ? { provider: 'email', value: email } : null,
+      phone ? { provider: 'phone', value: phone } : null,
       telegram ? { provider: 'telegram', value: telegram } : null,
       wallet ? { provider: 'wallet', value: wallet } : null,
     ].filter(Boolean);
@@ -1096,7 +1230,7 @@ router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS)
     if (!identities.length) {
       return res.status(400).json({
         success: false,
-        error: 'Укажите хотя бы один идентификатор: email, telegram или кошелёк',
+        error: 'Укажите хотя бы один идентификатор: email, телефон, telegram или кошелёк',
       });
     }
 
@@ -1151,6 +1285,7 @@ router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS)
         id: userId,
         name: fullName,
         email: identityMap.email || null,
+        phone: identityMap.phone || null,
         telegram: identityMap.telegram || null,
         wallet: identityMap.wallet || null,
         created_at: ins.rows[0].created_at,
@@ -1161,6 +1296,80 @@ router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS)
   } catch (e) {
     logger.error('Ошибка создания контакта:', e);
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Identity rows: add / update / delete / set primary (email & phone)
+router.post('/:id/identities', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' });
+    }
+    const provider = String(req.body?.provider || '').toLowerCase();
+    const value = req.body?.value;
+    const label = req.body?.label;
+    const makePrimary = Boolean(req.body?.is_primary || req.body?.makePrimary);
+    const identityService = require('../services/identity-service');
+    const result = await identityService.addContactIdentity(userId, provider, value, {
+      label,
+      makePrimary
+    });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    broadcastContactsUpdate();
+    const payload = await identityService.buildContactIdentityPayload(userId);
+    return res.json({ success: true, identity: result.identity, ...payload });
+  } catch (error) {
+    logger.error('[users] POST identities error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.patch('/:id/identities/:identityId', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const identityId = Number(req.params.identityId);
+    if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(identityId) || identityId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid id' });
+    }
+    const identityService = require('../services/identity-service');
+    const result = await identityService.updateContactIdentityRow(userId, identityId, {
+      value: req.body?.value,
+      label: req.body?.label,
+      is_primary: req.body?.is_primary === true ? true : undefined
+    });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    broadcastContactsUpdate();
+    const payload = await identityService.buildContactIdentityPayload(userId);
+    return res.json({ success: true, identity: result.identity, ...payload });
+  } catch (error) {
+    logger.error('[users] PATCH identity error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/:id/identities/:identityId', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const identityId = Number(req.params.identityId);
+    if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(identityId) || identityId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid id' });
+    }
+    const identityService = require('../services/identity-service');
+    const result = await identityService.deleteContactIdentityRow(userId, identityId);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    broadcastContactsUpdate();
+    const payload = await identityService.buildContactIdentityPayload(userId);
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    logger.error('[users] DELETE identity error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -1258,6 +1467,7 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
         guest_identifier: guest.guest_identifier,
         name: displayName,
         email: guest.channel === 'email' ? rawId : null,
+        phone: null,
         telegram: guest.channel === 'telegram' ? rawId : null,
         wallet: null,
         created_at: guest.created_at,
@@ -1289,12 +1499,16 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
       }
     }
 
-    // Получаем идентификаторы
-    const identitiesResult = await query('SELECT CASE WHEN provider_encrypted IS NULL OR provider_encrypted = \'\' THEN NULL ELSE decrypt_text(provider_encrypted, $2) END as provider, CASE WHEN provider_id_encrypted IS NULL OR provider_id_encrypted = \'\' THEN NULL ELSE decrypt_text(provider_id_encrypted, $2) END as provider_id FROM user_identities WHERE user_id = $1', [userId, encryptionKey]);
-    const identityMap = {};
-    for (const id of identitiesResult.rows) {
-      identityMap[id.provider] = id.provider_id;
-    }
+    // Получаем идентификаторы (primary + списки email/phone)
+    const identityService = require('../services/identity-service');
+    const identityPayload = await identityService.buildContactIdentityPayload(userId);
+    const identityMap = {
+      email: identityPayload.email,
+      phone: identityPayload.phone,
+      website: identityPayload.website,
+      telegram: identityPayload.telegram,
+      wallet: identityPayload.wallet
+    };
     // Получаем имя пользователя из зашифрованных полей
     const nameResult = await query('SELECT CASE WHEN first_name_encrypted IS NULL OR first_name_encrypted = \'\' THEN NULL ELSE decrypt_text(first_name_encrypted, $2) END as first_name, CASE WHEN last_name_encrypted IS NULL OR last_name_encrypted = \'\' THEN NULL ELSE decrypt_text(last_name_encrypted, $2) END as last_name FROM users WHERE id = $1', [userId, encryptionKey]);
     
@@ -1308,9 +1522,14 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
     res.json({
       id: user.id,
       name: fullName,
-      email: identityMap.email || null,
-      telegram: identityMap.telegram || null,
-      wallet: identityMap.wallet || null,
+      email: identityPayload.email || null,
+      phone: identityPayload.phone || null,
+      website: identityPayload.website || null,
+      emails: identityPayload.emails || [],
+      phones: identityPayload.phones || [],
+      websites: identityPayload.websites || [],
+      telegram: identityPayload.telegram || null,
+      wallet: identityPayload.wallet || null,
       created_at: user.created_at,
       preferred_language: user.preferred_language || [],
       is_blocked: user.is_blocked || false,
@@ -1319,7 +1538,7 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
         const extras = extrasMap[Number(userId)] || { comment: null, link: null, files: [] };
         return {
           crm_comment: extras.comment,
-          crm_link: extras.link,
+          crm_link: identityPayload.website || extras.link,
           crm_files: extras.files
         };
       })()),
@@ -1369,87 +1588,62 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Массовый импорт контактов
-router.post('/import', requireAuth, async (req, res) => {
-  // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  // Получаем ключ шифрования через унифицированную утилиту
-  const encryptionUtils = require('../utils/encryptionUtils');
-  const encryptionKey = encryptionUtils.getEncryptionKey();
-
+// Фоновый импорт контактов (job + прогресс)
+router.post('/import-jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   try {
-    const contacts = req.body;
-    if (!Array.isArray(contacts)) {
-      return res.status(400).json({ success: false, error: 'Ожидается массив контактов' });
-    }
-    const dbq = db.getQuery();
-    let added = 0, updated = 0, errors = [];
-    for (const [i, c] of contacts.entries()) {
-      try {
-        // Имя
-        let first_name = null, last_name = null;
-        if (c.name) {
-          const parts = c.name.trim().split(' ');
-          first_name = parts[0] || null;
-          last_name = parts.slice(1).join(' ') || null;
-        }
-        // Проверка на существование по email/telegram/wallet
-        let userId = null;
-        let foundUser = null;
-        if (c.email) {
-          const r = await dbq('SELECT user_id FROM user_identities WHERE provider_encrypted = encrypt_text($1, $3) AND provider_id_encrypted = encrypt_text($2, $3)', ['email', c.email.toLowerCase(), encryptionKey]);
-          if (r.rows.length) foundUser = r.rows[0].user_id;
-        }
-        if (!foundUser && c.telegram) {
-          const r = await dbq('SELECT user_id FROM user_identities WHERE provider_encrypted = encrypt_text($1, $3) AND provider_id_encrypted = encrypt_text($2, $3)', ['telegram', c.telegram, encryptionKey]);
-          if (r.rows.length) foundUser = r.rows[0].user_id;
-        }
-        if (!foundUser && c.wallet) {
-          const r = await dbq('SELECT user_id FROM user_identities WHERE provider_encrypted = encrypt_text($1, $3) AND provider_id_encrypted = encrypt_text($2, $3)', ['wallet', c.wallet, encryptionKey]);
-          if (r.rows.length) foundUser = r.rows[0].user_id;
-        }
-        if (foundUser) {
-          userId = foundUser;
-          updated++;
-          // Обновляем имя, если нужно
-          if (first_name || last_name) {
-            await dbq('UPDATE users SET first_name_encrypted = COALESCE(encrypt_text($1, $4), first_name_encrypted), last_name_encrypted = COALESCE(encrypt_text($2, $4), last_name_encrypted) WHERE id = $3', [first_name, last_name, userId, encryptionKey]);
-          }
-        } else {
-          // Создаём нового пользователя с централизованной ролью
-          const ins = await dbq('INSERT INTO users (first_name_encrypted, last_name_encrypted, role, created_at) VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3, NOW()) RETURNING id', [first_name, last_name, ROLES.USER, encryptionKey]);
-          userId = ins.rows[0].id;
-          added++;
-        }
-        if (c.crm_comment !== undefined || c.crm_link !== undefined) {
-          await userContactFilesService.updateContactExtras(userId, {
-            comment: c.crm_comment,
-            link: c.crm_link
-          }, encryptionKey);
-        }
-
-        // Добавляем идентификаторы (email, telegram, wallet)
-        const identities = [
-          c.email ? { provider: 'email', provider_id: c.email.toLowerCase() } : null,
-          c.telegram ? { provider: 'telegram', provider_id: c.telegram } : null,
-          c.wallet ? { provider: 'wallet', provider_id: c.wallet } : null
-        ].filter(Boolean);
-        for (const idn of identities) {
-          // Проверяем, есть ли уже такой идентификатор у пользователя
-          const exists = await dbq('SELECT 1 FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $4) AND provider_id_encrypted = encrypt_text($3, $4)', [userId, idn.provider, idn.provider_id, encryptionKey]);
-          if (!exists.rows.length) {
-            await dbq('INSERT INTO user_identities (user_id, provider_encrypted, provider_id_encrypted) VALUES ($1, encrypt_text($2, $4), encrypt_text($3, $4)) ON CONFLICT DO NOTHING', [userId, idn.provider, idn.provider_id, encryptionKey]);
-          }
-        }
-      } catch (e) {
-        errors.push({ row: i + 1, error: e.message });
-      }
-    }
-    broadcastContactsUpdate();
-    res.json({ success: true, added, updated, errors });
+    const contactImportJobService = require('../services/contactImportJobService');
+    const contacts = Array.isArray(req.body) ? req.body : req.body?.contacts;
+    const job = await contactImportJobService.startImportJob({
+      contacts,
+      requestedBy: req.user?.id || req.session?.userId || null
+    });
+    res.status(202).json({ success: true, job });
   } catch (e) {
+    const status = e.status || 500;
+    logger.error('[users/import-jobs]', e);
+    res.status(status).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/import-jobs/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const contactImportJobService = require('../services/contactImportJobService');
+    const job = await contactImportJobService.getJob(req.params.id);
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, job });
+  } catch (e) {
+    logger.error('[users/import-jobs/:id]', e);
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/import-jobs/:id/cancel', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const contactImportJobService = require('../services/contactImportJobService');
+    const job = await contactImportJobService.cancelJob(req.params.id);
+    res.json({ success: true, job });
+  } catch (e) {
+    const status = e.message === 'Job not found' ? 404 : 500;
+    logger.error('[users/import-jobs/:id/cancel]', e);
+    res.status(status).json({ success: false, error: e.message });
+  }
+});
+
+// Совместимость: старый POST /import → тот же фоновый job (202)
+router.post('/import', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const contactImportJobService = require('../services/contactImportJobService');
+    const contacts = Array.isArray(req.body) ? req.body : req.body?.contacts;
+    const job = await contactImportJobService.startImportJob({
+      contacts,
+      requestedBy: req.user?.id || req.session?.userId || null
+    });
+    res.status(202).json({ success: true, job });
+  } catch (e) {
+    const status = e.status || 500;
+    logger.error('[users/import]', e);
+    res.status(status).json({ success: false, error: e.message });
   }
 });
 

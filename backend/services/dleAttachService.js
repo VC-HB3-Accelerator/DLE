@@ -329,6 +329,159 @@ async function detachByDleAddress(address) {
   return { detached: true, deploymentId: row.deployment_id };
 }
 
+/**
+ * Снять книгу с этой ОС после on-chain isActive=false (вариант B delist).
+ * Удаляет хвост deploy_params (в т.ч. локальный completed), JSON contracts-data/dles, футер.
+ */
+async function delistFromOs(address, { requireInactive = true, chainId = null } = {}) {
+  const { ethers } = require('ethers');
+  const fs = require('fs');
+  const path = require('path');
+  const footerDleService = require('./footerDleService');
+
+  if (!isValidAddress(address)) {
+    const err = new Error('invalid_address');
+    err.code = 'invalid_address';
+    throw err;
+  }
+  const normalized = normalizeAddress(address);
+
+  let resolvedChainId = chainId != null ? Number(chainId) : null;
+  let rpcUrl = null;
+  if (resolvedChainId) {
+    rpcUrl = await rpcProviderService.getRpcUrlByChainId(resolvedChainId);
+    if (rpcUrl) {
+      try {
+        const code = await new ethers.JsonRpcProvider(rpcUrl, resolvedChainId).getCode(normalized);
+        if (!code || code === '0x') {
+          rpcUrl = null;
+          resolvedChainId = chainId != null ? Number(chainId) : null;
+        }
+      } catch {
+        rpcUrl = null;
+      }
+    }
+  }
+  if (!rpcUrl) {
+    resolvedChainId = null;
+    const providers = await rpcProviderService.getAllRpcProviders();
+    for (const p of providers || []) {
+      const cid = Number(p.chain_id);
+      if (!cid) continue;
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const code = await new ethers.JsonRpcProvider(url).getCode(normalized);
+        if (code && code !== '0x') {
+          rpcUrl = url;
+          resolvedChainId = cid;
+          break;
+        }
+      } catch {
+        /* next */
+      }
+    }
+  }
+  if (!rpcUrl) {
+    const err = new Error('contract_not_found');
+    err.code = 'contract_not_found';
+    throw err;
+  }
+
+  const dle = new ethers.Contract(
+    normalized,
+    ['function isActive() view returns (bool)'],
+    new ethers.JsonRpcProvider(rpcUrl, resolvedChainId)
+  );
+  let active = true;
+  try {
+    active = await dle.isActive();
+  } catch (e) {
+    const err = new Error(`isActive_read_failed: ${e.message}`);
+    err.code = 'isActive_read_failed';
+    throw err;
+  }
+  if (requireInactive && active) {
+    const err = new Error('still_active');
+    err.code = 'still_active';
+    err.isActive = true;
+    err.chainId = resolvedChainId;
+    throw err;
+  }
+
+  const row = await findDeployRowByDleAddress(normalized);
+  let deploymentId = null;
+  let removedDeploy = false;
+  if (row) {
+    deploymentId = row.deployment_id;
+    await deployParamsService.deleteDeployParams(row.deployment_id);
+    removedDeploy = true;
+  }
+
+  const authTokenService = require('./authTokenService');
+  const authRows = await remainingAuthTokensForAddress(normalized);
+  let removedAuthTokens = 0;
+  for (const t of authRows) {
+    try {
+      await authTokenService.deleteAuthToken(t.address, t.network);
+      removedAuthTokens += 1;
+    } catch (e) {
+      logger.warn(`[dleAttach] delist auth_token: ${e.message}`);
+    }
+  }
+
+  const dlesDir = path.join(__dirname, '../contracts-data/dles');
+  const removedFiles = [];
+  if (fs.existsSync(dlesDir)) {
+    for (const file of fs.readdirSync(dlesDir)) {
+      if (!file.endsWith('.json')) continue;
+      const filePath = path.join(dlesDir, file);
+      try {
+        if (!fs.statSync(filePath).isFile()) continue;
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const addrs = [];
+        if (data.dleAddress) addrs.push(normalizeAddress(data.dleAddress));
+        for (const n of data.networks || data.deployedNetworks || []) {
+          if (n?.address) addrs.push(normalizeAddress(n.address));
+        }
+        if (addrs.includes(normalized)) {
+          fs.unlinkSync(filePath);
+          removedFiles.push(file);
+        }
+      } catch (e) {
+        logger.warn(`[dleAttach] delist: skip file ${file}: ${e.message}`);
+      }
+    }
+  }
+
+  let footerCleared = false;
+  try {
+    const footer = await footerDleService.getFooterSelection();
+    const footerAddr = normalizeAddress(footer?.address || '');
+    if (footerAddr && footerAddr === normalized) {
+      await footerDleService.clearFooterSelection();
+      footerCleared = true;
+    }
+  } catch (e) {
+    logger.warn(`[dleAttach] delist footer: ${e.message}`);
+  }
+
+  logger.info(
+    `[dleAttach] delistFromOs ${normalized} chain=${resolvedChainId} deploy=${removedDeploy} auth=${removedAuthTokens} files=${removedFiles.length} footer=${footerCleared}`
+  );
+  return {
+    delisted: true,
+    dleAddress: normalized,
+    chainId: resolvedChainId,
+    wasActive: active,
+    deploymentId,
+    removedDeploy,
+    removedAuthTokens,
+    removedFiles,
+    footerCleared,
+  };
+}
+
 function stripDeploymentSecrets(row) {
   if (!row || typeof row !== 'object') return row;
   const out = { ...row };
@@ -581,6 +734,7 @@ module.exports = {
   tryAttachFromAuthToken,
   detachIfNoAuthToken,
   detachByDleAddress,
+  delistFromOs,
   listAttachedDleAddresses,
   resolveChainId,
   stripDeploymentSecrets,

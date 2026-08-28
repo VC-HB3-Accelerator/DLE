@@ -74,6 +74,16 @@
           />
         </el-form-item>
 
+        <el-form-item :label="t('contacts.parser.jobConcurrency')">
+          <el-input-number
+            v-model="form.job_concurrency"
+            :min="limits.jobConcurrencyMin"
+            :max="limits.jobConcurrencyMax"
+            :step="1"
+          />
+          <div class="field-hint">{{ t('contacts.parser.jobConcurrencyHint') }}</div>
+        </el-form-item>
+
         <el-form-item :label="t('contacts.parser.maxPages')">
           <el-input-number
             v-model="form.max_pages"
@@ -251,9 +261,20 @@
             <span v-else-if="row.summary_preview" class="job-preview">· {{ row.summary_preview }}</span>
           </div>
         </div>
-        <el-button link type="primary" @click="inspectJob(job.id)">
-          {{ activeJobDetails?.id === job.id ? t('common.refresh') : t('contacts.parser.jobsRefresh') }}
-        </el-button>
+        <div class="job-actions">
+          <el-button
+            v-if="job.status === 'running' || job.status === 'pending'"
+            link
+            type="danger"
+            :loading="stoppingJobId === job.id"
+            @click="stopJob(job.id)"
+          >
+            {{ t('contacts.parser.stopJob') }}
+          </el-button>
+          <el-button link type="primary" @click="inspectJob(job.id)">
+            {{ activeJobDetails?.id === job.id ? t('common.refresh') : t('contacts.parser.jobsRefresh') }}
+          </el-button>
+        </div>
       </div>
     </section>
   </div>
@@ -275,6 +296,7 @@ const loading = ref(false);
 const saving = ref(false);
 const running = ref(false);
 const jobsLoading = ref(false);
+const stoppingJobId = ref(null);
 const models = ref([]);
 const jobs = ref([]);
 const activeJobDetails = ref(null);
@@ -285,6 +307,7 @@ const form = reactive({
   schedule_enabled: false,
   interval_days: 7,
   schedule_batch_size: 10,
+  job_concurrency: 4,
   max_pages: 5,
   max_blog_pages: 1,
   allow_path_keywords: '',
@@ -304,6 +327,7 @@ const defaults = reactive({
   schedule_enabled: false,
   interval_days: 7,
   schedule_batch_size: 10,
+  job_concurrency: 4,
   max_pages: 5,
   max_blog_pages: 1,
   allow_path_keywords: '',
@@ -330,7 +354,9 @@ const limits = reactive({
   maxBlogPagesMin: 0,
   maxBlogPagesMax: 3,
   scheduleBatchSizeMin: 1,
-  scheduleBatchSizeMax: 50
+  scheduleBatchSizeMax: 50,
+  jobConcurrencyMin: 1,
+  jobConcurrencyMax: 10
 });
 
 const providerOptions = [
@@ -369,6 +395,7 @@ function applySettings(settings = {}, defaultsPayload = {}) {
   form.schedule_enabled = Boolean(settings.schedule_enabled);
   form.interval_days = Number(settings.interval_days) || defaults.interval_days;
   form.schedule_batch_size = Number(settings.schedule_batch_size) || defaults.schedule_batch_size;
+  form.job_concurrency = Number(settings.job_concurrency) || defaults.job_concurrency || 4;
   form.max_pages = Number(settings.max_pages) || defaults.max_pages;
   form.max_blog_pages = Number(settings.max_blog_pages) ?? defaults.max_blog_pages;
   form.allow_path_keywords = settings.allow_path_keywords || defaults.allow_path_keywords || '';
@@ -426,6 +453,7 @@ async function saveSettings() {
       schedule_enabled: form.schedule_enabled,
       interval_days: form.interval_days,
       schedule_batch_size: form.schedule_batch_size,
+      job_concurrency: form.job_concurrency,
       max_pages: form.max_pages,
       max_blog_pages: form.max_blog_pages,
       allow_path_keywords: form.allow_path_keywords,
@@ -454,9 +482,25 @@ function statusLabel(status) {
     pending: t('contacts.parser.statusPending'),
     running: t('contacts.parser.statusRunning'),
     done: t('contacts.parser.statusDone'),
-    failed: t('contacts.parser.statusFailed')
+    failed: t('contacts.parser.statusFailed'),
+    cancelled: t('contacts.parser.statusCancelled')
   };
   return map[status] || status;
+}
+
+async function stopJob(jobId) {
+  stoppingJobId.value = jobId;
+  try {
+    const data = await contactSiteParserService.cancelJob(jobId);
+    ElMessage.success(t('contacts.parser.stopRequested', { id: jobId }));
+    activeJobDetails.value = data.job || activeJobDetails.value;
+    await loadJobs();
+    startPolling(jobId);
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.parser.stopError'));
+  } finally {
+    stoppingJobId.value = null;
+  }
 }
 
 async function loadJobs() {
@@ -511,7 +555,7 @@ function startPolling(jobId) {
       activeJobDetails.value = data.job || null;
       await loadJobs();
       const status = data.job?.status;
-      if (status === 'done' || status === 'failed') {
+      if (status === 'done' || status === 'failed' || status === 'cancelled') {
         stopPolling();
       }
     } catch {
@@ -599,6 +643,13 @@ onUnmounted(() => {
   padding: 12px;
   margin-bottom: 10px;
   background: var(--color-white);
+}
+
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
 }
 
 .job-meta {

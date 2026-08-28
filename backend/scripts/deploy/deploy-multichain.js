@@ -41,7 +41,7 @@ const RPCConnectionManager = require('../../utils/rpcConnectionManager');
 console.log('[MULTI_DBG] ✅ deploymentUtils импортирован');
 
 console.log('[MULTI_DBG] 📦 Импортируем nonceManager...');
-const { nonceManager } = require('../../utils/nonceManager');
+const { nonceManager, MAX_NONCE_FILLERS } = require('../../utils/nonceManager');
 console.log('[MULTI_DBG] ✅ nonceManager импортирован');
 
 // ContractVerificationService удален - используем Hardhat verify
@@ -52,148 +52,21 @@ console.log('[MULTI_DBG] 🔍 ПРОВЕРЯЕМ ФУНКЦИИ...');
 console.log('[MULTI_DBG] deployInNetwork:', typeof deployInNetwork);
 console.log('[MULTI_DBG] main:', typeof main);
 
-// Функция для получения имени сети для Hardhat из deploy_params
-function getNetworkNameForHardhat(chainId, params) {
-  // Проверяем, есть ли эта сеть в supported_chain_ids из deploy_params
-  const supportedChainIds = params.supported_chain_ids || params.supportedChainIds || [];
-  if (supportedChainIds.length > 0) {
-    // Преобразуем supportedChainIds в числа для сравнения
-    const supportedChainIdsNumbers = supportedChainIds.map(id => Number(id));
-    if (!supportedChainIdsNumbers.includes(chainId)) {
-      logger.warn(`⚠️ Сеть ${chainId} не входит в список поддерживаемых сетей: ${supportedChainIdsNumbers.join(', ')}`);
-      return null;
-    }
-    logger.info(`✅ Сеть ${chainId} найдена в списке поддерживаемых сетей`);
-  } else {
-    logger.info(`ℹ️ Список поддерживаемых сетей пуст, разрешаем верификацию для ${chainId}`);
-  }
-  
-  // Динамически формируем имя сети для Hardhat без хардкода:
-  // в конфиге Hardhat сеть будет объявлена как chain_<chainId>
-  const hardhatNetworkName = `chain_${chainId}`;
-  logger.info(`✅ Сеть ${chainId} будет использовать Hardhat network: ${hardhatNetworkName}`);
-  logger.info(`🔍 Детали сети: chainId=${chainId}, hardhatName=${hardhatNetworkName}, supportedChains=[${supportedChainIds.join(', ')}]`);
-  return hardhatNetworkName;
-}
+const { verifyWithStandardJson } = require('../../utils/etherscanStandardJsonVerify');
 
-// Функция для автоматической верификации DLE контракта
-async function verifyDLEAfterDeploy(chainId, contractAddress, constructorArgs, apiKey, params) {
+async function verifyDLEAfterDeploy(chainId, contractAddress, creationTxData, apiKey, rpcUrl) {
   try {
-    if (!apiKey) {
-      logger.warn(`⚠️ API ключ Etherscan не предоставлен, пропускаем верификацию DLE`);
-      return { success: false, error: 'API ключ не предоставлен' };
-    }
-
-    logger.info(`🔍 Начинаем верификацию DLE контракта по адресу ${contractAddress} в сети ${chainId}`);
-    
-    // Retry логика для верификации (до 3 попыток)
-    const maxVerifyAttempts = 3;
-    let verifyAttempts = 0;
-    
-    while (verifyAttempts < maxVerifyAttempts) {
-      verifyAttempts++;
-      logger.info(`🔄 Попытка верификации ${verifyAttempts}/${maxVerifyAttempts}`);
-      
-      try {
-        // Используем Hardhat verify вместо старого сервиса
-        const { exec } = require('child_process');
-        const { promisify } = require('util');
-        const execAsync = promisify(exec);
-    
-    // Определяем имя сети для Hardhat из deploy_params
-    const networkName = getNetworkNameForHardhat(chainId, params);
-    if (!networkName) {
-      logger.warn(`⚠️ Неизвестная сеть ${chainId}, пропускаем верификацию`);
-      return { success: false, error: `Неизвестная сеть ${chainId}` };
-    }
-    
-    logger.info(`🔧 Используем Hardhat verify для сети ${networkName}`);
-    
-    // Создаем временный файл с аргументами конструктора
-    const fs = require('fs');
-    const path = require('path');
-    const tempArgsFile = path.join(__dirname, '..', '..', 'temp-constructor-args.js');
-    
-    // Формируем аргументы в правильном формате для Hardhat
-    // constructorArgs - это hex строка, нам нужны исходные аргументы
-    // Получаем dleConfig и initializer из параметров
-    const { generateDeploymentArgs } = require('../../utils/constructorArgsGenerator');
-    const { dleConfig, initializer } = generateDeploymentArgs(params);
-    
-    // Конвертируем BigInt значения в строки для JSON сериализации
-    const serializableDleConfig = {
-      name: dleConfig.name,
-      symbol: dleConfig.symbol,
-      location: dleConfig.location,
-      coordinates: dleConfig.coordinates,
-      jurisdiction: dleConfig.jurisdiction.toString(),
-      okvedCodes: dleConfig.okvedCodes,
-      kpp: dleConfig.kpp.toString(),
-      quorumPercentage: dleConfig.quorumPercentage.toString(),
-      initialPartners: dleConfig.initialPartners,
-      initialAmounts: dleConfig.initialAmounts.map(amount => amount.toString()),
-      supportedChainIds: dleConfig.supportedChainIds.map(id => id.toString())
-    };
-    
-    const argsContent = `module.exports = ${JSON.stringify([serializableDleConfig, initializer], null, 2)};`;
-    fs.writeFileSync(tempArgsFile, argsContent);
-    
-    try {
-      // Выполняем Hardhat verify
-      const command = `npx hardhat verify --network ${networkName} --constructor-args ${tempArgsFile} ${contractAddress}`;
-      logger.info(`🔧 Выполняем команду: ${command}`);
-      
-      // Устанавливаем переменные окружения для Hardhat
-      const envVars = {
-        ...process.env,
-        ETHERSCAN_API_KEY: apiKey,
-        SUPPORTED_CHAIN_IDS: JSON.stringify(params.supported_chain_ids || params.supportedChainIds || []),
-        RPC_URLS: JSON.stringify(params.rpc_urls || params.rpcUrls || {})
-      };
-      
-      const { stdout, stderr } = await execAsync(command, {
-        cwd: path.join(__dirname, '..', '..'),
-        env: envVars
-      });
-      
-        if (stdout.includes('Successfully verified')) {
-          logger.info(`✅ DLE контракт успешно верифицирован через Hardhat!`);
-          logger.info(`📄 Вывод: ${stdout}`);
-          return { success: true, message: 'Верификация успешна' };
-        } else {
-          // Проверяем, нужно ли повторить попытку
-          if (stderr.includes('does not have bytecode') && verifyAttempts < maxVerifyAttempts) {
-            logger.warn(`⚠️ Контракт еще не проиндексирован, ждем 5 секунд...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            continue;
-          }
-          logger.error(`❌ Ошибка верификации: ${stderr || stdout}`);
-          return { success: false, error: stderr || stdout };
-        }
-      } finally {
-        // Удаляем временный файл
-        if (fs.existsSync(tempArgsFile)) {
-          fs.unlinkSync(tempArgsFile);
-        }
-      }
-      
-      } catch (error) {
-        // Проверяем, нужно ли повторить попытку
-        if (error.message.includes('does not have bytecode') && verifyAttempts < maxVerifyAttempts) {
-          logger.warn(`⚠️ Контракт еще не проиндексирован, ждем 5 секунд...`);
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          continue;
-        }
-        logger.error(`❌ Ошибка при верификации DLE контракта: ${error.message}`);
-        return { success: false, error: error.message };
-      }
-    }
-    
-    // Если все попытки исчерпаны
-    logger.error(`❌ Верификация не удалась после ${maxVerifyAttempts} попыток`);
-    return { success: false, error: 'Верификация не удалась после всех попыток' };
+    logger.info(`🔍 Верификация DLE ${contractAddress} chainId=${chainId} (standard-JSON artifact, без hardhat verify)`);
+    return await verifyWithStandardJson({
+      chainId: Number(chainId),
+      contractAddress,
+      fullyQualifiedName: 'contracts/DLE.sol:DLE',
+      apiKey,
+      creationTxData,
+      rpcUrl,
+    });
   } catch (error) {
-    logger.error(`❌ Критическая ошибка при верификации DLE контракта: ${error.message}`);
+    logger.error(`❌ Ошибка при верификации DLE: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
@@ -229,50 +102,35 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
     logger.error('[MULTI_DBG] precheck error', e?.message || e);
   }
 
-  // 1) Используем NonceManager для получения актуального nonce
-  let current = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+  // 1) Как на VDS: align внутри сети. target = max(nonce) со старта; отстающие догоняют filler.
+  let current = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
   logger.info(`[MULTI_DBG] chainId=${chainId} current nonce=${current} (target was ${targetDLENonce})`);
-  
-  // Если текущий nonce больше целевого, обновляем targetDLENonce
+
   if (current > targetDLENonce) {
-    logger.info(`[MULTI_DBG] chainId=${chainId} current nonce ${current} > targetDLENonce ${targetDLENonce}, updating target`);
-    targetDLENonce = current;
-    logger.info(`[MULTI_DBG] chainId=${chainId} updated targetDLENonce to: ${targetDLENonce}`);
+    throw new Error(
+      `Nonce ${current} > target CREATE nonce ${targetDLENonce} on chainId=${chainId}. Abort, чтобы адреса не разъехались.`
+    );
   }
-  
-  // Если текущий nonce меньше целевого, выравниваем его
+
   if (current < targetDLENonce) {
-    logger.info(`[MULTI_DBG] chainId=${chainId} starting nonce alignment: ${current} -> ${targetDLENonce} (${targetDLENonce - current} transactions needed)`);
-  } else {
-    logger.info(`[MULTI_DBG] chainId=${chainId} nonce already aligned: ${current} = ${targetDLENonce}`);
-  }
-  
-  // 2) Выравниваем nonce если нужно (используем NonceManager)
-  if (current < targetDLENonce) {
-    logger.info(`[MULTI_DBG] chainId=${chainId} aligning nonce from ${current} to ${targetDLENonce}`);
-    
+    logger.info(`[MULTI_DBG] chainId=${chainId} aligning nonce from ${current} to ${targetDLENonce} (${targetDLENonce - current} tx)`);
     try {
       current = await nonceManager.alignNonceToTarget(
-        wallet.address, 
-        rpcUrl, 
-        chainId, 
-        targetDLENonce, 
-        wallet, 
-        { gasLimit: 21000, maxRetries: 5 }
+        wallet.address,
+        rpcUrl,
+        chainId,
+        targetDLENonce,
+        wallet,
+        { gasLimit: 21000, maxFillers: MAX_NONCE_FILLERS }
       );
-      
       logger.info(`[MULTI_DBG] chainId=${chainId} nonce alignment completed, current nonce=${current}`);
-      
-      // Зарезервируем nonce в NonceManager
       nonceManager.reserveNonce(wallet.address, chainId, targetDLENonce);
-      logger.info(`[MULTI_DBG] chainId=${chainId} ready for DLE deployment with nonce=${current}`);
-      
     } catch (error) {
       logger.error(`[MULTI_DBG] chainId=${chainId} nonce alignment failed: ${error.message}`);
       throw error;
     }
   } else {
-    logger.info(`[MULTI_DBG] chainId=${chainId} nonce already aligned at ${current}`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} nonce already aligned: ${current} = ${targetDLENonce}`);
   }
 
   // 2) Проверяем баланс перед деплоем
@@ -287,12 +145,18 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
   // 3) Деплой DLE с актуальным nonce
   logger.info(`[MULTI_DBG] chainId=${chainId} deploying DLE with current nonce`);
   
-  const feeOverrides = await getFeeOverrides(provider);
+  // Mainnet: пол 20 gwei съедает весь баланс (~0.019 ETH) на CREATE 24KB. Берём 1 gwei.
+  const feeOverrides = Number(chainId) === 1
+    ? await getFeeOverrides(provider, { minFeeGwei: 1n, minPriorityGwei: 1n })
+    : await getFeeOverrides(provider);
   let gasLimit;
   
   try {
     // Оцениваем газ для деплоя DLE
     const est = await wallet.estimateGas({ data: dleInit, ...feeOverrides }).catch(() => null);
+    if (!est && process.env.TARGET_DLE_NONCE) {
+      throw new Error(`estimateGas failed on chainId=${chainId}; abort CREATE to avoid OOG at required nonce`);
+    }
     
     // Рассчитываем доступный gasLimit из баланса
     const balance = await provider.getBalance(wallet.address, 'latest');
@@ -304,7 +168,21 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
     
     logger.info(`[MULTI_DBG] chainId=${chainId} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
   } catch (_) {
+    if (process.env.TARGET_DLE_NONCE) throw _;
     gasLimit = 3_000_000n;
+  }
+
+  if (Number(chainId) === 1 && feeOverrides.maxFeePerGas && gasLimit) {
+    const balForCap = await provider.getBalance(wallet.address, 'latest');
+    const reserveCap = hre.ethers.parseEther('0.002');
+    const affordable = gasLimit > 0n && balForCap > reserveCap ? (balForCap - reserveCap) / gasLimit : 0n;
+    if (affordable > 0n && feeOverrides.maxFeePerGas > affordable) {
+      logger.info(`[MULTI_DBG] chainId=1 cap maxFeePerGas ${feeOverrides.maxFeePerGas} → ${affordable}`);
+      feeOverrides.maxFeePerGas = affordable;
+      if (feeOverrides.maxPriorityFeePerGas && feeOverrides.maxPriorityFeePerGas >= affordable) {
+        feeOverrides.maxPriorityFeePerGas = affordable / 2n || 1n;
+      }
+    }
   }
 
   // Вычисляем предсказанный адрес DLE с целевым nonce (детерминированный деплой)
@@ -357,14 +235,19 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
       deployAttempts++;
       
       // Получаем актуальный nonce прямо перед отправкой транзакции
-      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
       logger.info(`[MULTI_DBG] chainId=${chainId} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetDLENonce})`);
       
       // Если текущий nonce больше целевого, обновляем targetDLENonce
       if (currentNonce > targetDLENonce) {
-        logger.info(`[MULTI_DBG] chainId=${chainId} current nonce ${currentNonce} > target nonce ${targetDLENonce}, updating target`);
-        targetDLENonce = currentNonce;
-        logger.info(`[MULTI_DBG] chainId=${chainId} updated targetDLENonce to: ${targetDLENonce}`);
+        throw new Error(
+          `CREATE nonce ${currentNonce} > target ${targetDLENonce} on chainId=${chainId}. Abort, чтобы не сменить адрес.`
+        );
+      }
+      if (process.env.TARGET_DLE_NONCE && currentNonce !== Number(process.env.TARGET_DLE_NONCE)) {
+        throw new Error(
+          `CREATE nonce ${currentNonce} != required ${process.env.TARGET_DLE_NONCE} on chainId=${chainId}`
+        );
       }
       
       const txData = {
@@ -394,16 +277,17 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
         
         // Используем NonceManager для обновления nonce
         nonceManager.resetNonce(wallet.address, chainId);
-        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
         logger.info(`[MULTI_DBG] chainId=${chainId} current nonce: ${currentNonce}, target was: ${targetDLENonce}`);
         
-        // Обновляем targetDLENonce на актуальный nonce
-        targetDLENonce = currentNonce;
-        logger.info(`[MULTI_DBG] chainId=${chainId} updated targetDLENonce to: ${targetDLENonce}`);
-        
-        // Короткая задержка перед следующей попыткой
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
+        if (process.env.TARGET_DLE_NONCE) {
+          throw new Error(
+            `nonce too low on chainId=${chainId} at required nonce ${process.env.TARGET_DLE_NONCE}; abort`
+          );
+        }
+        throw new Error(
+          `nonce too low on chainId=${chainId}: current=${currentNonce} target=${targetDLENonce}; abort, чтобы адреса не разъехались`
+        );
       }
       
       // Если это не ошибка nonce или исчерпаны попытки, выбрасываем ошибку
@@ -416,11 +300,15 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
     }
   }
 
-  const rc = await tx.wait(2); // Ждем 2 подтверждения с таймаутом
-  
-  // Отмечаем транзакцию как подтвержденную в NonceManager
-  nonceManager.markTransactionConfirmed(wallet.address, chainId, tx.hash);
-  const deployedAddress = rc.contractAddress || predictedAddress;
+  const rc = tx && typeof tx.wait === 'function' ? await tx.wait(2) : null;
+  if (tx?.hash && tx.hash !== 'already-known') {
+    nonceManager.markTransactionConfirmed(wallet.address, chainId, tx.hash);
+  }
+  let deployedAddress = rc?.contractAddress || predictedAddress;
+  const codeAfter = await provider.getCode(deployedAddress);
+  if (!codeAfter || codeAfter === '0x') {
+    throw new Error(`CREATE nonce mined but no bytecode at ${deployedAddress} on chainId=${chainId}`);
+  }
   
   // Проверяем, что адрес соответствует предсказанному
   if (deployedAddress !== predictedAddress) {
@@ -470,52 +358,14 @@ async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleIni
   if (etherscanKey || params.etherscanApiKey || params.etherscan_api_key) {
     try {
       logger.info(`🔍 Начинаем автоматическую верификацию DLE контракта...`);
-      logger.info(`[VERIFY_DBG] dleConfig available: ${!!dleConfig}`);
-      logger.info(`[VERIFY_DBG] initializer: ${initializer}`);
-      
-      // Кодируем аргументы конструктора в hex
-      // Конструктор DLE: constructor(DLEConfig memory config, address _initializer)
-      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-      
-      // Структура DLEConfig
-      const dleConfigType = 'tuple(string,string,string,string,uint256,string[],uint256,uint256,address[],uint256[],uint256[])';
-      
-      // Подготавливаем DLEConfig tuple (все значения уже BigInt из constructorArgsGenerator)
-      const dleConfigTuple = [
-        dleConfig.name,
-        dleConfig.symbol,
-        dleConfig.location,
-        dleConfig.coordinates,
-        dleConfig.jurisdiction, // уже BigInt
-        dleConfig.okvedCodes, // уже массив строк
-        dleConfig.kpp, // уже BigInt
-        dleConfig.quorumPercentage, // уже BigInt
-        dleConfig.initialPartners,
-        dleConfig.initialAmounts, // уже BigInt массив
-        dleConfig.supportedChainIds // уже BigInt массив
-      ];
-      
-      // Кодируем конструктор: (DLEConfig, address)
-      const constructorArgsHex = abiCoder.encode(
-        [dleConfigType, 'address'],
-        [dleConfigTuple, initializer]
-      ).slice(2); // Убираем префикс 0x
-      
-      logger.info(`[VERIFY_DBG] Constructor args encoded: ${constructorArgsHex.slice(0, 100)}...`);
-
-      // Ждем 5 секунд перед верификацией для индексации контракта
-      logger.info(`[VERIFY_DBG] Ожидаем 5 секунд для индексации контракта...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
-      logger.info(`[VERIFY_DBG] Calling verifyDLEAfterDeploy...`);
+      const creationTxData = (tx && tx.data) || dleInit;
       verificationResult = await verifyDLEAfterDeploy(
         Number(network.chainId),
         deployedAddress,
-        constructorArgsHex,
+        creationTxData,
         etherscanKey || params.etherscanApiKey || params.etherscan_api_key,
-        params
+        rpcUrl
       );
-      logger.info(`[VERIFY_DBG] verifyDLEAfterDeploy completed`);
       
       if (verificationResult.success) {
         logger.info(`✅ DLE контракт верифицирован: ${deployedAddress}`);
@@ -668,11 +518,11 @@ async function main() {
   const initCodes = {};
   for (const chainId of supportedChainIds) {
     const deployTx = await DLE.getDeployTransaction(dleConfig, initializer);
-    initCodes[chainId] = deployTx.data;
+    initCodes[Number(chainId)] = deployTx.data;
   }
   
   // Получаем initCodeHash из первого initCode (все должны быть одинаковые по структуре)
-  const firstChainId = supportedChainIds[0];
+  const firstChainId = Number(supportedChainIds[0]);
   const firstInitCode = initCodes[firstChainId];
   if (!firstInitCode) {
     throw new Error(`InitCode не создан для первой сети: ${firstChainId}`);
@@ -687,9 +537,22 @@ async function main() {
     logger.info('[MULTI_DBG] GLOBAL precheck error', e?.message || e);
   }
 
+  const onlyChainId = process.env.ONLY_CHAIN_ID ? Number(process.env.ONLY_CHAIN_ID) : null;
+  const rpcChainIds = onlyChainId
+    ? supportedChainIds.map(Number).filter((id) => id === onlyChainId)
+    : supportedChainIds.map(Number);
+  if (onlyChainId && rpcChainIds.length === 0) {
+    throw new Error(`ONLY_CHAIN_ID=${onlyChainId} нет в supportedChainIds=[${supportedChainIds.join(',')}]`);
+  }
+  if (onlyChainId) {
+    logger.info(
+      `[MULTI_DBG] ONLY_CHAIN_ID=${onlyChainId}: CREATE только в этой сети; конструктор без изменений (supportedChainIds=${JSON.stringify(supportedChainIds)})`
+    );
+  }
+
   // Подготовим провайдеры и вычислим общий nonce для DLE с retry логикой
-  logger.info(`[MULTI_DBG] Создаем RPC соединения для ${supportedChainIds.length} сетей...`);
-  const connections = await createMultipleRPCConnections(supportedChainIds, pk, {
+  logger.info(`[MULTI_DBG] Создаем RPC соединения для ${rpcChainIds.length} сетей...`);
+  const connections = await createMultipleRPCConnections(rpcChainIds, pk, {
     maxRetries: 3,
     timeout: 30000
   });
@@ -698,7 +561,7 @@ async function main() {
     throw new Error('Не удалось установить ни одного RPC соединения');
   }
   
-  logger.info(`[MULTI_DBG] ✅ Успешно подключились к ${connections.length}/${supportedChainIds.length} сетям`);
+  logger.info(`[MULTI_DBG] ✅ Успешно подключились к ${connections.length}/${rpcChainIds.length} сетям`);
   
   // Очищаем старые pending транзакции для всех сетей
   for (const connection of connections) {
@@ -712,15 +575,18 @@ async function main() {
     const n = await nonceManager.getNonce(connection.wallet.address, connection.rpcUrl, Number(connection.network.chainId));
     nonces.push(n);
   }
-  const targetDLENonce = Math.max(...nonces);
-  logger.info(`[MULTI_DBG] nonces=${JSON.stringify(nonces)} targetDLENonce=${targetDLENonce}`);
+  const forcedNonce = process.env.TARGET_DLE_NONCE !== undefined && process.env.TARGET_DLE_NONCE !== ''
+    ? Number(process.env.TARGET_DLE_NONCE)
+    : null;
+  const targetDLENonce = Number.isInteger(forcedNonce) ? forcedNonce : Math.max(...nonces);
+  logger.info(`[MULTI_DBG] nonces=${JSON.stringify(nonces)} targetDLENonce=${targetDLENonce}${forcedNonce != null ? ' (TARGET_DLE_NONCE)' : ''}`);
   logger.info(`[MULTI_DBG] Starting deployment to ${connections.length} networks`);
 
-  // ПАРАЛЛЕЛЬНЫЙ деплой во всех успешных сетях одновременно
+  // Как на VDS: сразу параллельный CREATE; filler — внутри deployInNetwork.
   console.log(`[MULTI_DBG] 🚀 ДОШЛИ ДО ПАРАЛЛЕЛЬНОГО ДЕПЛОЯ!`);
   logger.info(`[MULTI_DBG] Starting PARALLEL deployment to ${connections.length} successful networks`);
   logger.info(`[MULTI_DBG] 🚀 ЗАПУСКАЕМ ЦИКЛ ДЕПЛОЯ!`);
-  
+
   const deploymentPromises = connections.map(async (connection, i) => {
     const rpcUrl = connection.rpcUrl;
     const chainId = Number(connection.network.chainId);
@@ -787,6 +653,13 @@ async function main() {
   if (uniqueAddresses.length === 0) {
     logger.error('[MULTI_DBG] ERROR: No successful deployments!');
     throw new Error('No successful deployments');
+  }
+
+  if (successfulResults.length !== results.length || results.length !== rpcChainIds.length) {
+    const failed = results.filter((r) => r.success !== true);
+    throw new Error(
+      `Partial multichain deploy: ${successfulResults.length}/${rpcChainIds.length} chains. Failed: ${failed.map((f) => `${f.chainId}: ${f.error}`).join('; ')}`
+    );
   }
   
   logger.info('[MULTI_DBG] SUCCESS: All DLE addresses are identical:', uniqueAddresses[0]);

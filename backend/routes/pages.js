@@ -2638,6 +2638,34 @@ router.get('/public/sitemap.xml', async (req, res) => {
     sitemap += `  <url><loc>${escapeXml(baseUrl + '/')}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
     sitemap += `  <url><loc>${escapeXml(baseUrl + '/blog')}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
     sitemap += `  <url><loc>${escapeXml(baseUrl + '/content/published')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/store')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
+
+    try {
+      const { rows: storeSections } = await db.getQuery()(`
+        SELECT slug, updated_at FROM store_sections WHERE active = TRUE ORDER BY sort_order ASC, title ASC
+      `);
+      for (const s of storeSections || []) {
+        if (!s.slug) continue;
+        const lastmod = s.updated_at instanceof Date
+          ? s.updated_at.toISOString().split('T')[0]
+          : String(s.updated_at || '').split('T')[0];
+        const loc = `${baseUrl}/store/s/${encodeURIComponent(s.slug)}`;
+        sitemap += `  <url><loc>${escapeXml(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+      }
+      const { rows: storeProducts } = await db.getQuery()(`
+        SELECT id, updated_at FROM store_products WHERE published = TRUE ORDER BY sort_order ASC, created_at DESC
+      `);
+      for (const p of storeProducts || []) {
+        if (!p.id) continue;
+        const lastmod = p.updated_at instanceof Date
+          ? p.updated_at.toISOString().split('T')[0]
+          : String(p.updated_at || '').split('T')[0];
+        const loc = `${baseUrl}/store/${encodeURIComponent(p.id)}`;
+        sitemap += `  <url><loc>${escapeXml(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.65</priority></url>\n`;
+      }
+    } catch (storeSitemapErr) {
+      console.warn('[sitemap] store urls skipped:', storeSitemapErr.message);
+    }
 
     if (existsRes.rows[0].exists) {
       const { rows: blogPages } = await db.getQuery()(`

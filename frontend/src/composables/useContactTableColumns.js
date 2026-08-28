@@ -5,6 +5,7 @@ export const CONTACT_TABLE_COLUMNS = [
   { key: 'type', labelKey: 'contacts.type', defaultVisible: true },
   { key: 'name', labelKey: 'contacts.name', defaultVisible: true },
   { key: 'email', labelKey: 'contacts.email', defaultVisible: true },
+  { key: 'phone', labelKey: 'contacts.phone', defaultVisible: true },
   { key: 'telegram', labelKey: 'contacts.telegram', defaultVisible: true },
   { key: 'wallet', labelKey: 'contacts.wallet', defaultVisible: true },
   { key: 'date', labelKey: 'contacts.createdAt', defaultVisible: true },

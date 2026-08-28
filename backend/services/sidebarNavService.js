@@ -12,7 +12,7 @@ const GITEA_CONTAINER = process.env.GITEA_CONTAINER_NAME || 'dapp-gitea';
 /** Известные опциональные кнопки (ядро chat/blog/management всегда видны). */
 const KNOWN_BUTTONS = {
   repositories: false,
-  // store: false — позже
+  store: false,
 };
 
 /** Guest auth methods in sidebar picker (wallet always on). */

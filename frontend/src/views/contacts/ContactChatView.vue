@@ -276,6 +276,11 @@ async function handleSendMessage({ message, attachments = [] }) {
 async function handleAiReply(selectedMessages = []) {
   if (isAiLoading.value || broadcastDraftMode.value) return;
 
+  if (contact.value?.is_blocked) {
+    ElMessageBox.alert(t('contacts.details.userBlocked'), t('common.error'), { type: 'error' });
+    return;
+  }
+
   if (!Array.isArray(selectedMessages) || selectedMessages.length === 0) {
     alert(t('contacts.details.selectMessageForAi'));
     return;

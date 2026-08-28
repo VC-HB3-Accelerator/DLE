@@ -20,16 +20,15 @@
   >
     <div class="dle-blocks-management page-with-close">
       <PageCloseButton fallback="/management" />
-      <!-- Блоки управления -->
-      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-        <div v-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+      <div class="page-address-bar">
+        <div v-if="dleAddress" class="page-address-bar__value">
           {{ dleAddress }}
         </div>
       </div>
       <div class="management-blocks">
         <!-- Столбец 1 -->
         <div class="blocks-column">
-          <div class="management-block">
+          <div v-if="canAccessPath('/management/create-proposal')" class="management-block">
             <h3>{{ t('smartcontracts.createProposal.title') }}</h3>
             <p>{{ t('smartcontracts.createProposal.description') }}</p>
             <button class="details-btn" @click="openCreateProposal">
@@ -37,7 +36,7 @@
             </button>
           </div>
           
-          <div class="management-block">
+          <div v-if="canAccessPath('/management/modules')" class="management-block">
             <h3>{{ t('smartcontracts.modules.title') }}</h3>
             <p>{{ t('smartcontracts.modules.description') }}</p>
             <button class="details-btn" @click="openModules">{{ t('common.details') }}</button>
@@ -46,13 +45,13 @@
 
         <!-- Столбец 2 -->
         <div class="blocks-column">
-          <div class="management-block">
+          <div v-if="canAccessPath('/management/proposals')" class="management-block">
             <h3>{{ t('smartcontracts.proposals.title') }}</h3>
             <p>{{ t('smartcontracts.proposals.description') }}</p>
             <button class="details-btn" @click="openProposals">{{ t('common.details') }}</button>
           </div>
           
-          <div class="management-block">
+          <div v-if="canAccessPath('/management/analytics')" class="management-block">
             <h3>{{ t('smartcontracts.analytics.title') }}</h3>
             <p>{{ t('smartcontracts.analytics.description') }}</p>
             <button class="details-btn" @click="openAnalytics">{{ t('common.details') }}</button>
@@ -61,13 +60,13 @@
 
         <!-- Столбец 3 -->
         <div class="blocks-column">
-          <div class="management-block">
+          <div v-if="canAccessPath('/management/history')" class="management-block">
             <h3>{{ t('smartcontracts.history.title') }}</h3>
             <p>{{ t('smartcontracts.history.description') }}</p>
             <button class="details-btn" @click="openHistory">{{ t('common.details') }}</button>
           </div>
           
-          <div class="management-block">
+          <div v-if="canAccessPath('/management/settings')" class="management-block">
             <h3>{{ t('smartcontracts.settings.title') }}</h3>
             <p>{{ t('smartcontracts.settings.description') }}</p>
             <button class="details-btn" @click="openSettings">{{ t('common.details') }}</button>
@@ -84,6 +83,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const { t } = useI18n();
 
@@ -154,6 +154,7 @@ const openCreateProposal = () => {
 };
 
 onMounted(() => {
+  ensureScreenAccessLoaded();
   // Если нет адреса DLE, перенаправляем на главную страницу management
   if (!dleAddress.value) {
     router.push('/management');
@@ -164,61 +165,9 @@ onMounted(() => {
 <style scoped>
 .dle-blocks-management {
   position: relative;
-  padding: 20px;
+  padding: var(--spacing-lg);
   background: transparent;
   border-radius: var(--radius-lg);
-  
-}
-
-.management-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.header-content h1 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 2rem;
-  font-weight: 700;
-}
-
-.dle-address {
-  margin: 0.5rem 0 0 0;
-  color: #666;
-  font-size: 1.1rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: #666;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #f8f9fa;
-  color: #333;
-}
-
-.management-blocks {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
-}
-
-.blocks-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  align-items: stretch;
 }
 
 .management-block {
@@ -227,22 +176,27 @@ onMounted(() => {
   padding: 2rem;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
   text-align: center;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 250px;
+  gap: 0.75rem;
+  /* min-height вместо height — длинный текст/кнопка не вылезают */
+  min-height: 250px;
+  height: auto;
 }
 
-.management-block:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-  border-color: var(--color-primary);
+@media (hover: hover) {
+  .management-block:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+  }
 }
 
 .management-block h3 {
-  margin: 0 0 1rem 0;
+  margin: 0;
   color: var(--color-primary);
   font-size: 1.5rem;
   font-weight: 600;
@@ -250,7 +204,7 @@ onMounted(() => {
 }
 
 .management-block p {
-  margin: 0 0 1.5rem 0;
+  margin: 0;
   color: #666;
   font-size: 1rem;
   line-height: 1.5;
@@ -266,49 +220,20 @@ onMounted(() => {
   cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
-  transition: all 0.2s;
-  min-width: 120px;
+  transition: background 0.2s, transform 0.2s;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   flex-shrink: 0;
   margin-top: auto;
+  align-self: stretch;
 }
 
-.details-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
-
-/* Адаптивность */
-@media (max-width: 1024px) {
-  .management-blocks {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .management-blocks {
-    grid-template-columns: 1fr;
-  }
-  
-  .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  
-  .header-content h1 {
-    font-size: 1.5rem;
-  }
-}
-
-
-/* TZ package G/SC stack */
-@media (max-width: 768px) {
-  [class*="grid"], .form-row, .management-blocks {
-    grid-template-columns: 1fr !important;
-  }
-  .row, .actions, .toolbar, .filters, .form-actions {
-    flex-wrap: wrap;
+@media (hover: hover) {
+  .details-btn:hover {
+    background: var(--color-primary-dark);
+    transform: translateY(-1px);
   }
 }
 </style>

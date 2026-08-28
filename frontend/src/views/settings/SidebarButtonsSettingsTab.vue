@@ -16,8 +16,8 @@
         </span>
       </label>
 
-      <label class="sidebar-buttons-tab__check is-disabled">
-        <input type="checkbox" disabled />
+      <label class="sidebar-buttons-tab__check">
+        <input v-model="buttons.store" type="checkbox" :disabled="isSaving" />
         <span>
           <strong>{{ t('settings.sidebar.buttons.store') }}</strong>
           <small>{{ t('settings.sidebar.buttons.storeHint') }}</small>
@@ -52,7 +52,7 @@ import { fetchSidebarNav, saveSidebarNav } from '@/services/sidebarNavService';
 const { t } = useI18n();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 
-const buttons = ref({ repositories: false });
+const buttons = ref({ repositories: false, store: false });
 const gitea = ref(null);
 const isSaving = ref(false);
 const saveError = ref('');
@@ -77,6 +77,7 @@ async function loadSettings() {
     const data = await fetchSidebarNav();
     buttons.value = {
       repositories: Boolean(data.buttons?.repositories),
+      store: Boolean(data.buttons?.store),
     };
     gitea.value = data.gitea || null;
   } catch (error) {
@@ -94,6 +95,7 @@ async function handleSave() {
     const data = await saveSidebarNav({ ...buttons.value });
     buttons.value = {
       repositories: Boolean(data.buttons?.repositories),
+      store: Boolean(data.buttons?.store),
     };
     gitea.value = data.gitea || null;
     saveSuccess.value = t('settings.sidebar.buttons.saved');

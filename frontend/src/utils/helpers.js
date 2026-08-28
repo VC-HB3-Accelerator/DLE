@@ -66,4 +66,49 @@ export const formatTime = (timestamp) => {
     console.error('Error formatting time:', error, timestamp);
     return '';
   }
-}; 
+};
+
+/** Достаёт вложенное сообщение по dotted-path из объекта локали. */
+function getMessageByPath(tree, key) {
+  if (!tree || !key) return undefined;
+  let cur = tree;
+  for (const part of String(key).split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
+/**
+ * vue-i18n te() на вложенных ключах часто даёт false.
+ * Читаем дерево messages напрямую; для интерполяции {id} зовём t().
+ * 5-й аргумент messagesTree — messages[locale] из useI18n().
+ */
+export function translateIfExists(t, key, params, fallback = '', messagesTree) {
+  const raw = getMessageByPath(messagesTree, key);
+  if (typeof raw === 'string' && raw) {
+    if (params !== undefined && params !== null && typeof params === 'object') {
+      const out = t(key, params);
+      if (typeof out === 'string' && out && out !== key) return out;
+      return raw.replace(/\{(\w+)\}/g, (_, name) =>
+        params[name] != null ? String(params[name]) : `{${name}}`
+      );
+    }
+    return raw;
+  }
+  const out = params !== undefined ? t(key, params) : t(key);
+  if (typeof out !== 'string' || !out || out === key) return fallback;
+  return out;
+}
+
+export function hasCyrillic(text) {
+  return /[\u0400-\u04FF]/.test(String(text || ''));
+}
+
+/** Не подставлять русские строки API, когда UI-локаль не ru. */
+export function localeSafeFallback(locale, fallback = '') {
+  const text = String(fallback || '');
+  if (!text) return '';
+  if (locale !== 'ru' && hasCyrillic(text)) return '';
+  return text;
+} 

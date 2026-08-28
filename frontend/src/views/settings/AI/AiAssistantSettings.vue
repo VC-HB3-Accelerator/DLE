@@ -50,7 +50,7 @@
             <router-link class="btn btn-outline btn-sm" to="/settings/ai/voice-call">
               {{ $t('settings.ai.voiceCall.openPage') }}
             </router-link>
-            <router-link class="btn btn-outline btn-sm" to="/settings/ai/agent-access">
+            <router-link class="btn btn-outline btn-sm" to="/settings/security/roles?tab=ai">
               {{ $t('settings.ai.agentAccess.openPage') }}
             </router-link>
           </div>
@@ -348,7 +348,7 @@
             <div class="panel related-card">
               <h4>{{ $t('settings.ai.agentAccess.linkFromAssistantTitle') }}</h4>
               <p class="section-description">{{ $t('settings.ai.agentAccess.linkFromAssistantDesc') }}</p>
-              <router-link class="btn btn-outline btn-sm" to="/settings/ai/agent-access">{{ $t('settings.ai.agentAccess.openPage') }}</router-link>
+              <router-link class="btn btn-outline btn-sm" to="/settings/security/roles?tab=ai">{{ $t('settings.ai.agentAccess.openPage') }}</router-link>
             </div>
             <div class="panel related-card">
               <h4>{{ $t('settings.ai.voiceCall.linkFromAssistantTitle') }}</h4>

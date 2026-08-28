@@ -15,6 +15,7 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
 const { getSupportedChainIds } = require('../utils/networkLoader');
+const { resolveProposalsCount } = require('../utils/dleProposalCount');
 const logger = require('../utils/logger');
 
 async function resolveProviderForDle(dleAddress, preferredChainId) {
@@ -72,7 +73,7 @@ router.get('/relayer-status', async (req, res) => {
 // Получение списка всех предложений
 router.post('/get-proposals', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -85,6 +86,11 @@ router.post('/get-proposals', async (req, res) => {
 
     // Получаем поддерживаемые сети DLE из контракта
     let supportedChains = [];
+    const onlyChain = Number(preferChainId);
+    if (Number.isFinite(onlyChain) && onlyChain > 0) {
+      supportedChains = [onlyChain];
+      console.log(`[DLE Proposals] Только сеть ${onlyChain}`);
+    } else {
     try {
       // Определяем корректную сеть для данного адреса
       let rpcUrl, targetChainId;
@@ -132,9 +138,11 @@ router.post('/get-proposals', async (req, res) => {
       }
     } catch (error) {
       console.log(`[DLE Proposals] Ошибка получения поддерживаемых сетей из контракта:`, error.message);
-      // Fallback к известным сетям
-      supportedChains = [11155111, 17000, 421614, 84532];
-      console.log(`[DLE Proposals] Используем fallback сети:`, supportedChains);
+      if (!supportedChains.length) {
+        supportedChains = [11155111, 17000, 421614, 84532];
+        console.log(`[DLE Proposals] Используем fallback сети:`, supportedChains);
+      }
+    }
     }
     
     const allProposals = [];
@@ -159,9 +167,9 @@ router.post('/get-proposals', async (req, res) => {
           continue;
         }
         
-        // Чтение по on-chain индексу (getProposalsCount + getProposalSummary), без скан-логов RPC
         const dleAbi = [
           'function getProposalsCount() external view returns (uint256)',
+          'function allProposalIds(uint256) external view returns (uint256)',
           'function getProposalState(uint256 _proposalId) external view returns (uint8 state)',
           'function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)',
           'function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] memory targetChains)',
@@ -171,9 +179,8 @@ router.post('/get-proposals', async (req, res) => {
         ];
 
         const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-        const countBn = await dle.getProposalsCount();
-        const count = Number(countBn);
-        console.log(`[DLE Proposals] Сеть ${chainId}: getProposalsCount=${count}`);
+        const count = await resolveProposalsCount(dle);
+        console.log(`[DLE Proposals] Сеть ${chainId}: proposalsCount=${count}`);
 
         let quorumPctCached = null;
         let totalSupplyCached = '0';

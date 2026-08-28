@@ -109,6 +109,15 @@
         <UiGlyph name="redo" />
         {{ t('deployment.resetState') }}
       </button>
+
+      <button
+        type="button"
+        class="close-wizard-btn"
+        v-if="deploymentStatus === 'completed' || deploymentStatus === 'failed'"
+        @click="emit('request-close')"
+      >
+        {{ t('common.close') }}
+      </button>
     </div>
 
     <!-- Ошибка -->
@@ -169,7 +178,7 @@ const props = defineProps({
 });
 
 // Events
-const emit = defineEmits(['deployment-completed']);
+const emit = defineEmits(['deployment-completed', 'deployment-failed', 'request-close']);
 
 // WebSocket композабл для деплоя
 const {
@@ -355,6 +364,12 @@ watch(deploymentStatus, (newStatus) => {
     setTimeout(() => {
       emit('deployment-completed', deploymentResult.value);
     }, 2000);
+  }
+  if (newStatus === 'failed') {
+    emit('deployment-failed', {
+      error: error.value,
+      logs: logs.value,
+    });
   }
 });
 </script>
@@ -595,7 +610,7 @@ watch(deploymentStatus, (newStatus) => {
   margin-bottom: 30px;
 }
 
-.start-btn, .stop-btn, .reset-btn {
+.start-btn, .stop-btn, .reset-btn, .close-wizard-btn {
   padding: 15px 30px;
   font-size: 1.1em;
   border: none;
@@ -603,6 +618,15 @@ watch(deploymentStatus, (newStatus) => {
   cursor: pointer;
   transition: background-color 0.3s;
   margin: 0 10px;
+}
+
+.close-wizard-btn {
+  background: #ecf0f1;
+  color: #2c3e50;
+}
+
+.close-wizard-btn:hover {
+  background: #d5dbdb;
 }
 
 .start-btn {

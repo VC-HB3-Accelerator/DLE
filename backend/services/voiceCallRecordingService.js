@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * Сохранение аудиозаписи звонка ИИ в content_media + chat stub.
- * SoT: docs.ru/back-docs/TZ_CHAT_AI_VOICE_CALL_RECORDING.ru.md
+ * SoT: docs.ru/back-docs/archive/TZ_CHAT_AI_VOICE_CALL_RECORDING.ru.md
  */
 
 const fsp = require('fs/promises');

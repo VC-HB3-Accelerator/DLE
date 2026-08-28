@@ -3,7 +3,7 @@
   All rights reserved.
 
   Внутренний chrome админ-страницы (TZ §3.1).
-  Крестик в reserved-зоне сверху — не наезжает на карточки/контент.
+  Крестик закрытия — в Header рядом с бургером (usePageClose).
 -->
 
 <template>
@@ -11,7 +11,6 @@
     class="admin-page-shell page-with-close"
     :class="{
       'admin-page-shell--panel': variant === 'panel',
-      'admin-page-shell--with-close': showClose,
     }"
   >
     <PageCloseButton
@@ -63,11 +62,6 @@ const resolvedFallback = computed(() => {
   box-sizing: border-box;
 }
 
-/* Место под крестик — контент/карточки начинаются ниже */
-.admin-page-shell--with-close {
-  padding-top: 2.75rem;
-}
-
 .admin-page-shell--panel {
   background: var(--color-white, #fff);
   border: 1px solid transparent;
@@ -77,7 +71,6 @@ const resolvedFallback = computed(() => {
 
 .admin-page-shell__title {
   margin: 0 0 var(--spacing-lg, 1rem) 0;
-  padding-right: 2.5rem;
   color: var(--color-dark);
   font-size: var(--font-size-xl, 1.25rem);
   font-weight: 600;

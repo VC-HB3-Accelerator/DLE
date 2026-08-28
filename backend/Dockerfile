@@ -19,9 +19,13 @@ LABEL website="https://hb3-accelerator.com"
 WORKDIR /app
 
 # Устанавливаем системные зависимости для компиляции нативных модулей Node.js
-# Устанавливаем базовые пакеты отдельно от компиляторов для большей надежности
-RUN echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
+# HTTPS: на части VDS исходящий :80 к deb.debian.org таймаутится, :443 проходит.
+# Базовые пакеты отдельно от компиляторов — так надёжнее при обрывах зеркала.
+RUN find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' {} + && \
+    echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
     echo 'Acquire::http::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
+    echo 'Acquire::https::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
     echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
     for i in 1 2 3 4 5; do \
         apt-get update && break || sleep 15; \

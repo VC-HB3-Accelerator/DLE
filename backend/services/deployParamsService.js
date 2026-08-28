@@ -129,6 +129,7 @@ class DeployParamsService {
         CREATE2_SALT: params.create2_salt,
         create2_salt: params.create2_salt, // Дублируем для совместимости
         logoURI: params.logo_uri,
+        quorumPercentage: params.quorumPercentage ?? params.quorum_percentage,
         privateKey: params.private_key, // Автоматически расшифрован
         etherscanApiKey: params.etherscan_api_key,
         autoVerifyAfterDeploy: params.auto_verify_after_deploy,
@@ -300,6 +301,7 @@ class DeployParamsService {
         CREATE2_SALT: row.create2_salt,
         create2_salt: row.create2_salt, // Дублируем для совместимости
         logoURI: row.logo_uri,
+        quorumPercentage: row.quorumPercentage ?? row.quorum_percentage,
         privateKey: row.private_key, // Автоматически расшифрован
         etherscanApiKey: row.etherscan_api_key,
         autoVerifyAfterDeploy: row.auto_verify_after_deploy,

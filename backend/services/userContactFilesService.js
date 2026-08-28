@@ -214,15 +214,26 @@ async function deleteFile(userId, fileId) {
 async function deleteAllFilesForUser(userId) {
   const uid = Number(userId);
   if (!Number.isInteger(uid) || uid <= 0) return;
+  await deleteAllFilesForUsers([uid]);
+}
+
+async function deleteAllFilesForUsers(userIds) {
+  const ids = [...new Set((userIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) return;
 
   const files = (
-    await db.getQuery()('SELECT stored_name FROM user_contact_files WHERE user_id = $1', [uid])
+    await db.getQuery()(
+      'SELECT user_id, stored_name FROM user_contact_files WHERE user_id = ANY($1::int[])',
+      [ids]
+    )
   ).rows;
 
-  await db.getQuery()('DELETE FROM user_contact_files WHERE user_id = $1', [uid]);
+  await db.getQuery()('DELETE FROM user_contact_files WHERE user_id = ANY($1::int[])', [ids]);
 
-  const dir = userUploadDir(uid);
+  const dirs = new Set();
   for (const f of files) {
+    const dir = userUploadDir(f.user_id);
+    dirs.add(dir);
     try {
       const p = path.join(dir, f.stored_name);
       if (fs.existsSync(p)) fs.unlinkSync(p);
@@ -230,10 +241,12 @@ async function deleteAllFilesForUser(userId) {
       // ignore
     }
   }
-  try {
-    if (fs.existsSync(dir)) fs.rmdirSync(dir);
-  } catch {
-    // ignore
+  for (const dir of dirs) {
+    try {
+      if (fs.existsSync(dir)) fs.rmdirSync(dir);
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -248,5 +261,6 @@ module.exports = {
   getFilesMapForUserIds,
   addFile,
   deleteFile,
-  deleteAllFilesForUser
+  deleteAllFilesForUser,
+  deleteAllFilesForUsers
 };

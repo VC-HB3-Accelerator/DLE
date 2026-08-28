@@ -12,6 +12,7 @@
 
 import { ref, onMounted, onUnmounted, provide, inject } from 'vue';
 import axios from '../api/axios';
+import { syncActionAccessRole } from './useActionAccess.js';
 import eventBus from '../utils/eventBus';
 import { i18n } from '@/locales/index.js';
 
@@ -367,6 +368,10 @@ const checkAuth = async () => {
     // Всегда синхронизируем уровень доступа с сервером для авторизованных пользователей
     if (response.data.authenticated && response.data.userAccessLevel) {
       userAccessLevel.value = response.data.userAccessLevel;
+      const role = response.data.userAccessLevel.level;
+      if (role === 'readonly' || role === 'editor' || role === 'user') {
+        await syncActionAccessRole(role);
+      }
     }
 
     // Если пользователь аутентифицирован, обновляем список идентификаторов и связываем сообщения

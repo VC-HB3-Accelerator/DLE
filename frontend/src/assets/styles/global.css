@@ -379,6 +379,105 @@ select.form-control {
   -webkit-overflow-scrolling: touch;
 }
 
+/*
+ * Management / smartcontracts — общие примитивы (dle-blocks, create-proposal, …).
+ * Scoped страниц: визуал карточек; сетка/адрес/mobile — здесь (TZ package G/SC).
+ */
+.page-address-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  min-width: 0;
+  max-width: 100%;
+  /* место под absolute PageCloseButton */
+  padding-right: 2.75rem;
+  box-sizing: border-box;
+}
+
+.page-address-bar__value {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-grey-dark);
+  font-size: 0.9rem;
+  font-family: 'Courier New', Courier, monospace;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.management-blocks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-xl);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.blocks-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.operation-blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--spacing-lg);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.management-block,
+.operation-block,
+.operation-category {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.management-block h3,
+.operation-block h6,
+.operation-category h5,
+.management-block p,
+.operation-block p,
+.module-description {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Кнопки карточек не должны раздувать / вылезать из блока */
+.management-block .details-btn,
+.operation-block .create-btn,
+.operation-block .details-btn {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+}
+
+@media (max-width: 1024px) {
+  .management-blocks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-lg);
+  }
+
+  /* Узкие колонки: фиксированная высота режет кнопку */
+  .management-block {
+    height: auto !important;
+    min-height: 0;
+  }
+}
+
 /* Адаптивные стили — литерал bp-mobile (768px), не var(--bp-*) */
 @media (max-width: 768px) {
   .page-container {
@@ -420,6 +519,106 @@ select.form-control {
   .panel {
     padding: var(--block-padding-mobile);
     margin-bottom: var(--block-margin-mobile);
+  }
+
+  /* Management pages — одна колонка, без overflow / fixed height */
+  .page-address-bar {
+    margin-bottom: var(--spacing-md);
+    padding-right: 2.5rem;
+  }
+
+  .page-address-bar__value {
+    font-size: var(--font-size-xs);
+  }
+
+  .management-blocks,
+  .operation-blocks,
+  .main-content [class*="grid"],
+  .main-content .form-row,
+  .main-content .cards-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: var(--spacing-md);
+  }
+
+  .main-content .row,
+  .main-content .actions,
+  .main-content .toolbar,
+  .main-content .filters,
+  .main-content .form-actions {
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .management-block,
+  .operation-block {
+    height: auto !important;
+    min-height: 0 !important;
+    padding: var(--block-padding-mobile) !important;
+    overflow: visible;
+  }
+
+  .management-block h3,
+  .operation-block h6 {
+    font-size: 1.15rem !important;
+    margin-bottom: 0.75rem !important;
+    flex-shrink: 1;
+  }
+
+  .operation-category {
+    padding: var(--block-padding-mobile) !important;
+  }
+
+  .operation-category h5 {
+    font-size: 1.15rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .management-block p,
+  .operation-block p,
+  .module-description {
+    font-size: 0.9rem !important;
+    margin-bottom: 1rem !important;
+    flex-grow: 0;
+  }
+
+  .details-btn,
+  .create-btn,
+  .management-block .details-btn,
+  .operation-block .create-btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: var(--button-height-mobile);
+    align-self: stretch;
+    box-sizing: border-box;
+    padding-left: var(--spacing-md) !important;
+    padding-right: var(--spacing-md) !important;
+  }
+
+  .dle-blocks-management,
+  .create-proposal-page {
+    padding: var(--spacing-sm) !important;
+    margin-top: var(--spacing-sm) !important;
+    margin-bottom: var(--spacing-sm) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-address-bar {
+    padding-right: 2.25rem;
+  }
+
+  .management-block h3,
+  .operation-block h6,
+  .operation-category h5 {
+    font-size: 1.05rem !important;
+  }
+}
+
+@media (hover: none) {
+  .management-block:hover,
+  .operation-block:hover {
+    transform: none;
   }
 }
 

@@ -18,12 +18,8 @@ LABEL website="https://hb3-accelerator.com"
 
 WORKDIR /app
 
-# Устанавливаем системные зависимости для компиляции нативных модулей
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# python3/make/g++ не нужны: у frontend нет native-модулей (node-gyp).
+# apt-get к http://deb.debian.org:80 на VDS часто таймаутится.
 
 # Копируем package.json и yarn.lock для установки зависимостей
 COPY package.json yarn.lock ./

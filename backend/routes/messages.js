@@ -1589,6 +1589,10 @@ router.post('/send', requireAuth, maybeChatUpload, async (req, res) => {
       return res.status(404).json({ error: 'Получатель не найден' });
     }
 
+    if (await isUserBlocked(recipientIdNum)) {
+      return res.status(403).json({ error: 'Пользователь заблокирован. Отправка невозможна.' });
+    }
+
     const recipientRole = recipientResult.rows[0].role;
     console.log('[DEBUG] /messages/send: recipientId:', recipientIdNum, 'recipientRole:', recipientRole);
 

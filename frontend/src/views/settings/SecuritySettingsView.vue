@@ -14,16 +14,19 @@
   <AdminPageShell :show-close="true" fallback="/settings">
     <HubGrid>
       <HubCard
+        v-if="canAccessPath('/settings/security/rpc')"
         :title="$t('settings.rpc.title')"
         :description="rpcDesc"
         @open="handleRpcDetailsClick"
       />
       <HubCard
+        v-if="canAccessPath('/settings/security/auth')"
         :title="$t('settings.security.authentication')"
         :description="authDesc"
         @open="goAuthDetails"
       />
       <HubCard
+        v-if="canAccessPath('/settings/security/roles')"
         :title="$t('settings.security.roles.hubCard')"
         :description="$t('settings.security.roles.hubCardText')"
         @open="handleRolesDetailsClick"
@@ -49,6 +52,7 @@ import NoAccessModal from '@/components/NoAccessModal.vue';
 import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import HubGrid from '@/components/admin/HubGrid.vue';
 import HubCard from '@/components/admin/HubCard.vue';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -73,6 +77,7 @@ const authDesc = computed(() =>
 );
 
 async function loadSettings() {
+  await ensureScreenAccessLoaded();
   try {
     const rpcResponse = await api.get('/settings/rpc');
     if (rpcResponse.data?.success) {

@@ -30,10 +30,10 @@ const create2 = require('../utils/create2');
 
 /**
  * Асинхронная функция для выполнения деплоя в фоне
+ * Параметры уже должны быть в deploy_params (prepareAndSave).
  */
-async function executeDeploymentInBackground(deploymentId, dleParams) {
+async function executeDeploymentInBackground(deploymentId) {
   try {
-    // Отправляем уведомление о начале
     deploymentTracker.updateDeployment(deploymentId, {
       status: 'in_progress',
       stage: 'initializing'
@@ -41,15 +41,28 @@ async function executeDeploymentInBackground(deploymentId, dleParams) {
     
     deploymentTracker.addLog(deploymentId, '🚀 Начинаем деплой DLE контракта', 'info');
     
-    // Выполняем деплой с передачей deploymentId для WebSocket обновлений
-    const result = await unifiedDeploymentService.createDLE(dleParams, deploymentId);
+    const result = await unifiedDeploymentService.executeDeployment(deploymentId);
     
-    // Завершаем успешно
-    deploymentTracker.completeDeployment(deploymentId, result.data);
+    // completeDeployment уже вызывается внутри executeDeployment при code===0;
+    // дублируем безопасный complete если tracker ещё in_progress
+    const current = deploymentTracker.getDeployment(deploymentId);
+    if (current && current.status !== 'completed' && current.status !== 'failed') {
+      deploymentTracker.completeDeployment(deploymentId, result);
+    }
     
   } catch (error) {
-    // Завершаем с ошибкой
-    deploymentTracker.failDeployment(deploymentId, error);
+    logger.error(`❌ Фоновый деплой ${deploymentId}:`, error.message);
+    try {
+      await unifiedDeploymentService.deployParamsService.updateDeploymentStatus(
+        deploymentId,
+        'failed',
+        { error: error.message }
+      );
+    } catch (_) { /* already logged in execute */ }
+    const current = deploymentTracker.getDeployment(deploymentId);
+    if (current && current.status !== 'failed') {
+      deploymentTracker.failDeployment(deploymentId, error);
+    }
   }
 }
 
@@ -117,20 +130,22 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
     }
     
     // Используем deploymentId из запроса, если передан, иначе создаем новый
-    const deploymentId = req.body.deploymentId || deploymentTracker.createDeployment(dleParams);
-    
-    // Если deploymentId был передан из запроса, создаем запись о деплое с этим ID
-    if (req.body.deploymentId) {
-      deploymentTracker.createDeployment(dleParams, req.body.deploymentId);
-    }
-    
-    // Запускаем деплой в фоне (с await для правильной обработки ошибок!)
-    await executeDeploymentInBackground(deploymentId, dleParams);
-    
+    const deploymentId = req.body.deploymentId || `deploy_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    // 1) Сначала БД — иначе tracker/WS читают «параметры не найдены»
+    await unifiedDeploymentService.prepareAndSave(dleParams, deploymentId);
+
+    // 2) Затем tracker для WebSocket
+    deploymentTracker.createDeployment(dleParams, deploymentId);
+
+    // 3) Ответ сразу; hardhat в фоне (раньше await держал HTTP до конца и провоцировал повторные клики)
+    setImmediate(() => {
+      executeDeploymentInBackground(deploymentId);
+    });
+
     logger.info(`📤 Деплой запущен асинхронно: ${deploymentId}`);
-    
-    // Сразу возвращаем ответ с ID деплоя
-    res.json({
+
+    return res.json({
       success: true,
       message: 'Деплой запущен в фоновом режиме',
       deploymentId: deploymentId
@@ -366,6 +381,52 @@ router.delete('/deployment/:deploymentId', auth.requireAuth, auth.requireAdmin, 
     res.status(500).json({
       success: false,
       message: error.message || 'Произошла ошибка при удалении DLE v2'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/dle-v2/:dleAddress/delist
+ * @desc    Снять книгу с этой ОС после on-chain isActive=false (не уничтожает контракт)
+ * @access  Private (admin)
+ */
+router.post('/:dleAddress/delist', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { dleAddress } = req.params;
+    const chainId = req.body?.chainId != null ? Number(req.body.chainId) : null;
+    const dleAttachService = require('../services/dleAttachService');
+    const result = await dleAttachService.delistFromOs(dleAddress, {
+      requireInactive: true,
+      chainId: Number.isFinite(chainId) ? chainId : null,
+    });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    const code = error.code || '';
+    if (code === 'still_active') {
+      return res.status(409).json({
+        success: false,
+        code,
+        message: 'Сначала исполните предложение _setActive(false): on-chain isActive ещё true',
+        data: { isActive: true, chainId: error.chainId || null },
+      });
+    }
+    if (code === 'invalid_address') {
+      return res.status(400).json({ success: false, code, message: 'Некорректный адрес DLE' });
+    }
+    if (code === 'contract_not_found') {
+      return res.status(404).json({ success: false, code, message: 'Контракт DLE не найден ни в одной RPC-сети' });
+    }
+    if (code === 'isActive_read_failed') {
+      return res.status(502).json({
+        success: false,
+        code,
+        message: 'Не удалось прочитать isActive() из сети',
+      });
+    }
+    logger.error('Ошибка delist DLE:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Ошибка delist',
     });
   }
 });

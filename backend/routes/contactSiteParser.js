@@ -121,4 +121,19 @@ router.get('/jobs/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS
   }
 });
 
+router.post('/jobs/:id/cancel', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  if (!ensureEditorAccess(req, res).allowed) return;
+  const jobId = parseInt(req.params.id, 10);
+  if (!jobId || Number.isNaN(jobId)) {
+    return res.status(400).json({ error: 'Некорректный ID задания' });
+  }
+  try {
+    const job = await contactSiteParserService.cancelJob(jobId);
+    res.json({ success: true, job });
+  } catch (error) {
+    logger.error('[ContactSiteParser] cancel job error:', error);
+    res.status(400).json({ error: error.message || 'Не удалось остановить задание' });
+  }
+});
+
 module.exports = router;

@@ -90,6 +90,43 @@ function unwrapJsonishAssistantPayload(text) {
   return trimmed;
 }
 
+/**
+ * Служебные ярлыки корпуса → речь клиенту (глоссарий).
+ * Не трогает официальное имя «VC HB3 Accelerator».
+ * Границы без \\b: для кириллицы \\b в JS ненадёжен.
+ */
+function rewriteClientFacingAbbreviations(text) {
+  let s = String(text || '');
+  if (!s) return s;
+
+  const OS_FULL = 'операционная система для программного управления бизнесом';
+  const edge = '([^0-9A-Za-zА-Яа-яЁё]|^)';
+  const edgeEnd = '(?=[^0-9A-Za-zА-Яа-яЁё]|$)';
+
+  // Сначала составные формы, потом одиночный DLE
+  s = s.replace(
+    /операционн(?:ая|ой|ую|ые|ых|ом)\s+систем(?:а|у|ы|е|ой|ами)?\s+DLE(?=[^0-9A-Za-zА-Яа-яЁё]|$)/gi,
+    OS_FULL
+  );
+  s = s.replace(new RegExp(`${edge}ОС\\s*[-–—]?\\s*DLE${edgeEnd}`, 'gi'), `$1${OS_FULL}`);
+  s = s.replace(new RegExp(`${edge}DLE${edgeEnd}`, 'g'), `$1${OS_FULL}`);
+  s = s.replace(/\bDigital Legal Entity\b/gi, OS_FULL);
+  s = s.replace(/\bask\b/g, 'запрашиваемая сумма раунда');
+  s = s.replace(/\bDEAL\b/g, 'документы сделки');
+  s = s.replace(/\bSPA\b/g, 'документы сделки');
+  s = s.replace(/\bB2B\b/g, 'контур предпринимателей и юридических лиц');
+  s = s.replace(/\bEVM\b/g, 'виртуальная машина Ethereum');
+  s = s.replace(/\bFAQ\b/g, 'ответы на частые вопросы');
+  s = s.replace(/\bRAG\b/g, 'поиск по базе знаний');
+
+  s = s.replace(
+    new RegExp(`(?:${OS_FULL}\\s*){2,}`, 'gi'),
+    `${OS_FULL} `
+  );
+
+  return s;
+}
+
 function sanitizeAssistantText(raw) {
   if (raw == null) return '';
   let text = typeof raw === 'string' ? raw : String(raw);
@@ -106,6 +143,7 @@ function sanitizeAssistantText(raw) {
   text = text.replace(/\(?\s*Таблица\s*\(ID:\s*\d+\)\s*\)?/gi, '');
   text = text.replace(/\[Источник\s+\d+[^\]]*\]/gi, '');
   text = text.replace(/\b(?:update_user_tags|update_user_name|get_user_profile)\s*\([^)]*\)/gi, '');
+  text = rewriteClientFacingAbbreviations(text);
   text = text.replace(/[ \t]{2,}/g, ' ').trim();
 
   return text;
@@ -237,6 +275,7 @@ function normalizePersonName(name) {
 
 module.exports = {
   sanitizeAssistantText,
+  rewriteClientFacingAbbreviations,
   detectNameHint,
   normalizePersonName,
   looksLikePersonNameToken,

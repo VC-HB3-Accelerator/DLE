@@ -135,6 +135,15 @@ async function startServer() {
         console.error('[Server] ❌ Ошибка запуска планировщика парсера сайтов:', error.message);
         logger.error('[App] Ошибка планировщика парсера сайтов:', error);
       }
+
+      try {
+        const contactImportJobService = require('./services/contactImportJobService');
+        contactImportJobService.initialize();
+        console.log('[Server] ✅ Очередь импорта контактов инициализирована');
+      } catch (error) {
+        console.error('[Server] ❌ Ошибка инициализации очереди импорта контактов:', error.message);
+        logger.error('[App] Ошибка очереди импорта контактов:', error);
+      }
     })
     .then(() => {
       // Запускаем AI Queue Worker после инициализации ботов

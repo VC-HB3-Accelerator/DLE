@@ -16,6 +16,7 @@ const userContactFilesService = require('./userContactFilesService');
 const aiQueue = require('./ai-queue');
 const { PRIORITY } = require('./ai-queue');
 const { crawlSite } = require('./siteCrawlerService');
+const identityService = require('./identity-service');
 
 const PUBLIC_EMAIL_DOMAINS = new Set([
   'gmail.com', 'googlemail.com', 'yahoo.com', 'yandex.ru', 'yandex.com',
@@ -41,6 +42,7 @@ const DEFAULTS = {
   fetch_timeout_ms: 10000,
   max_body_bytes: 524288,
   schedule_batch_size: 10,
+  job_concurrency: 4,
   system_prompt: `Ты — агент обогащения CRM-контакта по тексту сайта.
 Правила (строго):
 1. Используй ТОЛЬКО факты из PAGE_TEXT. Ничего не выдумывай.
@@ -69,12 +71,60 @@ const LIMITS = {
   maxBodyBytesMin: 64 * 1024,
   maxBodyBytesMax: 2 * 1024 * 1024,
   scheduleBatchSizeMin: 1,
-  scheduleBatchSizeMax: 50
+  scheduleBatchSizeMax: 50,
+  jobConcurrencyMin: 1,
+  jobConcurrencyMax: 10
 };
 
 let jobChain = Promise.resolve();
 let scheduleTimer = null;
 let scheduleRunning = false;
+/** @type {Set<number>} */
+const cancelledJobIds = new Set();
+
+function requestCancelJob(jobId) {
+  const id = Number(jobId);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  cancelledJobIds.add(id);
+  return true;
+}
+
+function clearCancelFlag(jobId) {
+  cancelledJobIds.delete(Number(jobId));
+}
+
+function isJobCancelled(jobId) {
+  return cancelledJobIds.has(Number(jobId));
+}
+
+async function isCancelRequested(jobId) {
+  const id = Number(jobId);
+  if (isJobCancelled(id)) return true;
+  try {
+    const { rows } = await db.getQuery()(
+      'SELECT status FROM contact_site_parser_jobs WHERE id = $1',
+      [id]
+    );
+    return String(rows[0]?.status || '') === 'cancelled';
+  } catch {
+    return isJobCancelled(id);
+  }
+}
+
+async function runPool(items, concurrency, worker) {
+  const list = Array.isArray(items) ? items : [];
+  const limit = Math.max(1, Math.min(10, Number(concurrency) || 1));
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, Math.max(1, list.length)) }, async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= list.length) return;
+      await worker(list[index], index);
+    }
+  });
+  await Promise.all(runners);
+}
 
 function getEncryptionKey() {
   const encryptionUtils = require('../utils/encryptionUtils');
@@ -110,6 +160,7 @@ function normalizeSettingsRow(row = {}) {
     fetch_timeout_ms: clampNumber(row.fetch_timeout_ms, LIMITS.fetchTimeoutMsMin, LIMITS.fetchTimeoutMsMax, DEFAULTS.fetch_timeout_ms),
     max_body_bytes: clampNumber(row.max_body_bytes, LIMITS.maxBodyBytesMin, LIMITS.maxBodyBytesMax, DEFAULTS.max_body_bytes),
     schedule_batch_size: clampNumber(row.schedule_batch_size, LIMITS.scheduleBatchSizeMin, LIMITS.scheduleBatchSizeMax, DEFAULTS.schedule_batch_size),
+    job_concurrency: clampNumber(row.job_concurrency, LIMITS.jobConcurrencyMin, LIMITS.jobConcurrencyMax, DEFAULTS.job_concurrency),
     updated_at: row.updated_at || null,
     updated_by: row.updated_by || null
   };
@@ -122,7 +173,7 @@ async function getSettings() {
        id, enabled, schedule_enabled, interval_days, max_pages, max_blog_pages,
        allow_path_keywords, deny_path_keywords, use_email_domain_fallback,
        provider, model, temperature, max_tokens, timeout_ms, fetch_timeout_ms,
-       max_body_bytes, schedule_batch_size, updated_at, updated_by,
+       max_body_bytes, schedule_batch_size, job_concurrency, updated_at, updated_by,
        CASE
          WHEN system_prompt_encrypted IS NULL OR system_prompt_encrypted = '' THEN NULL
          ELSE decrypt_text(system_prompt_encrypted, $1)
@@ -187,7 +238,10 @@ async function saveSettings(payload = {}, updatedBy = null) {
       : current.max_body_bytes,
     schedule_batch_size: payload.schedule_batch_size !== undefined
       ? clampNumber(payload.schedule_batch_size, LIMITS.scheduleBatchSizeMin, LIMITS.scheduleBatchSizeMax, DEFAULTS.schedule_batch_size)
-      : current.schedule_batch_size
+      : current.schedule_batch_size,
+    job_concurrency: payload.job_concurrency !== undefined
+      ? clampNumber(payload.job_concurrency, LIMITS.jobConcurrencyMin, LIMITS.jobConcurrencyMax, DEFAULTS.job_concurrency)
+      : current.job_concurrency
   };
 
   await db.getQuery()(
@@ -195,11 +249,11 @@ async function saveSettings(payload = {}, updatedBy = null) {
        id, enabled, schedule_enabled, interval_days, max_pages, max_blog_pages,
        allow_path_keywords, deny_path_keywords, use_email_domain_fallback,
        provider, model, system_prompt_encrypted, temperature, max_tokens, timeout_ms,
-       fetch_timeout_ms, max_body_bytes, schedule_batch_size, updated_at, updated_by
+       fetch_timeout_ms, max_body_bytes, schedule_batch_size, job_concurrency, updated_at, updated_by
      ) VALUES (
        1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-       CASE WHEN $11::text IS NULL THEN NULL ELSE encrypt_text($11, $18) END,
-       $12, $13, $14, $15, $16, $17, NOW(), $19
+       CASE WHEN $11::text IS NULL THEN NULL ELSE encrypt_text($11, $19) END,
+       $12, $13, $14, $15, $16, $17, $18, NOW(), $20
      )
      ON CONFLICT (id) DO UPDATE SET
        enabled = EXCLUDED.enabled,
@@ -219,6 +273,7 @@ async function saveSettings(payload = {}, updatedBy = null) {
        fetch_timeout_ms = EXCLUDED.fetch_timeout_ms,
        max_body_bytes = EXCLUDED.max_body_bytes,
        schedule_batch_size = EXCLUDED.schedule_batch_size,
+       job_concurrency = EXCLUDED.job_concurrency,
        updated_at = NOW(),
        updated_by = EXCLUDED.updated_by`,
     [
@@ -239,6 +294,7 @@ async function saveSettings(payload = {}, updatedBy = null) {
       next.fetch_timeout_ms,
       next.max_body_bytes,
       next.schedule_batch_size,
+      next.job_concurrency,
       encryptionKey,
       updatedBy
     ]
@@ -320,17 +376,34 @@ async function resolveContactSource(userId, settings) {
   const extrasMap = await userContactFilesService.getContactExtrasMapForUserIds([uid], encryptionKey);
   const extras = extrasMap[uid] || { comment: null, link: null };
 
-  let sourceUrl = extras.link || null;
-  let sourceKind = sourceUrl ? 'link' : null;
+  let sourceUrl = null;
+  let sourceKind = null;
+
+  try {
+    const primarySite = await identityService.getPrimaryIdentityValue(uid, 'website');
+    if (primarySite) {
+      sourceUrl = primarySite;
+      sourceKind = 'website';
+    }
+  } catch {
+    // ignore
+  }
+
+  if (!sourceUrl && extras.link) {
+    sourceUrl = extras.link;
+    sourceKind = 'link';
+  }
 
   if (!sourceUrl && settings.use_email_domain_fallback) {
     const identities = await db.getQuery()(
       `SELECT decrypt_text(provider_encrypted, $2) AS provider,
-              decrypt_text(provider_id_encrypted, $2) AS provider_id
+              decrypt_text(provider_id_encrypted, $2) AS provider_id,
+              COALESCE(is_primary, false) AS is_primary
        FROM user_identities WHERE user_id = $1`,
       [uid, encryptionKey]
     );
-    const email = identities.rows.find((r) => r.provider === 'email')?.provider_id;
+    const email = identities.rows.find((r) => r.provider === 'email' && r.is_primary)?.provider_id
+      || null;
     const fromEmail = emailToCandidateSite(email);
     if (fromEmail) {
       sourceUrl = fromEmail;
@@ -500,6 +573,56 @@ async function upsertState(userId, patch) {
   );
 }
 
+async function applyExtractedIdentities(userId, crawl, sourceUrl) {
+  const emails = Array.isArray(crawl?.emails) ? crawl.emails : [];
+  const phones = Array.isArray(crawl?.phones) ? crawl.phones : [];
+  if (!emails.length && !phones.length) {
+    return { addedEmails: 0, addedPhones: 0, skipped: 0 };
+  }
+
+  let hostLabel = 'сайт';
+  try {
+    hostLabel = new URL(sourceUrl).hostname.replace(/^www\./i, '');
+  } catch {
+    // keep default
+  }
+  const label = `с ${hostLabel}`.slice(0, 80);
+
+  let addedEmails = 0;
+  let addedPhones = 0;
+  let skipped = 0;
+
+  for (const email of emails) {
+    try {
+      const result = await identityService.addContactIdentity(userId, 'email', email, {
+        label,
+        makePrimary: false
+      });
+      if (result.success && !result.existed) addedEmails += 1;
+      else skipped += 1;
+    } catch (error) {
+      skipped += 1;
+      logger.warn(`[ContactSiteParser] email extract skip user ${userId}: ${error.message}`);
+    }
+  }
+
+  for (const phone of phones) {
+    try {
+      const result = await identityService.addContactIdentity(userId, 'phone', phone, {
+        label,
+        makePrimary: false
+      });
+      if (result.success && !result.existed) addedPhones += 1;
+      else skipped += 1;
+    } catch (error) {
+      skipped += 1;
+      logger.warn(`[ContactSiteParser] phone extract skip user ${userId}: ${error.message}`);
+    }
+  }
+
+  return { addedEmails, addedPhones, skipped };
+}
+
 async function enrichOneContact(userId, settings, { force = false } = {}) {
   const contact = await resolveContactSource(userId, settings);
   if (!contact.sourceUrl) {
@@ -527,10 +650,18 @@ async function enrichOneContact(userId, settings, { force = false } = {}) {
   });
 
   if (!crawl.pageCount || !crawl.combinedText.trim()) {
+    const detail = (crawl.errors || [])
+      .map((e) => e.error)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join('; ');
+    const message = detail
+      ? `Не удалось получить текст сайта: ${detail}`
+      : 'Не удалось получить текст сайта';
     await upsertState(userId, {
       last_source_url: contact.sourceUrl,
       last_status: 'failed',
-      last_error: 'Не удалось получить текст сайта',
+      last_error: message,
       pages_fetched: 0
     });
     return {
@@ -538,7 +669,7 @@ async function enrichOneContact(userId, settings, { force = false } = {}) {
       status: 'failed',
       sourceUrl: contact.sourceUrl,
       pagesFetched: 0,
-      error: 'Не удалось получить текст сайта',
+      error: message,
       crawlErrors: crawl.errors
     };
   }
@@ -550,6 +681,7 @@ async function enrichOneContact(userId, settings, { force = false } = {}) {
       [userId]
     );
     if (prev.rows[0]?.last_content_hash === contentHash) {
+      const extracted = await applyExtractedIdentities(userId, crawl, contact.sourceUrl);
       await upsertState(userId, {
         last_success_at: new Date().toISOString(),
         last_source_url: contact.sourceUrl,
@@ -563,7 +695,8 @@ async function enrichOneContact(userId, settings, { force = false } = {}) {
         status: 'unchanged',
         sourceUrl: contact.sourceUrl,
         pagesFetched: crawl.pageCount,
-        summaryPreview: null
+        summaryPreview: null,
+        extracted
       };
     }
   }
@@ -580,6 +713,8 @@ async function enrichOneContact(userId, settings, { force = false } = {}) {
   );
   const encryptionKey = getEncryptionKey();
   await userContactFilesService.updateContactExtras(userId, { comment: nextComment }, encryptionKey);
+
+  const extracted = await applyExtractedIdentities(userId, crawl, contact.sourceUrl);
 
   const cleanSummary = sanitizeSummary(summary);
   await upsertState(userId, {
@@ -599,7 +734,8 @@ async function enrichOneContact(userId, settings, { force = false } = {}) {
     sourceKind: contact.sourceKind,
     pagesFetched: crawl.pageCount,
     summaryPreview: cleanSummary.slice(0, 400),
-    pageUrls: crawl.pages.map((p) => p.url)
+    pageUrls: crawl.pages.map((p) => p.url),
+    extracted
   };
 }
 
@@ -676,27 +812,72 @@ async function runJob(jobId, { force = false } = {}) {
   const job = rows[0];
   if (!job) throw new Error('Job not found');
 
+  if (await isCancelRequested(jobId)) {
+    clearCancelFlag(jobId);
+    if (String(job.status) !== 'cancelled') {
+      await updateJobCounters(jobId, {
+        status: 'cancelled',
+        error_summary: 'Остановлено пользователем',
+        finished_at: new Date().toISOString()
+      });
+    }
+    return getJob(jobId);
+  }
+
   let userIds = Array.isArray(job.user_ids) ? job.user_ids.map(Number) : [];
   if (!userIds.length) {
     throw new Error('Список контактов пуст');
   }
 
-  await updateJobCounters(jobId, {
-    status: 'running',
-    started_at: new Date().toISOString(),
-    total: userIds.length
-  });
-  await db.getQuery()(
-    'UPDATE contact_site_parser_jobs SET total = $2 WHERE id = $1',
-    [jobId, userIds.length]
+  // Resume after stop: skip already processed contacts from this job
+  const doneRows = await db.getQuery()(
+    `SELECT DISTINCT user_id FROM contact_site_parser_results WHERE job_id = $1 AND user_id IS NOT NULL`,
+    [jobId]
+  );
+  const doneSet = new Set(doneRows.rows.map((r) => Number(r.user_id)));
+  if (doneSet.size) {
+    userIds = userIds.filter((id) => !doneSet.has(Number(id)));
+  }
+
+  const alreadyProcessed = Number(job.processed) || doneSet.size;
+  let processed = alreadyProcessed;
+  let succeeded = Number(job.succeeded) || 0;
+  let failed = Number(job.failed) || 0;
+  let skipped = Number(job.skipped) || 0;
+  let stopped = false;
+  const concurrency = clampNumber(
+    settings.job_concurrency,
+    LIMITS.jobConcurrencyMin,
+    LIMITS.jobConcurrencyMax,
+    DEFAULTS.job_concurrency
   );
 
-  let processed = 0;
-  let succeeded = 0;
-  let failed = 0;
-  let skipped = 0;
+  await updateJobCounters(jobId, {
+    status: 'running',
+    started_at: job.started_at || new Date().toISOString(),
+    total: (Array.isArray(job.user_ids) ? job.user_ids.length : userIds.length + doneSet.size) || userIds.length,
+    processed,
+    succeeded,
+    failed,
+    skipped
+  });
 
-  for (const userId of userIds) {
+  if (!userIds.length) {
+    clearCancelFlag(jobId);
+    await updateJobCounters(jobId, {
+      status: 'done',
+      finished_at: new Date().toISOString()
+    });
+    return getJob(jobId);
+  }
+
+  await runPool(userIds, concurrency, async (userId) => {
+    if (stopped || await isCancelRequested(jobId)) {
+      stopped = true;
+      requestCancelJob(jobId);
+      return;
+    }
+
     try {
       const result = await enrichOneContact(userId, settings, { force });
       await insertResult(jobId, result);
@@ -729,6 +910,21 @@ async function runJob(jobId, { force = false } = {}) {
       failed,
       skipped
     });
+  });
+
+  clearCancelFlag(jobId);
+
+  if (stopped || await isCancelRequested(jobId)) {
+    await updateJobCounters(jobId, {
+      status: 'cancelled',
+      processed,
+      succeeded,
+      failed,
+      skipped,
+      error_summary: 'Остановлено пользователем',
+      finished_at: new Date().toISOString()
+    });
+    return getJob(jobId);
   }
 
   await updateJobCounters(jobId, {
@@ -843,8 +1039,58 @@ async function runScheduledTick() {
   }
 }
 
+async function cancelJob(jobId) {
+  const id = Number(jobId);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error('Некорректный ID задания');
+  }
+  const { rows } = await db.getQuery()('SELECT * FROM contact_site_parser_jobs WHERE id = $1', [id]);
+  const job = rows[0];
+  if (!job) throw new Error('Job not found');
+
+  const status = String(job.status || '');
+  if (status === 'done' || status === 'cancelled' || status === 'failed') {
+    return getJob(id);
+  }
+
+  requestCancelJob(id);
+
+  // Сразу пишем cancelled в БД — воркеры читают статус через isCancelRequested
+  await updateJobCounters(id, {
+    status: 'cancelled',
+    error_summary: status === 'pending'
+      ? 'Остановлено пользователем (до старта)'
+      : 'Остановлено пользователем',
+    finished_at: new Date().toISOString()
+  });
+
+  if (status === 'pending') {
+    clearCancelFlag(id);
+  }
+
+  return getJob(id);
+}
+
+/** После рестарта backend: висящие running/pending без воркера → cancelled */
+async function markOrphanJobsCancelled() {
+  const { rowCount } = await db.getQuery()(
+    `UPDATE contact_site_parser_jobs
+     SET status = 'cancelled',
+         error_summary = COALESCE(error_summary, 'Прервано перезапуском сервера'),
+         finished_at = COALESCE(finished_at, NOW())
+     WHERE status IN ('running', 'pending')`
+  );
+  if (rowCount > 0) {
+    logger.warn(`[ContactSiteParser] orphan jobs marked cancelled: ${rowCount}`);
+  }
+  return rowCount || 0;
+}
+
 function startScheduler() {
   if (scheduleTimer) return;
+  markOrphanJobsCancelled().catch((e) => {
+    logger.warn('[ContactSiteParser] orphan cleanup failed:', e.message);
+  });
   // hourly check is enough; interval_days decides eligibility
   scheduleTimer = setInterval(() => {
     runScheduledTick().catch(() => {});
@@ -870,6 +1116,8 @@ module.exports = {
   saveSettings,
   listAvailableModels,
   startJobForUserIds,
+  cancelJob,
+  markOrphanJobsCancelled,
   getJob,
   listJobs,
   enrichOneContact,

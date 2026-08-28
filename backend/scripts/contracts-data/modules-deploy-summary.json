@@ -1,8 +1,8 @@
 {
-  "deploymentId": "modules-deploy-1787431144177",
-  "dleAddress": "0xcFC8faAAD6E3Dfc6A75b28d834d376c4C24AAb06",
-  "dleName": "VC HB3 Accelerator test",
-  "dleSymbol": "TEST",
+  "deploymentId": "modules-deploy-1787896670554",
+  "dleAddress": "0x743abDaFFd4FC668aD95E49021a569dD38C11763",
+  "dleName": "VC HB3 Accelerator",
+  "dleSymbol": "HB3A",
   "dleLocation": "Abu Dhabi Global Market, Abu Dhabi Global Market Street - Second, Al Maryah Island, Abu Dhabi, Abu Dhabi Emirate, United Arab Emirates",
   "dleJurisdiction": 784,
   "dleCoordinates": "24.5013163,54.3885386",
@@ -11,14 +11,15 @@
     "6202"
   ],
   "dleKpp": "0",
+  "dleQuorumPercentage": 70,
   "dleLogoURI": "/uploads/logos/default-token.svg",
   "dleSupportedChainIds": [
-    11155111
+    11155111,
+    1
   ],
-  "totalNetworks": 1,
-  "successfulNetworks": 1,
+  "successfulNetworks": 2,
   "modulesDeployed": [
-    "treasury"
+    "hierarchicalVoting"
   ],
   "networks": [
     {
@@ -26,15 +27,29 @@
       "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
       "modules": [
         {
-          "type": "treasury",
-          "address": "0xf4E9566Af3BF52b4B0Daa846C7B8e06402e5240f",
-          "bridgeAddress": "0x0DC541a091382742002cE11431281120bC9bcCeA",
-          "bridgeWired": true,
+          "type": "hierarchicalVoting",
+          "address": "0x4Dd085bd7db236F305B80dAf79c11F9a5f9c844A",
+          "bridgeAddress": "0xe1Bb5CBC19BdfB5e24c47fF2e3Fe7D4687dE64C9",
+          "bridgeWired": false,
           "success": true,
-          "verification": "failed"
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "chainId": 1,
+      "rpcUrl": "https://eth-mainnet.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52",
+      "modules": [
+        {
+          "type": "hierarchicalVoting",
+          "address": "0x4Dd085bd7db236F305B80dAf79c11F9a5f9c844A",
+          "bridgeAddress": "0xe1Bb5CBC19BdfB5e24c47fF2e3Fe7D4687dE64C9",
+          "bridgeWired": false,
+          "success": true,
+          "verification": "verified"
         }
       ]
     }
   ],
-  "timestamp": "2026-08-22T20:39:04.177Z"
+  "timestamp": "2026-08-28T05:57:50.555Z"
 }

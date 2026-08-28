@@ -20,17 +20,24 @@
   >
     <div class="create-proposal-page page-with-close">
       <PageCloseButton :on-navigate="goBackToBlocks" />
-      <!-- Информация для неавторизованных пользователей -->
-      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-        <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+      <div class="page-address-bar">
+        <div v-if="selectedDle?.dleAddress" class="page-address-bar__value">
           {{ selectedDle.dleAddress }}
         </div>
-        <div v-else-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+        <div v-else-if="dleAddress" class="page-address-bar__value">
           {{ dleAddress }}
         </div>
-        <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+        <div v-else-if="isLoadingDle" class="page-address-bar__value">
           {{ t('common.loading') }}
         </div>
+      </div>
+      <div v-if="dleAddress" class="voting-chain-hub">
+        <VotingChainSelect
+          v-model="votingChain"
+          :chains="votingChains"
+          :is-loading="isLoadingVotingChains"
+        />
+        <p class="voting-chain-hub__note">{{ t('smartcontracts.createProposal.votingChainHubHint') }}</p>
       </div>
       <div v-if="!canGovern" class="auth-notice">
         <div class="alert alert-info">
@@ -39,6 +46,21 @@
             <strong>{{ t('smartcontracts.createProposal.tokenHolderRequiredTitle') }}</strong>
             <p>{{ t('smartcontracts.createProposal.tokenHolderRequiredHint') }}</p>
           </div>
+        </div>
+      </div>
+
+      <div v-if="showDelegationPrompt" class="delegation-notice">
+        <div class="alert alert-warning">
+          <strong>{{ t('smartcontracts.proposals.delegationNoticeTitle') }}</strong>
+          <p class="delegation-notice-text">{{ t('smartcontracts.proposals.delegationNoticeMessage') }}</p>
+          <button
+            type="button"
+            class="create-btn delegation-btn"
+            :disabled="isDelegating || !hasVotingChain"
+            @click="handleDelegate"
+          >
+            {{ isDelegating ? t('smartcontracts.proposals.delegating') : t('smartcontracts.proposals.delegateButton') }}
+          </button>
         </div>
       </div>
       
@@ -50,56 +72,63 @@
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.transferTokens.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.transferTokens.description') }}</p>
-                <button class="create-btn" @click="openTransferForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openTransferForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.updateDleInfo.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.updateDleInfo.description') }}</p>
-                <button class="create-btn" @click="openUpdateDLEInfoForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openUpdateDLEInfoForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.updateQuorum.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.updateQuorum.description') }}</p>
-                <button class="create-btn" @click="openUpdateQuorumForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openUpdateQuorumForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.updateVotingDurations.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.updateVotingDurations.description') }}</p>
-                <button class="create-btn" @click="openUpdateVotingDurationsForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openUpdateVotingDurationsForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.offchainAction.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.offchainAction.description') }}</p>
-                <button class="create-btn" @click="openOffchainActionForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openOffchainActionForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.addModule.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.addModule.description') }}</p>
-                <button class="create-btn" @click="openAddModuleForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openAddModuleForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.removeModule.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.removeModule.description') }}</p>
-                <button class="create-btn" @click="openRemoveModuleForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openRemoveModuleForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
                 <h6>{{ t('smartcontracts.createProposal.operations.setLogoUri.title') }}</h6>
                 <p>{{ t('smartcontracts.createProposal.operations.setLogoUri.description') }}</p>
-                <button class="create-btn" @click="openSetLogoURIForm" :disabled="!canGovern">
+                <button class="create-btn" @click="openSetLogoURIForm" :disabled="!canGovern || !hasVotingChain">
+                  {{ t('common.create') }}
+                </button>
+              </div>
+              <div class="operation-block">
+                <h6>{{ t('smartcontracts.createProposal.operations.setActive.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.setActive.description') }}</p>
+                <button class="create-btn" @click="openSetActiveForm" :disabled="!canGovern || !hasVotingChain">
                   {{ t('common.create') }}
                 </button>
               </div>
@@ -116,20 +145,20 @@
             :key="moduleOperation.moduleType"
             class="operation-category"
           >
-            <h5>{{ getModuleIcon(moduleOperation.moduleType) }} {{ moduleOperation.moduleName }}</h5>
-            <p class="module-description">{{ moduleOperation.moduleDescription }}</p>
+            <h5>{{ getModuleIcon(moduleOperation.moduleType) }} {{ moduleHeading(moduleOperation) }}</h5>
+            <p class="module-description">{{ moduleBlurb(moduleOperation) }}</p>
             <div class="operation-blocks">
               <div 
                 v-for="operation in moduleOperation.operations" 
                 :key="operation.id"
                 class="operation-block module-operation-block"
               >
-                <h6>{{ operation.name }}</h6>
-                <p>{{ operation.description }}</p>
+                <h6>{{ operationTitle(moduleOperation.moduleType, operation) }}</h6>
+                <p>{{ operationBlurb(moduleOperation.moduleType, operation) }}</p>
                 <button 
                   class="create-btn" 
                   @click="openModuleOperationForm(moduleOperation.moduleType, operation)" 
-                  :disabled="!canGovern || isLoadingModuleOperations"
+                  :disabled="!canGovern || !hasVotingChain || isLoadingModuleOperations"
                 >
                   <span v-if="isLoadingModuleOperations">{{ t('common.loading') }}</span>
                   <span v-else>{{ t('common.create') }}</span>
@@ -144,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, defineProps, defineEmits } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, defineProps, defineEmits } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../../composables/useAuth';
@@ -155,9 +184,14 @@ import UiGlyph from '../../components/UiGlyph.vue';
 import { getDLEInfo } from '../../services/dleV2Service.js';
 import { createProposal as createProposalAPI } from '../../services/proposalsService.js';
 import { getModuleOperations } from '../../services/moduleOperationsService.js';
+import { translateIfExists, localeSafeFallback } from '../../utils/helpers.js';
+import { isModuleBridgeOp, isTreasuryFundsBridgeOp } from '../../utils/dle-contract.js';
+import VotingChainSelect from '@/components/VotingChainSelect.vue';
+import { useVotingChains } from '@/composables/useVotingChains.js';
 import api from '../../api/axios';
 import wsClient from '../../utils/websocket.js';
 import { ethers } from 'ethers';
+import { getDelegationStatus, delegateVotingPowerToSelf } from '../../utils/dle-contract.js';
 
 const showTargetChains = computed(() => {
   // Для offchain-действий не требуется ончейн исполнение (здесь типы пока ончейн)
@@ -174,14 +208,131 @@ const props = defineProps({
 
 const emit = defineEmits(['auth-action-completed']);
 
-const { t } = useI18n();
-const { address, isAuthenticated, checkTokenBalances } = useAuthContext();
+const { t, locale, messages } = useI18n();
+
+function msgTree() {
+  return messages.value?.[locale.value] || messages.value?.en;
+}
+
+function moduleI18nKey(moduleType, suffix) {
+  return `smartcontracts.createProposal.modules.${moduleType}.${suffix}`;
+}
+
+function moduleHeading(mod) {
+  return translateIfExists(
+    t,
+    moduleI18nKey(mod.moduleType, 'title'),
+    undefined,
+    localeSafeFallback(locale.value, mod.moduleName),
+    msgTree()
+  );
+}
+
+function moduleBlurb(mod) {
+  return translateIfExists(
+    t,
+    moduleI18nKey(mod.moduleType, 'description'),
+    undefined,
+    localeSafeFallback(locale.value, mod.moduleDescription),
+    msgTree()
+  );
+}
+
+function operationTitle(moduleType, operation) {
+  return translateIfExists(
+    t,
+    moduleI18nKey(moduleType, `ops.${operation.id}.title`),
+    undefined,
+    localeSafeFallback(locale.value, operation.name),
+    msgTree()
+  );
+}
+
+function operationBlurb(moduleType, operation) {
+  return translateIfExists(
+    t,
+    moduleI18nKey(moduleType, `ops.${operation.id}.description`),
+    undefined,
+    localeSafeFallback(locale.value, operation.description),
+    msgTree()
+  );
+}
+const { address, isAuthenticated, checkTokenBalances, checkAuth } = useAuthContext();
 const { canGovern } = usePermissions();
 const router = useRouter();
 const route = useRoute();
 
+const needsDelegation = ref(false);
+const isDelegating = ref(false);
+const connectedWallet = ref(null);
+
+const showDelegationPrompt = computed(() => Boolean(connectedWallet.value && needsDelegation.value));
+
+const dleAddress = computed(() => {
+  return route.query.address || props.dleAddress;
+});
+
+const {
+  chains: votingChains,
+  votingChain,
+  isLoading: isLoadingVotingChains,
+  hasVotingChain,
+  hubQuery,
+} = useVotingChains(dleAddress);
+
+const refreshDelegationStatus = async () => {
+  if (!dleAddress.value) {
+    needsDelegation.value = false;
+    connectedWallet.value = null;
+    return;
+  }
+  try {
+    let wallet = address.value;
+    if (!wallet && window.ethereum) {
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      wallet = accounts?.[0] || null;
+    }
+    connectedWallet.value = wallet;
+    if (!wallet) {
+      needsDelegation.value = false;
+      return;
+    }
+    const status = await getDelegationStatus(dleAddress.value, wallet);
+    needsDelegation.value = status.needsDelegation;
+  } catch (err) {
+    console.warn('[CreateProposal] delegation check failed:', err?.message || err);
+    needsDelegation.value = false;
+  }
+};
+
+const handleDelegate = async () => {
+  if (!dleAddress.value) return;
+  if (!hasVotingChain.value) {
+    window.alert(t('smartcontracts.createProposal.votingChainRequired'));
+    return;
+  }
+  isDelegating.value = true;
+  try {
+    const chainId = Number(votingChain.value);
+    const result = await delegateVotingPowerToSelf(dleAddress.value, chainId);
+    await refreshDelegationStatus();
+    if (result.alreadyDelegated) {
+      window.alert(t('smartcontracts.proposals.delegationAlreadyDone'));
+    } else {
+      window.alert(t('smartcontracts.proposals.delegationSuccess', { hash: result.txHash }));
+    }
+  } catch (err) {
+    console.error('[CreateProposal] delegate failed:', err);
+    window.alert(t('smartcontracts.proposals.delegationFailed', { message: err?.message || String(err) }));
+  } finally {
+    isDelegating.value = false;
+  }
+};
+
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
+  checkAuth().catch(() => {}).then(() => refreshDelegationStatus());
+
   window.addEventListener('clear-application-data', () => {
     dleInfo.value = null;
   });
@@ -191,9 +342,14 @@ onMounted(() => {
   });
 });
 
-const dleAddress = computed(() => {
-  return route.query.address || props.dleAddress;
+watch([address, dleAddress, isAuthenticated], () => {
+  refreshDelegationStatus();
 });
+
+if (typeof window !== 'undefined' && window.ethereum?.on) {
+  window.ethereum.on('accountsChanged', refreshDelegationStatus);
+  window.ethereum.on('chainChanged', refreshDelegationStatus);
+}
 
 // Функция возврата к блокам управления
 const goBackToBlocks = () => {
@@ -216,52 +372,91 @@ const moduleOperations = ref([]);
 const isLoadingModuleOperations = ref(false);
 const isModulesWSConnected = ref(false);
 
-// Функции для открытия отдельных форм операций
+function openProposalForm(path, extra = {}) {
+  router.push({ path, query: hubQuery(extra) });
+}
+
 function openTransferForm() {
-  if (dleAddress.value) {
-    router.push(`/management/transfer-tokens?address=${dleAddress.value}`);
-  } else {
-    router.push('/management/transfer-tokens');
-  }
+  openProposalForm('/management/transfer-tokens');
 }
 
 function openAddModuleForm() {
-  if (dleAddress.value) {
-    router.push(`/management/add-module?address=${dleAddress.value}`);
-  } else {
-    router.push('/management/add-module');
-  }
+  openProposalForm('/management/add-module');
 }
 
 function openRemoveModuleForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.removeModule'));
+  openProposalForm('/management/remove-module');
 }
 
 function openUpdateDLEInfoForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.updateDleInfo'));
+  openDleCoreOp('updateDleInfo');
 }
 
 function openUpdateQuorumForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.updateQuorum'));
+  openDleCoreOp('updateQuorum');
 }
 
 function openUpdateVotingDurationsForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.updateVotingDurations'));
+  openDleCoreOp('updateVotingDurations');
 }
 
 function openSetLogoURIForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.setLogoUri'));
+  openDleCoreOp('setLogoUri');
+}
+
+function openSetActiveForm() {
+  openDleCoreOp('setActive');
 }
 
 function openOffchainActionForm() {
-  alert(t('smartcontracts.createProposal.comingSoon.offchainAction'));
+  openDleCoreOp('offchainAction');
+}
+
+function openDleCoreOp(op) {
+  if (!dleAddress.value) {
+    alert(t('smartcontracts.createProposal.comingSoon.moduleOperation', {
+      name: op,
+      moduleType: 'dle',
+      description: '',
+      functionName: op,
+      category: 'core',
+    }));
+    return;
+  }
+  router.push({
+    path: '/management/dle-core-op',
+    query: hubQuery({ op }),
+  });
 }
 
 function openModuleOperationForm(moduleType, operation) {
+  const formModuleType = operation.formModuleType || moduleType;
+  const functionName = operation.functionName;
+  if (isTreasuryFundsBridgeOp(formModuleType, functionName) && dleAddress.value) {
+    router.push({
+      path: '/management/treasury-bridge-op',
+      query: hubQuery({
+        moduleType: formModuleType,
+        op: functionName,
+        ...(operation.prefill && typeof operation.prefill === 'object' ? operation.prefill : {}),
+      }),
+    });
+    return;
+  }
+  if (isModuleBridgeOp(formModuleType, functionName) && dleAddress.value) {
+    router.push({
+      path: '/management/module-bridge-op',
+      query: hubQuery({
+        moduleType: formModuleType,
+        op: functionName,
+      }),
+    });
+    return;
+  }
   alert(t('smartcontracts.createProposal.comingSoon.moduleOperation', {
-    name: operation.name,
+    name: operationTitle(moduleType, operation),
     moduleType,
-    description: operation.description,
+    description: operationBlurb(moduleType, operation),
     functionName: operation.functionName,
     category: operation.category
   }));
@@ -319,7 +514,18 @@ async function loadModuleOperations() {
     const response = await getModuleOperations(dleAddress.value);
     
     if (response.success) {
-      moduleOperations.value = response.data.moduleOperations || [];
+      const raw = response.data.moduleOperations || [];
+      // Только ops с живой формой/encode (без alert comingSoon).
+      moduleOperations.value = raw
+        .map((mod) => ({
+          ...mod,
+          operations: (mod.operations || []).filter((op) => {
+            const mt = op.formModuleType || mod.moduleType;
+            const fn = op.functionName;
+            return isTreasuryFundsBridgeOp(mt, fn) || isModuleBridgeOp(mt, fn);
+          }),
+        }))
+        .filter((mod) => (mod.operations || []).length > 0);
     } else {
       console.error('[CreateProposalView] Ошибка загрузки операций модулей:', response.error);
       moduleOperations.value = [];
@@ -450,62 +656,24 @@ function getChainName(chainId) {
 
 <style scoped>
 .create-proposal-page {
-  padding: 20px;
+  padding: var(--spacing-lg);
   background: transparent;
   border-radius: var(--radius-lg);
   box-shadow: none;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
 }
 
-/* Заголовок */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #f0f0f0;
+.voting-chain-hub {
+  max-width: 520px;
+  margin: 0 0 1.5rem;
 }
 
-.header-content {
-  flex-grow: 1;
+.voting-chain-hub__note {
+  margin: -8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-grey-dark, #555);
 }
-
-.page-header h1 {
-  color: var(--color-primary);
-  font-size: 2rem;
-  margin: 0 0 5px 0;
-}
-
-.page-header p {
-  color: var(--color-grey-dark);
-  font-size: 1rem;
-  margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
-}
-
 
 .auth-notice {
   margin-bottom: 2rem;
@@ -546,6 +714,8 @@ function getChainName(chainId) {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .operation-category {
@@ -566,35 +736,33 @@ function getChainName(chainId) {
   text-align: center;
 }
 
-.operation-blocks {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: 1.5rem;
-}
-
 .operation-block {
   background: white;
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
   text-align: center;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 0.75rem;
   min-height: 200px;
+  height: auto;
+  overflow: visible;
 }
 
-.operation-block:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-  border-color: var(--color-primary);
+@media (hover: hover) {
+  .operation-block:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+  }
 }
-
 
 .operation-block h6 {
-  margin: 0 0 1rem 0;
+  margin: 0;
   color: var(--color-primary);
   font-size: 1.5rem;
   font-weight: 600;
@@ -602,7 +770,7 @@ function getChainName(chainId) {
 }
 
 .operation-block p {
-  margin: 0 0 1.5rem 0;
+  margin: 0;
   color: #666;
   font-size: 1rem;
   line-height: 1.5;
@@ -618,17 +786,23 @@ function getChainName(chainId) {
   cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
-  transition: all 0.2s;
-  min-width: 120px;
+  transition: background 0.2s, transform 0.2s;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   flex-shrink: 0;
   margin-top: auto;
+  align-self: stretch;
 }
 
-.create-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .create-btn:hover:not(:disabled) {
+    background: var(--color-primary-dark);
+    transform: translateY(-1px);
+  }
 }
+
 .create-btn:disabled {
   background: #6c757d;
   cursor: not-allowed;
@@ -636,7 +810,6 @@ function getChainName(chainId) {
   box-shadow: none;
 }
 
-/* Стили для модулей */
 .module-description {
   color: #666;
   font-size: 0.9rem;
@@ -652,9 +825,6 @@ function getChainName(chainId) {
   min-height: 200px;
 }
 
-
-
-/* Индикатор загрузки модулей */
 .loading-modules {
   display: flex;
   align-items: center;
@@ -678,35 +848,5 @@ function getChainName(chainId) {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
-}
-
-/* Адаптивность */
-@media (max-width: 768px) {
-  .operation-blocks {
-    grid-template-columns: 1fr;
-  }
-  
-  .operation-block {
-    padding: 1rem;
-  }
-  
-  .operation-category h5 {
-    font-size: 1.1rem;
-  }
-}
-
-
-/* TZ package G/SC stack */
-@media (max-width: 768px) {
-  [class*="grid"], .form-row, .management-blocks {
-    grid-template-columns: 1fr !important;
-  }
-  .row, .actions, .toolbar, .filters, .form-actions {
-    flex-wrap: wrap;
-  }
-}
-
-.create-proposal-container.page-with-close {
-  position: relative;
 }
 </style>

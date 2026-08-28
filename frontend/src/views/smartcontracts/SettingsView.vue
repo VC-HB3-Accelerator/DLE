@@ -100,7 +100,7 @@
           </div>
         </div>
 
-        <!-- Удаление DLE -->
+        <!-- Снятие книги с ОС (после on-chain isActive=false) -->
         <div class="danger-card">
           <div class="danger-header">
             <h3>{{ t('smartcontracts.settings.deleteSection') }}</h3>
@@ -110,14 +110,38 @@
             <div class="warning-info">
               <h4>{{ t('smartcontracts.settings.important') }}</h4>
               <ul>
-                <li>{{ t('smartcontracts.settings.warningTokens') }}</li>
-                <li>{{ t('smartcontracts.settings.warningVoting') }}</li>
-                <li>{{ t('smartcontracts.settings.warningActive') }}</li>
-                <li>{{ t('smartcontracts.settings.warningOwner') }}</li>
+                <li>{{ t('smartcontracts.settings.warningStep1') }}</li>
+                <li>{{ t('smartcontracts.settings.warningStep2') }}</li>
+                <li>{{ t('smartcontracts.settings.warningContractLives') }}</li>
+                <li>{{ t('smartcontracts.settings.warningHolders') }}</li>
               </ul>
             </div>
-            <button @click="deleteDLE" class="btn-danger" :disabled="isLoading">
-              {{ isLoading ? t('common.loading') : t('smartcontracts.settings.deleteDleBtn') }}
+            <p v-if="chainActive === true" class="module-deploy-status">
+              {{ t('smartcontracts.settings.statusActive') }}
+            </p>
+            <p v-else-if="chainActive === false" class="module-deploy-status">
+              {{ t('smartcontracts.settings.statusInactive') }}
+            </p>
+            <p v-else-if="chainActiveError" class="module-deploy-status">
+              {{ chainActiveError }}
+            </p>
+            <button
+              v-if="chainActive !== false"
+              type="button"
+              class="btn-danger"
+              :disabled="isLoading || isDelisting"
+              @click="goDeactivateProposal"
+            >
+              {{ t('smartcontracts.settings.deactivateProposalBtn') }}
+            </button>
+            <button
+              v-else
+              type="button"
+              class="btn-danger"
+              :disabled="isLoading || isDelisting"
+              @click="delistFromOs"
+            >
+              {{ isDelisting ? t('common.loading') : t('smartcontracts.settings.deleteDleBtn') }}
             </button>
           </div>
         </div>
@@ -212,15 +236,12 @@
 import { ref, defineProps, defineEmits, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useAuthContext } from '../../composables/useAuth';
 import { useFooterDle } from '../../composables/useFooterDle';
 import { usePermissions } from '../../composables/usePermissions';
 import { ROLES } from '../../composables/permissions';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
-import { deactivateDLE } from '../../utils/dle-contract.js';
 import api from '../../api/axios';
-import { errorMessageMatches } from '../../utils/i18nErrorMatch';
 import UiGlyph from '../../components/UiGlyph.vue';
 
 const { t } = useI18n();
@@ -240,10 +261,12 @@ const router = useRouter();
 const route = useRoute();
 
 // Состояние
-const isSaving = ref(false);
 const dleAddress = ref('');
 const dleInfo = ref(null);
 const isLoading = ref(false);
+const isDelisting = ref(false);
+const chainActive = ref(null);
+const chainActiveError = ref('');
 const activeTab = ref('general');
 const isSavingModuleDeploy = ref(false);
 const moduleDeployForm = ref({ rpcUrls: [''], privateKey: '', etherscanApiKey: '' });
@@ -267,9 +290,6 @@ const goBackToBlocks = () => {
     router.push('/management');
   }
 };
-
-// Получаем адрес пользователя из контекста аутентификации
-const { address: userAddress } = useAuthContext();
 
 // Используем composable для проверки прав доступа
 const { currentRole } = usePermissions();
@@ -342,17 +362,24 @@ const removeFromFooter = async () => {
   }
 };
 
-// Подписываемся на централизованные события очистки и обновления данных
+// Подписка + первичная загрузка
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
     dleInfo.value = null;
+    chainActive.value = null;
   });
-  
+
   window.addEventListener('refresh-application-data', () => {
     loadDLEInfo();
+    refreshChainActive();
   });
   if (route.query.tab === 'modules') {
     activeTab.value = 'modules';
+  }
+  if (address) {
+    dleAddress.value = address;
+    loadDLEInfo();
+    refreshChainActive();
   }
 });
 
@@ -480,76 +507,72 @@ async function saveModuleDeployer() {
 }
 
 // Методы
-const deleteDLE = async () => {
+async function refreshChainActive() {
+  chainActive.value = null;
+  chainActiveError.value = '';
+  if (!address) return;
+  try {
+    const response = await api.post('/blockchain/is-active', { dleAddress: address });
+    if (response.data?.success) {
+      chainActive.value = Boolean(response.data.data?.isActive);
+    } else {
+      chainActiveError.value = response.data?.error || t('smartcontracts.settings.alerts.activeCheckFailed');
+    }
+  } catch (e) {
+    chainActiveError.value = e?.response?.data?.error || e.message || t('smartcontracts.settings.alerts.activeCheckFailed');
+  }
+}
+
+function goDeactivateProposal() {
   if (!address) {
     alert(t('smartcontracts.settings.alerts.addressNotFound'));
     return;
   }
+  router.push({
+    path: '/management/dle-core-op',
+    query: { address, op: 'setActive' },
+  });
+}
 
-  // Проверяем аутентификацию
-  if (!props.isAuthenticated || !userAddress.value) {
+async function delistFromOs() {
+  if (!address) {
+    alert(t('smartcontracts.settings.alerts.addressNotFound'));
+    return;
+  }
+  if (!props.isAuthenticated) {
     alert(t('smartcontracts.settings.alerts.authRequired'));
     return;
   }
-
   const dleName = dleInfo.value?.name || address;
-
-  if (!confirm(t('smartcontracts.settings.alerts.confirmDeactivate', { name: dleName }))) {
+  if (!confirm(t('smartcontracts.settings.alerts.confirmDelist', { name: dleName }))) {
     return;
   }
-  
-  if (!confirm(t('smartcontracts.settings.alerts.confirmDeactivateAgain'))) {
-    return;
-  }
-
   try {
-    isSaving.value = true;
-    
-    // Выполняем деактивацию DLE
-    const result = await deactivateDLE(address, userAddress.value);
-    
-    alert(t('smartcontracts.settings.alerts.deactivateSuccess', {
-      name: dleInfo.value?.name || address,
-      txHash: result.txHash
-    }));
-    
-    // Перенаправляем на страницу блоков управления
-    goBackToBlocks();
-    
-  } catch (error) {
-    console.error('Ошибка при деактивации DLE:', error);
-    
-    let errorMessage = t('smartcontracts.settings.alerts.deactivateError');
-    
-    if (error.message.includes('execution reverted')) {
-      errorMessage = t('smartcontracts.settings.alerts.deactivateReverted');
-    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.owner')) {
-      errorMessage = t('smartcontracts.settings.alerts.ownerOnly');
-    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.wallet')) {
-      errorMessage = t('smartcontracts.settings.alerts.walletRequired');
-    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.deactivated')) {
-      errorMessage = t('smartcontracts.settings.alerts.alreadyDeactivated');
-    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.tokens')) {
-      errorMessage = t('smartcontracts.settings.alerts.tokensRequired');
-    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.smartContractConditions')) {
-      errorMessage = t('smartcontracts.settings.alerts.deactivateReverted');
-    } else {
-      errorMessage = t('smartcontracts.settings.alerts.errorWithMessage', { message: error.message });
+    isDelisting.value = true;
+    const chainId = dleInfo.value?.currentChainId ?? null;
+    const response = await api.post(`/dle-v2/${address}/delist`, chainId != null ? { chainId } : {});
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || t('smartcontracts.settings.alerts.delistFailed'));
     }
-    
-    alert(errorMessage);
+    alert(t('smartcontracts.settings.alerts.delistSuccess', { name: dleName }));
+    router.push('/management');
+  } catch (error) {
+    console.error('Ошибка delist DLE:', error);
+    const code = error?.response?.data?.code;
+    if (code === 'still_active') {
+      alert(t('smartcontracts.settings.alerts.stillActiveNeedProposal'));
+      await refreshChainActive();
+      return;
+    }
+    alert(
+      error?.response?.data?.message
+      || error.message
+      || t('smartcontracts.settings.alerts.delistFailed')
+    );
   } finally {
-    isSaving.value = false;
+    isDelisting.value = false;
   }
-};
-
-// Загружаем данные при монтировании компонента
-onMounted(() => {
-  if (address) {
-    dleAddress.value = address;
-    loadDLEInfo();
-  }
-});
+}
 </script>
 
 <style scoped>

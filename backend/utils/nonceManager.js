@@ -18,6 +18,17 @@
 const { ethers } = require('ethers');
 const { getRpcUrls } = require('./networkLoader');
 
+const MAX_NONCE_SPREAD = 15;
+const MAX_NONCE_FILLERS = 15;
+
+function makeProvider(rpcUrl, chainId) {
+  const network = chainId != null ? Number(chainId) : undefined;
+  return new ethers.JsonRpcProvider(rpcUrl, network, {
+    polling: false,
+    staticNetwork: Boolean(network),
+  });
+}
+
 class NonceManager {
   constructor() {
     this.nonceCache = new Map(); // Кэш nonce для каждого адреса и сети
@@ -33,7 +44,7 @@ class NonceManager {
    * @returns {Promise<number>} - Актуальный nonce
    */
   async getNonce(address, rpcUrl, chainId, options = {}) {
-    const { timeout = 15000, maxRetries = 5 } = options; // Увеличиваем таймаут и попытки
+    const { timeout = 30000, maxRetries = 3 } = options;
     
     // КРИТИЧЕСКАЯ ПРОВЕРКА: логируем входящие параметры
     console.log(`[NonceManager] getNonce вызван с параметрами: address=${address}, rpcUrl=${rpcUrl}, chainId=${chainId}`);
@@ -49,10 +60,7 @@ class NonceManager {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`[NonceManager] Попытка ${attempt}: создаем JsonRpcProvider с rpcUrl: ${rpcUrl}`);
-        const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
-          polling: false, // Отключаем polling для более быстрого получения nonce
-          staticNetwork: true
-        });
+        const provider = makeProvider(rpcUrl, chainId);
         
         // Получаем nonce из сети с таймаутом
         const networkNonce = await Promise.race([
@@ -310,70 +318,110 @@ class NonceManager {
   }
 
   /**
-   * Выровнять nonce до целевого значения с помощью filler транзакций
-   * @param {string} address - Адрес кошелька
-   * @param {string} rpcUrl - RPC URL сети
-   * @param {number} chainId - ID сети
-   * @param {number} targetNonce - Целевой nonce
-   * @param {Object} wallet - Кошелек для отправки транзакций
-   * @param {Object} options - Опции (gasLimit, maxRetries)
-   * @returns {Promise<number>} - Финальный nonce
+   * latest + pending: если pending > latest — в mempool застрявшие tx.
+   * Filler/replacement без bump fee жгут газ (replacement underpriced).
+   */
+  async getNonceGap(address, rpcUrl, chainId) {
+    const provider = makeProvider(rpcUrl, chainId);
+    const [latest, pending] = await Promise.all([
+      provider.getTransactionCount(address, 'latest'),
+      provider.getTransactionCount(address, 'pending'),
+    ]);
+    return { latest, pending, stuck: pending > latest, provider };
+  }
+
+  async _feeOverrides(provider, bumpMultiplier = 120n) {
+    const fee = await provider.getFeeData();
+    const minFee = ethers.parseUnits('20', 'gwei');
+    const minPriority = ethers.parseUnits('1', 'gwei');
+    const bump = (v) => (v * bumpMultiplier) / 100n;
+
+    if (fee.maxFeePerGas) {
+      const maxFee = fee.maxFeePerGas < minFee ? minFee : fee.maxFeePerGas;
+      const tip =
+        fee.maxPriorityFeePerGas && fee.maxPriorityFeePerGas > 0n
+          ? fee.maxPriorityFeePerGas
+          : minPriority;
+      return {
+        maxFeePerGas: bump(maxFee),
+        maxPriorityFeePerGas: bump(tip),
+      };
+    }
+    if (fee.gasPrice) {
+      const gp = fee.gasPrice < minFee ? minFee : fee.gasPrice;
+      return { gasPrice: bump(gp) };
+    }
+    return { gasPrice: bump(minFee) };
+  }
+
+  /**
+   * Выровнять nonce filler-транзакциями (как на VDS): sendTransactionWithRetry.
+   * Лимит maxFillers — защита от бесконечного жжения газа.
    */
   async alignNonceToTarget(address, rpcUrl, chainId, targetNonce, wallet, options = {}) {
-    const { gasLimit = 21000, maxRetries = 5 } = options;
-    const burnAddress = "0x000000000000000000000000000000000000dEaD";
-    
-    // Получаем текущий nonce
-    let current = await this.getNonce(address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+    const {
+      gasLimit = 21000,
+      maxFillers = MAX_NONCE_FILLERS,
+      maxRetries = 5,
+    } = options;
+    const burnAddress = '0x000000000000000000000000000000000000dEaD';
+
+    let current = await this.getNonce(address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
     console.log(`[NonceManager] Aligning nonce ${current} -> ${targetNonce} for ${address}:${chainId}`);
-    
+
     if (current >= targetNonce) {
       console.log(`[NonceManager] Nonce already aligned: ${current} >= ${targetNonce}`);
       return current;
     }
-    
-    // Используем RPCConnectionManager для retry логики
+
+    const need = targetNonce - current;
+    if (need > maxFillers) {
+      throw new Error(
+        `[NonceManager] chainId=${chainId}: gap=${need} filler tx (лимит ${maxFillers}).`
+      );
+    }
+
     const RPCConnectionManager = require('./rpcConnectionManager');
     const rpcManager = new RPCConnectionManager();
-    
-    // Выравниваем nonce с помощью filler транзакций
+    const provider = wallet.provider;
+
     while (current < targetNonce) {
       console.log(`[NonceManager] Sending filler tx nonce=${current} for ${address}:${chainId}`);
-      
       try {
-        const txData = {
-          to: burnAddress,
-          value: 0n,
-          nonce: current,
-          gasLimit,
-        };
-        
-        const result = await rpcManager.sendTransactionWithRetry(wallet, txData, { maxRetries });
+        const fees = provider ? await this._feeOverrides(provider, 125n) : {};
+        const result = await rpcManager.sendTransactionWithRetry(
+          wallet,
+          {
+            to: burnAddress,
+            value: 0n,
+            nonce: current,
+            gasLimit,
+            ...fees,
+          },
+          { maxRetries }
+        );
         console.log(`[NonceManager] Filler tx sent: ${result.tx.hash} for nonce=${current}`);
-        current++;
-        
+        current += 1;
+        this.nonceCache.set(`${address}-${chainId}`, current);
       } catch (e) {
         const errorMsg = e?.message || e;
         console.warn(`[NonceManager] Filler tx failed: ${errorMsg}`);
-        
-        // Обрабатываем ошибки nonce
-        if (String(errorMsg).toLowerCase().includes('nonce too low')) {
+        if (String(errorMsg).toLowerCase().includes('nonce too low')
+          || String(errorMsg).toLowerCase().includes('already known')
+          || String(errorMsg).toLowerCase().includes('known transaction')) {
           this.resetNonce(address, chainId);
-          const newNonce = await this.getNonce(address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
-          console.log(`[NonceManager] Nonce changed from ${current} to ${newNonce}`);
+          const newNonce = await this.getNonce(address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
+          console.log(`[NonceManager] Nonce after broadcast-collision: ${current} → ${newNonce}`);
           current = newNonce;
-          
           if (current >= targetNonce) {
-            console.log(`[NonceManager] Nonce alignment completed: ${current} >= ${targetNonce}`);
             return current;
           }
           continue;
         }
-        
         throw new Error(`Failed to send filler tx for nonce=${current}: ${errorMsg}`);
       }
     }
-    
+
     console.log(`[NonceManager] Nonce alignment completed: ${current} for ${address}:${chainId}`);
     return current;
   }
@@ -384,5 +432,7 @@ const nonceManager = new NonceManager();
 
 module.exports = {
   NonceManager,
-  nonceManager
+  nonceManager,
+  MAX_NONCE_SPREAD,
+  MAX_NONCE_FILLERS,
 };

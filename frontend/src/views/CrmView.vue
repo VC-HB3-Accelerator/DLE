@@ -22,34 +22,46 @@
       <AdminSectionTabs />
       <HubGrid>
         <HubCard
+          v-if="canAccessPath('/contacts-list')"
           :title="t('crm.contacts')"
           :description="t('crm.contactsDesc')"
           :to="{ name: 'contacts-list' }"
         />
         <HubCard
+          v-if="canAccessPath('/content')"
           :title="t('crm.content')"
           :description="t('crm.contentDesc')"
           :to="{ name: 'content-list' }"
         />
         <HubCard
+          v-if="canAccessPath('/vds')"
           :title="t('crm.vds')"
           :description="t('crm.vdsDesc')"
           :to="{ name: 'vds-management' }"
         />
         <HubCard
+          v-if="canAccessPath('/tables')"
           :title="t('crm.tables')"
           :description="t('crm.tablesDesc')"
           :to="{ name: 'tables-list' }"
         />
         <HubCard
+          v-if="canAccessPath('/settings')"
           :title="t('crm.settings')"
           :description="t('crm.settingsDesc')"
           :to="{ name: 'settings-index' }"
         />
         <HubCard
+          v-if="canAccessPath('/groups')"
           :title="t('crm.groups')"
           :description="t('crm.groupsDesc')"
           :to="{ name: 'groups' }"
+        />
+        <HubCard
+          v-if="canAccessPath('/crm/store')"
+          :title="t('crm.store')"
+          :description="t('crm.storeDesc')"
+          :to="{ name: 'crm-store' }"
         />
       </HubGrid>
     </AdminPageShell>
@@ -66,6 +78,7 @@ import HubGrid from '../components/admin/HubGrid.vue';
 import HubCard from '../components/admin/HubCard.vue';
 import eventBus from '../utils/eventBus';
 import { getAllDLEs } from '../services/dleV2Service.js';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const props = defineProps({
   isAuthenticated: Boolean,
@@ -98,6 +111,7 @@ const handleAuthEvent = (eventData) => {
 };
 
 onMounted(() => {
+  ensureScreenAccessLoaded();
   loadDLEs();
   unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
   connectWebSocket();

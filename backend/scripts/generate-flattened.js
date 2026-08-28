@@ -22,7 +22,8 @@ const path = require('path');
 // Пути к файлам
 const contractsDir = path.join(__dirname, '../contracts');
 const dleContractPath = path.join(contractsDir, 'DLE.sol');
-const flattenedPath = path.join(contractsDir, 'DLE_flattened.sol');
+const flattenedDir = path.join(__dirname, '../flattened');
+const flattenedPath = path.join(flattenedDir, 'DLE_flattened.sol');
 
 // Функция для генерации flattened контракта
 function generateFlattened() {
@@ -36,6 +37,9 @@ function generateFlattened() {
     }
     
     // Запускаем hardhat flatten с перенаправлением в файл
+    if (!fs.existsSync(flattenedDir)) {
+      fs.mkdirSync(flattenedDir, { recursive: true });
+    }
     try {
       console.log('🔨 Выполняем hardhat flatten...');
       execSync(`npx hardhat flatten contracts/DLE.sol > "${flattenedPath}"`, {

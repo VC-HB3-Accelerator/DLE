@@ -62,6 +62,8 @@ const aiAssistantSettingsService = require('../services/aiAssistantSettingsServi
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botsSettings = require('../services/botsSettings');
 const chatRoleCapabilitiesService = require('../services/chatRoleCapabilitiesService');
+const roleScreenCapabilitiesService = require('../services/roleScreenCapabilitiesService');
+const roleActionCapabilitiesService = require('../services/roleActionCapabilitiesService');
 const dbSettingsService = require('../services/dbSettingsService');
 const footerDleService = require('../services/footerDleService');
 const regionUrlsService = require('../services/regionUrlsService');
@@ -1659,6 +1661,143 @@ router.put('/chat-role-capabilities', requireAuth, requirePermission(PERMISSIONS
     }
     logger.error('[Settings] chat-role-capabilities PUT:', error);
     res.status(500).json({ success: false, error: 'Не удалось сохранить права ролей чата' });
+  }
+});
+
+async function resolveSessionScreenRole(req) {
+  if (!req.session?.authenticated || !req.session?.userId) return 'guest';
+  const cached = req.session.userAccessLevel?.level;
+  if (cached === 'readonly' || cached === 'editor') return cached;
+  try {
+    if (req.session.authType === 'wallet' && req.session.address) {
+      const authService = require('../services/auth-service');
+      const level = await authService.getUserAccessLevel(req.session.address);
+      if (level?.level === 'readonly' || level?.level === 'editor') return level.level;
+      return 'guest';
+    }
+    const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+    const role = roleResult.rows[0]?.role;
+    if (role === 'editor' || role === 'readonly') return role;
+  } catch (err) {
+    logger.warn('[Settings] resolveSessionScreenRole:', err.message);
+  }
+  return 'guest';
+}
+
+router.get('/my-screen-access', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const role = await resolveSessionScreenRole(req);
+    const screens = await roleScreenCapabilitiesService.getScreensForUi(role);
+    res.json({
+      success: true,
+      data: {
+        role: roleScreenCapabilitiesService.roleKeyForScreens(role),
+        screens
+      }
+    });
+  } catch (error) {
+    logger.error('[Settings] my-screen-access GET:', error);
+    res.status(500).json({ success: false, error: 'Не удалось загрузить доступ к экранам' });
+  }
+});
+
+router.get('/role-screen-capabilities', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const data = await roleScreenCapabilitiesService.getMatrix();
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] role-screen-capabilities GET:', error);
+    res.status(500).json({ success: false, error: 'Не удалось загрузить матрицу экранов' });
+  }
+});
+
+router.put('/role-screen-capabilities', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const matrix = req.body?.guest ? req.body : req.body?.data;
+    const data = await roleScreenCapabilitiesService.saveMatrix(matrix, req.session?.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    if (error.code === 'INVALID_SCREEN_CAPS') {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_SCREEN_CAPS',
+        error: 'Неполная матрица доступа к экранам'
+      });
+    }
+    logger.error('[Settings] role-screen-capabilities PUT:', error);
+    res.status(500).json({ success: false, error: 'Не удалось сохранить матрицу экранов' });
+  }
+});
+
+async function resolveSessionActionRole(req) {
+  if (!req.session?.authenticated || !req.session?.userId) return 'guest';
+  try {
+    if (req.session.authType === 'wallet' && req.session.address) {
+      const authService = require('../services/auth-service');
+      const level = await authService.getUserAccessLevel(req.session.address);
+      req.session.userAccessLevel = level;
+      if (level?.level === 'readonly' || level?.level === 'editor') return level.level;
+      return 'user';
+    }
+    const cached = req.session.userAccessLevel?.level;
+    if (cached === 'readonly' || cached === 'editor' || cached === 'user') return cached;
+    const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+    const role = roleResult.rows[0]?.role;
+    if (role === 'editor' || role === 'readonly' || role === 'user') return role;
+  } catch (err) {
+    logger.warn('[Settings] resolveSessionActionRole:', err.message);
+  }
+  return 'user';
+}
+
+router.get('/my-action-access', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const role = await resolveSessionActionRole(req);
+    const actions = await roleActionCapabilitiesService.getActionsForUi(role);
+    res.json({
+      success: true,
+      data: {
+        role: roleActionCapabilitiesService.roleKeyForActions(role),
+        actions
+      }
+    });
+  } catch (error) {
+    logger.error('[Settings] my-action-access GET:', error);
+    res.status(500).json({ success: false, error: 'Не удалось загрузить права на действия' });
+  }
+});
+
+router.get('/role-action-capabilities', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const data = await roleActionCapabilitiesService.getMatrix();
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] role-action-capabilities GET:', error);
+    res.status(500).json({ success: false, error: 'Не удалось загрузить матрицу действий' });
+  }
+});
+
+router.put('/role-action-capabilities', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const matrix = req.body?.guest ? req.body : req.body?.data;
+    const data = await roleActionCapabilitiesService.saveMatrix(matrix, req.session?.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    if (error.code === 'INVALID_ACTION_CAPS') {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_ACTION_CAPS',
+        error: 'Неполная матрица прав на действия'
+      });
+    }
+    logger.error('[Settings] role-action-capabilities PUT:', error);
+    res.status(500).json({ success: false, error: 'Не удалось сохранить матрицу действий' });
   }
 });
 

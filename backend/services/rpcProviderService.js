@@ -108,41 +108,43 @@ async function getRpcUrlByNetworkId(networkId) {
   return found ? found.rpc_url : null;
 }
 
+function providersForChain(all, chainId) {
+  const cid = Number(chainId);
+  if (!Number.isInteger(cid) || cid <= 0) return [];
+  return (all || []).filter((p) => Number(p.chain_id) === cid && p.rpc_url);
+}
+
 async function getRpcUrlByChainId(chainId) {
   const cid = Number(chainId);
-  console.log(`[RPC Service] Поиск RPC URL для chain_id: ${chainId}`);
+  const all = (await getAllRpcProviders()) || [];
+  const matched = providersForChain(all, cid);
+  console.log(
+    `[RPC Service] Поиск RPC URL для chain_id: ${chainId}; в БД провайдеров: ${all.length}, для этой сети: ${matched.length}`
+  );
   if (!Number.isInteger(cid) || cid <= 0) {
     return null;
   }
-  let providers = [];
-  try {
-    providers = await encryptedDb.getData('rpc_providers', { chain_id: cid }, 1);
-  } catch (_) {
-    providers = [];
+  if (matched.length > 0) {
+    console.log(`[RPC Service] Берём RPC URL #1 из ${matched.length} для chain_id ${cid}`);
+    return matched[0].rpc_url;
   }
-  if (!providers.length) {
-    const all = await getAllRpcProviders();
-    providers = (all || []).filter((p) => Number(p.chain_id) === cid).slice(0, 1);
-  }
-  console.log(`[RPC Service] Найдено провайдеров: ${providers.length}`);
-  if (providers.length > 0) {
-    console.log(`[RPC Service] Найден RPC URL: ${providers[0].rpc_url}`);
-  } else {
-    console.log(`[RPC Service] RPC URL для chain_id ${cid} не найден`);
-  }
-  return providers[0]?.rpc_url || null;
+  console.log(`[RPC Service] RPC URL для chain_id ${cid} не найден`);
+  return null;
 }
 
 async function getEtherscanApiUrlByChainId(chainId) {
-  console.log(`[RPC Service] Поиск Etherscan API URL для chain_id: ${chainId}`);
-  const providers = await encryptedDb.getData('rpc_providers', { chain_id: chainId }, 1);
-  console.log(`[RPC Service] Найдено провайдеров: ${providers.length}`);
-  if (providers.length > 0) {
-    console.log(`[RPC Service] Найден Etherscan API URL: ${providers[0].etherscan_api_url || 'НЕТ'}`);
+  const cid = Number(chainId);
+  const all = (await getAllRpcProviders()) || [];
+  const matched = (all || []).filter((p) => Number(p.chain_id) === cid);
+  console.log(
+    `[RPC Service] Поиск Etherscan API URL для chain_id: ${chainId}; в БД провайдеров: ${all.length}, для этой сети: ${matched.length}`
+  );
+  if (matched.length > 0) {
+    console.log(`[RPC Service] Найден Etherscan API URL: ${matched[0].etherscan_api_url || 'НЕТ'}`);
   } else {
-    console.log(`[RPC Service] Etherscan API URL для chain_id ${chainId} не найден`);
+    console.log(`[RPC Service] Etherscan API URL для chain_id ${cid} не найден`);
   }
-  return providers[0]?.etherscan_api_url || null;
+  return matched[0]?.etherscan_api_url || null;
 }
 
 module.exports = {

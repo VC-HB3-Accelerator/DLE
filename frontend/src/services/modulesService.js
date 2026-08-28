@@ -530,7 +530,20 @@ export const finalDeploymentCheck = async (dleAddress, chainIds, maxRetries = 3,
 };
 
 /**
- * Получает общий статус деплоя
+ * Загрузить адрес уже задеплоенного модуля в реестр ОС
+ * @param {Object} payload
+ * @returns {Promise<Object>}
+ */
+export const registerModuleAddress = async (payload) => {
+  const response = await api.post('/dle-modules/register-module-address', payload);
+  if (!response.data?.success) {
+    throw new Error(response.data?.error || 'register-module-address failed');
+  }
+  return response.data;
+};
+
+/**
+ * Получить общий статус деплоя
  * @param {string} dleAddress - Адрес DLE
  * @param {number} maxRetries - Максимальное количество попыток
  * @param {number} retryDelay - Задержка между попытками (мс)

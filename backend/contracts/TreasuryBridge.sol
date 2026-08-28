@@ -7,8 +7,8 @@ pragma solidity ^0.8.20;
 
 /**
  * @title TreasuryBridge
- * @dev Тонкий пульт выплат для казны. Вызывает только DLE; дергает только transfer/batch на Treasury.
- * См. docs.ru/tz-module-bridge.ru.md
+ * @dev Тонкий пульт казны. Только DLE → bridge → TreasuryModule.
+ * Покрывает выплаты ERC-20/native/NFT, токены, смену HV и замену самого моста.
  */
 interface ITreasuryFunds {
     struct BatchTransfer {
@@ -25,6 +25,31 @@ interface ITreasuryFunds {
     ) external;
 
     function batchTransfer(BatchTransfer[] calldata transfers, bytes32 proposalId) external;
+
+    function transferERC721(
+        address nftContract,
+        address recipient,
+        uint256 tokenId,
+        bytes32 proposalId
+    ) external;
+
+    function transferERC1155(
+        address nftContract,
+        address recipient,
+        uint256 tokenId,
+        uint256 amount,
+        bytes32 proposalId
+    ) external;
+
+    function setHierarchicalVotingModule(address module) external;
+
+    function setFundsBridge(address bridge) external;
+
+    function addToken(address tokenAddress, string memory symbol, uint8 decimals) external;
+
+    function removeToken(address tokenAddress) external;
+
+    function setTokenStatus(address tokenAddress, bool isActive) external;
 }
 
 contract TreasuryBridge {
@@ -59,5 +84,55 @@ contract TreasuryBridge {
         bytes32 proposalId
     ) external onlyDLE {
         ITreasuryFunds(treasury).batchTransfer(transfers, proposalId);
+    }
+
+    function transferERC721(
+        address nftContract,
+        address recipient,
+        uint256 tokenId,
+        bytes32 proposalId
+    ) external onlyDLE {
+        ITreasuryFunds(treasury).transferERC721(nftContract, recipient, tokenId, proposalId);
+    }
+
+    function transferERC1155(
+        address nftContract,
+        address recipient,
+        uint256 tokenId,
+        uint256 amount,
+        bytes32 proposalId
+    ) external onlyDLE {
+        ITreasuryFunds(treasury).transferERC1155(
+            nftContract,
+            recipient,
+            tokenId,
+            amount,
+            proposalId
+        );
+    }
+
+    function setHierarchicalVotingModule(address module) external onlyDLE {
+        ITreasuryFunds(treasury).setHierarchicalVotingModule(module);
+    }
+
+    /// @dev Смена моста через governance (treasury принимает вызов от текущего fundsBridge).
+    function setFundsBridge(address bridge) external onlyDLE {
+        ITreasuryFunds(treasury).setFundsBridge(bridge);
+    }
+
+    function addToken(
+        address tokenAddress,
+        string memory symbol,
+        uint8 decimals
+    ) external onlyDLE {
+        ITreasuryFunds(treasury).addToken(tokenAddress, symbol, decimals);
+    }
+
+    function removeToken(address tokenAddress) external onlyDLE {
+        ITreasuryFunds(treasury).removeToken(tokenAddress);
+    }
+
+    function setTokenStatus(address tokenAddress, bool isActive) external onlyDLE {
+        ITreasuryFunds(treasury).setTokenStatus(tokenAddress, isActive);
     }
 }

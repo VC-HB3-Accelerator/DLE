@@ -59,9 +59,9 @@ class RPCConnectionManager {
     
     for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
       try {
-        const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+        const provider = new ethers.JsonRpcProvider(rpcUrl, Number(chainId), {
           polling: false,
-          staticNetwork: false
+          staticNetwork: true,
         });
         
         // Проверяем соединение с timeout
@@ -128,6 +128,9 @@ class RPCConnectionManager {
     if (failed.length > 0) {
       logger.warn(`[RPC_MANAGER] ⚠️ Неудачных соединений: ${failed.length}`);
       failed.forEach(f => logger.warn(`[RPC_MANAGER] - ChainId ${f.chainId}: ${f.error}`));
+      throw new Error(
+        `RPC не для всех сетей: ${failed.map((f) => `${f.chainId}: ${f.error}`).join('; ')}`
+      );
     }
     
     if (successful.length === 0) {
@@ -137,50 +140,101 @@ class RPCConnectionManager {
     return successful;
   }
 
+  _isAlreadyBroadcast(error) {
+    const msg = String(error?.message || error).toLowerCase();
+    return (
+      msg.includes('already known') ||
+      msg.includes('known transaction') ||
+      msg.includes('nonce too low')
+    );
+  }
+
+  async _waitUntilNonceMined(wallet, nonce, timeoutMs) {
+    const provider = wallet.provider;
+    const address = await wallet.getAddress();
+    const want = Number(nonce);
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const latest = await provider.getTransactionCount(address, 'latest');
+      if (latest > want) {
+        logger.info(`[RPC_MANAGER] nonce ${want} mined (latest=${latest})`);
+        return { status: 1, nonce: want };
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    throw new Error(`Timeout waiting for nonce ${want} to mine`);
+  }
+
   /**
-   * Выполняет транзакцию с retry логикой
-   * @param {Object} wallet - Кошелек
-   * @param {Object} txData - Данные транзакции
-   * @param {Object} options - Опции
-   * @returns {Promise<Object>} - Результат транзакции
+   * Отправка tx. Уже попавшую в mempool НЕ ресендить тем же nonce
+   * (already known после timeout — так жглись filler/CREATE).
    */
   async sendTransactionWithRetry(wallet, txData, options = {}) {
     const config = { ...this.retryConfig, ...options };
-    
+    const confirmTimeout = options.confirmTimeout || 180000;
+    let sentTx = null;
+
     for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
       try {
-        logger.info(`[RPC_MANAGER] Отправка транзакции (попытка ${attempt}/${config.maxRetries})`);
-        
-        const tx = await wallet.sendTransaction({
-          ...txData,
-          timeout: config.timeout
-        });
-        
-        logger.info(`[RPC_MANAGER] ✅ Транзакция отправлена: ${tx.hash}`);
-        
-        // Ждем подтверждения с timeout
+        if (!sentTx) {
+          logger.info(`[RPC_MANAGER] Отправка транзакции (попытка ${attempt}/${config.maxRetries})`);
+          try {
+            sentTx = await wallet.sendTransaction({
+              ...txData,
+            });
+            logger.info(`[RPC_MANAGER] ✅ Транзакция отправлена: ${sentTx.hash}`);
+          } catch (sendErr) {
+            if (this._isAlreadyBroadcast(sendErr) && txData.nonce != null) {
+              logger.warn(
+                `[RPC_MANAGER] tx nonce=${txData.nonce} уже в mempool (${sendErr.message}); ждём майнинг, без resend`
+              );
+              const receipt = await this._waitUntilNonceMined(wallet, txData.nonce, confirmTimeout);
+              const tx = {
+                hash: receipt.hash || 'already-known',
+                nonce: txData.nonce,
+                wait: async () => receipt,
+              };
+              return { tx, receipt, success: true };
+            }
+            throw sendErr;
+          }
+        }
+
         const receipt = await Promise.race([
-          tx.wait(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Transaction timeout')), config.timeout)
-          )
+          sentTx.wait(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Transaction timeout')), confirmTimeout)
+          ),
         ]);
-        
-        logger.info(`[RPC_MANAGER] ✅ Транзакция подтверждена: ${tx.hash}`);
-        return { tx, receipt, success: true };
-        
+
+        logger.info(`[RPC_MANAGER] ✅ Транзакция подтверждена: ${sentTx.hash}`);
+        return { tx: sentTx, receipt, success: true };
       } catch (error) {
         logger.error(`[RPC_MANAGER] ❌ Транзакция failed (попытка ${attempt}): ${error.message}`);
-        
+
+        if (sentTx && String(error.message || '').toLowerCase().includes('timeout')) {
+          logger.warn(`[RPC_MANAGER] wait timeout для ${sentTx.hash} — не ресендим, ждём тот же hash`);
+          try {
+            const receipt = await sentTx.wait();
+            return { tx: sentTx, receipt, success: true };
+          } catch (waitErr) {
+            if (attempt === config.maxRetries) {
+              throw new Error(`Транзакция не подтвердилась: ${waitErr.message}`);
+            }
+            continue;
+          }
+        }
+
         if (attempt === config.maxRetries) {
           throw new Error(`Транзакция не удалась после ${config.maxRetries} попыток: ${error.message}`);
         }
-        
-        // Проверяем, стоит ли повторять
-        if (this.shouldRetry(error)) {
+
+        if (this.shouldRetry(error) && !sentTx) {
           const delay = Math.min(config.baseDelay * Math.pow(2, attempt - 1), config.maxDelay);
           logger.info(`[RPC_MANAGER] Ожидание ${delay}ms перед повторной попыткой...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else if (sentTx) {
+          continue;
         } else {
           throw error;
         }

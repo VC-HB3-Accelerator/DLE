@@ -101,13 +101,28 @@
 
         <!-- Навигационные кнопки -->
         <div class="navigation-buttons">
-          <router-link to="/" class="btn btn-ghost btn-block nav-link-btn" active-class="active">
+          <router-link
+            v-if="canAccessPath('/')"
+            to="/"
+            class="btn btn-ghost btn-block nav-link-btn"
+            active-class="active"
+          >
             <span>{{ t('nav.chat') }}</span>
           </router-link>
-          <router-link to="/blog" class="btn btn-ghost btn-block nav-link-btn" active-class="active">
+          <router-link
+            v-if="canAccessPath('/blog')"
+            to="/blog"
+            class="btn btn-ghost btn-block nav-link-btn"
+            active-class="active"
+          >
             <span>{{ t('nav.blog') }}</span>
           </router-link>
-          <router-link to="/management" class="btn btn-ghost btn-block nav-link-btn" active-class="active">
+          <router-link
+            v-if="canAccessPath('/management')"
+            to="/management"
+            class="btn btn-ghost btn-block nav-link-btn"
+            active-class="active"
+          >
             <span>{{ t('nav.management') }}</span>
           </router-link>
           <a
@@ -120,6 +135,15 @@
           >
             <span>{{ t('nav.repositories') }}</span>
           </a>
+          <router-link
+            v-if="showStore && canAccessPath('/store')"
+            to="/store"
+            class="btn btn-ghost btn-block nav-link-btn"
+            active-class="active"
+            @click="closeSidebar"
+          >
+            <span>{{ t('nav.store') }}</span>
+          </router-link>
         </div>
 
         <!-- Текст редактора + Политика и согласия -->
@@ -250,6 +274,11 @@ import { fetchSidebarNotice } from '@/services/sidebarNoticeService';
 import { fetchSidebarNav } from '@/services/sidebarNavService';
 import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
 import { getSidebarAuthMethodsCache } from '@/config/sidebarAuthMethodsCache';
+import {
+  canAccessPath,
+  ensureScreenAccessLoaded,
+  invalidateScreenAccess
+} from '@/composables/useScreenAccess.js';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -280,6 +309,7 @@ const { t } = useI18n();
 const { deleteIdentity, updateIdentities } = useAuthContext();
 const sidebarNoticeText = ref('');
 const showRepositories = ref(false);
+const showStore = ref(false);
 const privacyDocsUrl = getPrivacyDocsUrl();
 const authMethodsCache = getSidebarAuthMethodsCache();
 const authMethods = computed(() => authMethodsCache.methods);
@@ -338,6 +368,7 @@ async function loadSidebarNav() {
   try {
     const data = await fetchSidebarNav();
     showRepositories.value = Boolean(data?.buttons?.repositories);
+    showStore.value = Boolean(data?.buttons?.store);
     // authMethods обновляет реактивный кеш в fetchSidebarNav
     if (!authMethods.value[selectedAuthType.value]) {
       selectedAuthType.value = 'wallet';
@@ -345,6 +376,7 @@ async function loadSidebarNav() {
   } catch (error) {
     console.warn('[Sidebar] sidebar nav load failed:', error);
     showRepositories.value = false;
+    showStore.value = false;
   }
 }
 
@@ -366,13 +398,17 @@ const giteaUrl = computed(() => {
 
 onMounted(() => {
   loadSidebarExtras();
+  ensureScreenAccessLoaded();
   document.addEventListener('click', onDocClick);
   window.addEventListener('clear-application-data', () => {
     console.log('[Sidebar] Clearing sidebar data');
+    invalidateScreenAccess();
   });
   window.addEventListener('refresh-application-data', () => {
     console.log('[Sidebar] Refreshing sidebar data');
     loadSidebarExtras();
+    invalidateScreenAccess();
+    ensureScreenAccessLoaded(true);
   });
 });
 
@@ -399,7 +435,10 @@ const closeSidebar = () => {
   emit('update:modelValue', false);
 };
 
-const handleAuthEvent = () => {};
+const handleAuthEvent = () => {
+  invalidateScreenAccess();
+  ensureScreenAccessLoaded(true);
+};
 
 let unsubscribe = null;
 let unsubscribeNav = null;
@@ -408,6 +447,7 @@ onMounted(() => {
   unsubscribeNav = eventBus.on('sidebar-nav-saved', (data) => {
     if (data?.buttons) {
       showRepositories.value = Boolean(data.buttons.repositories);
+      showStore.value = Boolean(data.buttons.store);
     }
     if (!authMethods.value[selectedAuthType.value]) {
       selectedAuthType.value = 'wallet';

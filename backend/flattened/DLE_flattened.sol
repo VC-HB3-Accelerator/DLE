@@ -6032,12 +6032,20 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
                 && kindHash != OFFCHAIN_KIND_CUSTOM
             ) revert ErrBadOffchainKind();
             emit OffchainActionApproved(_proposalId, actionId, kindHash, payloadHash);
+        } else if (selector == bytes4(keccak256("_setActive(bool)"))) {
+            (bool active) = abi.decode(data, (bool));
+            _setActive(active);
         } else if (selector == bytes4(keccak256("_callModuleBridge(bytes32,bytes)"))) {
             (bytes32 moduleId, bytes memory callData) = abi.decode(data, (bytes32, bytes));
             _callModuleBridge(moduleId, callData);
         } else {
             revert ErrInvalidOperation();
         }
+    }
+
+    /// @dev Активность книги (governance). Минимальная запись флага — без event (лимит EIP-170).
+    function _setActive(bool active) internal {
+        dleInfo.isActive = active;
     }
 
     /**
@@ -6420,7 +6428,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         return allProposalIds.length;
     }
 
-    // Деактивация вынесена в отдельный модуль. См. DeactivationModule.
+    // Активность: запись через governance `_setActive(bool)` → execute.
     function isActive() external view returns (bool) {
         return dleInfo.isActive;
     }

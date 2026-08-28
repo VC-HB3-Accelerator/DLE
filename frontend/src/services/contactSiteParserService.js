@@ -40,5 +40,9 @@ export default {
       headers: { 'Cache-Control': 'no-cache' }
     });
     return data;
+  },
+  async cancelJob(jobId) {
+    const { data } = await api.post(`/contact-site-parser/jobs/${jobId}/cancel`, {}, { withCredentials: true });
+    return data;
   }
 };

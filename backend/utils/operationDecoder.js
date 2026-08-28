@@ -108,6 +108,7 @@ function getOperationType(selector) {
     [ethers.id('_setLogoURI(string)').slice(0, 10)]: '_setLogoURI',
     [ethers.id('_updateQuorumPercentage(uint256)').slice(0, 10)]: '_updateQuorumPercentage',
     [ethers.id('_updateDLEInfo(string,string,string,string,uint256,string[],uint256)').slice(0, 10)]: '_updateDLEInfo',
+    [ethers.id('_setActive(bool)').slice(0, 10)]: '_setActive',
     [ethers.id('offchainAction(bytes32,string,bytes32)').slice(0, 10)]: 'offchainAction'
   };
 
@@ -168,6 +169,12 @@ function decodeOperationData(operationType, data) {
       const [logoURI] = abiCoder.decode(['string'], '0x' + data);
       return {
         logoURI: logoURI
+      };
+
+    case '_setActive':
+      const [active] = abiCoder.decode(['bool'], '0x' + data);
+      return {
+        active: Boolean(active)
       };
 
     case '_updateQuorumPercentage':
@@ -237,6 +244,9 @@ function formatOperation(decodedOperation) {
 
     case '_setLogoURI':
       return `Обновить логотип: ${decoded.logoURI}`;
+
+    case '_setActive':
+      return `Установить активность DLE: ${decoded.active ? 'true' : 'false'}`;
 
     case '_updateQuorumPercentage':
       return `Обновить процент кворума: ${decoded.quorumPercentage}%`;

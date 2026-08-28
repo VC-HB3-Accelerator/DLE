@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
- * 
+ *
  * This software is proprietary and confidential.
  * Unauthorized copying, modification, or distribution is prohibited.
- * 
+ *
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
  * GitHub: https://github.com/VC-HB3-Accelerator
@@ -36,17 +36,70 @@ function parseContactsResponse(res) {
   return { ...EMPTY_RESULT };
 }
 
+async function fetchContactIds(params = {}) {
+  const res = await api.get('/users', {
+    params: {
+      ...params,
+      idsOnly: 1,
+      limit: params.limit === undefined ? 0 : params.limit,
+      offset: params.offset === undefined ? 0 : params.offset
+    }
+  });
+  if (res.data && res.data.success) {
+    return {
+      ids: Array.isArray(res.data.ids) ? res.data.ids : [],
+      total: Number(res.data.total) || 0
+    };
+  }
+  return { ids: [], total: 0 };
+}
+
 export default {
   async getContacts(params = {}) {
     const res = await api.get('/users', { params });
     return parseContactsResponse(res);
   },
+  async getContactIds(params = {}) {
+    return fetchContactIds(params);
+  },
   async updateContact(id, data) {
     const res = await api.patch(`/users/${id}`, data);
     return res.data;
   },
+  async addContactIdentity(id, payload) {
+    const res = await api.post(`/users/${id}/identities`, payload);
+    return res.data;
+  },
+  async updateContactIdentity(id, identityId, payload) {
+    const res = await api.patch(`/users/${id}/identities/${identityId}`, payload);
+    return res.data;
+  },
+  async deleteContactIdentity(id, identityId) {
+    const res = await api.delete(`/users/${id}/identities/${identityId}`);
+    return res.data;
+  },
   async createContact(data) {
     const res = await api.post('/users/create', data);
+    return res.data;
+  },
+  async importContacts(contacts) {
+    // legacy alias → фоновый job
+    return this.createImportJob(contacts);
+  },
+  async createImportJob(contacts) {
+    const res = await api.post('/users/import-jobs', contacts, {
+      timeout: 10 * 60 * 1000
+    });
+    return res.data;
+  },
+  async getImportJob(jobId) {
+    const res = await api.get(`/users/import-jobs/${jobId}`, {
+      headers: { 'Cache-Control': 'no-store' }
+    });
+    return res.data;
+  },
+  async cancelImportJob(jobId) {
+    const res = await api.post(`/users/import-jobs/${jobId}/cancel`);
     return res.data;
   },
   async revokeIdentityConsent(id, provider) {
@@ -63,6 +116,10 @@ export default {
       }
       throw err;
     }
+  },
+  async deleteContactsBulk(ids, { timeout = 5 * 60 * 1000 } = {}) {
+    const res = await api.post('/users/bulk-delete', { ids }, { timeout });
+    return res.data;
   },
   async getContactById(id) {
     const res = await api.get(`/users/${id}`);
@@ -122,4 +179,8 @@ export default {
 export async function getContacts(params = {}) {
   const res = await api.get('/users', { params });
   return parseContactsResponse(res);
+}
+
+export async function getContactIds(params = {}) {
+  return fetchContactIds(params);
 }

@@ -8,6 +8,7 @@
 <template>
   <nav class="admin-section-tabs" aria-label="Section">
     <router-link
+      v-if="canAccessPath('/management')"
       to="/management"
       class="admin-section-tabs__link"
       active-class="is-active"
@@ -15,6 +16,7 @@
       {{ t('nav.management') }}
     </router-link>
     <router-link
+      v-if="canAccessPath('/crm')"
       to="/crm"
       class="admin-section-tabs__link"
       active-class="is-active"
@@ -25,8 +27,14 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
+
 const { t } = useI18n();
+onMounted(() => {
+  ensureScreenAccessLoaded();
+});
 </script>
 
 <style scoped>

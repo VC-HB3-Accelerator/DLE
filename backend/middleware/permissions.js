@@ -10,8 +10,8 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
-const { PERMISSIONS_MAP, hasPermission, hasAnyPermission } = require('../shared/permissions');
 const logger = require('../utils/logger');
+const roleActionCapabilitiesService = require('../services/roleActionCapabilitiesService');
 
 /**
  * Получить роль пользователя из сессии
@@ -55,7 +55,7 @@ function requirePermission(permission) {
     try {
       const role = await getUserRole(req);
       
-      if (!hasPermission(role, permission)) {
+      if (!(await roleActionCapabilitiesService.roleHasPermission(role, permission))) {
         logger.warn(`[Permissions] Access denied: ${role} tried to access ${permission}`);
         return res.status(403).json({ 
           error: 'Доступ запрещен',
@@ -83,8 +83,15 @@ function requireAnyPermission(permissions) {
   return async (req, res, next) => {
     try {
       const role = await getUserRole(req);
+      let allowed = false;
+      for (const permission of permissions) {
+        if (await roleActionCapabilitiesService.roleHasPermission(role, permission)) {
+          allowed = true;
+          break;
+        }
+      }
       
-      if (!hasAnyPermission(role, permissions)) {
+      if (!allowed) {
         logger.warn(`[Permissions] Access denied: ${role} tried to access any of [${permissions.join(', ')}]`);
         return res.status(403).json({ 
           error: 'Доступ запрещен',
@@ -107,11 +114,12 @@ function requireAnyPermission(permissions) {
  * Добавляет req.hasPermission() для использования в контроллере
  */
 function attachPermissionChecker(req, res, next) {
-  getUserRole(req).then(role => {
+  getUserRole(req).then(async (role) => {
     req.userRole = role;
-    req.hasPermission = (permission) => hasPermission(role, permission);
+    const actions = await roleActionCapabilitiesService.getActionsForUi(role);
+    req.hasPermission = (permission) => actions[permission] === true;
     next();
-  }).catch(error => {
+  }).catch((error) => {
     logger.error('[Permissions] Error attaching permission checker:', error);
     req.userRole = 'guest';
     req.hasPermission = () => false;
@@ -125,4 +133,3 @@ module.exports = {
   requireAnyPermission,
   attachPermissionChecker
 };
-

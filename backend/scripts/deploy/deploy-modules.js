@@ -17,7 +17,8 @@ const fs = require('fs');
 const logger = require('../../utils/logger');
 const { getFeeOverrides, createProviderAndWallet, getNetworkInfo, createRPCConnection, createMultipleRPCConnections } = require('../../utils/deploymentUtils');
 const RPCConnectionManager = require('../../utils/rpcConnectionManager');
-const { nonceManager } = require('../../utils/nonceManager');
+const { nonceManager, MAX_NONCE_FILLERS } = require('../../utils/nonceManager');
+const { verifyWithStandardJson } = require('../../utils/etherscanStandardJsonVerify');
 
 /** RPC из формы настроек книги (ETHEREUM_NETWORK_URL), иначе RPC узла. */
 const rpcDeployOverrides = { rpcUrlsByChainId: {} };
@@ -77,96 +78,35 @@ const MODULE_CONFIGS = {
   // }
 };
 
-// Функция для определения имени сети Hardhat по chainId (динамически, без хардкода)
-// В hardhat.config.js сети объявляются как chain_<chainId>
-function getNetworkNameForHardhat(chainId) {
-  const hardhatNetworkName = `chain_${Number(chainId)}`;
-  logger.info(`✅ Сеть ${chainId} будет использовать Hardhat network: ${hardhatNetworkName}`);
-  return hardhatNetworkName;
-}
-
 // Функция для автоматической верификации модуля
-async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, constructorArgs, apiKey, params = {}) {
+async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, constructorArgs, apiKey, params = {}, creationTxData = null) {
   try {
     if (!apiKey) {
       logger.warn(`⚠️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
       return { success: false, error: 'API ключ не предоставлен' };
     }
 
-    logger.info(`🔍 Начинаем верификацию модуля ${moduleType} по адресу ${contractAddress} в сети ${chainId}`);
-    
-    // Используем Hardhat verify вместо старого сервиса
-    const { exec } = require('child_process');
-    const { promisify } = require('util');
-    const execAsync = promisify(exec);
-    
-    // Определяем имя сети для Hardhat
-    const networkName = getNetworkNameForHardhat(chainId);
-    if (!networkName) {
-      logger.warn(`⚠️ Неизвестная сеть ${chainId}, пропускаем верификацию модуля ${moduleType}`);
-      return { success: false, error: `Неизвестная сеть ${chainId}` };
-    }
-    
-    logger.info(`🔧 Используем Hardhat verify для модуля ${moduleType} в сети ${networkName}`);
-    
-    // Создаем временный файл с аргументами конструктора
-    const fs = require('fs');
-    const path = require('path');
-    const tempArgsFile = path.join(__dirname, '..', '..', `temp-module-args-${moduleType}.js`);
-    
-    // Конвертируем аргументы в строки для JSON сериализации
-    const serializableArgs = constructorArgs.map(arg => {
-      if (typeof arg === 'bigint') {
-        return arg.toString();
-      }
-      return arg;
-    });
-    
-    const argsContent = `module.exports = ${JSON.stringify(serializableArgs, null, 2)};`;
-    fs.writeFileSync(tempArgsFile, argsContent);
-    
-    try {
-      // Выполняем Hardhat verify
-      const command = `npx hardhat verify --network ${networkName} --constructor-args ${tempArgsFile} ${contractAddress}`;
-      logger.info(`🔧 Выполняем команду: ${command}`);
-      
-      // Устанавливаем переменные окружения для Hardhat (в том числе сети и RPC из deploy params)
-      const envVars = {
-        ...process.env,
-        ETHERSCAN_API_KEY: apiKey || params.etherscanApiKey || '',
-        SUPPORTED_CHAIN_IDS: JSON.stringify(
-          params.supportedChainIds || params.supported_chain_ids || [chainId]
-        ),
-        RPC_URLS: JSON.stringify(
-          // params.rpcUrls / params.rpc_urls могут быть либо массивом, либо объектом { [chainId]: url }
-          params.rpcUrls || params.rpc_urls || {}
-        )
-      };
-      
-      const { stdout, stderr } = await execAsync(command, {
-        cwd: path.join(__dirname, '..', '..'),
-        env: envVars
-      });
-      
-      const out = `${stdout || ''}\n${stderr || ''}`;
-      if (/successfully verified|already verified/i.test(out)) {
-        logger.info(`Модуль ${moduleType} верифицирован (Hardhat / already verified)`);
-        return { success: true, message: 'Верификация успешна' };
-      }
-      const onExplorer = await isSourcePublishedOnExplorer(chainId, contractAddress, apiKey);
-      if (onExplorer) {
-        logger.info(`Hardhat verify вернул неуспех, но исходники на explorer уже открыты: ${moduleType}`);
-        return { success: true, message: 'Исходники уже на explorer' };
-      }
-      logger.warn(`Верификация через Hardhat не подтверждена для ${moduleType}: ${stderr || stdout}`);
-      return { success: false, error: stderr || stdout };
-    } finally {
-      // Удаляем временный файл
-      if (fs.existsSync(tempArgsFile)) {
-        fs.unlinkSync(tempArgsFile);
-      }
+    const moduleConfig = MODULE_CONFIGS[moduleType];
+    const contractName = moduleConfig?.contractName;
+    if (!contractName) {
+      return { success: false, error: `Unknown module type: ${moduleType}` };
     }
 
+    logger.info(`🔍 Верификация модуля ${moduleType} ${contractAddress} chainId=${chainId} (standard-JSON artifact)`);
+    const result = await verifyWithStandardJson({
+      chainId: Number(chainId),
+      contractAddress,
+      fullyQualifiedName: `contracts/${contractName}.sol:${contractName}`,
+      apiKey,
+      creationTxData,
+      rpcUrl: params.rpcUrl,
+    });
+    if (result.success) return result;
+    const onExplorer = await isSourcePublishedOnExplorer(chainId, contractAddress, apiKey);
+    if (onExplorer) {
+      return { success: true, message: 'Исходники уже на explorer' };
+    }
+    return result;
   } catch (error) {
     const msg = error.message || String(error);
     if (/already verified/i.test(msg)) {
@@ -174,9 +114,6 @@ async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, con
     }
     const onExplorer = await isSourcePublishedOnExplorer(chainId, contractAddress, apiKey);
     if (onExplorer) {
-      logger.info(
-        `Запрос Hardhat verify к API сканера не прошёл (часто HTML вместо JSON), исходники на explorer есть: ${moduleType}`
-      );
       return { success: true, message: 'Исходники уже на explorer' };
     }
     logger.warn(`Верификация модуля ${moduleType} не подтверждена: ${msg}`);
@@ -203,15 +140,14 @@ async function isSourcePublishedOnExplorer(chainId, contractAddress, apiKey) {
 }
 
 // Деплой модуля в одной сети (CREATE + выравнивание nonce)
-async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce, moduleInit, moduleType) {
+async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce, moduleInit, moduleType, knownChainId) {
   const { ethers } = hre;
   
-  // Создаем временный провайдер для получения chainId
-  const tempProvider = new ethers.JsonRpcProvider(rpcUrl);
-  const network = await tempProvider.getNetwork();
-  const chainId = Number(network.chainId);
+  const chainId = Number(knownChainId);
+  if (!Number.isInteger(chainId) || chainId <= 0) {
+    throw new Error(`deployModuleInNetwork: некорректный chainId=${knownChainId}`);
+  }
   
-  // Используем новый менеджер RPC с retry логикой
   const { provider, wallet, network: rpcNetwork } = await createRPCConnection(chainId, pk, {
     maxRetries: 3,
     timeout: 30000,
@@ -219,6 +155,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   });
   
   const net = rpcNetwork;
+  const feeOpts = chainId === 1 ? { minFeeGwei: 1n, minPriorityGwei: 1n } : {};
   
   // 1) Используем NonceManager для правильного управления nonce
   logger.info(`[MODULES_DBG] chainId=${chainId} deploying ${moduleType}...`);
@@ -230,13 +167,20 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   }
   
   if (current < targetNonce) {
-    logger.info(`[MODULES_DBG] chainId=${chainId} aligning nonce from ${current} to ${targetNonce} (${targetNonce - current} transactions needed)`);
+    const need = targetNonce - current;
+    if (need > MAX_NONCE_FILLERS) {
+      throw new Error(
+        `[MODULES_DBG] chainId=${chainId}: gap=${need} filler tx (лимит ${MAX_NONCE_FILLERS}). ` +
+          `Выровняйте nonce скриптом или уменьшите число сетей.`
+      );
+    }
+    logger.info(`[MODULES_DBG] chainId=${chainId} aligning nonce from ${current} to ${targetNonce} (${need} transactions needed)`);
     
     // Используем burn address для более надежных транзакций
     const burnAddress = "0x000000000000000000000000000000000000dEaD";
     
     while (current < targetNonce) {
-      const overrides = await getFeeOverrides(provider);
+      const overrides = await getFeeOverrides(provider, feeOpts);
       let gasLimit = 21000; // минимальный gas для обычной транзакции
       let sent = false;
       let lastErr = null;
@@ -299,7 +243,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   // 2) Деплой модуля напрямую на согласованном nonce
   logger.info(`[MODULES_DBG] chainId=${chainId} deploying ${moduleType} directly with nonce=${targetNonce}`);
   
-  const feeOverrides = await getFeeOverrides(provider);
+  const feeOverrides = await getFeeOverrides(provider, feeOpts);
   let gasLimit;
   
   try {
@@ -317,6 +261,19 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
     logger.info(`[MODULES_DBG] chainId=${chainId} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
   } catch (_) {
     gasLimit = 1_000_000n;
+  }
+
+  if (Number(chainId) === 1 && feeOverrides.maxFeePerGas && gasLimit) {
+    const balForCap = await provider.getBalance(wallet.address, 'latest');
+    const reserveCap = hre.ethers.parseEther('0.002');
+    const affordable = gasLimit > 0n && balForCap > reserveCap ? (balForCap - reserveCap) / gasLimit : 0n;
+    if (affordable > 0n && feeOverrides.maxFeePerGas > affordable) {
+      logger.info(`[MODULES_DBG] chainId=1 cap maxFeePerGas ${feeOverrides.maxFeePerGas} → ${affordable}`);
+      feeOverrides.maxFeePerGas = affordable;
+      if (feeOverrides.maxPriorityFeePerGas && feeOverrides.maxPriorityFeePerGas >= affordable) {
+        feeOverrides.maxPriorityFeePerGas = affordable / 2n || 1n;
+      }
+    }
   }
 
   // Вычисляем предсказанный адрес модуля
@@ -343,12 +300,18 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
       deployAttempts++;
       
       // Получаем актуальный nonce прямо перед отправкой транзакции
-      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
       logger.info(`[MODULES_DBG] chainId=${chainId} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetNonce})`);
+      
+      if (currentNonce !== targetNonce) {
+        throw new Error(
+          `CREATE ${moduleType} nonce ${currentNonce} != target ${targetNonce} on chainId=${chainId}`
+        );
+      }
       
       const txData = {
         data: moduleInit,
-        nonce: currentNonce,
+        nonce: targetNonce,
         gasLimit,
         ...feeOverrides
       };
@@ -369,7 +332,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
         logger.info(`[MODULES_DBG] chainId=${chainId} nonce race condition detected, retrying...`);
         
         // Получаем актуальный nonce из сети
-        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 30000, maxRetries: 3 });
         logger.info(`[MODULES_DBG] chainId=${chainId} current nonce: ${currentNonce}, target: ${targetNonce}`);
         
         // Если текущий nonce больше целевого, обновляем targetNonce
@@ -382,25 +345,25 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
         // Если текущий nonce меньше целевого, выравниваем его
         if (currentNonce < targetNonce) {
           logger.info(`[MODULES_DBG] chainId=${chainId} aligning nonce from ${currentNonce} to ${targetNonce}`);
-          
-          // Выравниваем nonce нулевыми транзакциями
+          const rpcManagerFill = new RPCConnectionManager();
           for (let i = currentNonce; i < targetNonce; i++) {
             try {
-              const fillerTx = await wallet.sendTransaction({
+              const { tx: fillerTx } = await rpcManagerFill.sendTransactionWithRetry(wallet, {
                 to: '0x000000000000000000000000000000000000dEaD',
-                value: 0,
+                value: 0n,
                 gasLimit: 21000,
                 nonce: i,
                 ...feeOverrides
-              });
-              
-              await fillerTx.wait();
-              logger.info(`[MODULES_DBG] chainId=${chainId} filler tx ${i} confirmed`);
-              
-              // Обновляем nonce в кэше
+              }, { maxRetries: 3 });
+              logger.info(`[MODULES_DBG] chainId=${chainId} filler tx ${i} confirmed, hash=${fillerTx.hash}`);
               nonceManager.reserveNonce(wallet.address, chainId, i);
-              
             } catch (fillerError) {
+              const fmsg = String(fillerError?.message || fillerError).toLowerCase();
+              if (fmsg.includes('already known') || fmsg.includes('nonce too low') || fmsg.includes('known transaction')) {
+                nonceManager.resetNonce(wallet.address, chainId);
+                logger.warn(`[MODULES_DBG] chainId=${chainId} filler ${i} already in mempool, continue`);
+                continue;
+              }
               logger.error(`[MODULES_DBG] chainId=${chainId} filler tx ${i} failed: ${fillerError.message}`);
               throw fillerError;
             }
@@ -424,8 +387,12 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
     }
   }
 
-  const rc = await tx.wait();
-  const deployedAddress = rc.contractAddress || predictedAddress;
+  const rc = tx && typeof tx.wait === 'function' ? await tx.wait() : null;
+  const deployedAddress = rc?.contractAddress || predictedAddress;
+  const codeAfter = await provider.getCode(deployedAddress);
+  if (!codeAfter || codeAfter === '0x') {
+    throw new Error(`CREATE ${moduleType} mined but no bytecode at ${deployedAddress} on chainId=${chainId}`);
+  }
   
   logger.info(`[MODULES_DBG] chainId=${chainId} ${moduleType} deployed at=${deployedAddress}`);
   return { address: deployedAddress, chainId: chainId };
@@ -475,7 +442,10 @@ async function deployAndWireModuleBridge({
   });
 
   const BridgeFactory = await hre.ethers.getContractFactory(cfg.bridgeContract);
-  const feeOverrides = await getFeeOverrides(provider);
+  const feeOverrides = await getFeeOverrides(
+    provider,
+    Number(chainId) === 1 ? { minFeeGwei: 1n, minPriorityGwei: 1n } : {}
+  );
   const bridge = await BridgeFactory.connect(wallet).deploy(dleAddress, moduleAddress, feeOverrides);
   await bridge.waitForDeployment();
   const bridgeAddress = await bridge.getAddress();
@@ -557,98 +527,20 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
     logger.info(`[MODULES_DBG] Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
     
     if (!MODULE_CONFIGS[moduleType]) {
-      logger.error(`[MODULES_DBG] chainId=${numericChainId} Unknown module type: ${moduleType}`);
-      results[moduleType] = { success: false, error: `Unknown module type: ${moduleType}` };
-      logger.error(`[MODULES_DBG] Неизвестный тип модуля: ${moduleType}`);
-      continue;
+      throw new Error(`Unknown module type: ${moduleType} on chainId=${numericChainId}`);
     }
     
     if (!moduleInit) {
-      logger.error(`[MODULES_DBG] chainId=${numericChainId} No init code for module: ${moduleType}`);
-      results[moduleType] = { success: false, error: `No init code for module: ${moduleType}` };
-      logger.error(`[MODULES_DBG] Отсутствует код инициализации для модуля: ${moduleType}`);
-      continue;
+      throw new Error(`No init code for module: ${moduleType} on chainId=${numericChainId}`);
     }
     
     try {
-      const result = await deployModuleInNetwork(rpcUrl, pk, salt, null, targetNonce, moduleInit, moduleType);
+      const result = await deployModuleInNetwork(rpcUrl, pk, salt, null, targetNonce, moduleInit, moduleType, numericChainId);
       results[moduleType] = { ...result, success: true };
       logger.info(`[MODULES_DBG] Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
-      
-      // Ключ Etherscan в параметрах/окружении = верифицируем. Флаг autoVerify не должен глушить это.
-      const etherscanKeyForVerify =
-        params.etherscanApiKey ||
-        params.etherscan_api_key ||
-        process.env.ETHERSCAN_API_KEY ||
-        process.env.ETHERSCAN_V2_API_KEY ||
-        '';
-      if (result.address && etherscanKeyForVerify) {
-        try {
-          logger.info(`🔍 Начинаем автоматическую верификацию модуля ${moduleType}...`);
-          logger.info(`[MODULES_DBG] Начинаем верификацию модуля ${moduleType} в Etherscan...`);
-          
-          // Получаем аргументы конструктора для модуля
-          const moduleConfig = MODULE_CONFIGS[moduleType];
-          const constructorArgs = moduleConfig.constructorArgs(dleAddress, numericChainId, wallet.address);
-          
-          // Ждем 30 секунд перед верификацией, чтобы транзакция получила подтверждения
-          logger.info(`[MODULES_DBG] Ждем 30 секунд перед верификацией модуля ${moduleType}...`);
-          await new Promise(resolve => setTimeout(resolve, 30000));
-          
-          // Проверяем, что контракт действительно задеплоен
-          try {
-            const { provider } = await createRPCConnection(numericChainId, pk, {
-              maxRetries: 3,
-              timeout: 30000,
-              ...rpcDeployOverrides,
-            });
-            const code = await provider.getCode(result.address);
-            if (!code || code === '0x') {
-              logger.warn(`[MODULES_DBG] Контракт ${moduleType} не найден по адресу ${result.address}, пропускаем верификацию`);
-              throw new Error('Контракт не найден по адресу после деплоя');
-            }
-            logger.info(`[MODULES_DBG] Контракт ${moduleType} найден, код: ${code.substring(0, 20)}...`);
-          } catch (checkError) {
-            logger.warn(`[MODULES_DBG] Ошибка проверки контракта: ${checkError.message}`);
-          }
-          
-          const verificationResult = await verifyModuleAfterDeploy(
-            numericChainId,
-            result.address,
-            moduleType,
-            constructorArgs,
-            etherscanKeyForVerify,
-            params
-          );
-          
-          if (verificationResult.success) {
-            results[moduleType].verification = 'verified';
-            logger.info(`[MODULES_DBG] Модуль ${moduleType} успешно верифицирован в Etherscan!`);
-            logger.info(`✅ Модуль ${moduleType} верифицирован: ${result.address}`);
-          } else {
-            results[moduleType].verification = 'failed';
-            results[moduleType].verificationError = verificationResult.error || verificationResult.message;
-            logger.warn(`[MODULES_DBG] Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
-            logger.warn(`⚠️ Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
-          }
-        } catch (verificationError) {
-          results[moduleType].verification = 'error';
-          results[moduleType].verificationError = verificationError.message;
-          logger.error(`[MODULES_DBG] Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
-          logger.error(`❌ Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
-        }
-      } else {
-        results[moduleType].verification = 'skipped';
-        logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
-      }
     } catch (error) {
-      logger.error(`[MODULES_DBG] chainId=${chainId} ${moduleType} deployment failed:`, error.message);
-      results[moduleType] = { 
-        chainId: chainId, 
-        success: false, 
-        error: error.message 
-      };
-      logger.error(`[MODULES_DBG] Ошибка деплоя модуля ${moduleType} в сети ${net.name || net.chainId}: ${error.message}`);
+      logger.error(`[MODULES_DBG] chainId=${numericChainId} ${moduleType} deployment failed:`, error.message);
+      throw error;
     }
   }
 
@@ -673,6 +565,7 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
     } catch (bridgeErr) {
       results[moduleType].bridgeError = bridgeErr.message;
       logger.error(`[MODULES_DBG] ${moduleType} bridge failed: ${bridgeErr.message}`);
+      throw new Error(`${moduleType} bridge failed on chainId=${numericChainId}: ${bridgeErr.message}`);
     }
   }
   
@@ -876,11 +769,20 @@ async function main() {
     throw new Error('Не удалось установить ни одного RPC соединения');
   }
   
-  logger.info(`[MODULES_DBG] ✅ Успешно подключились к ${connections.length}/${supportedChainIds.length} сетям`);
+  if (connections.length !== supportedChainIds.length) {
+    throw new Error(
+      `RPC не для всех сетей модулей: ${connections.length}/${supportedChainIds.length}`
+    );
+  }
+  logger.info(`[MODULES_DBG] ✅ Подключились ко всем ${connections.length} сетям`);
   
   const nonces = [];
   for (const connection of connections) {
-    const n = await nonceManager.getNonce(connection.wallet.address, connection.rpcUrl, connection.chainId);
+    const n = await nonceManager.getNonce(
+      connection.wallet.address,
+      connection.rpcUrl,
+      Number(connection.network.chainId)
+    );
     nonces.push(n);
   }
   
@@ -918,6 +820,13 @@ async function main() {
   // Ждем завершения всех деплоев
   const deployResults = await Promise.all(deploymentPromises);
   logger.info(`[MODULES_DBG] All ${connections.length} deployments completed`);
+
+  const failedNetworks = deployResults.filter((r) => r.error || !r.modules);
+  if (failedNetworks.length > 0) {
+    throw new Error(
+      `Partial modules deploy: failed chains: ${failedNetworks.map((f) => `${f.chainId || '?'}: ${f.error}`).join('; ')}`
+    );
+  }
   
   // Логируем результаты деплоя для каждой сети
   deployResults.forEach((result, index) => {
@@ -955,13 +864,55 @@ async function main() {
       logger.error(`[MODULES_DBG] ERROR: No successful ${moduleType} deployments!`);
       throw new Error(`No successful ${moduleType} deployments`);
     }
+
+    const chainCount = deployResults.length;
+    if (addresses.length !== chainCount) {
+      throw new Error(
+        `Partial multichain ${moduleType}: ${addresses.length}/${chainCount} chains. Нельзя закрывать деплой одной сетью.`
+      );
+    }
     
     logger.info(`[MODULES_DBG] SUCCESS: All ${moduleType} addresses are identical:`, uniqueAddresses[0]);
   }
 
-  // Верификация модулей теперь интегрирована в основной процесс деплоя
-  // Автоматическая верификация происходит в функции deployAllModulesInNetwork
-  logger.info(`[MODULES_DBG] Верификация модулей интегрирована в процесс деплоя`);
+  const etherscanKeyForVerify =
+    etherscanKey ||
+    params.etherscanApiKey ||
+    params.etherscan_api_key ||
+    process.env.ETHERSCAN_API_KEY ||
+    process.env.ETHERSCAN_V2_API_KEY ||
+    '';
+  if (etherscanKeyForVerify) {
+    logger.info('[MODULES_DBG] Верификация после CREATE во всех сетях (ждём индексацию explorer)');
+    for (const deployResult of deployResults) {
+      const chainId = Number(deployResult.chainId);
+      for (const moduleType of modulesToDeploy) {
+        const moduleResult = deployResult.modules?.[moduleType];
+        if (!(moduleResult && moduleResult.success && moduleResult.address)) continue;
+        const verificationResult = await verifyModuleAfterDeploy(
+          chainId,
+          moduleResult.address,
+          moduleType,
+          null,
+          etherscanKeyForVerify,
+          { ...params, rpcUrl: deployResult.rpcUrl },
+          moduleInits[moduleType]
+        );
+        if (verificationResult.success) {
+          moduleResult.verification = 'verified';
+          logger.info(`[MODULES_DBG] ${moduleType} chainId=${chainId} verified: ${moduleResult.address}`);
+        } else {
+          moduleResult.verification = 'failed';
+          moduleResult.verificationError = verificationResult.error || verificationResult.message;
+          logger.warn(
+            `[MODULES_DBG] ${moduleType} chainId=${chainId} verify failed: ${moduleResult.verificationError}`
+          );
+        }
+      }
+    }
+  } else {
+    logger.info('[MODULES_DBG] API ключ Etherscan не предоставлен, верификацию пропускаем');
+  }
   
   // Объединяем результаты
   const finalResults = deployResults.map((deployResult, index) => ({
@@ -1101,11 +1052,13 @@ async function main() {
   if (successCount === totalCount) {
     logger.info(`[MODULES_DBG] Деплой завершен успешно! Задеплоено ${successCount} из ${totalCount} модулей`);
   } else {
-    logger.info(`[MODULES_DBG] Деплой завершен с ошибками. Задеплоено ${successCount} из ${totalCount} модулей`);
+    throw new Error(`Деплой модулей неполный: ${successCount}/${totalCount}`);
   }
 }
 
-main().catch((e) => { 
+main()
+  .then(() => process.exit(0))
+  .catch((e) => { 
   logger.error('❌ Критическая ошибка в main():', e.message);
   logger.error('❌ Stack trace:', e.stack);
   logger.error('❌ Error details:', e);

@@ -22,13 +22,29 @@
       <PageCloseButton :on-navigate="goBackToBlocks" />
       <!-- Фильтры -->
       <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-        <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          {{ selectedDle.dleAddress }}
+        <div v-if="selectedDle?.dleAddress || dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ selectedDle?.dleAddress || dleAddress }}
         </div>
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
           {{ t('common.loading') }}
         </div>
       </div>
+      <div v-if="dleAddress" class="voting-chain-hub">
+        <VotingChainSelect
+          v-model="votingChain"
+          :chains="votingChains"
+          :is-loading="isLoadingVotingChains"
+          :label="t('smartcontracts.history.networkLabel')"
+          :placeholder="t('smartcontracts.history.networkPlaceholder')"
+          :hint="t('smartcontracts.history.networkHint')"
+          select-id="historyChain"
+        />
+        <p class="voting-chain-hub__note">{{ t('smartcontracts.history.networkNote') }}</p>
+      </div>
+      <div v-if="!hasVotingChain" class="select-network-first">
+        <p>{{ t('smartcontracts.history.selectNetworkFirst') }}</p>
+      </div>
+      <template v-else>
       <div class="filters-section">
         <h2>{{ t('smartcontracts.history.filters') }}</h2>
         <div class="filters-form">
@@ -145,7 +161,7 @@
               </div>
               
               <div class="event-details">
-                <p class="event-description">{{ event.description }}</p>
+                <p class="event-description">{{ getEventDescription(event) }}</p>
                 <div class="event-meta">
                   <span class="event-date">{{ formatDate(event.timestamp) }}</span>
                   <span class="event-hash">{{ t('smartcontracts.history.txPrefix') }} {{ formatHash(event.transactionHash) }}</span>
@@ -228,7 +244,7 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">{{ t('smartcontracts.history.descriptionLabel') }}</span>
-                <span class="detail-value">{{ selectedEvent.description }}</span>
+                <span class="detail-value">{{ getEventDescription(selectedEvent) }}</span>
               </div>
               <div v-if="selectedEvent.details" class="detail-section">
                 <h4>{{ t('smartcontracts.history.eventDetails') }}</h4>
@@ -247,19 +263,23 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, computed, defineProps, defineEmits, onMounted } from 'vue';
+import { ref, computed, defineProps, defineEmits, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import VotingChainSelect from '@/components/VotingChainSelect.vue';
+import { useVotingChains } from '@/composables/useVotingChains.js';
 import api from '../../api/axios';
+import { translateIfExists, hasCyrillic, localeSafeFallback } from '../../utils/helpers.js';
 
-const { t, locale } = useI18n();
+const { t, locale, messages } = useI18n();
 
 // Определяем props
 const props = defineProps({
@@ -277,6 +297,38 @@ const route = useRoute();
 
 // Получаем адрес DLE из URL параметров
 const dleAddress = ref(route.query.address || '');
+
+const {
+  chains: votingChains,
+  votingChain,
+  isLoading: isLoadingVotingChains,
+  hasVotingChain,
+} = useVotingChains(dleAddress);
+
+function selectedChainId() {
+  const n = Number(votingChain.value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function withChain(extra = {}) {
+  const body = { dleAddress: dleAddress.value, ...extra };
+  const cid = selectedChainId();
+  if (cid) body.chainId = cid;
+  return body;
+}
+
+function persistChainQuery() {
+  const cid = selectedChainId();
+  if (!cid) return;
+  if (String(route.query.votingChain || '') === String(cid)) return;
+  router.replace({
+    query: {
+      ...route.query,
+      address: dleAddress.value,
+      votingChain: String(cid),
+    },
+  });
+}
 
 // Функция возврата к блокам управления
 const goBackToBlocks = () => {
@@ -314,8 +366,7 @@ async function loadDleData() {
   try {
     isLoadingDle.value = true;
 
-    if (!dleAddress.value) {
-      console.error('Адрес DLE не указан');
+    if (!dleAddress.value || !selectedChainId()) {
       return;
     }
 
@@ -323,9 +374,7 @@ async function loadDleData() {
     const historyPromise = loadEventHistory();
 
     try {
-      const response = await api.post('/blockchain/read-dle-info', {
-        dleAddress: dleAddress.value,
-      });
+      const response = await api.post('/blockchain/read-dle-info', withChain());
       if (response.data.success) {
         selectedDle.value = response.data.data;
       } else {
@@ -347,9 +396,7 @@ async function loadDleData() {
 async function loadEventHistory() {
   try {
     // Загружаем расширенную историю из блокчейна
-    const response = await api.post('/dle-history/get-extended-history', {
-      dleAddress: dleAddress.value
-    });
+    const response = await api.post('/dle-history/get-extended-history', withChain());
     
     if (response.data.success) {
       const historyData = response.data.data;
@@ -365,8 +412,9 @@ async function loadEventHistory() {
 }
 
 // Загружаем данные при монтировании компонента
-onMounted(() => {
-  if (dleAddress.value) {
+watch(votingChain, (cid) => {
+  if (Number(cid) > 0) {
+    persistChainQuery();
     loadDleData();
   }
 });
@@ -394,8 +442,8 @@ const filteredHistory = computed(() => {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(
       (event) =>
-        (event.title || '').toLowerCase().includes(query) ||
-        (event.description || '').toLowerCase().includes(query) ||
+        getEventTitle(event).toLowerCase().includes(query) ||
+        getEventDescription(event).toLowerCase().includes(query) ||
         (event.transactionHash && event.transactionHash.toLowerCase().includes(query))
     );
   }
@@ -467,8 +515,75 @@ const changePage = (page) => {
   }
 };
 
+function msgTree() {
+  return messages.value?.[locale.value] || messages.value?.en;
+}
+
+function localizedModuleName(event) {
+  const type = event?.details?.moduleType;
+  const key = `smartcontracts.createProposal.modules.${type}.title`;
+  if (!type) return event?.details?.moduleName || '';
+  return translateIfExists(
+    t,
+    key,
+    undefined,
+    localeSafeFallback(locale.value, event?.details?.moduleName || ''),
+    msgTree()
+  );
+}
+
+function proposalIdOf(event) {
+  const id = event?.details?.proposalId;
+  if (id === 0 || id) return id;
+  const m = String(event?.title || '').match(/#(\d+)/);
+  return m ? m[1] : '';
+}
+
 const getEventTitle = (event) => {
-  return event.title || t('smartcontracts.history.defaultOperation');
+  const type = event?.type || '';
+  const id = proposalIdOf(event);
+  const params = {
+    id,
+    name: event?.details?.name || '',
+    symbol: event?.details?.symbol || '',
+    module: localizedModuleName(event),
+    chain: event?.details?.chainName || '',
+  };
+  const key = `smartcontracts.history.eventTitles.${type}`;
+  const translated = translateIfExists(t, key, params, '', msgTree());
+  if (translated) return translated;
+  const fallback = event.title || t('smartcontracts.history.defaultOperation');
+  if (locale.value !== 'ru' && hasCyrillic(fallback)) {
+    return t('smartcontracts.history.defaultOperation');
+  }
+  return fallback;
+};
+
+const BACKEND_RU_COPY = /^(DLE создан|Создан DLE|Предложение #|Предложение успешно|Предложение "|Изменен кворум|Обновлена информация|Модуль |Сеть |Исполнение предложения)/;
+
+const getEventDescription = (event) => {
+  const type = event?.type || '';
+  const raw = String(event?.description || '');
+  if (type === 'proposal_created' && raw) return raw;
+  if (type === 'proposal_executed' && event?.details?.fromSummary && raw && !BACKEND_RU_COPY.test(raw)) {
+    return raw;
+  }
+  const key = `smartcontracts.history.eventDescriptions.${type}`;
+  const translated = translateIfExists(t, key, {
+    id: proposalIdOf(event),
+    name: event?.details?.name || '',
+    symbol: event?.details?.symbol || '',
+    module: localizedModuleName(event),
+    chain: event?.details?.chainName || '',
+    chainId: event?.details?.chainId ?? '',
+    oldQuorum: event?.details?.oldQuorum ?? '',
+    newQuorum: event?.details?.newQuorum ?? '',
+    reason: event?.details?.reason || '',
+  }, '', msgTree());
+  if (translated) return translated;
+  if (raw && !BACKEND_RU_COPY.test(raw)) return raw;
+  if (locale.value !== 'ru' && hasCyrillic(raw)) return '';
+  return raw;
 };
 
 const formatDate = (timestamp) => {
@@ -512,10 +627,25 @@ const viewDetails = (event) => {
 };
 
 const viewOnExplorer = (event) => {
-  // Открываем в Sepolia Etherscan
-  if (event.transactionHash && event.transactionHash !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
-    window.open(`https://sepolia.etherscan.io/tx/${event.transactionHash}`, '_blank');
+  const hash = event?.transactionHash;
+  if (!hash || hash === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+    return;
   }
+  const cid = Number(event.chainId || event.details?.chainId || votingChain.value);
+  const bases = {
+    1: 'https://etherscan.io/tx/',
+    11155111: 'https://sepolia.etherscan.io/tx/',
+    17000: 'https://holesky.etherscan.io/tx/',
+    84532: 'https://sepolia.basescan.org/tx/',
+    8453: 'https://basescan.org/tx/',
+    137: 'https://polygonscan.com/tx/',
+    80002: 'https://amoy.polygonscan.com/tx/',
+    42161: 'https://arbiscan.io/tx/',
+    421614: 'https://sepolia.arbiscan.io/tx/',
+    56: 'https://bscscan.com/tx/',
+  };
+  const base = bases[cid] || 'https://etherscan.io/tx/';
+  window.open(`${base}${hash}`, '_blank');
 };
 </script>
 
@@ -528,6 +658,22 @@ const viewOnExplorer = (event) => {
   border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
   margin-bottom: 20px;
+}
+
+.voting-chain-hub {
+  max-width: 520px;
+  margin: 0 0 1.5rem;
+}
+
+.voting-chain-hub__note {
+  margin: -8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-grey-dark, #555);
+}
+
+.select-network-first {
+  padding: 12px 0 24px;
+  color: var(--color-grey-dark, #555);
 }
 
 .close-btn {

@@ -35,6 +35,58 @@
           </div>
         </div>
       </div>
+
+      <div v-if="showRegisterForm" class="modal-overlay" @click.self="closeRegisterForm">
+        <div class="modal-content register-module-modal" @click.stop>
+          <div class="modal-header">
+            <h3>{{ t('smartcontracts.modules.register.title') }}</h3>
+            <button type="button" class="modal-close" @click="closeRegisterForm">
+              <span class="ui-fa-fallback" aria-hidden="true">×</span>
+            </button>
+          </div>
+          <form class="register-module-form" @submit.prevent="submitRegisterModule">
+            <p class="register-module-form__hint">{{ t('smartcontracts.modules.register.hint') }}</p>
+            <label>
+              <span>{{ t('smartcontracts.modules.register.moduleType') }}</span>
+              <select v-model="registerForm.moduleType" required>
+                <option disabled value="">{{ t('smartcontracts.modules.register.moduleTypePlaceholder') }}</option>
+                <option value="treasury">{{ t('smartcontracts.modules.register.types.treasury') }}</option>
+                <option value="timelock">{{ t('smartcontracts.modules.register.types.timelock') }}</option>
+                <option value="reader">{{ t('smartcontracts.modules.register.types.reader') }}</option>
+                <option value="hierarchicalVoting">{{ t('smartcontracts.modules.register.types.hierarchicalVoting') }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ t('smartcontracts.modules.register.chainId') }}</span>
+              <select v-model.number="registerForm.chainId" required>
+                <option
+                  v-for="net in registerChainOptions"
+                  :key="net.chainId"
+                  :value="net.chainId"
+                >{{ net.label }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ t('smartcontracts.modules.register.moduleAddress') }}</span>
+              <input v-model.trim="registerForm.moduleAddress" type="text" required placeholder="0x…">
+            </label>
+            <label>
+              <span>{{ t('smartcontracts.modules.register.bridgeAddress') }}</span>
+              <input v-model.trim="registerForm.bridgeAddress" type="text" :placeholder="t('smartcontracts.modules.register.bridgeOptional')">
+            </label>
+            <p v-if="registerError" class="register-module-form__error">{{ registerError }}</p>
+            <p v-if="registerSuccess" class="register-module-form__ok">{{ registerSuccess }}</p>
+            <div class="register-module-form__actions">
+              <button type="button" class="btn btn-secondary" @click="closeRegisterForm">
+                {{ t('common.cancel') }}
+              </button>
+              <button type="submit" class="btn btn-primary" :disabled="registerSaving">
+                {{ registerSaving ? t('common.saving') : t('smartcontracts.modules.register.submit') }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
       <div v-if="showDeploymentModal" class="modal-overlay" @click="moduleDeploymentStatus === 'error' || !isDeploying ? closeDeploymentModal() : null">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
@@ -587,9 +639,19 @@
       <div class="modules-list">
         <div class="list-header">
           <h3>{{ t('smartcontracts.modules.listTitle') }}</h3>
-          <button class="btn btn-sm btn-outline-secondary" @click="loadModules" :disabled="isLoadingModules || isLoadingDeploymentStatus">
-            <span class="ui-fa-fallback" :class="{ 'ui-fa-fallback--spin': isLoadingModules || isLoadingDeploymentStatus }" aria-hidden="true">↻</span> {{ t('common.refresh') }}
-          </button>
+          <div class="list-header__actions">
+            <button
+              v-if="dleAddress"
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              @click="showRegisterForm = true"
+            >
+              {{ t('smartcontracts.modules.register.openButton') }}
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @click="loadModules" :disabled="isLoadingModules || isLoadingDeploymentStatus">
+              <span class="ui-fa-fallback" :class="{ 'ui-fa-fallback--spin': isLoadingModules || isLoadingDeploymentStatus }" aria-hidden="true">↻</span> {{ t('common.refresh') }}
+            </button>
+          </div>
         </div>
 
         <!-- Статус деплоя -->
@@ -659,7 +721,7 @@
                 <div class="addresses-list">
                   <div 
                     v-for="addr in module.addresses" 
-                    :key="`${module.moduleId}-${addr.networkIndex}`"
+                    :key="`${module.moduleId}-${addr.chainId || addr.networkIndex}`"
                     class="address-item"
                   >
                     <span class="network-badge">{{ addr.networkName }}</span>
@@ -724,7 +786,22 @@
               </div>
               
               <div class="detail-item" v-if="module.inBook === false">
-                <p class="not-in-book-hint">{{ t('smartcontracts.modules.list.notInBookHint') }}</p>
+                <p class="not-in-book-hint">
+                  {{ module.pendingReplace
+                    ? t('smartcontracts.modules.list.pendingReplaceHint')
+                    : t('smartcontracts.modules.list.notInBookHint') }}
+                </p>
+                <div class="module-actions module-actions--inline">
+                  <router-link
+                    v-if="module.pendingReplace"
+                    class="btn btn-sm btn-secondary"
+                    :to="`/management/remove-module?address=${dleAddress}`"
+                  >{{ t('smartcontracts.modules.list.goRemove') }}</router-link>
+                  <router-link
+                    class="btn btn-sm btn-primary"
+                    :to="`/management/add-module?address=${dleAddress}`"
+                  >{{ t('smartcontracts.modules.list.goAdd') }}</router-link>
+                </div>
               </div>
               
               <div class="detail-item" v-if="module.dleOkvedCodes && module.dleOkvedCodes.length > 0">
@@ -765,7 +842,8 @@ import {
   getModuleAddress,
   getAllModules,
   getNetworksInfo,
-  getDeploymentStatus
+  getDeploymentStatus,
+  registerModuleAddress,
 } from '../../services/modulesService.js';
 import api from '../../api/axios';
 import wsClient from '../../utils/websocket';
@@ -822,6 +900,60 @@ const currentDeployingModule = ref('');
 const deploymentStep = ref(0);
 const progressPercentage = ref(0);
 const deploymentLogs = ref([]);
+
+// Загрузка адреса модуля в ОС
+const showRegisterForm = ref(false);
+const registerSaving = ref(false);
+const registerError = ref('');
+const registerSuccess = ref('');
+const registerForm = ref({
+  moduleType: '',
+  chainId: 11155111,
+  moduleAddress: '',
+  bridgeAddress: '',
+});
+
+const registerChainOptions = computed(() => {
+  const fromSupported = (supportedNetworks.value || [])
+    .map((n) => ({
+      chainId: Number(n.chainId || n.id),
+      label: n.networkName || n.name || `Сеть ${n.chainId || n.id}`,
+    }))
+    .filter((n) => Number.isFinite(n.chainId) && n.chainId > 0);
+  if (fromSupported.length) return fromSupported;
+  return [
+    { chainId: 11155111, label: 'Sepolia (11155111)' },
+    { chainId: 84532, label: 'Base Sepolia (84532)' },
+    { chainId: 421614, label: 'Arbitrum Sepolia (421614)' },
+  ];
+});
+
+function closeRegisterForm() {
+  showRegisterForm.value = false;
+  registerError.value = '';
+  registerSuccess.value = '';
+}
+
+async function submitRegisterModule() {
+  registerError.value = '';
+  registerSuccess.value = '';
+  registerSaving.value = true;
+  try {
+    await registerModuleAddress({
+      dleAddress: dleAddress.value,
+      moduleType: registerForm.value.moduleType,
+      moduleAddress: registerForm.value.moduleAddress,
+      chainId: Number(registerForm.value.chainId),
+      bridgeAddress: registerForm.value.bridgeAddress || undefined,
+    });
+    registerSuccess.value = t('smartcontracts.modules.register.saved');
+    await loadModules();
+  } catch (e) {
+    registerError.value = e?.response?.data?.error || e?.message || t('smartcontracts.modules.register.saveError');
+  } finally {
+    registerSaving.value = false;
+  }
+}
 
 // WebSocket соединение (используем глобальный wsClient)
 const isWSConnected = ref(false);
@@ -1127,25 +1259,44 @@ function handleWebSocketMessage(data) {
       updateDeploymentProgress(data);
       break;
       
-    case 'deployment_log':
-      addLog(data.log.type, data.log.message);
+    case 'deployment_log': {
+      const msg = data.log?.message || '';
+      // Не засоряем UI служебным шумом RPC/Nonce
+      if (/\[RPC Service\]|\[NonceManager\]|\[ProxyManager\]|\[EncryptedDB\]/i.test(msg)) {
+        break;
+      }
+      addLog(data.log.type, msg);
+      // Подстраховка стадий по тексту лога (если WS status не дошёл)
+      const lower = String(msg).toLowerCase();
+      if (lower.includes('compiled') || lower.includes('compiling')) {
+        deploymentStep.value = Math.max(deploymentStep.value, 2);
+        progressPercentage.value = Math.max(progressPercentage.value, 30);
+      } else if (lower.includes('deploy') || lower.includes('nonce')) {
+        deploymentStep.value = Math.max(deploymentStep.value, 3);
+        progressPercentage.value = Math.max(progressPercentage.value, 55);
+      } else if (lower.includes('verif')) {
+        deploymentStep.value = Math.max(deploymentStep.value, 4);
+        progressPercentage.value = Math.max(progressPercentage.value, 80);
+      }
       break;
+    }
       
     case 'deployment_finished':
-      deploymentStep.value = 5;
-      progressPercentage.value = 100;
-      moduleDeploymentStatus.value = data.status;
-      deploymentProgress.value = data.message;
-      addLog(data.status === 'completed' ? 'success' : 'error', data.message);
+      deploymentStep.value = Number(data.step) || 5;
+      progressPercentage.value = data.progress != null ? Number(data.progress) : 100;
+      moduleDeploymentStatus.value = data.status === 'failed' || data.status === 'error'
+        ? 'error'
+        : 'success';
+      deploymentProgress.value = data.message || t('smartcontracts.modules.deploy.completed');
+      addLog(moduleDeploymentStatus.value === 'success' ? 'success' : 'error', deploymentProgress.value);
       
-      // Автоматически закрываем модальное окно через 3 секунды
-      if (data.status === 'completed') {
+      if (moduleDeploymentStatus.value === 'success') {
         setTimeout(async () => {
-          loadModulesDebounced();
+          await loadModules();
           setTimeout(() => {
             closeDeploymentModal();
           }, 2000);
-        }, 3000);
+        }, 1500);
       }
       break;
       
@@ -1176,7 +1327,10 @@ function handleWebSocketMessage(data) {
 
 function updateDeploymentProgress(data) {
   if (data.status) {
-    moduleDeploymentStatus.value = data.status;
+    const s = String(data.status);
+    if (s === 'completed' || s === 'success') moduleDeploymentStatus.value = 'success';
+    else if (s === 'failed' || s === 'error') moduleDeploymentStatus.value = 'error';
+    else moduleDeploymentStatus.value = s;
   }
   if (data.progress !== undefined) {
     progressPercentage.value = data.progress;
@@ -1185,7 +1339,13 @@ function updateDeploymentProgress(data) {
     deploymentStep.value = data.step;
   }
   if (data.message) {
-    deploymentProgress.value = data.message;
+    // Сообщения с бэка на RU — для EN UI подменяем по шагу
+    const step = Number(data.step || deploymentStep.value || 0);
+    if (step === 2) deploymentProgress.value = t('smartcontracts.modules.steps.compile.title');
+    else if (step === 3) deploymentProgress.value = t('smartcontracts.modules.steps.deployNetworks.title');
+    else if (step === 4) deploymentProgress.value = t('smartcontracts.modules.steps.verification.title');
+    else if (step >= 5) deploymentProgress.value = t('smartcontracts.modules.steps.completion.title');
+    else deploymentProgress.value = data.message;
   }
 }
 
@@ -1283,22 +1443,15 @@ async function deployModule(moduleType) {
     });
     
     if (response.data.success) {
-      if (response.data.status === 'started') {
-        addLog('success', t('smartcontracts.modules.deploy.started'));
-      } else {
-        deploymentProgress.value = t('smartcontracts.modules.deploy.completed');
-        moduleDeploymentStatus.value = 'success';
-        addLog('success', t('smartcontracts.modules.deploy.completedLog'));
-        
-        // Перезагружаем список модулей
-        await loadModules();
-        
-        // Закрываем модальное окно через 3 секунды
-        setTimeout(() => {
-          closeDeploymentModal();
-        }, 3000);
-      }
-      
+      deploymentStep.value = 5;
+      progressPercentage.value = 100;
+      deploymentProgress.value = t('smartcontracts.modules.deploy.completed');
+      moduleDeploymentStatus.value = 'success';
+      addLog('success', t('smartcontracts.modules.deploy.completedLog'));
+      await loadModules();
+      setTimeout(() => {
+        closeDeploymentModal();
+      }, 2500);
     } else {
       throw new Error(response.data.error || t('smartcontracts.modules.deploy.errorDefault'));
     }
@@ -1679,12 +1832,21 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-bottom: 20px;
 }
 
 .list-header h3 {
   margin: 0;
   color: var(--color-primary);
+}
+
+.list-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .loading-modules,
@@ -2250,5 +2412,68 @@ onUnmounted(() => {
 
 .modules-container.page-with-close {
   position: relative;
+}
+
+.btn-register-module {
+  white-space: nowrap;
+}
+
+.register-module-modal {
+  max-width: 520px;
+  width: 100%;
+}
+
+.register-module-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.register-module-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.register-module-form input,
+.register-module-form select {
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.register-module-form__hint {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.register-module-form__error {
+  margin: 0;
+  color: #b42318;
+}
+
+.register-module-form__ok {
+  margin: 0;
+  color: #027a48;
+}
+
+.register-module-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.module-actions--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
 }
 </style>

@@ -143,128 +143,82 @@ async function revokeIdentityConsent({ userId, provider, privacyUrl }) {
 }
 
 async function deleteUserById(userId) {
-  console.log('[DELETE] Вызван deleteUserById для userId:', userId);
-  try {
-    // Удаляем в правильном порядке (сначала зависимые таблицы, потом основную)
-    
-    // 0. Согласия на документы
-    console.log('[DELETE] Начинаем удаление consent_logs для userId:', userId);
-    const resConsents = await db.getQuery()(
-      'DELETE FROM consent_logs WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено consent_logs:', resConsents.rows.length);
+  const result = await deleteUsersByIds([userId]);
+  return result.deleted;
+}
 
-    // 0.1 SIWE login audit (если таблица есть)
+/**
+ * Пакетное удаление контактов (один набор SQL на все id).
+ */
+async function deleteUsersByIds(userIds) {
+  const ids = [...new Set(
+    (userIds || [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  )];
+  if (!ids.length) {
+    return { deleted: 0, ids: [] };
+  }
+
+  console.log('[DELETE] bulk deleteUsersByIds count=', ids.length);
+
+  try {
+    await userContactFilesService.deleteAllFilesForUsers(ids);
+
+    const dependentTables = [
+      'consent_logs',
+      'user_identities',
+      'messages',
+      'message_deduplication',
+      'conversations',
+      'conversation_participants',
+      'user_preferences',
+      'verification_codes',
+      'unified_guest_mapping',
+      'user_tag_links',
+    ];
+
+    for (const table of dependentTables) {
+      await db.getQuery()(
+        `DELETE FROM ${table} WHERE user_id = ANY($1::int[])`,
+        [ids]
+      );
+    }
+
     try {
       await db.getQuery()(
-        'DELETE FROM siwe_login_audit WHERE user_id = $1',
-        [userId]
+        'DELETE FROM siwe_login_audit WHERE user_id = ANY($1::int[])',
+        [ids]
       );
     } catch (e) {
       if (!/siwe_login_audit|does not exist/i.test(String(e.message || e))) {
         throw e;
       }
     }
-    
-    // 1. Удаляем user_identities
-    console.log('[DELETE] Начинаем удаление user_identities для userId:', userId);
-    const resIdentities = await db.getQuery()(
-      'DELETE FROM user_identities WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено user_identities:', resIdentities.rows.length);
-    
-    // 2. Удаляем messages
-    console.log('[DELETE] Начинаем удаление messages для userId:', userId);
-    const resMessages = await db.getQuery()(
-      'DELETE FROM messages WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено messages:', resMessages.rows.length);
-    
-    // 2.1. Удаляем хеши дедупликации
-    console.log('[DELETE] Начинаем удаление message_deduplication для userId:', userId);
-    const resDeduplication = await db.getQuery()(
-      'DELETE FROM message_deduplication WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено deduplication hashes:', resDeduplication.rows.length);
-    
-    // 3. Удаляем conversations
-    console.log('[DELETE] Начинаем удаление conversations для userId:', userId);
-    const resConversations = await db.getQuery()(
-      'DELETE FROM conversations WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено conversations:', resConversations.rows.length);
-    
-    // 4. Удаляем conversation_participants
-    console.log('[DELETE] Начинаем удаление conversation_participants для userId:', userId);
-    const resParticipants = await db.getQuery()(
-      'DELETE FROM conversation_participants WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено conversation_participants:', resParticipants.rows.length);
-    
-    // 5. Удаляем user_preferences
-    console.log('[DELETE] Начинаем удаление user_preferences для userId:', userId);
-    const resPreferences = await db.getQuery()(
-      'DELETE FROM user_preferences WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено user_preferences:', resPreferences.rows.length);
-    
-    // 6. Удаляем verification_codes
-    console.log('[DELETE] Начинаем удаление verification_codes для userId:', userId);
-    const resCodes = await db.getQuery()(
-      'DELETE FROM verification_codes WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено verification_codes:', resCodes.rows.length);
-    
-    // 7. Удаляем unified_guest_mapping
-    console.log('[DELETE] Начинаем удаление unified_guest_mapping для userId:', userId);
-    const resGuestMapping = await db.getQuery()(
-      'DELETE FROM unified_guest_mapping WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено unified_guest_mapping:', resGuestMapping.rows.length);
-    
-    // 8. Удаляем user_tag_links
-    console.log('[DELETE] Начинаем удаление user_tag_links для userId:', userId);
-    const resTagLinks = await db.getQuery()(
-      'DELETE FROM user_tag_links WHERE user_id = $1 RETURNING id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено user_tag_links:', resTagLinks.rows.length);
-    
-    // 9. global_read_status - таблица не существует, пропускаем
 
-    // 9.1. Удаляем файлы контакта
-    await userContactFilesService.deleteAllFilesForUser(userId);
-    
-    // 10. Удаляем самого пользователя
-    console.log('[DELETE] Начинаем удаление пользователя из users:', userId);
     const result = await db.getQuery()(
-      'DELETE FROM users WHERE id = $1 RETURNING id',
-      [userId]
+      'DELETE FROM users WHERE id = ANY($1::int[]) RETURNING id',
+      [ids]
     );
-    console.log('[DELETE] Результат удаления пользователя:', result.rows.length, result.rows);
-    
-    return result.rows.length;
+
+    console.log('[DELETE] bulk done deleted=', result.rows.length);
+    return {
+      deleted: result.rows.length,
+      ids: result.rows.map((r) => Number(r.id)),
+    };
   } catch (e) {
-    console.error('[DELETE] Ошибка при удалении пользователя:', e);
+    console.error('[DELETE] Ошибка bulk-удаления:', e);
     throw e;
   }
 }
 
 module.exports = {
   deleteUserById,
+  deleteUsersByIds,
   listConsentsForUser,
   buildConsentsPayload,
   hasGrantedConsentForProvider,
   revokeIdentityConsent,
   deleteConsentsForProvider,
   CONTACT_PROVIDERS,
-}; 
+};

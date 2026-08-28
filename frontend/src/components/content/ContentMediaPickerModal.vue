@@ -20,7 +20,7 @@
         </div>
         <ContentMediaGrid
           mode="pick"
-          :forced-type="kind"
+          :forced-type="forcedType"
           @select="onSelect"
         />
       </div>
@@ -40,6 +40,7 @@ import ContentMediaGrid from './ContentMediaGrid.vue';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
+  /** image | video | any (все типы медиатеки) */
   kind: { type: String, default: 'image' },
 });
 
@@ -47,9 +48,13 @@ const emit = defineEmits(['cancel', 'device', 'select', 'url']);
 
 const { t } = useI18n();
 
-const title = computed(() => (
-  props.kind === 'video' ? t('editor.pickTitleVideo') : t('editor.pickTitleImage')
-));
+const isAny = computed(() => props.kind === 'any' || props.kind === 'all' || !props.kind);
+const forcedType = computed(() => (isAny.value ? '' : props.kind));
+
+const title = computed(() => {
+  if (isAny.value) return t('editor.pickTitleAny');
+  return props.kind === 'video' ? t('editor.pickTitleVideo') : t('editor.pickTitleImage');
+});
 
 function onCancel() {
   emit('cancel');

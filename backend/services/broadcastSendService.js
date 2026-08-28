@@ -119,7 +119,10 @@ async function sendToRecipient({
   }
 
   const identitiesRes = await db.getQuery()(
-    'SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1',
+    `SELECT decrypt_text(provider_encrypted, $2) as provider,
+            decrypt_text(provider_id_encrypted, $2) as provider_id,
+            COALESCE(is_primary, false) as is_primary
+     FROM user_identities WHERE user_id = $1`,
     [recipientUserId, encryptionKey]
   );
   const identities = identitiesRes.rows;
@@ -127,7 +130,29 @@ async function sendToRecipient({
   const results = [];
   let sent = false;
 
-  const email = identities.find(i => i.provider === 'email')?.provider_id;
+  const email = identities.find(i => i.provider === 'email' && i.is_primary)?.provider_id
+    || null;
+  if (!email) {
+    const hasAnyEmail = identities.some(i => i.provider === 'email');
+    if (hasAnyEmail) {
+      const noPrimaryError = 'Нет основного email у контакта';
+      if (normalizedCampaignId && recordDelivery) {
+        await broadcastService.recordDelivery({
+          campaignId: normalizedCampaignId,
+          recipientUserId,
+          status: 'error',
+          channelResults: [],
+          errorMessage: noPrimaryError
+        });
+      }
+      return {
+        success: false,
+        statusCode: 400,
+        error: noPrimaryError,
+        results: []
+      };
+    }
+  }
   if (email) {
     try {
       const emailBot = botManager.getBot('email');

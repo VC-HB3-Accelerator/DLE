@@ -14,7 +14,7 @@ import { ref, computed } from 'vue';
 import { getProposals } from '@/services/proposalsService';
 import { ethers } from 'ethers';
 import { useProposalValidation } from './useProposalValidation';
-import { voteForProposal, executeProposal as executeProposalUtil, cancelProposal as cancelProposalUtil, checkTokenBalance } from '@/utils/dle-contract';
+import { voteForProposal, executeProposal as executeProposalUtil, cancelProposal as cancelProposalUtil, checkTokenBalance, switchToVotingNetwork, messageForVoteRevert, messageForProposalRevert } from '@/utils/dle-contract';
 import api from '@/api/axios';
 import { i18n } from '@/locales/index.js';
 import { usePermissions } from './usePermissions';
@@ -30,7 +30,7 @@ const PROPOSAL_STATUS_KEYS = {
   5: 'smartcontracts.proposals.status.ready'
 };
 
-// Функция checkVoteStatus удалена - в контракте DLE нет публичной функции hasVoted
+// hasVoted есть в DLE.sol; кнопка «за» не скрывается по нему (см. voteForProposal precheck).
 // Функция checkTokenBalance перенесена в useDleContract.js
 
 // Функция sendTransactionToWallet удалена - теперь используется прямое взаимодействие с контрактом
@@ -131,7 +131,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       console.log(`[Proposals] Найдено DLE: ${allDles.length}`, allDles);
 
       // Группируем предложения по описанию для создания мульти-чейн представлений
-      const proposalsByDescription = new Map();
+        // Одна карточка = одна сеть + один on-chain id.
+        // Описание одинаковое у add-module в разных сетях — это разные предложения,
+        // склеивать их нельзя (нет execute, чужой state, голос не в ту сеть).
+        const proposalsByChainSlot = new Map();
 
       const getTimestamp = (p) => {
         if (p?.timestamp) return Number(p.timestamp);
@@ -193,23 +196,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
             proposal.contractAddress = addr;
             proposal.networkName = getChainName(netChainId);
 
-            const key = `${proposal.description}_${proposal.initiator}`;
             const proposalTimestamp = getTimestamp(proposal);
-
-            if (!proposalsByDescription.has(key)) {
-              proposalsByDescription.set(key, {
-                id: proposal.id,
-                description: proposal.description,
-                initiator: proposal.initiator,
-                deadline: proposal.deadline,
-                chains: new Map(),
-                createdAt: proposalTimestamp,
-                uniqueId: key,
-              });
-            }
-
-            const group = proposalsByDescription.get(key);
-            const existingChainData = group.chains.get(netChainId);
             const normalizedState =
               typeof proposal.state === 'string'
                 ? proposal.state === 'active'
@@ -222,10 +209,27 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
                 : proposal.proposalId !== undefined
                   ? Number(proposal.proposalId)
                   : null;
+            const slotId = proposalId !== null ? proposalId : 0;
+            const key = `${keyAddr}:${netChainId}:${slotId}`;
+
+            if (!proposalsByChainSlot.has(key)) {
+              proposalsByChainSlot.set(key, {
+                id: slotId,
+                description: proposal.description,
+                initiator: proposal.initiator,
+                deadline: proposal.deadline,
+                chains: new Map(),
+                createdAt: proposalTimestamp,
+                uniqueId: key,
+              });
+            }
+
+            const group = proposalsByChainSlot.get(key);
+            const existingChainData = group.chains.get(netChainId);
 
             const chainEntry = {
               ...proposal,
-              id: proposalId !== null ? proposalId : existingChainData?.id || 0,
+              id: slotId,
               chainId: netChainId,
               contractAddress: addr,
               networkName: getChainName(netChainId),
@@ -235,6 +239,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
 
             if (!existingChainData || proposalTimestamp >= getTimestamp(existingChainData)) {
               group.chains.set(netChainId, chainEntry);
+              group.id = slotId;
+              group.description = proposal.description;
+              group.initiator = proposal.initiator;
+              group.deadline = proposal.deadline;
             }
 
             const allChainTimes = Array.from(group.chains.values()).map((c) => getTimestamp(c));
@@ -246,7 +254,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       }
 
       // Преобразуем в массив для отображения
-      const rawProposals = Array.from(proposalsByDescription.values()).map(group => {
+      const rawProposals = Array.from(proposalsByChainSlot.values()).map(group => {
         const chainsArray = Array.from(group.chains.values()).map(chain => {
           // Унифицируем state для каждого chain - всегда число
           const normalizedState = typeof chain.state === 'string' 
@@ -287,8 +295,8 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         };
       });
 
-      console.log(`[Proposals] Сгруппировано предложений: ${rawProposals.length}`);
-      console.log(`[Proposals] Детали группировки:`, rawProposals);
+      console.log(`[Proposals] Карт предложений (по сети+id): ${rawProposals.length}`);
+      console.log(`[Proposals] Детали карточек:`, rawProposals);
 
       // Валидация — предупреждения, не отсев: on-chain список не должен исчезать из-за string wei.
       const validationResult = validateProposals(rawProposals);
@@ -351,6 +359,18 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     filteredProposals.value = filtered;
   };
 
+  /** Карточка по uniqueId (сеть+id) или по on-chain id, если он один в списке. */
+  const findProposal = (ref) => {
+    if (ref == null) return null;
+    if (typeof ref === 'object') return ref;
+    const byUnique = proposals.value.find((p) => p.uniqueId === ref);
+    if (byUnique) return byUnique;
+    const matches = proposals.value.filter(
+      (p) => p.id === ref || Number(p.id) === Number(ref)
+    );
+    return matches.length === 1 ? matches[0] : null;
+  };
+
   const voteOnProposal = async (proposalId, support) => {
     try {
       isVoting.value = true;
@@ -365,17 +385,15 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       // Проверяем состояние предложения
       console.log('🔍 [DEBUG] Проверяем состояние предложения...');
-      const proposal = proposals.value.find(p => p.id === proposalId);
+      const proposal = findProposal(proposalId);
       if (!proposal) {
         throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotFound'));
       }
+      const onChainProposalId = Number(proposal.id);
       
-      // КРИТИЧЕСКИ ВАЖНО: Если предложение мультичейн, используем voteOnMultichainProposal
-      if (proposal.chains && proposal.chains.length > 1) {
-        console.log('🌐 [VOTE] Обнаружено мультичейн предложение, используем voteOnMultichainProposal');
-        return await voteOnMultichainProposal(proposal, support);
-      }
-      
+      // targetChains — сети исполнения, не сети, куда слать vote().
+      // Голос только в той сети, где создана запись предложения.
+
       console.log('📊 [DEBUG] Данные предложения:', {
         id: proposal.id,
         state: proposal.state,
@@ -421,26 +439,30 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         // Не останавливаем голосование, если не удалось проверить баланс
       }
       
-      // Проверяем сеть кошелька
-      console.log('🌐 [DEBUG] Проверяем сеть кошелька...');
-      try {
-        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        console.log('🌐 [DEBUG] Текущая сеть:', chainId);
-        console.log('🌐 [DEBUG] Сеть предложения:', proposal.chainId);
-        
-        if (chainId !== proposal.chainId) {
-          throw new Error(t('smartcontracts.proposals.composableErrors.wrongNetwork', {
-            currentChainId: chainId,
-            requiredChainId: proposal.chainId
-          }));
-        }
-      } catch (networkError) {
-        console.warn('⚠️ [DEBUG] Ошибка проверки сети (продолжаем):', networkError.message);
+      // Голос только в сети, где создано предложение (не в targetChains исполнения).
+      const voteChainId = Number(
+        proposal.governanceChainId
+        || proposal.chainId
+        || proposal.chains?.[0]?.governanceChainId
+        || proposal.chains?.[0]?.chainId
+      );
+      if (!Number.isFinite(voteChainId) || voteChainId <= 0) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.wrongNetwork', {
+          currentChainId: 'unknown',
+          requiredChainId: 'unknown',
+        }));
       }
-      
-      // Голосуем через готовую функцию из utils/dle-contract.js
+
+      const switched = await switchToVotingNetwork(voteChainId);
+      if (!switched) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.networkSwitchFailed', {
+          networkName: String(voteChainId),
+          chainId: voteChainId,
+        }));
+      }
+
       console.log('🗳️ Отправляем голосование через смарт-контракт...');
-      const result = await voteForProposal(dleAddress.value, proposalId, support);
+      const result = await voteForProposal(dleAddress.value, onChainProposalId, support, voteChainId);
       
       console.log('✅ Голосование успешно отправлено:', result.txHash);
       alert(t('smartcontracts.proposals.composableAlerts.voteSuccess', { txHash: result.txHash }));
@@ -457,20 +479,15 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     } catch (error) {
       console.error('❌ Ошибка голосования:', error);
       
-      // Улучшенная обработка ошибок
-      let errorMessage = error.message;
-      
-      if (error.message.includes('execution reverted')) {
-        if (error.data === '0xe7005635') {
-          errorMessage = t('smartcontracts.proposals.composableErrors.voteRejectedByContract');
-        } else if (error.data === '0xc7567e07') {
-          errorMessage = t('smartcontracts.proposals.composableErrors.voteRejectedByContractWithNetwork');
-        } else {
-          errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByContract', { code: error.data });
-        }
-      } else if (error.message.includes('user rejected')) {
+      let errorMessage = messageForVoteRevert(error) || error.message;
+
+      if (errorMessage === error.message && String(error.message || '').includes('execution reverted')) {
+        errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByContract', {
+          code: error.revertSelector || error.data || '',
+        });
+      } else if (String(error.message || '').includes('user rejected')) {
         errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByUser');
-      } else if (error.message.includes('insufficient funds')) {
+      } else if (String(error.message || '').includes('insufficient funds')) {
         errorMessage = t('smartcontracts.proposals.composableErrors.insufficientFundsForGas');
       }
       
@@ -487,10 +504,11 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       // Проверяем состояние предложения перед выполнением
       console.log('🔍 [DEBUG] Проверяем состояние предложения для выполнения...');
-      const proposal = proposals.value.find(p => p.id === proposalId);
+      const proposal = findProposal(proposalId);
       if (!proposal) {
         throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotFound'));
       }
+      const onChainProposalId = Number(proposal.id);
       
       // КРИТИЧЕСКИ ВАЖНО: Если предложение мультичейн, используем executeMultichainProposal
       if (proposal.chains && proposal.chains.length > 1) {
@@ -521,16 +539,34 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotReadyForExecute', { status: statusText }));
       }
       
+      const execChainId = Number(
+        proposal.chainId
+        || proposal.chains?.[0]?.chainId
+      );
+      if (!Number.isFinite(execChainId) || execChainId <= 0) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.wrongNetwork', {
+          currentChainId: 'unknown',
+          requiredChainId: 'unknown',
+        }));
+      }
+      const switched = await switchToVotingNetwork(execChainId);
+      if (!switched) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.networkSwitchFailed', {
+          networkName: proposal.networkName || String(execChainId),
+          chainId: execChainId,
+        }));
+      }
+
       // Исполняем предложение через готовую функцию из utils/dle-contract.js
-      const result = await executeProposalUtil(dleAddress.value, proposalId);
+      const result = await executeProposalUtil(dleAddress.value, onChainProposalId);
       
       console.log('✅ Предложение успешно исполнено:', result.txHash);
       alert(t('smartcontracts.proposals.composableAlerts.executeSuccess', { txHash: result.txHash }));
       
       // Принудительно обновляем состояние предложения в UI
-      updateProposalState(proposalId, {
+      updateProposalState(proposal.uniqueId, {
         executed: true,
-        state: 1, // Выполнено
+        state: 3,
         canceled: false
       });
       
@@ -539,13 +575,13 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       console.error('❌ Ошибка выполнения предложения:', error);
       
       // Улучшенная обработка ошибок
-      let errorMessage = error.message;
+      let errorMessage = messageForProposalRevert(error) || error.message;
       
-      if (error.message.includes('execution reverted')) {
+      if (errorMessage === error.message && String(error.message || '').includes('execution reverted')) {
         errorMessage = t('smartcontracts.proposals.composableErrors.executeRejectedByContract');
-      } else if (error.message.includes('user rejected')) {
+      } else if (String(error.message || '').includes('user rejected')) {
         errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByUser');
-      } else if (error.message.includes('insufficient funds')) {
+      } else if (String(error.message || '').includes('insufficient funds')) {
         errorMessage = t('smartcontracts.proposals.composableErrors.insufficientFundsForGas');
       }
       
@@ -562,7 +598,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       // Проверяем состояние предложения перед отменой
       console.log('🔍 [DEBUG] Проверяем состояние предложения для отмены...');
-      const proposal = proposals.value.find(p => p.id === proposalId);
+      const proposal = findProposal(proposalId);
       if (!proposal) {
         throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotFound'));
       }
@@ -643,7 +679,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
             
             // Fallback к proposalId, если chain.id отсутствует
             if (chainProposalId === null || isNaN(chainProposalId)) {
-              chainProposalId = proposalId !== undefined && proposalId !== null ? Number(proposalId) : null;
+              chainProposalId = Number(proposal.id);
             }
             
             if (chainProposalId === null || isNaN(chainProposalId)) {
@@ -792,11 +828,11 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   };
 
   const canExecute = (proposal) => {
-    // Унифицируем state - всегда число
+    if (proposal?.executed) return false;
     const state = typeof proposal.state === 'string' 
       ? (proposal.state === 'active' ? 0 : NaN) 
       : Number(proposal.state);
-    return state === 5; // ReadyForExecution - готово к выполнению
+    return state === 5;
   };
 
   const canCancel = (proposal) => {
@@ -812,9 +848,12 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
 
   // Принудительное обновление состояния предложения в UI
   const updateProposalState = (proposalId, updates) => {
-    const proposal = proposals.value.find(p => p.id === proposalId);
+    const proposal = findProposal(proposalId);
     if (proposal) {
       Object.assign(proposal, updates);
+      if (Array.isArray(proposal.chains)) {
+        proposal.chains.forEach((chain) => Object.assign(chain, updates));
+      }
       console.log(`🔄 [UI] Обновлено состояние предложения ${proposalId}:`, updates);
 
       // Принудительно обновляем фильтрацию
@@ -908,7 +947,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
           
           // Голосуем
           console.log(`🗳️ [${index + 1}/${activeChains.length}] Отправляем голосование для proposalId=${chainProposalId} в ${chain.networkName}...`);
-          const result = await voteForProposal(contractAddress, chainProposalId, support);
+          const result = await voteForProposal(contractAddress, chainProposalId, support, chain.chainId);
           
           console.log(`✅ [${index + 1}/${activeChains.length}] Голосование успешно в ${chain.networkName}:`, result.txHash);
           
@@ -1062,8 +1101,8 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   };
 
   const canExecuteMultichain = (proposal) => {
-    // Можно исполнить только если кворум достигнут во ВСЕХ цепочках
-    return proposal.chains.every(chain => canExecute(chain));
+    // Исполнение локальное: достаточно одной сети в состоянии ReadyForExecution
+    return proposal.chains.some(chain => canExecute(chain));
   };
 
   const getChainStatusClass = (chain) => {

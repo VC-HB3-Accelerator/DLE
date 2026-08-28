@@ -810,6 +810,7 @@ async function getCampaignDetails(campaignId) {
           FROM user_identities ui
           WHERE ui.user_id = d.recipient_user_id
             AND decrypt_text(ui.provider_encrypted, $2) = 'email'
+            AND ui.is_primary = true
           LIMIT 1
         )
       ) AS recipient_email
@@ -950,6 +951,7 @@ async function getRecipientsSummary(recipientIds = []) {
         FROM user_identities ui
         WHERE ui.user_id = u.id
           AND decrypt_text(ui.provider_encrypted, $2) = 'email'
+          AND ui.is_primary = true
           AND COALESCE(decrypt_text(ui.provider_id_encrypted, $2), '') <> ''
       ) AS has_email
     FROM users u

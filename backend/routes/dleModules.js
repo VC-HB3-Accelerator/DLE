@@ -28,6 +28,15 @@ const path = require('path');
 const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS, MODULE_IDS, moduleTypeFromId } = require('../constants/moduleIds');
 const { resolveBookSlot } = require('../utils/bookModuleSlot');
 const fs = require('fs');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('../shared/permissions');
+
+const MODULES_DATA_DIR = path.join(__dirname, '../scripts/contracts-data/modules');
+
+function moduleRegistryFilePath(dleAddress, moduleType) {
+  return path.join(MODULES_DATA_DIR, `${moduleType}-${String(dleAddress).toLowerCase()}.json`);
+}
 
 async function slotAddr(dle, moduleType) {
   const slot = await resolveBookSlot(dle, moduleType);
@@ -147,6 +156,131 @@ async function readOnChainModuleBridge(provider, moduleAddress) {
   }
   if (!onChain || onChain === ethers.ZeroAddress) return null;
   return onChain;
+}
+
+/**
+ * Адреса модуля по всем сетям книги: слот on-chain + CREATE-код, если слот ещё пуст.
+ */
+async function listModuleChainAddresses({ dleAddress, moduleType, fromFile, supportedNetworks }) {
+  const byChain = new Map();
+
+  const upsert = (row) => {
+    const cid = Number(row.chainId);
+    if (!Number.isFinite(cid) || cid <= 0) return;
+    const prev = byChain.get(cid) || {};
+    byChain.set(cid, {
+      chainId: cid,
+      address: row.address || prev.address,
+      bridgeAddress: row.bridgeAddress || prev.bridgeAddress || null,
+      networkName: row.networkName || prev.networkName || getNetworkNameByChainId(cid),
+      isActive: Boolean(row.isActive || prev.isActive),
+      inBook: Boolean(row.inBook || prev.inBook),
+      verification: row.verification || prev.verification || mapVerificationStatus(null),
+      verificationStatus: row.verificationStatus || prev.verificationStatus || mapVerificationStatus(null),
+      networkIndex: cid,
+    });
+  };
+
+  for (const n of fromFile?.networks || []) {
+    if (!n?.address || n.address === ethers.ZeroAddress) continue;
+    upsert({
+      chainId: Number(n.chainId),
+      address: n.address,
+      bridgeAddress: n.bridgeAddress || null,
+      isActive: false,
+      inBook: false,
+      verification: mapVerificationStatus(n.verification),
+      verificationStatus: mapVerificationStatus(n.verification),
+    });
+  }
+
+  let knownAddr = null;
+  for (const row of byChain.values()) {
+    if (row.address && row.address !== ethers.ZeroAddress) {
+      knownAddr = row.address;
+      break;
+    }
+  }
+
+  const nets = (supportedNetworks && supportedNetworks.length)
+    ? supportedNetworks
+    : Array.from(byChain.keys()).map((chainId) => ({
+      chainId,
+      networkName: getNetworkNameByChainId(chainId),
+    }));
+
+  for (const net of nets) {
+    const cid = Number(net.chainId);
+    const rpcUrl = net.rpcUrl || await rpcProviderService.getRpcUrlByChainId(cid).catch(() => null);
+    if (!rpcUrl) continue;
+    try {
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const dle = new ethers.Contract(
+        dleAddress,
+        [
+          'function getModuleAddress(bytes32) view returns (address)',
+          'function isModuleActive(bytes32) view returns (bool)',
+        ],
+        provider
+      );
+      const slot = await resolveBookSlot(dle, moduleType);
+      const inBook = Boolean(slot.moduleAddress && slot.moduleAddress !== ethers.ZeroAddress);
+      if (!inBook) continue;
+      if (!knownAddr) knownAddr = slot.moduleAddress;
+      let isActive = false;
+      try {
+        isActive = await dle.isModuleActive(slot.moduleId);
+      } catch (_) {
+        isActive = true;
+      }
+      let bridge = byChain.get(cid)?.bridgeAddress || null;
+      try {
+        const onChainBridge = await readOnChainModuleBridge(provider, slot.moduleAddress);
+        if (onChainBridge) bridge = onChainBridge;
+      } catch (_) {}
+      upsert({
+        chainId: cid,
+        address: slot.moduleAddress,
+        bridgeAddress: bridge,
+        networkName: net.networkName || getNetworkNameByChainId(cid),
+        isActive,
+        inBook: true,
+      });
+    } catch (e) {
+      console.log(`[DLE Modules] listModuleChainAddresses book ${moduleType} ${cid}: ${e.message}`);
+    }
+  }
+
+  if (knownAddr) {
+    for (const net of nets) {
+      const cid = Number(net.chainId);
+      if (byChain.has(cid) && byChain.get(cid).inBook) continue;
+      const rpcUrl = net.rpcUrl || await rpcProviderService.getRpcUrlByChainId(cid).catch(() => null);
+      if (!rpcUrl) continue;
+      try {
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const code = await provider.getCode(knownAddr);
+        if (!code || code === '0x') continue;
+        let bridge = byChain.get(cid)?.bridgeAddress || null;
+        try {
+          const onChainBridge = await readOnChainModuleBridge(provider, knownAddr);
+          if (onChainBridge) bridge = onChainBridge;
+        } catch (_) {}
+        upsert({
+          chainId: cid,
+          address: knownAddr,
+          bridgeAddress: bridge,
+          networkName: net.networkName || getNetworkNameByChainId(cid),
+          isActive: Boolean(byChain.get(cid)?.isActive),
+          inBook: Boolean(byChain.get(cid)?.inBook),
+        });
+      } catch (e) {
+        console.log(`[DLE Modules] listModuleChainAddresses code ${moduleType} ${cid}: ${e.message}`);
+      }
+    }
+  }
+
+  return Array.from(byChain.values()).sort((a, b) => a.chainId - b.chainId);
 }
 
 function metaFromModuleFile(file) {
@@ -644,13 +778,7 @@ router.post('/get-all-modules', async (req, res) => {
       provider
     );
 
-    const networkNames = {
-      11155111: 'Sepolia',
-      17000: 'Holesky',
-      421614: 'Arbitrum Sepolia',
-      84532: 'Base Sepolia',
-    };
-    const getNetworkName = (cid) => networkNames[cid] || `Chain ${cid}`;
+    const getNetworkName = (cid) => getNetworkNameByChainId(cid);
     const getModuleDescription = (moduleType) =>
       MODULE_DESCRIPTIONS[moduleType] || `Модуль ${moduleType}`;
 
@@ -676,6 +804,27 @@ router.post('/get-all-modules', async (req, res) => {
 
     const addedAtByAddress = await loadModuleAddedAtByAddress(provider, dleAddress);
 
+    let supportedNetworks = [];
+    try {
+      supportedNetworks = await getSupportedNetworksFromDLE(dleAddress);
+    } catch (e) {
+      console.log(`[DLE Modules] getSupportedNetworksFromDLE: ${e.message}`);
+    }
+    if (!supportedNetworks.length) {
+      supportedNetworks = [
+        {
+          chainId: Number(targetChainId),
+          networkName: getNetworkName(Number(targetChainId)),
+          rpcUrl: null,
+          etherscanUrl: getEtherscanUrlByChainId(Number(targetChainId)),
+          networkIndex: 0,
+        },
+      ];
+      try {
+        supportedNetworks[0].rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
+      } catch (_) {}
+    }
+
     const formattedModules = [];
     for (const moduleType of Object.keys(MODULE_TYPE_TO_ID)) {
       let moduleAddress = ethers.ZeroAddress;
@@ -697,37 +846,40 @@ router.post('/get-all-modules', async (req, res) => {
         continue;
       }
 
-      if (!moduleAddress || moduleAddress === ethers.ZeroAddress) {
-        continue;
-      }
-
       const fromFile = fileByType[moduleType];
-      let bridgeAddress =
-        fromFile?.networks?.find((n) => Number(n.chainId) === Number(targetChainId))?.bridgeAddress ||
-        fromFile?.networks?.[0]?.bridgeAddress ||
-        null;
+      const addresses = await listModuleChainAddresses({
+        dleAddress,
+        moduleType,
+        fromFile,
+        supportedNetworks,
+      });
 
-      try {
-        const onChainBridge = await readOnChainModuleBridge(provider, moduleAddress);
-        if (onChainBridge) bridgeAddress = onChainBridge;
-      } catch (e) {
-        console.log(`[DLE Modules] ${moduleType}.moduleBridge skip: ${e.message}`);
-      }
-
-      const addresses = [
-        {
+      if (!moduleAddress || moduleAddress === ethers.ZeroAddress) {
+        if (addresses.length === 0) continue;
+        moduleAddress = addresses.find((a) => a.inBook)?.address || addresses[0].address;
+        isActive = addresses.some((a) => a.isActive);
+      } else if (addresses.length === 0) {
+        addresses.push({
           chainId: Number(targetChainId),
           address: moduleAddress,
-          bridgeAddress: bridgeAddress || null,
+          bridgeAddress: null,
           networkName: getNetworkName(Number(targetChainId)),
           isActive: Boolean(isActive),
-          verification: mapVerificationStatus(fromFile?.networks?.[0]?.verification),
-          verificationStatus: mapVerificationStatus(fromFile?.networks?.[0]?.verification),
-        },
-      ];
+          inBook: true,
+          verification: mapVerificationStatus(null),
+          verificationStatus: mapVerificationStatus(null),
+          networkIndex: Number(targetChainId),
+        });
+      }
+
+      const bridgeAddress =
+        addresses.find((a) => Number(a.chainId) === Number(targetChainId))?.bridgeAddress ||
+        addresses.find((a) => a.bridgeAddress)?.bridgeAddress ||
+        null;
 
       const cardMeta = pickDleCardMeta(chainMeta, fromFile, fileModules);
       const deployedAt = addedAtByAddress.get(String(moduleAddress).toLowerCase()) || null;
+      const inBook = addresses.some((a) => a.inBook);
 
       formattedModules.push({
         // AnalyticsView ждёт id/address; ModulesView — moduleName/addresses
@@ -740,18 +892,18 @@ router.post('/get-all-modules', async (req, res) => {
         moduleDescription: getModuleDescription(moduleType),
         addresses,
         isActive: Boolean(isActive),
-        inBook: true,
+        inBook: Boolean(inBook),
         deployedAt,
-        source: 'on-chain',
+        source: inBook ? 'on-chain' : (fromFile?.source || 'deployed'),
         ...cardMeta,
       });
     }
 
-    // Контракт модуля уже в сети, но ещё не addModule в книгу — тоже показываем
-    const listedTypes = new Set(formattedModules.map((m) => m.moduleType));
+    // Контракт модуля уже в сети, но ещё не addModule в книгу — тоже показываем.
+    // Если в книге старый адрес, а в ОС новый — показываем оба (замена через remove+add).
     for (const fromFile of fileModules || []) {
       const moduleType = fromFile.moduleType;
-      if (!moduleType || listedTypes.has(moduleType)) continue;
+      if (!moduleType) continue;
       const moduleId = MODULE_TYPE_TO_ID[moduleType];
       if (!moduleId) continue;
 
@@ -763,6 +915,19 @@ router.post('/get-all-modules', async (req, res) => {
       const prefer =
         nets.find((n) => Number(n.chainId) === Number(targetChainId)) || nets[0];
 
+      const bookEntry = formattedModules.find((m) => m.moduleType === moduleType && m.inBook);
+      if (bookEntry) {
+        const bookAddr = String(bookEntry.address || '').toLowerCase();
+        const fileAddr = String(prefer.address || '').toLowerCase();
+        if (bookAddr && fileAddr && bookAddr === fileAddr) continue;
+        const alreadyHasFileAddr = (bookEntry.addresses || []).some(
+          (a) => String(a.address || '').toLowerCase() === fileAddr
+        );
+        if (alreadyHasFileAddr) continue;
+      } else if (formattedModules.some((m) => m.moduleType === moduleType)) {
+        continue;
+      }
+
       let fileBridge = prefer.bridgeAddress || null;
       try {
         const onChainBridge = await readOnChainModuleBridge(provider, prefer.address);
@@ -771,9 +936,10 @@ router.post('/get-all-modules', async (req, res) => {
 
       const cardMeta = pickDleCardMeta(chainMeta, fromFile, fileModules);
       const deployedAt = addedAtByAddress.get(String(prefer.address).toLowerCase()) || null;
+      const pendingReplace = Boolean(bookEntry);
 
       formattedModules.push({
-        id: moduleType,
+        id: pendingReplace ? `${moduleType}-pending` : moduleType,
         address: prefer.address,
         bridgeAddress: fileBridge,
         moduleId,
@@ -791,27 +957,14 @@ router.post('/get-all-modules', async (req, res) => {
         })),
         isActive: false,
         inBook: false,
+        pendingReplace,
         deployedAt,
-        source: 'deployed',
+        source: fromFile.source || 'deployed',
         ...cardMeta,
       });
     }
 
     console.log(`[DLE Modules] Модулей в ответе: ${formattedModules.length} (книга + файлы деплоя)`);
-
-    let supportedNetworks = [
-      {
-        chainId: Number(targetChainId),
-        networkName: getNetworkName(Number(targetChainId)),
-        rpcUrl: null,
-        etherscanUrl: null,
-        networkIndex: 0,
-      },
-    ];
-    try {
-      const rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
-      supportedNetworks[0].rpcUrl = rpcUrl;
-    } catch (_) {}
 
     res.json({
       success: true,
@@ -829,6 +982,163 @@ router.post('/get-all-modules', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Ошибка при получении всех модулей: ' + error.message,
+    });
+  }
+});
+
+const TREASURY_HOLDINGS_ABI = [
+  'function getAllTokens() view returns (address[])',
+  'function getTokenInfo(address tokenAddress) view returns (tuple(address tokenAddress, string symbol, uint8 decimals, bool isActive, bool isNative, uint256 addedTimestamp, uint256 balance))',
+  'function getRealTokenBalance(address tokenAddress) view returns (uint256)',
+];
+
+async function readErc20Decimals(provider, tokenAddress, fallback) {
+  if (!tokenAddress || tokenAddress === ethers.ZeroAddress) return 18;
+  try {
+    const erc20 = new ethers.Contract(
+      tokenAddress,
+      ['function decimals() view returns (uint8)'],
+      provider
+    );
+    return Number(await erc20.decimals());
+  } catch (_) {
+    const n = Number(fallback);
+    return Number.isFinite(n) && n >= 0 ? n : 18;
+  }
+}
+
+/**
+ * Токены казны по всем сетям книги: тип (native/erc20) и живой balanceOf.
+ * @route POST /api/dle-modules/get-treasury-holdings
+ */
+router.post('/get-treasury-holdings', async (req, res) => {
+  try {
+    const { dleAddress, chainId: preferChainId } = req.body || {};
+    if (!dleAddress || !ethers.isAddress(dleAddress)) {
+      return res.status(400).json({ success: false, error: 'Адрес DLE обязателен' });
+    }
+
+    const networks = await getSupportedNetworksFromDLE(dleAddress);
+    const onlyChain = Number(preferChainId);
+    const chains = [];
+
+    for (const network of networks) {
+      const chainId = Number(network.chainId);
+      if (Number.isFinite(onlyChain) && onlyChain > 0 && chainId !== onlyChain) continue;
+      const row = {
+        chainId,
+        networkName: getNetworkNameByChainId(chainId),
+        treasuryAddress: null,
+        tokens: [],
+        error: null,
+      };
+      try {
+        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
+        if (!rpcUrl) {
+          row.error = 'RPC не найден';
+          chains.push(row);
+          continue;
+        }
+        const provider = new ethers.JsonRpcProvider(rpcUrl, chainId, { staticNetwork: true });
+        const dle = new ethers.Contract(
+          dleAddress,
+          [
+            'function getModuleAddress(bytes32) view returns (address)',
+            'function isModuleActive(bytes32) view returns (bool)',
+          ],
+          provider
+        );
+        const slot = await resolveBookSlot(dle, 'treasury');
+        if (!slot.moduleAddress || slot.moduleAddress === ethers.ZeroAddress) {
+          row.error = 'Казна не в книге';
+          chains.push(row);
+          continue;
+        }
+        row.treasuryAddress = slot.moduleAddress;
+        const treasury = new ethers.Contract(slot.moduleAddress, TREASURY_HOLDINGS_ABI, provider);
+        const listed = await treasury.getAllTokens();
+        const seen = new Set();
+        for (const raw of listed || []) {
+          const tokenAddress = raw === ethers.ZeroAddress
+            ? ethers.ZeroAddress
+            : ethers.getAddress(raw);
+          const key = tokenAddress.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          let info;
+          try {
+            info = await treasury.getTokenInfo(tokenAddress);
+          } catch (e) {
+            row.tokens.push({
+              address: tokenAddress,
+              symbol: '',
+              type: tokenAddress === ethers.ZeroAddress ? 'native' : 'erc20',
+              decimals: tokenAddress === ethers.ZeroAddress ? 18 : 18,
+              isActive: false,
+              isNative: tokenAddress === ethers.ZeroAddress,
+              balance: '0',
+              balanceHuman: '0',
+              error: e.shortMessage || e.message,
+            });
+            continue;
+          }
+          const isNative = Boolean(info.isNative) || tokenAddress === ethers.ZeroAddress;
+          const decimals = isNative
+            ? Number(info.decimals) || 18
+            : await readErc20Decimals(provider, tokenAddress, info.decimals);
+          let rawBal = info.balance;
+          try {
+            rawBal = await treasury.getRealTokenBalance(tokenAddress);
+          } catch (_) {}
+          let balanceHuman = '0';
+          try {
+            balanceHuman = ethers.formatUnits(rawBal, decimals);
+          } catch (_) {
+            balanceHuman = String(rawBal);
+          }
+          row.tokens.push({
+            address: tokenAddress,
+            symbol: info.symbol || (isNative ? 'ETH' : ''),
+            type: isNative ? 'native' : 'erc20',
+            decimals,
+            isActive: Boolean(info.isActive),
+            isNative,
+            balance: rawBal.toString(),
+            balanceHuman,
+          });
+        }
+        if (!seen.has(ethers.ZeroAddress.toLowerCase())) {
+          try {
+            const nativeBal = await treasury.getRealTokenBalance(ethers.ZeroAddress);
+            if (nativeBal > 0n) {
+              row.tokens.unshift({
+                address: ethers.ZeroAddress,
+                symbol: 'ETH',
+                type: 'native',
+                decimals: 18,
+                isActive: true,
+                isNative: true,
+                balance: nativeBal.toString(),
+                balanceHuman: ethers.formatUnits(nativeBal, 18),
+              });
+            }
+          } catch (_) {}
+        }
+      } catch (e) {
+        row.error = e.shortMessage || e.message;
+      }
+      chains.push(row);
+    }
+
+    res.json({
+      success: true,
+      data: { chains },
+    });
+  } catch (error) {
+    console.error('[DLE Modules] get-treasury-holdings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка чтения казны',
     });
   }
 });
@@ -879,6 +1189,122 @@ router.post('/get-deployment-id', async (req, res) => {
     });
   }
 });
+
+/**
+ * Загрузить уже задеплоенный адрес модуля в реестр ОС (JSON),
+ * чтобы его можно было добавить в книгу через предложение «Добавить модуль».
+ * @route POST /api/dle-modules/register-module-address
+ */
+router.post(
+  '/register-module-address',
+  requireAuth,
+  requirePermission(PERMISSIONS.MANAGE_SETTINGS),
+  async (req, res) => {
+    try {
+      const {
+        dleAddress,
+        moduleType,
+        moduleAddress,
+        chainId,
+        bridgeAddress = null,
+      } = req.body || {};
+
+      if (!dleAddress || !ethers.isAddress(dleAddress)) {
+        return res.status(400).json({ success: false, error: 'Некорректный адрес книги (DLE)' });
+      }
+      if (!moduleType || !MODULE_TYPE_TO_ID[moduleType]) {
+        return res.status(400).json({
+          success: false,
+          error: `Неизвестный тип модуля. Допустимо: ${Object.keys(MODULE_TYPE_TO_ID).join(', ')}`,
+        });
+      }
+      if (!moduleAddress || !ethers.isAddress(moduleAddress) || moduleAddress === ethers.ZeroAddress) {
+        return res.status(400).json({ success: false, error: 'Некорректный адрес модуля' });
+      }
+      const cid = Number(chainId);
+      if (!Number.isFinite(cid) || cid <= 0) {
+        return res.status(400).json({ success: false, error: 'Укажите идентификатор сети (chainId)' });
+      }
+      if (bridgeAddress && (!ethers.isAddress(bridgeAddress) || bridgeAddress === ethers.ZeroAddress)) {
+        return res.status(400).json({ success: false, error: 'Некорректный адрес моста' });
+      }
+
+      let code = '0x';
+      try {
+        const { provider } = await resolveDleProvider(dleAddress, { preferChainId: cid });
+        code = await provider.getCode(moduleAddress);
+      } catch (e) {
+        console.warn(`[DLE Modules] register-module-address code check: ${e.message}`);
+      }
+      if (!code || code === '0x') {
+        return res.status(400).json({
+          success: false,
+          error: 'По этому адресу в сети нет контракта. Проверьте адрес и сеть.',
+        });
+      }
+
+      if (!fs.existsSync(MODULES_DATA_DIR)) {
+        fs.mkdirSync(MODULES_DATA_DIR, { recursive: true });
+      }
+
+      const filePath = moduleRegistryFilePath(dleAddress, moduleType);
+      let existing = {};
+      if (fs.existsSync(filePath)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(filePath, 'utf8')) || {};
+        } catch (_) {
+          existing = {};
+        }
+      }
+
+      const networks = Array.isArray(existing.networks) ? [...existing.networks] : [];
+      const idx = networks.findIndex((n) => Number(n.chainId) === cid);
+      const row = {
+        chainId: cid,
+        address: ethers.getAddress(moduleAddress),
+        bridgeAddress: bridgeAddress ? ethers.getAddress(bridgeAddress) : (idx >= 0 ? networks[idx].bridgeAddress || null : null),
+        bridgeWired: Boolean(bridgeAddress || (idx >= 0 && networks[idx].bridgeWired)),
+        bridgeError: null,
+        verification: idx >= 0 ? networks[idx].verification || 'pending' : 'pending',
+        success: true,
+        error: null,
+        registeredManually: true,
+      };
+      if (idx >= 0) networks[idx] = { ...networks[idx], ...row };
+      else networks.push(row);
+
+      const payload = {
+        ...existing,
+        moduleType,
+        dleAddress: ethers.getAddress(dleAddress),
+        networks,
+        deployTimestamp: existing.deployTimestamp || new Date().toISOString(),
+        registeredAt: new Date().toISOString(),
+        source: existing.source === 'deployed' ? 'deployed+manual' : 'manual',
+      };
+
+      fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
+      console.log(`[DLE Modules] Зарегистрирован адрес модуля ${moduleType} → ${row.address} (${cid})`);
+
+      return res.json({
+        success: true,
+        module: {
+          moduleType,
+          dleAddress: payload.dleAddress,
+          moduleId: MODULE_TYPE_TO_ID[moduleType],
+          networks: payload.networks,
+          source: payload.source,
+        },
+      });
+    } catch (error) {
+      console.error('[DLE Modules] register-module-address:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Не удалось сохранить адрес модуля',
+      });
+    }
+  }
+);
 
 // Создать предложение о добавлении модуля (с автоматической оплатой газа)
 router.post('/create-add-module-proposal', async (req, res) => {
@@ -3246,6 +3672,29 @@ router.post('/get-module-operations', async (req, res) => {
             : [{ chainId: Number(targetChainId), address: moduleAddress }],
         });
       }
+
+      // Казна может быть не в книге, но уже прописана в HV.treasuryModule — иначе блок казны в UI пустой.
+      const hvEntry = byType.get('hierarchicalVoting');
+      const hvAddr = hvEntry?.networks?.find((n) => n && n.address)?.address;
+      if (hvAddr && hvAddr !== ethers.ZeroAddress && !byType.has('treasury')) {
+        try {
+          const hv = new ethers.Contract(
+            hvAddr,
+            ['function treasuryModule() view returns (address)'],
+            provider
+          );
+          const tAddr = await hv.treasuryModule();
+          if (tAddr && tAddr !== ethers.ZeroAddress) {
+            byType.set('treasury', {
+              moduleType: 'treasury',
+              networks: [{ chainId: Number(targetChainId), address: tAddr }],
+            });
+            console.log(`[DLE Modules] Казна из HV.treasuryModule: ${tAddr}`);
+          }
+        } catch (e) {
+          console.log(`[DLE Modules] HV.treasuryModule: ${e.message}`);
+        }
+      }
     } catch (e) {
       console.log(`[DLE Modules] on-chain операции модулей: ${e.message}`);
     }
@@ -3650,6 +4099,17 @@ function getModuleOperationsByType(moduleType) {
         category: 'Управление токенами'
       },
       {
+        id: 'setFundsBridge',
+        name: 'Сменить мост казны',
+        description: 'Заменить TreasuryBridge через governance (новый адрес с кодом)',
+        icon: '🌉',
+        functionName: 'setFundsBridge',
+        parameters: [
+          { name: 'bridge', type: 'address', label: 'Адрес нового моста', required: true }
+        ],
+        category: 'Настройки'
+      },
+      {
         id: 'transferFunds',
         name: 'Перевести средства',
         description: 'Перевести токены из казначейства',
@@ -3659,6 +4119,35 @@ function getModuleOperationsByType(moduleType) {
           { name: 'tokenAddress', type: 'address', label: 'Адрес токена', required: true },
           { name: 'recipient', type: 'address', label: 'Получатель', required: true },
           { name: 'amount', type: 'uint256', label: 'Сумма', required: true },
+          { name: 'proposalId', type: 'bytes32', label: 'ID предложения', required: true }
+        ],
+        category: 'Переводы'
+      },
+      {
+        id: 'transferERC721',
+        name: 'Перевести NFT (ERC-721)',
+        description: 'Перевести уникальный токен из казны покупателю',
+        icon: '🖼️',
+        functionName: 'transferERC721',
+        parameters: [
+          { name: 'nftContract', type: 'address', label: 'Контракт NFT', required: true },
+          { name: 'recipient', type: 'address', label: 'Получатель', required: true },
+          { name: 'tokenId', type: 'uint256', label: 'Token ID', required: true },
+          { name: 'proposalId', type: 'bytes32', label: 'ID предложения', required: true }
+        ],
+        category: 'Переводы'
+      },
+      {
+        id: 'transferERC1155',
+        name: 'Перевести мультитокен (ERC-1155)',
+        description: 'Перевести единицы ERC-1155 из казны',
+        icon: '🧩',
+        functionName: 'transferERC1155',
+        parameters: [
+          { name: 'nftContract', type: 'address', label: 'Контракт', required: true },
+          { name: 'recipient', type: 'address', label: 'Получатель', required: true },
+          { name: 'tokenId', type: 'uint256', label: 'Token ID', required: true },
+          { name: 'amount', type: 'uint256', label: 'Количество', required: true },
           { name: 'proposalId', type: 'bytes32', label: 'ID предложения', required: true }
         ],
         category: 'Переводы'
@@ -3683,6 +4172,17 @@ function getModuleOperationsByType(moduleType) {
         functionName: 'setPaymaster',
         parameters: [
           { name: '_paymaster', type: 'address', label: 'Адрес Paymaster', required: true }
+        ],
+        category: 'Настройки'
+      },
+      {
+        id: 'setHierarchicalVotingModule',
+        name: 'Установить модуль иерархического голосования',
+        description: 'Привязать HierarchicalVotingModule, чтобы казна могла отдать внешний голос',
+        icon: '🗳️',
+        functionName: 'setHierarchicalVotingModule',
+        parameters: [
+          { name: 'module', type: 'address', label: 'Адрес модуля иерархического голосования', required: true }
         ],
         category: 'Настройки'
       },
@@ -3915,6 +4415,17 @@ function getModuleOperationsByType(moduleType) {
         category: 'Настройки'
       },
       {
+        id: 'setModuleBridge',
+        name: 'Привязать мост HV',
+        description: 'Первый раз — прямой вызов initializer. Смена уже привязанного моста — предложение.',
+        icon: '🌉',
+        functionName: 'setModuleBridge',
+        parameters: [
+          { name: 'bridge', type: 'address', label: 'Адрес нового моста', required: true }
+        ],
+        category: 'Настройки'
+      },
+      {
         id: 'addExternalDLE',
         name: 'Добавить внешний DLE',
         description: 'Добавить внешний DLE для голосования',
@@ -4025,6 +4536,8 @@ function getModuleAbi(moduleType) {
       "function removeToken(address tokenAddress) external",
       "function setTokenStatus(address tokenAddress, bool isActive) external",
       "function transferFunds(address tokenAddress, address recipient, uint256 amount, bytes32 proposalId) external",
+      "function transferERC721(address nftContract, address recipient, uint256 tokenId, bytes32 proposalId) external",
+      "function transferERC1155(address nftContract, address recipient, uint256 tokenId, uint256 amount, bytes32 proposalId) external",
       "function batchTransfer(BatchTransfer[] memory transfers, bytes32 proposalId) external",
       "function setPaymaster(address _paymaster) external",
       "function addGasPaymentToken(address tokenAddress, uint256 rate) external",

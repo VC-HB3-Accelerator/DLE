@@ -294,10 +294,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Настройка парсеров
-// Убираем ограничение по размеру (база данных масштабируется)
-app.use(express.json({ limit: '50mb' })); // Увеличен лимит для JSON (для больших данных)
-app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Увеличен лимит для URL-encoded
+// Настройка парсеров (импорт контактов до 100k строк — большой JSON)
+app.use(express.json({ limit: '256mb' }));
+app.use(express.urlencoded({ extended: true, limit: '256mb' }));
 
 // Режим работы уже определен выше (при настройке trust proxy)
 
@@ -383,6 +382,7 @@ app.use('/api/contact-site-parser', contactSiteParserRoutes);
 app.use('/api/conference', conferenceRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/ai-calls', require('./routes/aiCalls'));
+app.use('/api/store', require('./routes/store'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/isic', isicRoutes); // Добавленное использование роута

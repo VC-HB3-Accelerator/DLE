@@ -28,7 +28,7 @@
         <el-button v-if="canEditContacts" :disabled="!hasSingleSelection" @click="editSelectedContact">
           {{ t('contacts.editContact') }}
         </el-button>
-        <el-button v-if="canEditData" @click="showImportModal = true">{{ t('contacts.import') }}</el-button>
+        <el-button v-if="canEditContacts" @click="goToImportContacts">{{ t('contacts.import') }}</el-button>
       </div>
     </div>
 
@@ -159,16 +159,23 @@
         >
           <el-option
             v-for="size in PAGE_SIZE_OPTIONS"
-            :key="size"
-            :label="String(size)"
+            :key="String(size)"
+            :label="pageSizeLabel(size)"
             :value="size"
           />
         </el-select>
       </div>
+      <p v-if="isPageSizeAll && totalContacts > 0" class="contacts-pagination__all-hint">
+        {{ t('contacts.allModeHint', {
+          selected: selectedCount,
+          loaded: pageContacts.length,
+          total: totalContacts
+        }) }}
+      </p>
       <el-pagination
-        v-if="totalContacts > 0"
+        v-else-if="totalContacts > 0"
         :current-page="currentPage"
-        :page-size="pageSize"
+        :page-size="paginationPageSize"
         :total="totalContacts"
         :disabled="isLoadingContacts"
         :hide-on-single-page="false"
@@ -186,6 +193,7 @@
             <col v-if="isColumnVisible('type')" :style="columnWidthStyle('type')" />
             <col v-if="isColumnVisible('name')" :style="columnWidthStyle('name')" />
             <col v-if="isColumnVisible('email')" :style="columnWidthStyle('email')" />
+            <col v-if="isColumnVisible('phone')" :style="columnWidthStyle('phone')" />
             <col v-if="isColumnVisible('telegram')" :style="columnWidthStyle('telegram')" />
             <col v-if="isColumnVisible('wallet')" :style="columnWidthStyle('wallet')" />
             <col v-if="isColumnVisible('date')" :style="columnWidthStyle('date')" />
@@ -245,6 +253,14 @@
                   class="col-resize-handle"
                   :title="t('contacts.resizeColumn')"
                   @mousedown="startResize('email', $event)"
+                />
+              </th>
+              <th v-if="isColumnVisible('phone')" class="col-phone resizable-th">
+                <span class="th-label">{{ t('contacts.phone') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('phone', $event)"
                 />
               </th>
               <th v-if="isColumnVisible('telegram')" class="col-telegram resizable-th">
@@ -393,6 +409,13 @@
                 @click.stop="toggleFieldReveal(contact.id, 'email')"
               >{{ getPersonalFieldDisplay(contact.id, 'email', contact.email) }}</td>
               <td
+                v-if="isColumnVisible('phone')"
+                class="col-phone personal-field"
+                :class="{ 'personal-field--revealed': isFieldRevealed(contact.id, 'phone') }"
+                :title="getFieldTitle(contact.id, 'phone', contact.phone)"
+                @click.stop="toggleFieldReveal(contact.id, 'phone')"
+              >{{ getPersonalFieldDisplay(contact.id, 'phone', contact.phone) }}</td>
+              <td
                 v-if="isColumnVisible('telegram')"
                 class="col-telegram personal-field"
                 :class="{ 'personal-field--revealed': isFieldRevealed(contact.id, 'telegram') }"
@@ -438,10 +461,17 @@
             </tr>
           </tbody>
         </table>
+        <div
+          v-if="isPageSizeAll"
+          ref="scrollSentinelRef"
+          class="contacts-scroll-sentinel"
+          aria-hidden="true"
+        >
+          <span v-if="isLoadingMore">{{ t('common.loading') }}</span>
+          <span v-else-if="!scrollHasMore && pageContacts.length">{{ t('contacts.allModeLoaded') }}</span>
+        </div>
       </div>
     </div>
-
-    <ImportContactsModal v-if="showImportModal" @close="showImportModal = false" @imported="onImported" />
 
     <el-dialog
       v-model="bulkTagsDialogVisible"
@@ -491,13 +521,12 @@
 </template>
 
 <script setup>
-import { defineProps, computed, ref, onMounted, watch, onUnmounted } from 'vue';
+import { defineProps, computed, ref, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElButton, ElMessageBox, ElMessage, ElPagination, ElPopover, ElCheckbox, ElCheckboxGroup } from 'element-plus';
-import ImportContactsModal from './ImportContactsModal.vue';
 import messagesService from '../services/messagesService';
-import { getContacts } from '../services/contactsService';
+import { getContacts, getContactIds } from '../services/contactsService';
 import contactsService from '../services/contactsService';
 import {
   CONTACTS_FILTERS_PREFERENCE_KEY,
@@ -521,6 +550,7 @@ const CONTACT_TABLE_COLUMN_WIDTHS = {
   type: 104,
   name: 180,
   email: 150,
+  phone: 130,
   telegram: 130,
   wallet: 150,
   date: 168,
@@ -564,7 +594,10 @@ const props = defineProps({
   markContactAsRead: { type: Function, default: null }
 });
 
-const PAGE_SIZE_OPTIONS = [100, 500, 1000];
+const PAGE_SIZE_OPTIONS = [100, 500, 1000, 0];
+const PAGE_SIZE_ALL = 0;
+/** В режиме «Все» строки таблицы подгружаются порциями при скролле */
+const ALL_MODE_CHUNK = 100;
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const router = useRouter();
 const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canBroadcast, canChatWithAdmins, canEditData, canEditContacts, canManageTags } = usePermissions();
@@ -574,6 +607,7 @@ const { onTagsUpdate } = useTagsWebSocket();
 const { onTableUpdate } = websocketServiceModule;
 
 let unsubscribeTagsTableUpdate = null;
+let infiniteScrollObserver = null;
 
 async function setupTagsTableWebSocket() {
   if (unsubscribeTagsTableUpdate) {
@@ -603,7 +637,27 @@ const totalContacts = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(100);
 const isLoadingContacts = ref(false);
+const isLoadingMore = ref(false);
+const scrollHasMore = ref(false);
+const scrollSentinelRef = ref(null);
 const selectedContactsCache = ref({});
+
+const isPageSizeAll = computed(() => Number(pageSize.value) === PAGE_SIZE_ALL);
+const paginationPageSize = computed(() => (
+  PAGE_SIZE_OPTIONS.includes(Number(pageSize.value)) && Number(pageSize.value) > 0
+    ? Number(pageSize.value)
+    : 100
+));
+
+function pageSizeLabel(size) {
+  return Number(size) === PAGE_SIZE_ALL ? t('common.all') : String(size);
+}
+
+function resolvePageLimit() {
+  const n = Number(pageSize.value);
+  if (n === PAGE_SIZE_ALL) return PAGE_SIZE_ALL;
+  return PAGE_SIZE_OPTIONS.includes(n) ? n : 100;
+}
 
 // Фильтры
 const filterSearch = ref('');
@@ -657,12 +711,13 @@ onTagsUpdate(() => {
   loadAvailableTags();
 });
 
-const showImportModal = ref(false);
 const bulkTagsDialogVisible = ref(false);
 const bulkSelectedTagIds = ref([]);
 const bulkTagsLoading = ref(false);
 
 const selectedIds = ref([]);
+const suppressContactsWsReload = ref(false);
+const BULK_DELETE_CHUNK = 500;
 const selectAll = ref(false);
 const selectAllCheckboxRef = ref(null);
 const revealedFields = ref({});
@@ -739,6 +794,19 @@ function onContactCheckboxChange(contact, event) {
 
 function onSelectAllChange(event) {
   const checked = event.target.checked;
+  if (isPageSizeAll.value) {
+    if (checked) {
+      selectAllMatchingIds().then(() => {
+        updateSelectAllState();
+        updateSelectAllIndeterminate();
+      });
+    } else {
+      clearSelection();
+      updateSelectAllState();
+      updateSelectAllIndeterminate();
+    }
+    return;
+  }
   selectAll.value = checked;
   const pageIds = pageContacts.value.map(c => c.id);
   if (checked) {
@@ -777,6 +845,7 @@ function clearRevealedFields() {
 
 function getCompactMask(field, value) {
   if (field === 'email') return '•••@•••';
+  if (field === 'phone') return '•••';
   if (field === 'telegram') return String(value).startsWith('@') ? '@•••' : '•••';
   if (field === 'wallet') return String(value).startsWith('0x') ? '0x•••' : '•••';
   return '••••';
@@ -858,9 +927,7 @@ function buildFiltersSnapshot() {
     newMessagesDate: formatDateOnly(filterNewMessagesDate.value) || null,
     blocked: filterBlocked.value || 'all',
     tagIds: Array.isArray(selectedTagIds.value) ? [...selectedTagIds.value] : [],
-    pageSize: PAGE_SIZE_OPTIONS.includes(Number(pageSize.value))
-      ? Number(pageSize.value)
-      : 100,
+    pageSize: resolvePageLimit(),
     currentPage: Math.max(1, Number(currentPage.value) || 1),
     showAdvancedFilters: Boolean(showAdvancedFilters.value)
   };
@@ -1038,14 +1105,20 @@ watch(isEditorRole, async (isEditor) => {
   }
 });
 
-function buildFilterParams() {
-  const limit = PAGE_SIZE_OPTIONS.includes(Number(pageSize.value))
-    ? Number(pageSize.value)
-    : 100;
-  const params = {
-    limit,
-    offset: Math.max(0, (currentPage.value - 1) * limit)
-  };
+function buildFilterParams(options = {}) {
+  const append = Boolean(options.append);
+  let limit;
+  let offset;
+
+  if (isPageSizeAll.value) {
+    limit = ALL_MODE_CHUNK;
+    offset = append ? pageContacts.value.length : 0;
+  } else {
+    limit = resolvePageLimit();
+    offset = Math.max(0, (currentPage.value - 1) * limit);
+  }
+
+  const params = { limit, offset };
   if (selectedTagIds.value.length > 0) params.tagIds = selectedTagIds.value.join(',');
   if (filterCreatedDateFrom.value) params.createdDateFrom = formatDateOnly(filterCreatedDateFrom.value);
   if (filterCreatedDateTo.value) params.createdDateTo = formatDateOnly(filterCreatedDateTo.value);
@@ -1061,17 +1134,88 @@ function buildFilterParams() {
   return params;
 }
 
+function buildIdsFilterParams() {
+  const params = buildFilterParams();
+  delete params.limit;
+  delete params.offset;
+  return { ...params, limit: 0, offset: 0 };
+}
+
+async function selectAllMatchingIds() {
+  const { ids } = await getContactIds(buildIdsFilterParams());
+  selectedIds.value = Array.isArray(ids) ? [...ids] : [];
+  selectAll.value = selectedIds.value.length > 0;
+}
+
+function teardownInfiniteScroll() {
+  if (infiniteScrollObserver) {
+    infiniteScrollObserver.disconnect();
+    infiniteScrollObserver = null;
+  }
+}
+
+async function setupInfiniteScroll() {
+  teardownInfiniteScroll();
+  if (!isPageSizeAll.value) return;
+  await nextTick();
+  const el = scrollSentinelRef.value;
+  if (!el || typeof IntersectionObserver === 'undefined') return;
+
+  infiniteScrollObserver = new IntersectionObserver((entries) => {
+    const hit = entries.some((entry) => entry.isIntersecting);
+    if (!hit) return;
+    if (!scrollHasMore.value || isLoadingContacts.value || isLoadingMore.value) return;
+    loadContactsPage({ append: true });
+  }, { root: null, rootMargin: '240px 0px', threshold: 0 });
+
+  infiniteScrollObserver.observe(el);
+}
+
 async function loadContactsPage(options = {}) {
   if (!isAuthenticated.value) return;
-  isLoadingContacts.value = true;
+  const append = Boolean(options.append) && isPageSizeAll.value;
+
+  if (append) {
+    if (isLoadingMore.value || !scrollHasMore.value) return;
+    isLoadingMore.value = true;
+  } else {
+    isLoadingContacts.value = true;
+    if (isPageSizeAll.value) {
+      pageContacts.value = [];
+      scrollHasMore.value = false;
+    }
+  }
+
   try {
-    const result = await getContacts(buildFilterParams());
-    pageContacts.value = result.contacts || [];
+    if (isPageSizeAll.value && !append) {
+      await selectAllMatchingIds();
+    }
+
+    const result = await getContacts(buildFilterParams({ append }));
+    const chunk = result.contacts || [];
     totalContacts.value = result.total || 0;
 
-    const limit = PAGE_SIZE_OPTIONS.includes(Number(pageSize.value))
-      ? Number(pageSize.value)
-      : 100;
+    if (isPageSizeAll.value) {
+      if (append) {
+        const seen = new Set(pageContacts.value.map((c) => normalizeContactId(c.id)));
+        const fresh = chunk.filter((c) => !seen.has(normalizeContactId(c.id)));
+        pageContacts.value = pageContacts.value.concat(fresh);
+      } else {
+        pageContacts.value = chunk;
+      }
+      scrollHasMore.value = pageContacts.value.length < totalContacts.value;
+      cacheContacts(chunk);
+      updateSelectAllState();
+      updateSelectAllIndeterminate();
+      await setupInfiniteScroll();
+      return;
+    }
+
+    pageContacts.value = chunk;
+    scrollHasMore.value = false;
+    teardownInfiniteScroll();
+
+    const limit = resolvePageLimit();
     const maxPage = Math.max(1, Math.ceil(totalContacts.value / limit) || 1);
     if (currentPage.value > maxPage && !options.clampRetried) {
       currentPage.value = maxPage;
@@ -1087,14 +1231,26 @@ async function loadContactsPage(options = {}) {
   } catch (error) {
     console.error('[ContactTable] Ошибка загрузки контактов:', error);
     ElMessage.error(t('crm.loadContactsError'));
-    pageContacts.value = [];
-    totalContacts.value = 0;
+    if (!append) {
+      pageContacts.value = [];
+      totalContacts.value = 0;
+    }
   } finally {
     isLoadingContacts.value = false;
+    isLoadingMore.value = false;
   }
 }
 
 function updateSelectAllState() {
+  if (isPageSizeAll.value) {
+    const selectable = pageContacts.value.filter((c) => !String(c.id).startsWith('guest_'));
+    if (!selectable.length) {
+      selectAll.value = selectedCount.value > 0;
+      return;
+    }
+    selectAll.value = selectable.every((c) => isContactSelected(c.id));
+    return;
+  }
   const pageIds = pageContacts.value.map(c => normalizeContactId(c.id));
   if (!pageIds.length) {
     selectAll.value = false;
@@ -1113,7 +1269,7 @@ function onNewMessagesFilterChange() {
 
 function applyFilters(resetPage = true) {
   if (resetPage) currentPage.value = 1;
-  clearSelection();
+  if (!isPageSizeAll.value) clearSelection();
   clearRevealedFields();
   loadContactsPage();
   scheduleSaveFilters();
@@ -1125,6 +1281,7 @@ function onSearchInput() {
 }
 
 function onPageChange(page) {
+  if (isPageSizeAll.value) return;
   if (page === currentPage.value) return;
   currentPage.value = page;
   loadContactsPage();
@@ -1135,6 +1292,9 @@ function onPageSizeChange(size) {
   const nextSize = Number(size);
   pageSize.value = PAGE_SIZE_OPTIONS.includes(nextSize) ? nextSize : 100;
   currentPage.value = 1;
+  if (!isPageSizeAll.value) {
+    teardownInfiniteScroll();
+  }
   loadContactsPage();
   scheduleSaveFilters();
 }
@@ -1163,31 +1323,102 @@ watch(pageContacts, () => {
   updateSelectAllIndeterminate();
 }, { deep: true });
 
-// WebSocket для обновления контактов в реальном времени
+// WebSocket для обновления контактов в реальном времени (+ reconnect после рестарта backend)
 let ws = null;
+let wsReconnectTimer = null;
+let wsReconnectAttempt = 0;
+let wsClosedByUs = false;
+const WS_RECONNECT_BASE_MS = 1000;
+const WS_RECONNECT_MAX_MS = 15000;
+
+function teardownContactsWebSocket() {
+  wsClosedByUs = true;
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    ws.onopen = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    ws = null;
+  }
+}
+
+function scheduleContactsWsReconnect() {
+  if (wsClosedByUs) return;
+  if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+  const delay = Math.min(
+    WS_RECONNECT_BASE_MS * (2 ** wsReconnectAttempt),
+    WS_RECONNECT_MAX_MS
+  );
+  wsReconnectAttempt += 1;
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null;
+    setupContactsWebSocket();
+  }, delay);
+}
 
 function setupContactsWebSocket() {
-  if (ws) {
-    ws.close();
+  if (wsClosedByUs) return;
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
   }
-  
+  if (ws) {
+    ws.onopen = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    ws = null;
+  }
+
   const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
-  
+
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.type === 'contacts-updated') {
-      fetchRoles();
-      loadContactsPage();
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'contacts-updated') {
+        if (suppressContactsWsReload.value) return;
+        fetchRoles();
+        loadContactsPage();
+      }
+    } catch {
+      /* ignore bad payload */
     }
   };
-  
+
   ws.onopen = () => {
-    console.log('[ContactTable] WebSocket подключен для обновления контактов');
+    wsReconnectAttempt = 0;
+    const uid = userId?.value;
+    if (uid) {
+      try {
+        ws.send(JSON.stringify({ type: 'auth', userId: uid }));
+      } catch {
+        /* ignore */
+      }
+    }
   };
-  
-  ws.onerror = (error) => {
-    console.error('[ContactTable] WebSocket ошибка:', error);
+
+  ws.onerror = () => {
+    // переподключение через onclose
+  };
+
+  ws.onclose = () => {
+    ws = null;
+    scheduleContactsWsReconnect();
   };
 }
 
@@ -1207,6 +1438,7 @@ onMounted(async () => {
       console.log('[ContactTable] Ошибка загрузки в onMounted:', error.message);
     }
   }
+  wsClosedByUs = false;
   setupContactsWebSocket();
 });
 
@@ -1219,6 +1451,8 @@ watch(isAuthenticated, async (newValue) => {
       await setupTagsTableWebSocket();
       await loadSavedFilters();
       await loadContactsPage();
+      wsClosedByUs = false;
+      setupContactsWebSocket();
     } catch (error) {
       console.log('[ContactTable] Ошибка загрузки после авторизации:', error.message);
     }
@@ -1228,14 +1462,13 @@ watch(isAuthenticated, async (newValue) => {
     totalContacts.value = 0;
     selectedIds.value = [];
     selectAll.value = false;
+    teardownContactsWebSocket();
   }
 });
 
 onUnmounted(() => {
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
+  teardownInfiniteScroll();
+  teardownContactsWebSocket();
   if (searchDebounceTimer) {
     clearTimeout(searchDebounceTimer);
   }
@@ -1287,9 +1520,9 @@ async function goToContactDetails(contactId) {
   router.push({ name: 'contact-details', params: { id: contactId } });
 }
 
-function onImported() {
-  showImportModal.value = false;
-  applyFilters(true);
+async function goToImportContacts() {
+  await flushSaveFilters();
+  router.push({ name: 'contacts-import' });
 }
 
 async function goToCreateContact() {
@@ -1540,21 +1773,42 @@ async function applyBulkRemoveTags() {
 
 async function deleteSelected() {
   if (!selectedIdsForActions.value.length) return;
+  const ids = [...selectedIdsForActions.value];
   try {
     await ElMessageBox.confirm(
-      t('contacts.confirmDelete', { count: selectedIdsForActions.value.length }),
+      t('contacts.confirmDelete', { count: ids.length }),
       t('contacts.confirmDeleteTitle'),
       { type: 'warning' }
     );
-    for (const id of selectedIdsForActions.value) {
-      await fetch(`/api/users/${id}`, { method: 'DELETE' });
+  } catch {
+    return;
+  }
+
+  let deleted = 0;
+  let failed = 0;
+  suppressContactsWsReload.value = true;
+  try {
+    for (let i = 0; i < ids.length; i += BULK_DELETE_CHUNK) {
+      const chunk = ids.slice(i, i + BULK_DELETE_CHUNK);
+      try {
+        const result = await contactsService.deleteContactsBulk(chunk);
+        deleted += Number(result?.deleted) || 0;
+      } catch {
+        failed += chunk.length;
+      }
     }
-    ElMessage.success(t('contacts.deleted'));
+    if (deleted > 0) {
+      ElMessage.success(t('contacts.deletedCount', { deleted, failed }));
+    } else {
+      ElMessage.error(t('contacts.deleteConfirm.deleteError'));
+    }
     selectedIds.value = [];
     selectAll.value = false;
     await loadContactsPage();
   } catch (e) {
-    // Отмена
+    ElMessage.error(e?.response?.data?.error || e?.message || t('contacts.deleteConfirm.deleteError'));
+  } finally {
+    suppressContactsWsReload.value = false;
   }
 }
 
@@ -1706,7 +1960,25 @@ async function deleteMessagesSelected() {
 }
 
 .contacts-pagination__select {
-  width: 96px;
+  width: 110px;
+}
+
+.contacts-pagination__all-hint {
+  margin: 0;
+  flex: 1 1 220px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: 1.35;
+}
+
+.contacts-scroll-sentinel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 12px;
+  font-size: var(--font-size-sm);
+  color: var(--color-grey);
 }
 
 .contacts-pagination__summary {
@@ -1906,6 +2178,7 @@ async function deleteMessagesSelected() {
 
 .col-name,
 .col-email,
+.col-phone,
 .col-telegram,
 .col-wallet,
 .col-tags,

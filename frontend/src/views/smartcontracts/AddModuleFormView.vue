@@ -68,12 +68,14 @@
                 :key="module.moduleType" 
                 :value="module.moduleType"
               >
-                {{ getModuleDisplayName(module.moduleType) }} - {{ module.moduleDescription }}
+                {{ getModuleDisplayName(module.moduleType) }} — {{ getModuleDisplayDescription(module.moduleType, module.moduleDescription) }}
               </option>
             </select>
             <div v-if="availableModules.length === 0 && !isLoadingModules" class="no-modules-warning">
               <span class="ui-fa-fallback" aria-hidden="true">⚠</span>
-              {{ t('smartcontracts.addModule.noModulesWarning', { count: availableModules.length }) }}
+              {{ formData.votingChain
+                ? t('smartcontracts.addModule.noModulesWarningForChain', { count: availableModules.length, network: getSelectedChainName() || formData.votingChain })
+                : t('smartcontracts.addModule.noModulesWarning', { count: availableModules.length }) }}
               <button type="button" @click="loadAvailableModules" class="btn-reload-modules">
                 <span class="ui-fa-fallback" aria-hidden="true">↻</span>
                 {{ t('common.reload') }}
@@ -121,7 +123,7 @@
             </label>
             <select 
               id="votingChain" 
-              v-model="formData.votingChain" 
+              v-model.number="formData.votingChain" 
               class="form-select"
               required
             >
@@ -196,14 +198,6 @@
               </div>
               <div class="preview-item">
                 <strong>{{ t('smartcontracts.addModule.previewVotingChain') }}</strong> {{ getSelectedChainName() }}
-              </div>
-              <div class="preview-item">
-                <strong>{{ t('smartcontracts.addModule.previewMultichain') }}</strong> {{ t('smartcontracts.addModule.previewNetworksCount', { count: supportedChains.length }) }}
-                <ul class="preview-networks">
-                  <li v-for="chain in supportedChains" :key="chain.chainId">
-                    {{ chain.name }} ({{ chain.chainId }})
-                  </li>
-                </ul>
               </div>
               <div class="preview-item">
                 <strong>{{ t('smartcontracts.addModule.previewDuration') }}</strong> {{ t('common.daysUnit', { count: formData.votingDuration }) }}
@@ -350,13 +344,15 @@
   </template>
 
 <script setup>
-import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
+import { ref, computed, watch, onMounted, defineProps, defineEmits } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { translateIfExists, localeSafeFallback } from '../../utils/helpers.js';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import { getAllModules, getDeploymentId } from '../../services/modulesService.js';
 import { createAddModuleProposal, findBookedModuleId, getCanonicalModuleId } from '../../utils/dle-contract.js';
+import { buildHubQuery } from '@/composables/useVotingChains.js';
 import api from '../../api/axios';
 
 const props = defineProps({
@@ -368,7 +364,7 @@ const props = defineProps({
 
 const emit = defineEmits(['auth-action-completed']);
 
-const { t } = useI18n();
+const { t, locale, messages } = useI18n();
 const router = useRouter();
 const route = useRoute();
 
@@ -380,8 +376,8 @@ const dleAddress = computed(() => route.query.address);
 const selectedDle = ref(null);
 const isLoadingDle = ref(false);
 
-// Доступные модули
-const availableModules = ref([]);
+// Доступные модули: слот смотрим по выбранной сети, не «уже в книге хоть где-то».
+const allModules = ref([]);
 const isLoadingModules = ref(false);
 
 // Адреса модулей
@@ -416,6 +412,21 @@ const successData = ref({
   networks: []
 });
 
+function moduleHasOpenSlot(module, chainId) {
+  const rows = module?.addresses || [];
+  const cid = Number(chainId);
+  if (Number.isFinite(cid) && cid > 0) {
+    const row = rows.find((a) => Number(a.chainId) === cid);
+    if (!row || !row.address) return false;
+    return row.inBook !== true;
+  }
+  return rows.some((a) => a.address && a.inBook !== true);
+}
+
+const availableModules = computed(() =>
+  (allModules.value || []).filter((module) => moduleHasOpenSlot(module, formData.value.votingChain))
+);
+
 // Вычисляемые свойства
 const selectedModuleAddresses = computed(() => {
   if (!formData.value.moduleType) return [];
@@ -435,11 +446,10 @@ const isFormValid = computed(() => {
 
 // Функции
 const goBackToProposals = () => {
-  if (dleAddress.value) {
-    router.push(`/management/create-proposal?address=${dleAddress.value}`);
-  } else {
-    router.push('/management/create-proposal');
-  }
+  router.push({
+    path: '/management/create-proposal',
+    query: buildHubQuery(dleAddress.value, formData.value.votingChain),
+  });
 };
 
 const loadDleData = async () => {
@@ -484,7 +494,7 @@ const loadAvailableModules = async () => {
       }
       
       const modules = (response.data.modules || [])
-        .filter((module) => module.inBook === false)
+        .filter((module) => (module.addresses || []).some((a) => a && a.address))
         .map((module) => ({
           moduleType: module.moduleType,
           moduleName: module.moduleName,
@@ -492,14 +502,14 @@ const loadAvailableModules = async () => {
           addresses: module.addresses || [],
         }));
 
-      availableModules.value = modules;
+      allModules.value = modules;
     } else {
       console.error('Modules load error:', response.error);
-      availableModules.value = [];
+      allModules.value = [];
     }
   } catch (error) {
     console.error('Modules load error:', error);
-    availableModules.value = [];
+    allModules.value = [];
   } finally {
     isLoadingModules.value = false;
   }
@@ -510,14 +520,14 @@ const onModuleTypeChange = () => {
   const selectedModule = availableModules.value.find(m => m.moduleType === formData.value.moduleType);
   if (selectedModule) {
     formData.value.description = t('smartcontracts.addModule.autoDescription', {
-      moduleName: selectedModule.moduleName
+      moduleName: getModuleDisplayName(selectedModule.moduleType)
     });
   }
 };
 
 const getSelectedModuleName = () => {
   const selectedModule = availableModules.value.find(m => m.moduleType === formData.value.moduleType);
-  return selectedModule ? selectedModule.moduleName : '';
+  return selectedModule ? getModuleDisplayName(selectedModule.moduleType) : '';
 };
 
 const getSelectedChainName = () => {
@@ -526,19 +536,45 @@ const getSelectedChainName = () => {
 };
 
 const moduleNameKeys = {
+  treasury: 'treasury',
   TREASURY: 'treasury',
+  timelock: 'timelock',
   TIMELOCK: 'timelock',
+  reader: 'reader',
   READER: 'reader',
+  hierarchicalVoting: 'hierarchicalVoting',
   HIERARCHICALVOTING: 'hierarchicalVoting'
 };
 
-const getModuleDisplayName = (moduleName) => {
-  const key = moduleNameKeys[moduleName] || moduleName;
-  const translated = t(`smartcontracts.addModule.moduleNames.${key}`);
-  if (translated && translated !== `smartcontracts.addModule.moduleNames.${key}`) {
-    return translated;
-  }
-  return moduleName;
+function moduleLocaleKey(moduleType) {
+  if (moduleNameKeys[moduleType]) return moduleNameKeys[moduleType];
+  const compact = String(moduleType || '').replace(/[-_\s]/g, '').toLowerCase();
+  if (compact === 'hierarchicalvoting') return 'hierarchicalVoting';
+  return compact || String(moduleType || '');
+}
+
+const getModuleDisplayName = (moduleType) => {
+  const key = moduleLocaleKey(moduleType);
+  const path = `smartcontracts.addModule.moduleNames.${key}`;
+  return translateIfExists(
+    t,
+    path,
+    undefined,
+    moduleType || '',
+    messages.value?.[locale.value] || messages.value?.en
+  );
+};
+
+const getModuleDisplayDescription = (moduleType, fallback = '') => {
+  const key = moduleLocaleKey(moduleType);
+  const path = `smartcontracts.addModule.moduleDescriptions.${key}`;
+  return translateIfExists(
+    t,
+    path,
+    undefined,
+    localeSafeFallback(locale.value, fallback),
+    messages.value?.[locale.value] || messages.value?.en
+  );
 };
 
 const formatUnknownValue = (value) => {
@@ -605,7 +641,9 @@ const submitForm = async () => {
 
   isSubmitting.value = true;
   try {
-    const primaryAddress = selectedModuleAddresses.value.find(addr => addr.chainId === formData.value.votingChain);
+    const primaryAddress = selectedModuleAddresses.value.find(
+      (addr) => Number(addr.chainId) === Number(formData.value.votingChain)
+    );
     
     if (!primaryAddress) {
       throw new Error(t('smartcontracts.addModule.errors.noModuleAddress'));
@@ -618,7 +656,11 @@ const submitForm = async () => {
       }
     }
     
-    const bookedId = await findBookedModuleId(dleAddress.value, formData.value.moduleType);
+    const bookedId = await findBookedModuleId(
+      dleAddress.value,
+      formData.value.moduleType,
+      formData.value.votingChain
+    );
     if (bookedId) {
       throw new Error(t('smartcontracts.addModule.errors.alreadyInBook'));
     }
@@ -667,12 +709,28 @@ const submitForm = async () => {
   }
 };
 
+watch(
+  () => formData.value.votingChain,
+  () => {
+    if (
+      formData.value.moduleType &&
+      !availableModules.value.some((m) => m.moduleType === formData.value.moduleType)
+    ) {
+      formData.value.moduleType = '';
+    }
+  }
+);
+
 onMounted(async () => {
   if (!dleAddress.value) return;
   await Promise.all([
     loadDleData(),
     loadAvailableModules()
   ]);
+  const q = Number(route.query.votingChain || route.query.chainId);
+  if (Number.isFinite(q) && q > 0 && supportedChains.value.some((c) => Number(c.chainId) === q)) {
+    formData.value.votingChain = q;
+  }
 });
 </script>
 

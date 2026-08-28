@@ -43,7 +43,10 @@ function generateDLEConstructorArgs(params, chainId = null) {
       return code.toString();
     }),
     kpp: params.kpp ? BigInt(String(params.kpp)) : 0n,
-    quorumPercentage: params.quorumPercentage ? BigInt(String(params.quorumPercentage)) : 50n,
+    quorumPercentage: (() => {
+      const q = params.quorumPercentage ?? params.quorum_percentage;
+      return (q !== undefined && q !== null && String(q) !== '') ? BigInt(String(q)) : 50n;
+    })(),
     initialPartners: params.initialPartners || params.initial_partners || [],
     // Умножаем initialAmounts на 1e18 для конвертации в wei
     initialAmounts: (params.initialAmounts || params.initial_amounts || []).map(amount => BigInt(String(amount)) * BigInt(1e18)),

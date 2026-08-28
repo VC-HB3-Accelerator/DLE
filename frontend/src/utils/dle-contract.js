@@ -20,19 +20,59 @@ const t = (key, params) => i18n.global.t(key, params);
 
 const ERR_PROPOSAL_EXECUTED = '0x2d686f73';
 
+const PROPOSAL_REVERT_I18N = {
+  '0xe7005635': 'smartcontracts.proposals.composableErrors.voteErrAlreadyVoted',
+  '0x21c19873': 'smartcontracts.proposals.composableErrors.voteErrNoPower',
+  '0x834d7b85': 'smartcontracts.proposals.composableErrors.voteErrProposalMissing',
+  '0xd6792fad': 'smartcontracts.proposals.composableErrors.voteErrProposalEnded',
+  '0x2d686f73': 'smartcontracts.proposals.composableErrors.voteErrProposalExecuted',
+  '0xc7567e07': 'smartcontracts.proposals.composableErrors.voteErrProposalCanceled',
+  '0x2eaf0f6d': 'smartcontracts.proposals.composableErrors.voteErrWrongChain',
+  '0x165a8e03': 'smartcontracts.proposals.composableErrors.voteErrUnsupportedChain',
+  '0x3eb107b3': 'smartcontracts.proposals.composableErrors.executeErrAlreadyExecutedInChain',
+  '0x4e395b85': 'smartcontracts.proposals.composableErrors.executeErrNotReady',
+  '0x64831a1b': 'smartcontracts.proposals.composableErrors.executeErrBadTarget',
+  '0x9c3d2799': 'smartcontracts.proposals.composableErrors.executeErrInvalidOperation',
+};
+
+const HAS_VOTED_ABI = ['function hasVoted(uint256 proposalId, address voter) view returns (bool)'];
+
 function extractRevertSelector(error) {
-  const raw = error?.data || error?.info?.error?.data || error?.error?.data;
-  if (typeof raw === 'string' && raw.startsWith('0x') && raw.length >= 10) {
-    return raw.slice(0, 10).toLowerCase();
+  const candidates = [
+    error?.data,
+    error?.info?.error?.data,
+    error?.error?.data,
+    error?.revert?.data,
+  ];
+  for (const raw of candidates) {
+    let hex = raw;
+    if (raw && typeof raw === 'object' && typeof raw.data === 'string') hex = raw.data;
+    if (typeof hex === 'string' && hex.startsWith('0x') && hex.length >= 10) {
+      return hex.slice(0, 10).toLowerCase();
+    }
   }
   return '';
+}
+
+export function messageForProposalRevert(error) {
+  const sel = extractRevertSelector(error);
+  const key = PROPOSAL_REVERT_I18N[sel];
+  return key ? t(key) : null;
+}
+
+export function messageForVoteRevert(error) {
+  return messageForProposalRevert(error);
 }
 
 /**
  * Есть ли модуль уже в слоте книги (канонический или legacy ID).
  */
-export async function findBookedModuleId(dleAddress, moduleType) {
+export async function findBookedModuleId(dleAddress, moduleType, chainId) {
   if (!window.ethereum || !moduleType) return null;
+  if (chainId) {
+    const switched = await switchToVotingNetwork(chainId);
+    if (!switched) return null;
+  }
   const provider = new ethers.BrowserProvider(window.ethereum);
   const dle = new ethers.Contract(
     dleAddress,
@@ -54,6 +94,75 @@ export async function findBookedModuleId(dleAddress, moduleType) {
   return null;
 }
 
+const MODULE_BRIDGE_VIEW_ABI = [
+  'function getModuleAddress(bytes32) view returns (address)',
+  'function initializer() view returns (address)',
+];
+const HV_BRIDGE_ABI = [
+  'function moduleBridge() view returns (address)',
+  'function setModuleBridge(address bridge)',
+];
+
+/**
+ * Адрес модуля в слоте книги (текущая сеть кошелька).
+ */
+export async function getBookedModuleAddress(dleAddress, moduleType, chainId) {
+  const moduleId = await findBookedModuleId(dleAddress, moduleType, chainId);
+  if (!moduleId || !window.ethereum) return null;
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const dle = new ethers.Contract(dleAddress, MODULE_BRIDGE_VIEW_ABI, provider);
+  const addr = await dle.getModuleAddress(moduleId);
+  if (!addr || addr === ethers.ZeroAddress) return null;
+  return addr;
+}
+
+export async function readHvModuleBridge(hvAddress) {
+  if (!window.ethereum || !hvAddress) return ethers.ZeroAddress;
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const hv = new ethers.Contract(hvAddress, HV_BRIDGE_ABI, provider);
+  return await hv.moduleBridge();
+}
+
+/**
+ * Первая привязка HV.opsBridge. Не предложение: книга не вызывает setModuleBridge
+ * через _callModuleBridge, пока moduleBridge() == 0. Только initializer или DLE.
+ */
+export async function attachHvBridgeByInitializer(bookAddress, hvAddress, bridgeAddress) {
+  if (!window.ethereum) {
+    throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
+  }
+  if (!ethers.isAddress(hvAddress) || !ethers.isAddress(bridgeAddress)) {
+    throw new Error(t('smartcontracts.moduleBridgeOp.invalidAddress'));
+  }
+  if (bridgeAddress === ethers.ZeroAddress) {
+    throw new Error(t('smartcontracts.moduleBridgeOp.zeroAddress'));
+  }
+
+  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const wallet = await signer.getAddress();
+  const dle = new ethers.Contract(bookAddress, MODULE_BRIDGE_VIEW_ABI, provider);
+  const initializer = await dle.initializer();
+  if (wallet.toLowerCase() !== String(initializer).toLowerCase()) {
+    throw new Error(t('smartcontracts.moduleBridgeOp.notInitializer', {
+      initializer,
+      wallet,
+    }));
+  }
+
+  const hvRead = new ethers.Contract(hvAddress, HV_BRIDGE_ABI, provider);
+  const current = await hvRead.moduleBridge();
+  if (current && current !== ethers.ZeroAddress) {
+    throw new Error(t('smartcontracts.moduleBridgeOp.alreadyWired', { bridge: current }));
+  }
+
+  const hv = new ethers.Contract(hvAddress, HV_BRIDGE_ABI, signer);
+  const tx = await hv.setModuleBridge(bridgeAddress);
+  const receipt = await tx.wait();
+  return { txHash: tx.hash, blockNumber: receipt.blockNumber };
+}
+
 export { getCanonicalModuleId };
 
 // Функция для переключения сети кошелька
@@ -65,6 +174,13 @@ export async function switchToVotingNetwork(chainId) {
     
     // Конфигурации сетей
     const networks = {
+      '1': {
+        chainId: '0x1',
+        chainName: 'Ethereum Mainnet',
+        nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+        rpcUrls: ['https://ethereum.publicnode.com'],
+        blockExplorerUrls: ['https://etherscan.io']
+      },
       '11155111': { // Sepolia
         chainId: '0xaa36a7',
         chainName: 'Sepolia',
@@ -276,17 +392,117 @@ export async function createProposal(dleAddress, proposalData) {
 }
 
 /**
+ * Минимальный ABI только для чтения делегации (DLE_ABI без view ломает eth_call).
+ */
+const DELEGATION_READ_ABI = [
+  'function balanceOf(address account) view returns (uint256)',
+  'function delegates(address account) view returns (address)',
+];
+
+const DELEGATE_WRITE_ABI = [
+  'function delegate(address delegatee)',
+];
+
+async function resolveConnectedWalletAddress(preferredAddress) {
+  if (preferredAddress) return preferredAddress;
+  if (!window.ethereum) return null;
+  const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+  return accounts?.[0] || null;
+}
+
+/**
+ * Проверить, нужна ли самоделегация голосов (ERC20Votes).
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {string} userAddress - Адрес кошелька
+ * @returns {Promise<{ needsDelegation: boolean, balance: bigint, delegate: string }>}
+ */
+export async function getDelegationStatus(dleAddress, userAddress) {
+  const empty = { needsDelegation: false, balance: 0n, delegate: ethers.ZeroAddress };
+  const wallet = await resolveConnectedWalletAddress(userAddress);
+  if (!window.ethereum || !dleAddress || !wallet) {
+    return empty;
+  }
+
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const dle = new ethers.Contract(dleAddress, DELEGATION_READ_ABI, provider);
+  const balance = await dle.balanceOf.staticCall(wallet);
+  const delegate = await dle.delegates.staticCall(wallet);
+  const self = ethers.getAddress(wallet);
+  const needsDelegation = balance > 0n && ethers.getAddress(delegate) !== self;
+
+  return { needsDelegation, balance, delegate };
+}
+
+/**
+ * Делегировать голоса себе (обязательно для getPastVotes / голосования).
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {number|string} [chainId] - Сеть DLE (переключит кошелёк при необходимости)
+ * @returns {Promise<{ txHash: string, blockNumber: number }>}
+ */
+export async function delegateVotingPowerToSelf(dleAddress, chainId) {
+  if (!window.ethereum) {
+    throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
+  }
+
+  if (chainId) {
+    await switchToVotingNetwork(chainId);
+  }
+
+  let accounts = await window.ethereum.request({ method: 'eth_accounts' });
+  if (!accounts || accounts.length === 0) {
+    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  }
+
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const self = await signer.getAddress();
+  const dle = new ethers.Contract(dleAddress, DELEGATE_WRITE_ABI, signer);
+
+  const status = await getDelegationStatus(dleAddress, self);
+  if (!status.needsDelegation) {
+    return { txHash: null, blockNumber: null, alreadyDelegated: true };
+  }
+
+  const tx = await dle.delegate(self);
+  const receipt = await tx.wait();
+
+  return {
+    txHash: tx.hash,
+    blockNumber: receipt.blockNumber,
+    alreadyDelegated: false
+  };
+}
+
+/**
  * Голосовать за предложение через браузерный кошелек
  * @param {string} dleAddress - Адрес DLE контракта
  * @param {number} proposalId - ID предложения
  * @param {boolean} support - Поддержка предложения
  * @returns {Promise<Object>} - Результат голосования
  */
-export async function voteForProposal(dleAddress, proposalId, support) {
+export async function voteForProposal(dleAddress, proposalId, support, chainId) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
       throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
+    }
+
+    if (chainId) {
+      const switched = await switchToVotingNetwork(chainId);
+      if (!switched) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.networkSwitchFailed', {
+          networkName: String(chainId),
+          chainId,
+        }));
+      }
+      const hexAfter = await window.ethereum.request({ method: 'eth_chainId' });
+      const actualChainId = parseInt(hexAfter, 16);
+      if (actualChainId !== Number(chainId)) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.wrongNetwork', {
+          currentChainId: actualChainId,
+          requiredChainId: Number(chainId),
+        }));
+      }
     }
 
     let accounts = await window.ethereum.request({ method: 'eth_accounts' });
@@ -295,6 +511,21 @@ export async function voteForProposal(dleAddress, proposalId, support) {
     }
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
+    const voter = await signer.getAddress();
+
+    const votedReader = new ethers.Contract(dleAddress, HAS_VOTED_ABI, provider);
+    try {
+      const alreadyVoted = await votedReader.hasVoted.staticCall(proposalId, voter);
+      if (alreadyVoted) {
+        throw new Error(t('smartcontracts.proposals.composableErrors.voteErrAlreadyVoted'));
+      }
+    } catch (precheckError) {
+      if (String(precheckError?.message || '').includes(
+        t('smartcontracts.proposals.composableErrors.voteErrAlreadyVoted')
+      )) {
+        throw precheckError;
+      }
+    }
 
     // Используем общий ABI
     let dle = new ethers.Contract(dleAddress, DLE_ABI, signer);
@@ -324,10 +555,21 @@ export async function voteForProposal(dleAddress, proposalId, support) {
           console.log('🔍 [VOTE DEBUG] У пользователя есть право голоса');
         }
       } catch (votingPowerError) {
+        if (String(votingPowerError?.message || '').includes(t('dleContract.errors.noVotingPower'))
+          || /votingPower = 0|ErrNoPower|нет права голоса/i.test(String(votingPowerError?.message || ''))) {
+          throw votingPowerError;
+        }
         console.warn('⚠️ [VOTE DEBUG] Не удалось проверить право голоса (продолжаем):', votingPowerError.message);
       }
       
     } catch (debugError) {
+      const msg = String(debugError?.message || '');
+      if (
+        msg.includes(t('dleContract.errors.noVotingPower'))
+        || /votingPower = 0|ErrNoPower|нет права голоса|состоянии/i.test(msg)
+      ) {
+        throw debugError;
+      }
       console.warn('⚠️ [VOTE DEBUG] Ошибка диагностики (продолжаем):', debugError.message);
     }
 
@@ -346,36 +588,12 @@ export async function voteForProposal(dleAddress, proposalId, support) {
 
     } catch (error) {
       console.error('Ошибка голосования:', error);
-      
-      // Детальная диагностика ошибки
-      if (error.code === 'CALL_EXCEPTION' && error.data) {
-        console.error('🔍 [ERROR DEBUG] Детали ошибки:', {
-          code: error.code,
-          data: error.data,
-          reason: error.reason,
-          action: error.action
-        });
-        
-        // Расшифровка кода ошибки
-        if (error.data === '0x2eaf0f6d') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrWrongChain - неправильная сеть для голосования');
-        } else if (error.data === '0xe7005635') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrAlreadyVoted - пользователь уже голосовал по этому предложению');
-        } else if (error.data === '0x21c19873') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrNoPower - у пользователя нет права голоса');
-        } else if (error.data === '0x834d7b85') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrProposalMissing - предложение не найдено');
-        } else if (error.data === '0xd6792fad') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrProposalEnded - время голосования истекло');
-        } else if (error.data === '0x2d686f73') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrProposalExecuted - предложение уже исполнено');
-        } else if (error.data === '0xc7567e07') {
-          console.error('❌ [ERROR DEBUG] Ошибка: ErrProposalCanceled - предложение отменено');
-        } else {
-          console.error('❌ [ERROR DEBUG] Неизвестная ошибка:', error.data);
-        }
+      const mapped = messageForVoteRevert(error);
+      if (mapped) {
+        const wrapped = new Error(mapped);
+        wrapped.revertSelector = extractRevertSelector(error);
+        throw wrapped;
       }
-      
       throw error;
     }
 }
@@ -402,6 +620,14 @@ export async function executeProposal(dleAddress, proposalId) {
 
     const dle = new ethers.Contract(dleAddress, DLE_ABI, signer);
 
+    try {
+      await dle.executeProposal.staticCall(proposalId);
+    } catch (precheckError) {
+      const mapped = messageForProposalRevert(precheckError);
+      if (mapped) throw new Error(mapped);
+      throw precheckError;
+    }
+
     // Исполняем предложение
     const tx = await dle.executeProposal(proposalId);
 
@@ -417,6 +643,8 @@ export async function executeProposal(dleAddress, proposalId) {
 
   } catch (error) {
     console.error('Ошибка исполнения предложения:', error);
+    const mapped = messageForProposalRevert(error);
+    if (mapped) throw new Error(mapped);
     throw error;
   }
 }
@@ -1153,6 +1381,160 @@ export async function createTransferTokensProposal(dleAddress, transferData) {
     console.error('Ошибка создания предложения о переводе токенов:', error);
     throw error;
   }
+}
+
+const MODULE_BRIDGE_OPS = {
+  treasury: {
+    setHierarchicalVotingModule: 'function setHierarchicalVotingModule(address module)',
+    setFundsBridge: 'function setFundsBridge(address bridge)',
+    transferFunds: 'function transferFunds(address tokenAddress, address recipient, uint256 amount, bytes32 proposalId)',
+    transferERC721: 'function transferERC721(address nftContract, address recipient, uint256 tokenId, bytes32 proposalId)',
+    transferERC1155: 'function transferERC1155(address nftContract, address recipient, uint256 tokenId, uint256 amount, bytes32 proposalId)',
+    addToken: 'function addToken(address tokenAddress, string symbol, uint8 decimals)',
+    removeToken: 'function removeToken(address tokenAddress)',
+    setTokenStatus: 'function setTokenStatus(address tokenAddress, bool isActive)',
+  },
+  hierarchicalVoting: {
+    setTreasuryModule: 'function setTreasuryModule(address _treasuryModule)',
+    setModuleBridge: 'function setModuleBridge(address bridge)',
+    addExternalDLE: 'function addExternalDLE(address dleAddress, string name, string symbol)',
+    removeExternalDLE: 'function removeExternalDLE(address dleAddress)',
+    updateExternalDLEBalance: 'function updateExternalDLEBalance(address dleAddress)',
+    updateAllExternalDLEBalances: 'function updateAllExternalDLEBalances()',
+  },
+};
+
+/**
+ * Предложение: DLE._callModuleBridge(moduleId, innerCall) → мост модуля.
+ */
+export function encodeCallModuleBridgeOperation(moduleType, functionName, moduleId, argAddress) {
+  return encodeModuleBridgeOperation(moduleType, functionName, moduleId, {
+    targetAddress: argAddress,
+    address: argAddress,
+  });
+}
+
+/**
+ * Encode DLE._callModuleBridge for any MODULE_BRIDGE_OPS entry.
+ * @param {string} moduleType
+ * @param {string} functionName
+ * @param {string} moduleId bytes32
+ * @param {object} args
+ */
+export function encodeModuleBridgeOperation(moduleType, functionName, moduleId, args = {}) {
+  const signature = MODULE_BRIDGE_OPS[moduleType]?.[functionName];
+  if (!signature) {
+    throw new Error(t('smartcontracts.moduleBridgeOp.unsupportedOp'));
+  }
+  const inner = new ethers.Interface([signature]);
+  const fn = signature.match(/function\s+(\w+)/)[1];
+  let innerData;
+  if (
+    functionName === 'setHierarchicalVotingModule'
+    || functionName === 'setTreasuryModule'
+    || functionName === 'setFundsBridge'
+    || functionName === 'setModuleBridge'
+    || functionName === 'removeExternalDLE'
+    || functionName === 'updateExternalDLEBalance'
+  ) {
+    const addr = args.targetAddress || args.address || args.bridge || args._treasuryModule || args.module;
+    innerData = inner.encodeFunctionData(fn, [addr]);
+  } else if (functionName === 'addExternalDLE') {
+    innerData = inner.encodeFunctionData(fn, [
+      args.dleAddress || args.targetAddress,
+      String(args.name || ''),
+      String(args.symbol || ''),
+    ]);
+  } else if (functionName === 'updateAllExternalDLEBalances') {
+    innerData = inner.encodeFunctionData(fn, []);
+  } else {
+    throw new Error(t('smartcontracts.moduleBridgeOp.unsupportedOp'));
+  }
+  const dleIface = new ethers.Interface(['function _callModuleBridge(bytes32,bytes)']);
+  return dleIface.encodeFunctionData('_callModuleBridge', [moduleId, innerData]);
+}
+
+export function isModuleBridgeAddressOp(moduleType, functionName) {
+  return functionName === 'setHierarchicalVotingModule'
+    || functionName === 'setTreasuryModule'
+    || functionName === 'setFundsBridge'
+    || functionName === 'setModuleBridge'
+    || functionName === 'removeExternalDLE'
+    || functionName === 'updateExternalDLEBalance';
+}
+
+/** Любая ops HV/treasury через module bridge (кроме treasury funds-формы). */
+export function isModuleBridgeOp(moduleType, functionName) {
+  if (!MODULE_BRIDGE_OPS[moduleType]?.[functionName]) return false;
+  if (moduleType === 'treasury' && isTreasuryFundsBridgeOp(moduleType, functionName)) return false;
+  return true;
+}
+
+export function isTreasuryFundsBridgeOp(moduleType, functionName) {
+  return moduleType === 'treasury'
+    && (
+      functionName === 'transferFunds'
+      || functionName === 'addToken'
+      || functionName === 'removeToken'
+      || functionName === 'setTokenStatus'
+      || functionName === 'transferERC721'
+      || functionName === 'transferERC1155'
+    );
+}
+
+/**
+ * Encode DLE._callModuleBridge for treasury bridge ops (funds / NFT / addToken).
+ * @param {string} functionName
+ * @param {string} moduleId bytes32
+ * @param {object} args
+ */
+export function encodeTreasuryBridgeOperation(functionName, moduleId, args) {
+  const signature = MODULE_BRIDGE_OPS.treasury?.[functionName];
+  if (!signature) {
+    throw new Error(t('smartcontracts.moduleBridgeOp.unsupportedOp'));
+  }
+  const inner = new ethers.Interface([signature]);
+  let innerData;
+  if (functionName === 'transferFunds') {
+    innerData = inner.encodeFunctionData('transferFunds', [
+      args.tokenAddress,
+      args.recipient,
+      args.amountUnits,
+      args.proposalIdBytes32,
+    ]);
+  } else if (functionName === 'transferERC721') {
+    innerData = inner.encodeFunctionData('transferERC721', [
+      args.tokenAddress || args.nftContract,
+      args.recipient,
+      args.tokenId,
+      args.proposalIdBytes32,
+    ]);
+  } else if (functionName === 'transferERC1155') {
+    innerData = inner.encodeFunctionData('transferERC1155', [
+      args.tokenAddress || args.nftContract,
+      args.recipient,
+      args.tokenId,
+      args.amountUnits,
+      args.proposalIdBytes32,
+    ]);
+  } else if (functionName === 'addToken') {
+    innerData = inner.encodeFunctionData('addToken', [
+      args.tokenAddress,
+      args.symbol,
+      Number(args.decimals),
+    ]);
+  } else if (functionName === 'removeToken') {
+    innerData = inner.encodeFunctionData('removeToken', [args.tokenAddress]);
+  } else if (functionName === 'setTokenStatus') {
+    innerData = inner.encodeFunctionData('setTokenStatus', [
+      args.tokenAddress,
+      Boolean(args.isActive),
+    ]);
+  } else {
+    throw new Error(t('smartcontracts.moduleBridgeOp.unsupportedOp'));
+  }
+  const dleIface = new ethers.Interface(['function _callModuleBridge(bytes32,bytes)']);
+  return dleIface.encodeFunctionData('_callModuleBridge', [moduleId, innerData]);
 }
 
 /**

@@ -88,15 +88,9 @@ a:hover {
   text-decoration: underline;
 }
 
-/* TZ_ADMIN_UI_SHELL_CLOSE: родитель для absolute PageCloseButton */
+/* TZ_ADMIN_UI_SHELL_CLOSE: legacy-класс; крестик в Header */
 .page-with-close {
   position: relative;
-}
-
-/* Reserved top zone for × when not using AdminPageShell */
-.page-with-close:not(.admin-page-shell):has(> .page-close-btn) {
-  padding-top: 2.75rem;
-  box-sizing: border-box;
 }
 
 /*

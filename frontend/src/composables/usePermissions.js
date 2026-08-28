@@ -12,12 +12,12 @@
 
 import { computed } from 'vue';
 import { useAuthContext } from './useAuth';
-import { PERMISSIONS, ROLES, hasPermission as checkPermission, getRoleDescription } from './permissions.js';
+import { PERMISSIONS, ROLES, getRoleDescription } from './permissions.js';
+import { hasActionAccess } from './useActionAccess.js';
 
 /**
  * Composable для работы с правами доступа
- * Использует единую матрицу прав из shared/permissions.js
- * @returns {Object} - Объект с функциями для проверки прав доступа
+ * Матрица действий из БД (вкладка «Действия»), иначе дефолты роли.
  */
 export function usePermissions() {
   const { userAccessLevel, isAuthenticated } = useAuthContext();
@@ -52,7 +52,7 @@ export function usePermissions() {
    * @returns {boolean}
    */
   const hasPermission = (permission) => {
-    return checkPermission(currentRole.value, permission);
+    return hasActionAccess(permission);
   };
 
   // ========================================================================
@@ -80,7 +80,14 @@ export function usePermissions() {
   const canManageTags = computed(() => hasPermission(PERMISSIONS.MANAGE_TAGS));
   const canBlockUsers = computed(() => hasPermission(PERMISSIONS.BLOCK_USERS));
   const canManageSettings = computed(() => hasPermission(PERMISSIONS.MANAGE_SETTINGS));
-  const canGovern = computed(() => hasPermission(PERMISSIONS.GOVERNANCE_PROPOSAL));
+  const canGovern = computed(() => {
+    if (hasPermission(PERMISSIONS.GOVERNANCE_PROPOSAL)) return true;
+    const level = userAccessLevel.value?.level;
+    return Boolean(
+      userAccessLevel.value?.hasAccess
+      && (level === ROLES.READONLY || level === ROLES.EDITOR)
+    );
+  });
 
   const isEditor = computed(() => currentRole.value === ROLES.EDITOR);
   
