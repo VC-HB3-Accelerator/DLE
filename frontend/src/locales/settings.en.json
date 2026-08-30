@@ -11,7 +11,8 @@
     },
     "blockchain": {
       "title": "Blockchain",
-      "description": "Blockchain network integration, RPC, tokens, and smart contracts"
+      "description": "Blockchain network integration, RPC, tokens, and smart contracts",
+      "adminOnly": "Only administrators can deploy a DLE."
     },
     "security": {
       "title": "Security",
@@ -897,7 +898,7 @@
       },
       "chatSection": "Chat: message types",
       "screensSection": "Pages and blocks: visibility",
-      "screensLead": "Checked — the page or block is visible to this role. Unchecked — hidden in the menu and blocked by link. Action permissions in the system are set separately.",
+      "screensLead": "Checked — the page or block is visible to this role. Unchecked — hidden in the menu and blocked by link. Action permissions in the system are set separately. `/crm` and `/settings` open `/management`. `/settings/interface` opens `/vds` (the Server card). Hub cards there use their own paths.",
       "aiChatCapsHint": "Values from the Messages tab (read-only here). Change them there.",
       "screenCol": "Page or block",
       "send_text": "Send text messages",
@@ -911,11 +912,11 @@
       "groups": {
         "nav": "Main menu",
         "management": "Management — blocks",
-        "crm_hub": "Workspace — hub cards",
+        "crm_hub": "Management — section cards",
         "contacts": "Contacts, broadcast, conferences",
         "content": "Content",
         "tables": "Tables",
-        "settings_hub": "Settings — sections",
+        "settings_hub": "Management — settings cards",
         "settings_security": "Settings — security",
         "settings_sidebar": "Settings — sidebar",
         "settings_ai": "Settings — assistant",
@@ -927,8 +928,7 @@
         "/": "Chat",
         "/blog": "Feed",
         "/blog/feed-settings": "Feed settings",
-        "/management": "Management",
-        "/crm": "Workspace",
+        "/management": "Management (DLE and cards)",
         "/store": "Storefront",
         "/management/dle": "Entity card",
         "/management/dle-blocks": "Management blocks grid",
@@ -948,7 +948,6 @@
         "/content": "Content hub",
         "/vds": "Server",
         "/tables": "Tables list",
-        "/settings": "Settings hub",
         "/groups": "Groups",
         "/crm/store": "Store admin",
         "/contacts-list/parser": "Site parser",
@@ -997,7 +996,6 @@
         "/settings/security": "Security hub",
         "/settings/sidebar": "Sidebar hub",
         "/settings/dle-v2-deploy": "Network deploy",
-        "/settings/interface": "Server hub",
         "/settings/updates": "Updates",
         "/settings/security/rpc": "Networks and nodes",
         "/settings/security/auth": "Login tokens",

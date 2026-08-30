@@ -61,7 +61,14 @@ router.post('/read-dle-info', async (req, res) => {
     // Получаем список сетей из базы данных для данного DLE
     const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     if (targetChainId) {
-      rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
+      try {
+        rpcUrl = await rpcProviderService.getVerifiedRpcUrlByChainId(Number(targetChainId));
+      } catch (e) {
+        if (e.code === 'RPC_CHAIN_MISMATCH') {
+          return res.status(400).json({ success: false, error: e.message });
+        }
+        throw e;
+      }
       if (!rpcUrl) {
         return res.status(500).json({ success: false, error: `RPC URL для сети ${targetChainId} не найден` });
       }

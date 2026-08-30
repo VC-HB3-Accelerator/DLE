@@ -14,9 +14,23 @@
       <PageCloseButton :fallback="{ name: 'storefront' }" />
 
       <header class="product-page__top">
-        <router-link class="btn btn-secondary" :to="{ name: 'store-cart' }">
-          {{ t('store.storefront.cart') }}
+        <router-link
+          class="product-page__icon-btn"
+          :to="cartTo"
+          :title="t('store.storefront.cart')"
+          :aria-label="t('store.storefront.cart')"
+        >
+          <el-icon :size="18"><ShoppingCart /></el-icon>
           <span v-if="cartCount" class="product-page__badge">{{ cartCount }}</span>
+        </router-link>
+        <router-link
+          v-if="ordersTo"
+          class="product-page__icon-btn"
+          :to="ordersTo"
+          :title="t('store.cabinet.title')"
+          :aria-label="t('store.cabinet.title')"
+        >
+          <el-icon :size="18"><User /></el-icon>
         </router-link>
       </header>
 
@@ -40,7 +54,7 @@
           </div>
         </div>
 
-        <div class="product-page__info">
+        <div id="store-description" class="product-page__info">
           <p class="product-page__kind">{{ kindLabel }}</p>
           <h1>{{ product.title }}</h1>
           <p v-if="product.summary" class="product-page__summary">{{ product.summary }}</p>
@@ -48,6 +62,7 @@
             {{ formatStoreAmount(product.price_units, product.pay_token_decimals) }}
             {{ product.pay_token_symbol }}
           </p>
+          <StoreRating :rating-avg="product.rating_avg" :review-count="product.review_count" />
           <p
             v-if="product.receipt_enabled || product.license_token_address"
             class="product-page__hint"
@@ -101,24 +116,35 @@
             </button>
           </div>
         </div>
+        <StoreReviewList
+          class="product-page__reviews"
+          :product-id="String(product.id)"
+          :can-reply="canViewCrm"
+        />
       </article>
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import StoreRating from '@/components/store/StoreRating.vue';
+import StoreReviewList from '@/components/store/StoreReviewList.vue';
 import { useAuthContext } from '../../composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
+import { ShoppingCart, User } from '@element-plus/icons-vue';
 import {
   addToStoreCart,
   createStoreCheckout,
   fetchStoreCatalogProduct,
   onStoreCartChange,
   storeCartCount,
+  storeCartRoute,
+  storeOrdersRoute,
 } from '../../services/storeService';
 import { formatStoreAmount } from '../../utils/storePayTransfer';
 
@@ -133,7 +159,8 @@ defineEmits(['auth-action-completed']);
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const { address, authType } = useAuthContext();
+const { address, authType, userId } = useAuthContext();
+const { canViewCrm } = usePermissions();
 
 const product = ref(null);
 const loading = ref(false);
@@ -147,6 +174,8 @@ let offCart = null;
 const canPayWallet = computed(() => (
   String(authType?.value || '').toLowerCase() === 'wallet' && Boolean(address?.value)
 ));
+const cartTo = computed(() => storeCartRoute(userId.value));
+const ordersTo = computed(() => storeOrdersRoute(userId.value));
 
 const maxQty = computed(() => Math.max(1, Math.min(99, Number(product.value?.max_qty || 1))));
 
@@ -229,8 +258,16 @@ async function loadProduct() {
   }
 }
 
+async function scrollToHash() {
+  const id = String(route.hash || '').replace(/^#/, '');
+  if (id !== 'store-reviews' && id !== 'store-description') return;
+  await nextTick();
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 onMounted(async () => {
   await loadProduct();
+  await scrollToHash();
   offCart = onStoreCartChange(() => {
     cartCount.value = storeCartCount();
   });
@@ -243,7 +280,11 @@ onUnmounted(() => {
   if (offCart) offCart();
 });
 
-watch(() => route.params.id, loadProduct);
+watch(() => route.params.id, async () => {
+  await loadProduct();
+  await scrollToHash();
+});
+watch(() => route.hash, scrollToHash);
 </script>
 
 <style scoped>
@@ -259,18 +300,42 @@ watch(() => route.params.id, loadProduct);
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
+.product-page__icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
 .product-page__badge {
-  margin-left: 0.35rem;
+  position: absolute;
+  top: -0.2rem;
+  right: -0.2rem;
+  margin: 0;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.28rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
   background: color-mix(in srgb, currentColor 14%, transparent);
   border-radius: 999px;
-  padding: 0.05rem 0.45rem;
-  font-size: 0.8rem;
 }
 .product-page__card {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+}
+.product-page__reviews {
+  grid-column: 1 / -1;
 }
 .product-page__gallery {
   display: flex;

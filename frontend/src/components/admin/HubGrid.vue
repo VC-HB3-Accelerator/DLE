@@ -6,10 +6,16 @@
 -->
 
 <template>
-  <div class="hub-grid">
+  <div class="hub-grid" :class="{ 'hub-grid--compact': compact }">
     <slot />
   </div>
 </template>
+
+<script setup>
+defineProps({
+  compact: { type: Boolean, default: false },
+});
+</script>
 
 <style scoped>
 .hub-grid {
@@ -19,14 +25,18 @@
   width: 100%;
 }
 
+.hub-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
 @media (max-width: 1024px) {
-  .hub-grid {
+  .hub-grid:not(.hub-grid--compact) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 768px) {
-  .hub-grid {
+  .hub-grid:not(.hub-grid--compact) {
     grid-template-columns: 1fr;
   }
 }

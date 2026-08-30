@@ -28,11 +28,13 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
+import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 
 const { t } = useI18n();
 const route = useRoute();
 const { isEditor } = usePermissions();
+const { userId: sessionUserId } = useAuthContext();
 
 const contactId = computed(() => route.params.id);
 
@@ -46,15 +48,26 @@ const isRegisteredContact = computed(() => {
 });
 
 const showConference = computed(() => isEditor.value && isRegisteredContact.value);
+const isOwnCard = computed(() => (
+  sessionUserId.value != null
+  && String(sessionUserId.value) === String(contactId.value)
+));
 
 const navItems = [
   { name: 'contact-details', labelKey: 'contacts.details.nav.chat' },
   { name: 'contact-profile', labelKey: 'contacts.details.nav.profile' },
+  { name: 'contact-orders', labelKey: 'contacts.details.nav.orders' },
+  { name: 'contact-cart', labelKey: 'contacts.details.nav.cart' },
   { name: 'contact-conference', labelKey: 'contacts.details.nav.conference' },
 ];
 
 const visibleNavItems = computed(() =>
-  navItems.filter((item) => item.name !== 'contact-conference' || showConference.value)
+  navItems.filter((item) => {
+    if (item.name === 'contact-conference') return showConference.value;
+    if (item.name === 'contact-orders') return isRegisteredContact.value;
+    if (item.name === 'contact-cart') return isOwnCard.value && isRegisteredContact.value;
+    return true;
+  })
 );
 
 function navTarget(name) {

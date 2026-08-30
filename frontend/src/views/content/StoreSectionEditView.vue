@@ -20,12 +20,7 @@
 
       <div v-else class="store-section-edit__wrap">
         <header class="store-section-edit__header">
-          <div>
-            <router-link class="store-section-edit__back" :to="{ name: 'content-store-sections' }">
-              ← {{ t('store.editor.sectionsManage') }}
-            </router-link>
-            <h1>{{ pageTitle }}</h1>
-          </div>
+          <h1>{{ pageTitle }}</h1>
           <button
             type="button"
             class="btn btn-primary"
@@ -241,14 +236,8 @@ watch(() => route.fullPath, () => {
   margin-bottom: 1.25rem;
 }
 .store-section-edit__header h1 {
-  margin: 0.35rem 0 0;
+  margin: 0;
   font-size: 1.35rem;
-}
-.store-section-edit__back {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  text-decoration: none;
-  color: inherit;
 }
 .store-section-edit__form {
   display: flex;

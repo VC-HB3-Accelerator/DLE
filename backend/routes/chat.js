@@ -200,7 +200,11 @@ router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req,
     // Frontend отправляет FormData, поэтому читаем из req.body
     const content = req.body.message;
     const { conversationId } = req.body;
-    const recipientId = req.body.recipientId || req.body.toUserId;
+    const recipientRaw = req.body.recipientId || req.body.toUserId;
+    const recipientParsed = recipientRaw != null && recipientRaw !== '' ? Number(recipientRaw) : NaN;
+    const recipientId = Number.isInteger(recipientParsed) && recipientParsed > 0
+      ? recipientParsed
+      : (recipientRaw || null);
     const userId = req.session.userId;
     const files = req.files || [];
     let ragHint = null;

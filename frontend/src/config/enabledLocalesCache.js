@@ -14,7 +14,7 @@ export function setEnabledLocalesCache(locales) {
   const list = Array.isArray(locales)
     ? locales.map((code) => String(code || '').trim().toLowerCase()).filter((code) => SUPPORTED.includes(code))
     : [];
-  cache.locales = list.length ? list : ['en'];
+  cache.locales = list.length ? list : [...SUPPORTED];
   cache.loaded = true;
 }
 

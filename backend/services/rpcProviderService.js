@@ -132,6 +132,89 @@ async function getRpcUrlByChainId(chainId) {
   return null;
 }
 
+/** Совпадает с useBlockchainNetworks.js / dleAttachService NETWORK_CHAIN_FALLBACK. */
+const EXPECTED_CHAIN_BY_NETWORK_ID = {
+  ethereum: 1,
+  bsc: 56,
+  polygon: 137,
+  arbitrum: 42161,
+  optimism: 10,
+  avalanche: 43114,
+  gnosis: 100,
+  celo: 42220,
+  fantom: 250,
+  harmony: 1666600000,
+  metis: 1088,
+  aurora: 1313161554,
+  cronos: 25,
+  sepolia: 11155111,
+  goerli: 5,
+  holesky: 17000,
+  'bsc-testnet': 97,
+  mumbai: 80001,
+  'polygon-amoy': 80002,
+  'arbitrum-goerli': 421613,
+  'arbitrum-sepolia': 421614,
+  'optimism-goerli': 420,
+  'fantom-testnet': 4002,
+  'base-sepolia': 84532,
+  localhost: 31337,
+  ganache: 1337,
+};
+
+function expectedChainIdForNetworkId(networkId) {
+  const key = normalizeNetworkId(String(networkId || ''));
+  if (!key || key === 'custom') return null;
+  const mapped = EXPECTED_CHAIN_BY_NETWORK_ID[key];
+  return mapped != null ? Number(mapped) : null;
+}
+
+class RpcChainMismatchError extends Error {
+  constructor(expected, actual) {
+    super(
+      `RPC для сети ${expected} отвечает сетью ${actual}. Проверьте URL в настройках RPC.`
+    );
+    this.name = 'RpcChainMismatchError';
+    this.code = 'RPC_CHAIN_MISMATCH';
+    this.expected = Number(expected);
+    this.actual = Number(actual);
+  }
+}
+
+async function readNodeChainId(rpcUrl) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
+      signal: ctrl.signal,
+    });
+    const json = await res.json();
+    if (!json.result) {
+      throw new Error(json.error?.message || 'eth_chainId пустой');
+    }
+    return parseInt(json.result, 16);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** URL из БД только если узел eth_chainId совпадает с запрошенной сетью. */
+async function getVerifiedRpcUrlByChainId(chainId) {
+  const url = await getRpcUrlByChainId(chainId);
+  if (!url) return null;
+  const actual = await readNodeChainId(url);
+  if (actual !== Number(chainId)) {
+    console.error(
+      `[RPC Service] Несовпадение chain_id: в БД ${chainId}, узел ${actual}`
+    );
+    throw new RpcChainMismatchError(chainId, actual);
+  }
+  return url;
+}
+
 async function getEtherscanApiUrlByChainId(chainId) {
   const cid = Number(chainId);
   const all = (await getAllRpcProviders()) || [];
@@ -154,6 +237,9 @@ module.exports = {
   deleteRpcProvider,
   getRpcUrlByNetworkId,
   getRpcUrlByChainId,
+  getVerifiedRpcUrlByChainId,
+  expectedChainIdForNetworkId,
+  RpcChainMismatchError,
   resolveRpcForNetwork,
   getEtherscanApiUrlByChainId,
   normalizeNetworkId,

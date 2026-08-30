@@ -11,6 +11,7 @@ const { requirePermission, getUserRole } = require('../middleware/permissions');
 const { PERMISSIONS, hasPermission } = require('../shared/permissions');
 const store = require('../services/storeService');
 const storeV2 = require('../services/storeSectionsCheckout');
+const storeReviews = require('../services/storeReviewsService');
 
 function sendError(res, error) {
   const status = error.status || 500;
@@ -60,8 +61,20 @@ router.put('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_
 
 router.get('/treasury-tokens', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
   try {
-    const tokens = await store.listTreasuryTokens();
+    const tokens = await store.listTreasuryTokens({
+      treasury_address: req.query.treasury_address || req.query.treasury || undefined,
+      chain_id: req.query.chain_id || req.query.chainId || undefined,
+    });
     res.json({ tokens });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/discover-book', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+  try {
+    const data = await store.discoverBook(req.body?.primary_dle_address || req.body?.dleAddress);
+    res.json(data);
   } catch (error) {
     sendError(res, error);
   }
@@ -96,6 +109,120 @@ router.get('/catalog/:id', async (req, res) => {
   try {
     const product = await store.getProduct(req.params.id, { publishedOnly: true });
     res.json({ product });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.get('/products/:id/reviews', async (req, res) => {
+  try {
+    const reviews = await storeReviews.listReviewsPublic(req.params.id);
+    res.json({ reviews });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.put('/products/:id/review', requireAuth, async (req, res) => {
+  try {
+    const { authType, address } = sessionWallet(req);
+    if (authType !== 'wallet' || !address) {
+      const err = new Error('Нужна SIWE-сессия кошелька');
+      err.status = 403;
+      err.code = 'WALLET_AUTH_REQUIRED';
+      throw err;
+    }
+    const review = await storeReviews.upsertReview({
+      productId: req.params.id,
+      buyer: store.normalizeAddress(address),
+      userId: req.session?.userId != null ? String(req.session.userId) : null,
+      stars: req.body?.stars,
+      body: req.body?.body,
+    });
+    res.json({ review });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/reviews/:id/reply', requireAuth, requirePermission(PERMISSIONS.VIEW_CRM), async (req, res) => {
+  try {
+    const reply = await storeReviews.addReply({
+      reviewId: req.params.id,
+      authorUserId: actorId(req),
+      body: req.body?.body,
+    });
+    res.status(201).json({ reply });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.get('/activity', requireAuth, requirePermission(PERMISSIONS.VIEW_CRM), async (req, res) => {
+  try {
+    const events = await storeReviews.listActivity({ limit: req.query.limit });
+    res.json({ events });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/cabinet/ask', requireAuth, async (req, res) => {
+  try {
+    const { authType, address } = sessionWallet(req);
+    if (authType !== 'wallet' || !address) {
+      const err = new Error('Нужна SIWE-сессия кошелька');
+      err.status = 403;
+      throw err;
+    }
+    const ids = Array.isArray(req.body?.productIds || req.body?.product_ids)
+      ? (req.body.productIds || req.body.product_ids)
+      : [];
+    if (!ids.length) {
+      const err = new Error('Отметьте хотя бы одну карточку');
+      err.status = 400;
+      throw err;
+    }
+    const sessionId = req.session?.userId != null ? String(req.session.userId) : null;
+    const crm = await canViewCrm(req);
+    const requested = req.body?.contactId != null ? String(req.body.contactId) : '';
+    let contactId = sessionId;
+    if (crm && requested && !requested.startsWith('guest_')) {
+      contactId = requested;
+    }
+    await storeReviews.recordStoreAsk({
+      userId: contactId,
+      buyer: store.normalizeAddress(address),
+      productIds: ids.map(String),
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.get('/orders/contact/:userId', requireAuth, async (req, res) => {
+  try {
+    const target = String(req.params.userId || '');
+    const selfId = req.session?.userId != null ? String(req.session.userId) : '';
+    const crm = await canViewCrm(req);
+    if (!crm && selfId !== target) {
+      const err = new Error('Нет доступа к заказам');
+      err.status = 403;
+      throw err;
+    }
+    const { authType, address } = sessionWallet(req);
+    if (!crm) {
+      if (authType !== 'wallet' || !address) {
+        const err = new Error('Нужна SIWE-сессия кошелька');
+        err.status = 403;
+        throw err;
+      }
+    }
+    const orders = crm && selfId !== target
+      ? await store.listOrdersForUserId(target)
+      : await store.listOrdersMine(address);
+    res.json({ orders });
   } catch (error) {
     sendError(res, error);
   }

@@ -47,7 +47,7 @@ function detectLegacyRegion(hostname) {
   if (sub === 'ru' || sub === 'en') {
     return sub;
   }
-  return fromEnv === 'en' ? 'en' : 'ru';
+  return 'en';
 }
 
 function getCurrentOrigin() {

@@ -11,11 +11,11 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="store-pay page-with-close">
-      <PageCloseButton :fallback="{ name: 'store-cart' }" />
+      <PageCloseButton :fallback="cartTo" />
 
       <header class="store-pay__header">
         <h1>{{ t('store.storefront.payTitle') }}</h1>
-        <router-link class="btn btn-secondary" :to="{ name: 'store-cart' }">
+        <router-link class="btn btn-secondary" :to="cartTo">
           {{ t('store.storefront.cart') }}
           <span v-if="cartCount" class="store-pay__badge">{{ cartCount }}</span>
         </router-link>
@@ -54,8 +54,7 @@
           <dd v-if="checkout.tx_hash">{{ checkout.tx_hash }}</dd>
         </dl>
 
-        <p v-if="!canPayWallet" class="store-pay__warn">{{ t('store.storefront.walletOnly') }}</p>
-        <p v-else-if="nativePayBlocked" class="store-pay__error">{{ t('store.storefront.nativePayBlocked') }}</p>
+        <p v-if="nativePayBlocked" class="store-pay__error">{{ t('store.storefront.nativePayBlocked') }}</p>
         <p v-if="payMsg" class="store-pay__msg" :class="{ 'store-pay__error': payFailed }">{{ payMsg }}</p>
 
         <div class="store-pay__actions">
@@ -63,7 +62,7 @@
             v-if="checkout.status === 'awaiting_payment'"
             type="button"
             class="btn btn-primary"
-            :disabled="!canPayWallet || nativePayBlocked || busy"
+            :disabled="nativePayBlocked || Boolean(busy)"
             @click="onPayWallet"
           >
             {{ busy === 'pay' ? t('store.storefront.paying') : t('store.storefront.payFromWallet') }}
@@ -80,7 +79,7 @@
           <router-link
             v-if="checkout.status === 'paid'"
             class="btn btn-primary"
-            :to="{ name: 'storefront' }"
+            :to="afterPaidTo"
           >
             {{ t('store.storefront.paidContinue') }}
           </router-link>
@@ -102,6 +101,7 @@ import {
   fetchStoreCheckout,
   onStoreCartChange,
   storeCartCount,
+  storeCartRoute,
 } from '../../services/storeService';
 import { formatStoreAmount, isNativePayToken, transferErc20FromWallet } from '../../utils/storePayTransfer';
 
@@ -115,7 +115,7 @@ defineEmits(['auth-action-completed']);
 
 const { t } = useI18n();
 const route = useRoute();
-const { address, authType } = useAuthContext();
+const { userId } = useAuthContext();
 
 const checkout = ref(null);
 const loading = ref(false);
@@ -126,13 +126,16 @@ const payFailed = ref(false);
 const cartCount = ref(storeCartCount());
 let offCart = null;
 
-const canPayWallet = computed(() => (
-  String(authType?.value || '').toLowerCase() === 'wallet' && Boolean(address?.value)
-));
-
 const nativePayBlocked = computed(() => (
   Boolean(checkout.value && isNativePayToken(checkout.value.pay_token_address))
 ));
+
+const afterPaidTo = computed(() => {
+  const id = userId.value || checkout.value?.user_id;
+  if (!id) return { name: 'storefront' };
+  return { name: 'contact-orders', params: { id: String(id) } };
+});
+const cartTo = computed(() => storeCartRoute(userId.value));
 
 function statusLabel(status) {
   const key = `store.status.${status}`;

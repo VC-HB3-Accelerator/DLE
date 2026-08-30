@@ -20,12 +20,7 @@
 
       <div v-else class="store-product-edit__wrap">
         <header class="store-product-edit__header">
-          <div>
-            <router-link class="store-product-edit__back" :to="{ name: 'content-store' }">
-              ← {{ t('store.editor.backToCatalog') }}
-            </router-link>
-            <h1>{{ pageTitle }}</h1>
-          </div>
+          <h1>{{ pageTitle }}</h1>
           <button
             type="button"
             class="btn btn-primary"
@@ -94,19 +89,44 @@
           <section class="store-product-edit__block">
             <h2>{{ t('store.editor.payToken') }}</h2>
             <p class="store-product-edit__hint">{{ t('store.editor.tokenFromTreasury') }}</p>
+            <p v-if="bookSettings?.treasury_address" class="store-product-edit__hint">
+              {{ t('store.editor.tokenFromSettings', {
+                chain: bookSettings.primary_chain_id,
+                treasury: shortAddr(bookSettings.treasury_address),
+              }) }}
+              <router-link :to="{ name: 'content-store-settings' }">{{ t('store.editor.openSettings') }}</router-link>
+            </p>
             <p v-if="!settingsReady" class="store-product-edit__hint">
               {{ t('store.editor.tokenNeedSettings') }}
               <router-link :to="{ name: 'content-store-settings' }">{{ t('store.editor.openSettings') }}</router-link>
             </p>
-            <button type="button" class="btn btn-secondary" :disabled="loadingTokens" @click="reloadTreasuryTokens">
+            <button type="button" class="btn btn-secondary" :disabled="loadingTokens || !settingsReady" @click="reloadTreasuryTokens">
               {{ loadingTokens ? t('store.common.loading') : t('store.editor.tokenReload') }}
             </button>
+            <p v-if="tokensError" class="store-product-edit__error">{{ tokensError }}</p>
+            <p v-else-if="settingsReady && !loadingTokens && !payTokenOptions.length" class="store-product-edit__hint">
+              {{ t('store.editor.tokenEmpty') }}
+            </p>
+            <ul v-else-if="payTokenOptions.length" class="store-product-edit__token-picks">
+              <li v-for="tok in payTokenOptions" :key="`chip-${tok.address}`">
+                <button
+                  type="button"
+                  class="store-product-edit__token-chip"
+                  :class="{ 'is-selected': isSameAddr(form.pay_token_address, tok.address) }"
+                  @click="selectPayToken(tok)"
+                >
+                  <strong>{{ tok.symbol || 'TOKEN' }}</strong>
+                  <span>{{ shortAddr(tok.address) }}</span>
+                  <span>{{ t('store.editor.balanceShort') }} {{ tok.balance_human ?? '—' }}</span>
+                </button>
+              </li>
+            </ul>
 
             <label>
               <span>{{ t('store.editor.payToken') }}</span>
               <select v-model="form.pay_token_address" required @change="onPayTokenPick">
                 <option disabled value="">{{ t('store.editor.pickToken') }}</option>
-                <option v-for="tok in treasuryTokens" :key="`pay-${tok.address}`" :value="tok.address">
+                <option v-for="tok in payTokenOptions" :key="`pay-${tok.address}`" :value="tok.address">
                   {{ tok.symbol || 'TOKEN' }} · {{ shortAddr(tok.address) }}
                   · {{ t('store.editor.balanceShort') }} {{ tok.balance_human ?? '—' }}
                 </option>
@@ -169,7 +189,7 @@
                   @change="onLicenseTokenPick"
                 >
                   <option disabled value="">{{ t('store.editor.pickToken') }}</option>
-                  <option v-for="tok in treasuryTokens" :key="`lic-${tok.address}`" :value="tok.address">
+                  <option v-for="tok in payTokenOptions" :key="`lic-${tok.address}`" :value="tok.address">
                     {{ tok.symbol || 'TOKEN' }} · {{ shortAddr(tok.address) }}
                     · {{ t('store.editor.balanceShort') }} {{ tok.balance_human ?? '—' }}
                   </option>
@@ -290,6 +310,7 @@ import PageCloseButton from '@/components/PageCloseButton.vue';
 import ContentMediaPickerModal from '../../components/content/ContentMediaPickerModal.vue';
 import { usePermissions } from '../../composables/usePermissions';
 import { uploadContentMedia } from '../../composables/useChunkedMediaUpload';
+import { isNativePayToken } from '../../utils/storePayTransfer';
 import {
   createStoreProduct,
   fetchStoreProduct,
@@ -318,6 +339,7 @@ const loadError = ref('');
 const sections = ref([]);
 const treasuryTokens = ref([]);
 const loadingTokens = ref(false);
+const tokensError = ref('');
 const savingProduct = ref(false);
 const formError = ref('');
 const payPaste = ref('');
@@ -332,6 +354,7 @@ const selectedMedia = ref([]);
 const mediaPickerOpen = ref(false);
 const mediaFileInput = ref(null);
 const settingsReady = ref(false);
+const bookSettings = ref(null);
 const editingId = ref(null);
 
 const form = reactive({
@@ -345,7 +368,7 @@ const form = reactive({
   published: false,
   pay_token_address: '',
   pay_token_symbol: '',
-  pay_token_decimals: 6,
+  pay_token_decimals: null,
   price_human: '',
   license_token_address: '',
   license_token_symbol: '',
@@ -363,6 +386,10 @@ const pageTitle = computed(() => (
   editingId.value ? t('store.editor.editTitle') : t('store.editor.createTitle')
 ));
 
+const payTokenOptions = computed(() => (
+  (treasuryTokens.value || []).filter((tok) => !isNativePayToken(tok.address))
+));
+
 function formatUnits(units, decimals) {
   try {
     return ethers.formatUnits(String(units || '0'), Number(decimals || 0));
@@ -371,10 +398,34 @@ function formatUnits(units, decimals) {
   }
 }
 
+function checksumOrEmpty(addr) {
+  try {
+    if (!addr || isNativePayToken(addr)) return '';
+    return ethers.getAddress(addr);
+  } catch {
+    return String(addr || '');
+  }
+}
+
 function shortAddr(addr) {
   const s = String(addr || '');
   if (s.length < 12) return s;
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
+function isSameAddr(a, b) {
+  try {
+    if (!a || !b) return false;
+    return ethers.getAddress(a) === ethers.getAddress(b);
+  } catch {
+    return String(a || '').toLowerCase() === String(b || '').toLowerCase();
+  }
+}
+
+function selectPayToken(tok) {
+  if (!tok?.address || isNativePayToken(tok.address)) return;
+  form.pay_token_address = checksumOrEmpty(tok.address);
+  onPayTokenPick();
 }
 
 function applyTokenMeta(kind, address) {
@@ -430,8 +481,13 @@ async function resolvePayPaste() {
   payTokenWarn.value = false;
   try {
     const token = await resolveStoreToken(payPaste.value.trim());
+    if (isNativePayToken(token.address)) {
+      payTokenHint.value = t('store.editor.payTokenMustBeErc20');
+      payTokenWarn.value = true;
+      return;
+    }
     upsertTreasuryToken(token);
-    form.pay_token_address = token.address;
+    form.pay_token_address = checksumOrEmpty(token.address);
     form.pay_token_symbol = token.symbol || '';
     form.pay_token_decimals = Number(token.decimals);
     if (token.in_treasury) {
@@ -495,7 +551,7 @@ function resetForm() {
   form.published = false;
   form.pay_token_address = '';
   form.pay_token_symbol = '';
-  form.pay_token_decimals = 6;
+  form.pay_token_decimals = null;
   form.price_human = '';
   form.license_token_address = '';
   form.license_token_symbol = '';
@@ -528,9 +584,9 @@ function fillForm(p) {
     : [];
   form.kind = p.kind || 'product';
   form.published = Boolean(p.published);
-  form.pay_token_address = p.pay_token_address || '';
-  form.pay_token_symbol = p.pay_token_symbol || '';
-  form.pay_token_decimals = Number(p.pay_token_decimals || 0);
+  form.pay_token_address = checksumOrEmpty(p.pay_token_address);
+  form.pay_token_symbol = form.pay_token_address ? (p.pay_token_symbol || '') : '';
+  form.pay_token_decimals = form.pay_token_address ? Number(p.pay_token_decimals || 0) : null;
   form.price_human = formatUnits(p.price_units, p.pay_token_decimals);
   form.license_token_address = p.license_token_address || '';
   form.license_token_symbol = p.license_token_symbol || '';
@@ -554,7 +610,12 @@ function fillForm(p) {
     : (Array.isArray(p.media_ids)
       ? p.media_ids.map((id) => ({ id, file_name: String(id), media_type: 'file' }))
       : []);
-  applyTokenMeta('pay', form.pay_token_address);
+  if (isNativePayToken(p.pay_token_address)) {
+    payTokenHint.value = t('store.editor.payTokenMustBeErc20');
+    payTokenWarn.value = true;
+  } else {
+    applyTokenMeta('pay', form.pay_token_address);
+  }
   applyTokenMeta('license', form.license_token_address);
 }
 
@@ -645,6 +706,8 @@ function buildPayload() {
   } else {
     payload.receipt_standard = null;
     payload.license_token_address = null;
+    payload.license_token_decimals = 0;
+    payload.license_token_symbol = '';
     payload.license_amount_units = null;
   }
   return payload;
@@ -652,10 +715,13 @@ function buildPayload() {
 
 async function reloadTreasuryTokens() {
   loadingTokens.value = true;
+  tokensError.value = '';
   try {
-    treasuryTokens.value = await fetchTreasuryTokens();
-  } catch (_) {
+    const list = await fetchTreasuryTokens();
+    treasuryTokens.value = Array.isArray(list) ? list.filter((tok) => !isNativePayToken(tok.address)) : [];
+  } catch (e) {
     treasuryTokens.value = [];
+    tokensError.value = e?.response?.data?.error || e?.message || t('store.editor.tokenLoadError');
   } finally {
     loadingTokens.value = false;
   }
@@ -671,6 +737,7 @@ async function loadPage() {
       fetchStoreSettings(),
       fetchStoreSections().catch(() => []),
     ]);
+    bookSettings.value = settings || null;
     settingsReady.value = Boolean(settings?.treasury_address && settings?.primary_chain_id);
     sections.value = Array.isArray(secs) ? secs : [];
     await reloadTreasuryTokens();
@@ -690,6 +757,10 @@ async function onSubmitProduct() {
   formError.value = '';
   try {
     const payload = buildPayload();
+    if (isNativePayToken(payload.pay_token_address)) {
+      formError.value = t('store.editor.payTokenMustBeErc20');
+      return;
+    }
     if (payload.published && payload.receipt_enabled && payload.license_token_address) {
       try {
         const token = await resolveStoreToken(payload.license_token_address, {
@@ -747,14 +818,8 @@ watch(() => route.fullPath, () => {
   margin-bottom: 1.25rem;
 }
 .store-product-edit__header h1 {
-  margin: 0.35rem 0 0;
+  margin: 0;
   font-size: 1.35rem;
-}
-.store-product-edit__back {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  text-decoration: none;
-  color: inherit;
 }
 .store-product-edit__form,
 .store-product-edit__block {
@@ -765,6 +830,32 @@ watch(() => route.fullPath, () => {
 .store-product-edit__block {
   padding: 0.85rem 0 1rem;
   border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+.store-product-edit__token-picks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.store-product-edit__token-chip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.store-product-edit__token-chip.is-selected {
+  border-color: var(--color-primary, #1a5fff);
+  background: color-mix(in srgb, var(--color-primary, #1a5fff) 12%, transparent);
 }
 .store-product-edit__block h2 {
   margin: 0;

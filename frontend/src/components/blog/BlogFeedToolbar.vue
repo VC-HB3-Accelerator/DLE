@@ -42,6 +42,8 @@
       </ul>
     </div>
 
+    <slot />
+
     <button
       v-if="canManage"
       type="button"

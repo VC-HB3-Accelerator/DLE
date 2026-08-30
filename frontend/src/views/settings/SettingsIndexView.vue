@@ -25,12 +25,6 @@
         @open="goToSidebar"
       />
       <HubCard
-        v-if="canAccessPath('/settings/dle-v2-deploy')"
-        :title="t('settings.index.blockchain.title')"
-        :description="t('settings.index.blockchain.description')"
-        @open="goToDeploy"
-      />
-      <HubCard
         v-if="canAccessPath('/settings/interface')"
         :title="t('settings.index.server.title')"
         :description="t('settings.index.server.description')"
@@ -97,10 +91,5 @@ async function goToSidebar() {
 async function goToUpdates() {
   if (!(await ensureCanManageSettings('settings.updates.adminOnly'))) return;
   router.push({ name: 'settings-updates' });
-}
-
-async function goToDeploy() {
-  if (!(await ensureCanManageSettings('settings.index.blockchain.adminOnly'))) return;
-  router.push({ name: 'settings-dle-v2-deploy' });
 }
 </script>

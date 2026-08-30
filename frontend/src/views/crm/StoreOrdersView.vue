@@ -12,6 +12,7 @@
   >
     <div class="store-crm page-with-close">
       <PageCloseButton :fallback="{ name: 'crm' }" />
+      <StoreAdminNav />
       <header class="store-crm__header">
         <h1>{{ t('store.crm.title') }}</h1>
         <div class="store-crm__header-actions">
@@ -23,6 +24,27 @@
           </button>
         </div>
       </header>
+
+      <section v-if="!loading" class="store-crm__activity">
+        <h2>{{ t('store.crm.activityTitle') }}</h2>
+        <p v-if="!activity.length" class="store-crm__muted">{{ t('store.crm.activityEmpty') }}</p>
+        <ul v-else class="store-crm__activity-list">
+          <li v-for="ev in activity" :key="ev.id" class="store-crm__activity-item">
+            <div>
+              <strong>{{ activityLabel(ev) }}</strong>
+              <span class="store-crm__meta">{{ formatDate(ev.created_at) }}</span>
+              <span v-if="ev.buyer" class="store-crm__meta">{{ ev.buyer }}</span>
+            </div>
+            <router-link
+              v-if="activityTo(ev)"
+              class="btn btn-secondary"
+              :to="activityTo(ev)"
+            >
+              {{ t('store.crm.activityOpen') }}
+            </router-link>
+          </li>
+        </ul>
+      </section>
 
       <nav class="store-crm__tabs">
         <button
@@ -249,10 +271,12 @@ import { useRouter } from 'vue-router';
 import { ethers } from 'ethers';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import StoreAdminNav from '../../components/store/StoreAdminNav.vue';
 import {
   cancelStoreOrder,
   checkStoreCheckoutPayment,
   checkStorePayment,
+  fetchStoreActivity,
   fetchStoreCheckoutsCrm,
   fetchStoreOrders,
   fetchStoreSettings,
@@ -274,6 +298,7 @@ const { t } = useI18n();
 const router = useRouter();
 const orders = ref([]);
 const checkouts = ref([]);
+const activity = ref([]);
 const tab = ref('orders');
 const loading = ref(false);
 const error = ref('');
@@ -335,6 +360,21 @@ function proposalHref(proposalId) {
   return `/management/proposals?${q.toString()}`;
 }
 
+function activityLabel(ev) {
+  const key = `store.crm.activityKind.${ev.kind}`;
+  const label = t(key);
+  return label === key ? ev.kind : label;
+}
+
+function activityTo(ev) {
+  const id = ev?.contact_id;
+  if (!id) return null;
+  if (ev.kind === 'store_ask') {
+    return { name: 'contact-details', params: { id: String(id) } };
+  }
+  return { name: 'contact-orders', params: { id: String(id) } };
+}
+
 async function loadAll() {
   loading.value = true;
   error.value = '';
@@ -342,14 +382,16 @@ async function loadAll() {
     const params = {};
     if (filterStatus.value) params.status = filterStatus.value;
     if (filterQ.value.trim()) params.q = filterQ.value.trim();
-    const [o, c, s] = await Promise.all([
+    const [o, c, s, ev] = await Promise.all([
       fetchStoreOrders(params),
       fetchStoreCheckoutsCrm().catch(() => []),
       fetchStoreSettings().catch(() => null),
+      fetchStoreActivity().catch(() => []),
     ]);
     orders.value = Array.isArray(o) ? o : [];
     checkouts.value = Array.isArray(c) ? c : [];
     settingsDle.value = s?.primary_dle_address || '';
+    activity.value = Array.isArray(ev) ? ev : [];
   } catch (e) {
     error.value = e?.response?.data?.error || e?.message || t('store.common.loadError');
   } finally {
@@ -548,6 +590,31 @@ onMounted(loadAll);
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+.store-crm__activity {
+  margin: 0 0 1.25rem;
+}
+.store-crm__activity h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+.store-crm__activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.store-crm__activity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
 }
 .store-crm__tabs {
   display: flex;

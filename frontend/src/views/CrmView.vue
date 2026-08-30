@@ -52,12 +52,6 @@
           :to="{ name: 'settings-index' }"
         />
         <HubCard
-          v-if="canAccessPath('/groups')"
-          :title="t('crm.groups')"
-          :description="t('crm.groupsDesc')"
-          :to="{ name: 'groups' }"
-        />
-        <HubCard
           v-if="canAccessPath('/crm/store')"
           :title="t('crm.store')"
           :description="t('crm.storeDesc')"

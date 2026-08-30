@@ -455,7 +455,7 @@ router.delete('/auth-token/:address/:network', requireAdmin, async (req, res, ne
 // Тестирование RPC соединения
 router.post('/rpc-test', async (req, res, next) => {
   try {
-    const { rpcUrl, networkId } = req.body;
+    const { rpcUrl, networkId, expectedChainId: bodyExpected } = req.body;
     
     if (!rpcUrl || !networkId) {
       return res.status(400).json({ success: false, error: 'Необходимо указать URL и ID сети' });
@@ -464,7 +464,6 @@ router.post('/rpc-test', async (req, res, next) => {
     logger.info(`Тестирование RPC для ${networkId}: ${rpcUrl}`);
     
     try {
-      // Пробуем создать провайдера и получить номер последнего блока (обновлено для ethers v6)
       let provider;
       if (rpcUrl.startsWith('ws://') || rpcUrl.startsWith('wss://')) {
         provider = new ethers.WebSocketProvider(rpcUrl);
@@ -472,23 +471,42 @@ router.post('/rpc-test', async (req, res, next) => {
         provider = new ethers.JsonRpcProvider(rpcUrl);
       }
       
-      // Устанавливаем таймаут для соединения
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Таймаут соединения')), 10000)
       );
       
-      // Пробуем получить номер последнего блока с таймаутом
       const blockNumber = await Promise.race([
         provider.getBlockNumber(),
         timeoutPromise
       ]);
+
+      const actualChainId = Number((await Promise.race([
+        provider.getNetwork().then((n) => n.chainId),
+        timeoutPromise,
+      ])));
+      const expectedChainId = Number(bodyExpected) > 0
+        ? Number(bodyExpected)
+        : rpcProviderService.expectedChainIdForNetworkId(networkId);
+
+      if (expectedChainId && actualChainId !== expectedChainId) {
+        const err = new rpcProviderService.RpcChainMismatchError(expectedChainId, actualChainId);
+        logger.warn(`RPC Test mismatch ${networkId}: expected ${expectedChainId}, node ${actualChainId}`);
+        return res.status(400).json({
+          success: false,
+          error: err.message,
+          expectedChainId,
+          actualChainId,
+          blockNumber,
+        });
+      }
   
-      logger.info(`Успешное тестирование RPC для ${networkId}: ${rpcUrl}, номер блока: ${blockNumber}`);
+      logger.info(`Успешное тестирование RPC для ${networkId}: ${rpcUrl}, номер блока: ${blockNumber}, chain ${actualChainId}`);
       
       res.json({ 
         success: true, 
         message: `Успешное соединение с ${networkId}`, 
-        blockNumber 
+        blockNumber,
+        chainId: actualChainId,
       });
     } catch (providerError) {
       logger.error(`Ошибка провайдера при тестировании RPC для ${networkId}: ${providerError.message}`);

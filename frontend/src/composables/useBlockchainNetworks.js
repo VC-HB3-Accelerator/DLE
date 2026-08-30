@@ -167,9 +167,11 @@ export default function useBlockchainNetworks() {
     
     try {
       // Формируем запрос на бэкенд для проверки RPC
+      const expectedChainId = getChainIdByNetworkId(networkId);
       const response = await axios.post('/settings/rpc-test', { 
         networkId,
-        rpcUrl
+        rpcUrl,
+        ...(Number(expectedChainId) > 0 ? { expectedChainId: Number(expectedChainId) } : {}),
       });
       
       if (response.data && response.data.success) {

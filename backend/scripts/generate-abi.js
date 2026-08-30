@@ -63,8 +63,11 @@ function formatABI(abi) {
     }).join(', ');
     const outputs = func.outputs.map(output => output.type).join(', ');
     const returns = outputs ? ` returns (${outputs})` : '';
+    const mut = func.stateMutability && func.stateMutability !== 'nonpayable'
+      ? ` ${func.stateMutability}`
+      : '';
 
-    result += `  "${func.type} ${func.name}(${inputs})${returns}",\n`;
+    result += `  "${func.type} ${func.name}(${inputs})${mut}${returns}",\n`;
   });
   
   // События

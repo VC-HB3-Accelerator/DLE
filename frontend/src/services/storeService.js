@@ -115,9 +115,15 @@ export async function linkRefundProposal(orderId, proposalId) {
   return data?.order || data;
 }
 
-export async function fetchTreasuryTokens() {
-  const { data } = await api.get('/store/treasury-tokens');
-  return data?.tokens || data || [];
+export async function fetchTreasuryTokens(params = {}) {
+  const { data } = await api.get('/store/treasury-tokens', { params });
+  const list = data?.tokens;
+  return Array.isArray(list) ? list : [];
+}
+
+export async function discoverStoreBook(dleAddress) {
+  const { data } = await api.post('/store/discover-book', { primary_dle_address: dleAddress });
+  return data;
 }
 
 export async function resolveStoreToken(address, options = {}) {
@@ -162,6 +168,20 @@ export async function fetchStoreCheckout(id) {
 export async function fetchStoreCheckoutsCrm() {
   const { data } = await api.get('/store/checkouts');
   return data?.checkouts || data || [];
+}
+
+export function storeCartRoute(userId) {
+  const id = userId != null && String(userId).trim() !== '' ? String(userId) : '';
+  if (id && !id.startsWith('guest_')) {
+    return { name: 'contact-cart', params: { id } };
+  }
+  return { name: 'store-cart' };
+}
+
+export function storeOrdersRoute(userId) {
+  const id = userId != null && String(userId).trim() !== '' ? String(userId) : '';
+  if (!id || id.startsWith('guest_')) return null;
+  return { name: 'contact-orders', params: { id } };
 }
 
 const CART_KEY = 'dle_store_cart_v1';
@@ -237,3 +257,34 @@ export function addToStoreCart({
   writeStoreCart(items);
   return items;
 }
+
+export async function fetchStoreProductReviews(productId) {
+  const { data } = await api.get(`/store/products/${productId}/reviews`);
+  return data?.reviews || [];
+}
+
+export async function saveStoreReview(productId, payload) {
+  const { data } = await api.put(`/store/products/${productId}/review`, payload);
+  return data?.review || data;
+}
+
+export async function replyStoreReview(reviewId, body) {
+  const { data } = await api.post(`/store/reviews/${reviewId}/reply`, { body });
+  return data?.reply || data;
+}
+
+export async function fetchStoreActivity() {
+  const { data } = await api.get('/store/activity');
+  return data?.events || [];
+}
+
+export async function notifyStoreCabinetAsk(productIds, contactId) {
+  const { data } = await api.post('/store/cabinet/ask', { productIds, contactId });
+  return data;
+}
+
+export async function fetchContactStoreOrders(userId) {
+  const { data } = await api.get(`/store/orders/contact/${userId}`);
+  return data?.orders || data || [];
+}
+

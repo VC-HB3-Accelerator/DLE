@@ -33,7 +33,20 @@
         color: #1f2937;
       }
     </style>
-
+    <script>
+      (function () {
+        var host = (location.hostname || '').replace(/^www\./i, '').toLowerCase();
+        var isRu = host === 'ru' || host.indexOf('ru.') === 0;
+        document.documentElement.lang = isRu ? 'ru' : 'en';
+        var og = document.querySelector('meta[property="og:locale"]');
+        if (og) {
+          og.setAttribute('content', isRu ? 'ru_RU' : 'en_US');
+        }
+        if (isRu) {
+          document.title = 'VC HB3 Accelerator — венчурный фонд и поставщик ПО';
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>

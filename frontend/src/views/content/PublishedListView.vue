@@ -21,7 +21,16 @@
 
       <!-- Список документов -->
       <div v-else class="published-page__list-wrap">
-        <BlogFeedToolbar v-model="activeFilter" :filters="sectionFilters" />
+        <BlogFeedToolbar v-model="activeFilter" :filters="sectionFilters">
+          <button
+            v-if="canCreatePage"
+            type="button"
+            class="published-page__create"
+            @click="goToCreate"
+          >
+            {{ t('common.create') }}
+          </button>
+        </BlogFeedToolbar>
 
         <div v-if="isLoading" class="published-page__state">
           <div class="published-page__spinner" />
@@ -173,6 +182,7 @@ import legalPacksService from '../../services/legalPacksService';
 import { PRIVACY_SECTION_SLUG } from '../../constants/publishedDocs';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const ALL_FILTER = 'all';
 const props = defineProps({
@@ -190,6 +200,7 @@ const { t } = useI18n();
 const { hasPermission } = usePermissions();
 
 const canManageDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
+const canCreatePage = computed(() => canAccessPath('/content/create'));
 
 const pages = ref([]);
 const isLoading = ref(false);
@@ -357,6 +368,10 @@ function goToIndex() {
   router.push({ name: 'content-published', query });
 }
 
+function goToCreate() {
+  router.push({ name: 'content-create', query: { visibility: 'public' } });
+}
+
 function editPage(id) {
   router.push({ name: 'content-create', query: { edit: id } });
 }
@@ -469,6 +484,7 @@ async function loadPages() {
 }
 
 onMounted(async () => {
+  await ensureScreenAccessLoaded();
   applySectionFromRoute();
   await loadPages();
   if (canManageDocs.value) await loadCategories();
@@ -503,6 +519,23 @@ onBeforeUnmount(() => {
   width: 100%;
   box-sizing: border-box;
   margin: 0 auto;
+}
+
+.published-page__create {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--color-primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.published-page__create:hover {
+  opacity: 0.92;
 }
 
 .published-page__reader {

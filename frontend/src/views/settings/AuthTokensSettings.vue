@@ -165,7 +165,7 @@ const newToken = reactive({
   name: '',
   address: '',
   network: '',
-  minBalance: 0,
+  minBalance: 1,
   readonlyThreshold: 1,
   editorThreshold: 1
 });
@@ -185,7 +185,7 @@ function handleClear() {
   newToken.name = '';
   newToken.address = '';
   newToken.network = '';
-  newToken.minBalance = 0;
+  newToken.minBalance = 1;
   newToken.readonlyThreshold = 1;
   newToken.editorThreshold = 1;
 }

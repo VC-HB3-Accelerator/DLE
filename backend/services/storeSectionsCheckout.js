@@ -8,11 +8,14 @@
 const { ethers } = require('ethers');
 const db = require('../db');
 const { getPool } = db;
+const logger = require('../utils/logger');
+const storeReviews = require('./storeReviewsService');
 const {
   normalizeAddress,
   getSettings,
   getProduct,
   countWalletSlots,
+  assertPayTokenErc20,
 } = require('./storeService');
 const {
   TRANSFER_TOPIC,
@@ -252,6 +255,7 @@ async function createCheckout({ items, buyerAddress, userId }) {
       err.code = 'WALLET_LIMIT';
       throw err;
     }
+    assertPayTokenErc20(product.pay_token_address);
     if (!payToken) payToken = product.pay_token_address;
     if (String(product.pay_token_address).toLowerCase() !== String(payToken).toLowerCase()) {
       const err = new Error('В одной оплате только один pay-токен. Разделите корзину.');
@@ -326,7 +330,7 @@ async function createCheckout({ items, buyerAddress, userId }) {
           r.product.id, buyer, userId || null, r.product.title,
           r.line.toString(), r.product.pay_token_address, r.product.pay_token_decimals, r.product.pay_token_symbol,
           r.receiptEnabled ? r.product.license_token_address : null,
-          r.receiptEnabled ? r.product.license_token_decimals : null,
+          r.receiptEnabled ? Number(r.product.license_token_decimals || 0) : 0,
           r.receiptEnabled ? r.product.license_token_symbol : '',
           r.licenseAmount,
           r.qty,
@@ -353,7 +357,7 @@ async function createCheckout({ items, buyerAddress, userId }) {
           r.unit.toString(), r.line.toString(), r.product.pay_token_address,
           r.receiptEnabled, r.receiptEnabled ? (r.product.receipt_standard || 'erc20') : null,
           r.receiptEnabled ? r.product.license_token_address : null,
-          r.receiptEnabled ? r.product.license_token_decimals : null,
+          r.receiptEnabled ? Number(r.product.license_token_decimals || 0) : 0,
           r.receiptEnabled ? r.product.license_token_symbol : '',
           r.licenseAmount,
           i,
@@ -467,13 +471,22 @@ async function checkCheckoutPayment(checkoutId, { txHashHint = null } = {}) {
     if (h && usedTx.has(h)) continue;
     candidates.push(parsed);
   }
-  // старейшие логи → старейшие заявки
+  // старейшие логи → старейшие заявки; явный txHash с страницы оплаты — эта заявка
   candidates.sort((a, b) => {
     const ba = Number(a.blockNumber || 0) - Number(b.blockNumber || 0);
     if (ba !== 0) return ba;
     return Number(a.logIndex || 0) - Number(b.logIndex || 0);
   });
-  const matched = candidates[older] || null;
+  const matched = (txHashHint && candidates.length)
+    ? candidates[0]
+    : (candidates[older] || null);
+  logger.info('[store] checkCheckoutPayment', {
+    id: checkoutId,
+    older,
+    candidates: candidates.length,
+    hinted: Boolean(txHashHint),
+    matched: matched?.txHash || null,
+  });
   if (!matched) return checkout;
 
   const client = await getPool().connect();
@@ -510,6 +523,15 @@ async function checkCheckoutPayment(checkoutId, { txHashHint = null } = {}) {
       [checkoutId, matched.txHash, matched.logIndex]
     );
     await client.query('COMMIT');
+    try {
+      await storeReviews.recordPaidActivity({
+        userId: locked[0].user_id,
+        buyer: locked[0].buyer,
+        checkoutId: locked[0].id,
+      });
+    } catch (e) {
+      logger.warn('[store] checkout paid activity skipped:', e.message);
+    }
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
     throw e;

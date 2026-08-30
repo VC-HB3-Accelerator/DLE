@@ -586,6 +586,10 @@
       "seoOgImageUploadError": "Failed to upload preview image",
       "publishing": "Publishing...",
       "publish": "Publish",
+      "preview": "Preview",
+      "previewNotPublished": "This is how the page looks before publishing. Nothing is saved.",
+      "previewEmpty": "Content is still empty.",
+      "previewFileOnly": "Preview is available for HTML.",
       "confirmDelete": "Are you sure you want to delete this page? This action cannot be undone. All associated files will also be deleted.",
       "deleteError": "Error deleting page: ",
       "newCategoryPrompt": "Enter the new section name:",
@@ -1040,6 +1044,8 @@
     }
   },
   "vds": {
+    "tabHosting": "Hosting",
+    "tabSettings": "Settings",
     "settings": "VDS Settings",
     "settingsNotSet": "VDS settings are not configured. Click \"Edit\" to configure.",
     "domain": "Domain:",
@@ -1338,15 +1344,20 @@
     "settingsDesc": "AI, blockchain, security, interface, and sidebar",
     "management": "Management",
     "managementDesc": "System administration and settings",
-    "vds": "VDS Server",
-    "vdsDesc": "Configuration and management",
+    "vds": "Server",
+    "vdsDesc": "VDS, containers, Akash/Flux hosting, and WebSSH",
     "groups": "Groups",
     "groupsDesc": "Create and manage groups",
     "store": "Online store",
-    "storeDesc": "Storefront orders: wallet, amount, fulfill and refund via treasury",
+    "storeDesc": "Catalog and storefront orders: cards, wallet, fulfill and refund via treasury",
     "loadContactsError": "Failed to load contacts"
   },
   "store": {
+    "admin": {
+      "tabOrders": "Orders",
+      "tabCatalog": "Catalog",
+      "tabSettings": "Settings"
+    },
     "common": {
       "loading": "Loading…",
       "saving": "Saving…",
@@ -1367,7 +1378,11 @@
       "empty": "No cards yet",
       "settingsTitle": "Store settings",
       "primaryDle": "Primary book address",
-      "primaryChain": "Network id",
+      "primaryChain": "Book network",
+      "pickChain": "Pick a network from the chain",
+      "discoverBook": "Load from blockchain",
+      "discoverBookOk": "Networks and treasury loaded from the book",
+      "discoverBookFail": "Could not find the book on any RPC in the database",
       "treasury": "Treasury address",
       "pullTreasury": "Pull from book",
       "pullTreasuryOk": "Treasury address pulled from book module",
@@ -1397,10 +1412,16 @@
       "kindService": "Service",
       "pickToken": "Pick a treasury token",
       "tokenFromTreasury": "Tokens registered in treasury (from the network)",
+      "tokenFromSettings": "Treasury from store settings · network {chain} · {treasury}",
       "tokenPaste": "Or paste a contract address",
       "tokenCheck": "Check on the network",
       "tokenChecking": "Checking…",
       "tokenReload": "Refresh treasury list",
+      "tokenLoadError": "Could not load treasury tokens from the network",
+      "tokenEmpty": "No active ERC-20 tokens in the treasury registry. Add a token via governance, then refresh the list.",
+      "payTokenMustBeErc20": "Payment token must be a treasury ERC-20, not the native coin (0x0).",
+      "settingsPayTokens": "Treasury tokens for payment",
+      "settingsPayTokensHint": "ERC-20 tokens of the treasury on the selected network. On the product card the editor picks the payment token from the same list.",
       "tokenNotInTreasury": "Contract is readable, but the token is not in the active treasury registry — add it via governance first.",
       "tokenInTreasury": "In treasury registry · treasury balance: {balance} {symbol}",
       "tokenNeedSettings": "Save the primary book, network and treasury in store settings first — then tokens load from the network.",
@@ -1443,7 +1464,6 @@
       "mediaAdd": "From media library or device",
       "mediaEmpty": "No media selected yet",
       "mediaRemove": "Remove",
-      "backToCatalog": "Back to catalog",
       "saveAndClose": "Save",
       "qty": "Quantity",
       "txHashOptional": "Transaction hash (optional)",
@@ -1488,7 +1508,15 @@
       "applyFilters": "Apply",
       "showItems": "Show items",
       "hideItems": "Hide items",
-      "txHashOptional": "Transaction hash (optional)"
+      "txHashOptional": "Transaction hash (optional)",
+      "activityTitle": "Notifications",
+      "activityEmpty": "No events yet",
+      "activityOpen": "Open contact",
+      "activityKind": {
+        "review": "New review",
+        "paid": "Payment",
+        "store_ask": "Product question in chat"
+      }
     },
     "import": {
       "open": "Import CSV",
@@ -1510,6 +1538,10 @@
       "noDescription": "No description",
       "buy": "Buy",
       "openCard": "Open",
+      "openDescription": "Description",
+      "reviews": "Reviews",
+      "reviewCount": "{count} reviews",
+      "ratingLabel": "Rating {avg}, reviews: {count}",
       "preview": "Preview",
       "noMedia": "No photo/video",
       "video": "Video",
@@ -1536,7 +1568,7 @@
       "paySentWaiting": "Transfer sent. If status did not update, tap Check payment.",
       "payNotFound": "Payment not found on-chain yet",
       "paidOk": "Payment confirmed",
-      "paidContinue": "Back to store",
+      "paidContinue": "My orders",
       "toTreasury": "Treasury",
       "createdAt": "Created",
       "txHash": "Transaction hash",
@@ -1550,6 +1582,33 @@
       "cartPayHint": "Checkout opens a payment page — the wallet sends the order price to the treasury.",
       "continueShopping": "Continue shopping",
       "mixedPay": "One checkout accepts only one payment token. Remove extra items or check out separately."
+    },
+    "reviews": {
+      "title": "Reviews",
+      "empty": "No reviews yet",
+      "editorReply": "Store reply",
+      "replyPlaceholder": "Reply to the buyer",
+      "reply": "Reply"
+    },
+    "cabinet": {
+      "title": "My orders",
+      "empty": "No orders yet",
+      "chat": "Chat",
+      "ask": "Ask a question",
+      "cartOwnOnly": "The cart opens on your own contact card.",
+      "commentPlaceholder": "What you liked — a short note is enough",
+      "saveReview": "Save review",
+      "reviewSaved": "Review published",
+      "askMessage": "Support request:\n{links}",
+      "rateHint": "Rate your purchase",
+      "rateN": "{n} of 5",
+      "qty": "×{n}",
+      "buyerStatus": {
+        "awaiting_payment": "Payment needed",
+        "expired": "Payment window expired",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded"
+      }
     },
     "status": {
       "awaiting_payment": "awaiting payment",
@@ -2035,6 +2094,8 @@
       "nav": {
         "chat": "Chat",
         "profile": "Profile",
+        "orders": "My orders",
+        "cart": "Cart",
         "conference": "Conference"
       },
       "dangerZone": "Dangerous actions",
@@ -2559,6 +2620,7 @@
     },
     "management": {
       "noDeployedDles": "No deployed DLEs",
+      "loadingDles": "Loading DLEs...",
       "createDleHint": "Create a DLE in the {link} or attach an existing book in {auth}.",
       "deployDleLink": "deploy form",
       "attachAuthLink": "auth tokens",
@@ -2573,7 +2635,23 @@
       "isicCodes": "ISIC codes:",
       "status": "Status:",
       "totalTokenSupply": "Total token supply:",
-      "creationDate": "Creation date:"
+      "creationDate": "Creation date:",
+      "insights": {
+        "chainNote": "Figures for {name}",
+        "loading": "Loading analytics…",
+        "events": "Total events",
+        "proposals": "Proposals",
+        "modules": "Modules",
+        "networks": "Networks",
+        "votingCreated": "Proposals: {count}",
+        "votingActive": "Active",
+        "votingClosed": "Closed",
+        "quorum": "Quorum",
+        "holderShare": "Total token supply",
+        "holdersOthers": "Others",
+        "recentEvents": "Latest events",
+        "noEvents": "No events"
+      }
     },
     "proposals": {
       "title": "Proposals",
@@ -2588,6 +2666,8 @@
       "delegationAlreadyDone": "Votes are already delegated to you.",
       "delegationFailed": "Failed to delegate votes: {message}",
       "statusLabel": "Status:",
+      "networkNote": "The list shows proposals for the selected network, newest first.",
+      "selectNetworkFirst": "Select a network to load proposals for that network.",
       "searchLabel": "Search:",
       "searchPlaceholder": "Search by description, initiator, or ID...",
       "loading": "Loading proposals...",

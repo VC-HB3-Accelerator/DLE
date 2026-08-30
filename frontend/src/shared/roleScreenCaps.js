@@ -12,7 +12,7 @@ export const EDITOR_LOCKED_SCREENS = Object.freeze(['/settings/security/roles'])
 export const SCREEN_GROUPS = Object.freeze([
   {
     id: 'nav',
-    keys: Object.freeze(['/', '/blog', '/blog/feed-settings', '/management', '/crm', '/store'])
+    keys: Object.freeze(['/', '/blog', '/blog/feed-settings', '/management', '/store'])
   },
   {
     id: 'management',
@@ -40,7 +40,6 @@ export const SCREEN_GROUPS = Object.freeze([
       '/content',
       '/vds',
       '/tables',
-      '/settings',
       '/groups',
       '/crm/store'
     ])
@@ -55,6 +54,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/contacts-list/broadcast/history',
       '/contacts/:id',
       '/contacts/:id/profile',
+      '/contacts/:id/orders',
+      '/contacts/:id/cart',
       '/contacts/:id/conference',
       '/contacts/:id/conference/agent',
       '/contacts/:id/conference/live/:sessionId',
@@ -108,8 +109,6 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/ai',
       '/settings/security',
       '/settings/sidebar',
-      '/settings/dle-v2-deploy',
-      '/settings/interface',
       '/settings/updates'
     ])
   },
@@ -117,6 +116,7 @@ export const SCREEN_GROUPS = Object.freeze([
     id: 'settings_security',
     keys: Object.freeze([
       '/settings/security/rpc',
+      '/settings/dle-v2-deploy',
       '/settings/security/auth',
       '/settings/security/roles'
     ])
@@ -251,8 +251,6 @@ function defaultGuestScreens() {
     '/management/module-bridge-op',
     '/management/treasury-bridge-op',
     '/management/dle-core-op',
-    '/crm',
-    '/settings',
     '/settings/security',
     '/settings/ai',
     '/content'

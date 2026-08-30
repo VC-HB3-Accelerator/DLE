@@ -19,13 +19,22 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <AdminPageShell :show-close="true" fallback="/">
-      <AdminSectionTabs />
-
+      <div class="management-layout">
       <!-- Деплоированные DLE -->
       <div class="deployed-dles-section">
 
 
-        <div v-if="deployedDles.length === 0" class="no-dles">
+        <div
+          v-if="isLoadingDles"
+          class="dle-card dle-card--placeholder"
+          role="status"
+          aria-live="polite"
+        >
+          <UiGlyph name="sync" :spin="true" :size="28" />
+          <p>{{ t('smartcontracts.management.loadingDles') }}</p>
+        </div>
+
+        <div v-else-if="deployedDles.length === 0" class="dle-card dle-card--placeholder no-dles">
           <p>{{ t('smartcontracts.management.noDeployedDles') }}</p>
           <i18n-t keypath="smartcontracts.management.createDleHint" tag="p">
             <template #link>
@@ -42,9 +51,19 @@
             v-for="dle in deployedDles" 
             :key="dle.dleAddress" 
             class="dle-card"
+            :class="{ 'dle-card--busy': isDleCardPending(dle) }"
             @click="openDleManagement(dle.dleAddress)"
           >
-            
+            <div
+              v-if="isDleCardPending(dle)"
+              class="dle-card__veil"
+              role="status"
+              aria-live="polite"
+            >
+              <UiGlyph name="sync" :spin="true" :size="28" />
+              <p>{{ t('smartcontracts.management.loadingDles') }}</p>
+            </div>
+            <div class="dle-card__fill">
             <div class="dle-header">
               <div class="dle-title-section">
                 <img 
@@ -61,86 +80,65 @@
               </div>
             </div>
 
-            <div class="dle-details">
-              <div class="detail-item" v-if="dle.deployedMultichain">
-                <strong>{{ t('smartcontracts.management.multichainDeploy') }}</strong>
-                <span class="multichain-badge">{{ t('smartcontracts.management.networksCount', { deployed: dle.totalNetworks, total: dle.supportedChainIds?.length || dle.totalNetworks }) }}</span>
-              </div>
-              <div class="detail-item" v-if="dle.networks && dle.networks.length">
-                <strong>{{ t('smartcontracts.management.addressesByNetwork') }}</strong>
-                <ul class="networks-list">
-                  <li v-for="net in dle.networks" :key="net.chainId" class="network-item">
-                    <span class="chain-name">{{ getChainName(net.chainId) }}:</span>
-                    <a
-                      v-if="net.address"
-                      :href="getExplorerUrl(net.chainId, net.address)"
-                      target="_blank"
-                      class="address-link"
-                      @click.stop
-                    >
-                      {{ shortenAddress(net.address) }}
-                      <UiGlyph name="external-link" :size="12" />
-                    </a>
-                    <span v-else class="address-missing">—</span>
-                  </li>
-                </ul>
-              </div>
-              <div class="detail-item" v-else-if="dle.dleAddress">
-                <strong>{{ t('smartcontracts.management.contractAddresses') }}</strong>
-                <div class="addresses-list">
-                  <div 
-                    v-for="chainId in (dle.supportedChainIds || [11155111])" 
-                    :key="chainId"
-                    class="address-item"
-                  >
-                    <span class="chain-name">{{ getChainName(chainId) }}:</span>
-                    <a 
-                      :href="getExplorerUrl(chainId, dle.dleAddress)" 
-                      target="_blank" 
-                      class="address-link"
-                      @click.stop
-                    >
-                      {{ shortenAddress(dle.dleAddress) }}
-                      <UiGlyph name="external-link" :size="12" />
-                    </a>
-                  </div>
+            <div class="dle-card-body">
+            <div
+              class="dle-card-panels"
+              :style="{ gridTemplateColumns: `repeat(${1 + (dle.insightNetworks?.length || 0)}, minmax(0, 1fr))` }"
+            >
+            <section class="dle-identity">
+              <h4 class="dle-identity__title">{{ t('smartcontracts.management.location') }}</h4>
+              <p class="dle-identity__location">{{ dle.location }}</p>
+              <div class="dle-identity__meta">
+                <div class="detail-item" v-if="dle.deployedMultichain">
+                  <strong>{{ t('smartcontracts.management.multichainDeploy') }}</strong>
+                  <span class="multichain-badge">{{ t('smartcontracts.management.networksCount', { deployed: dle.totalNetworks, total: dle.supportedChainIds?.length || dle.totalNetworks }) }}</span>
+                </div>
+                <div class="detail-item" v-if="!(dle.insightNetworks && dle.insightNetworks.length)">
+                  <strong>{{ t('smartcontracts.management.contractAddresses') }}</strong>
+                  <span class="address-missing">Адрес ещё не записан (деплой не завершён)</span>
+                </div>
+                <div class="detail-item">
+                  <strong>{{ t('smartcontracts.management.jurisdiction') }}</strong> {{ dle.jurisdiction }}
+                </div>
+                <div class="detail-item">
+                  <strong>{{ activityCodesLabel(dle) }}</strong> {{ dle.okvedCodes?.join(', ') || t('common.notSpecified') }}
+                </div>
+                <div class="detail-item">
+                  <strong>{{ t('smartcontracts.management.status') }}</strong>
+                  <span class="status active">{{ t('common.active') }}</span>
+                </div>
+                <div class="detail-item">
+                  <strong>{{ t('smartcontracts.management.creationDate') }}</strong>
+                  <span class="creation-date">{{ formatTimestamp(dle.creationTimestamp || dle.createdAt) }}</span>
                 </div>
               </div>
-              <div class="detail-item" v-else>
-                <strong>{{ t('smartcontracts.management.contractAddresses') }}</strong>
-                <span class="address-missing">Адрес ещё не записан (деплой не завершён)</span>
-              </div>
-              <div class="detail-item">
-                <strong>{{ t('smartcontracts.management.location') }}</strong> {{ dle.location }}
-              </div>
-              <div class="detail-item">
-                <strong>{{ t('smartcontracts.management.jurisdiction') }}</strong> {{ dle.jurisdiction }}
-              </div>
-              <div class="detail-item" v-if="dle.quorumPercentage">
-                <strong>{{ t('smartcontracts.management.quorum') }}</strong>
-                <span class="quorum-info">{{ dle.quorumPercentage }}%</span>
-              </div>
-              <div class="detail-item">
-                <strong>{{ activityCodesLabel(dle) }}</strong> {{ dle.okvedCodes?.join(', ') || t('common.notSpecified') }}
-              </div>
-              <div class="detail-item">
-                <strong>{{ t('smartcontracts.management.status') }}</strong>
-                <span class="status active">{{ t('common.active') }}</span>
-              </div>
-              <div class="detail-item">
-                <strong>{{ t('smartcontracts.management.totalTokenSupply') }}</strong>
-                <span class="token-supply">{{ formatTokenAmount(dle.totalSupply || 0) }} {{ dle.symbol }}</span>
-              </div>
-              <div class="detail-item">
-                <strong>{{ t('smartcontracts.management.creationDate') }}</strong>
-                <span class="creation-date">{{ formatTimestamp(dle.creationTimestamp || dle.createdAt) }}</span>
-              </div>
-              
+            </section>
+            <DleHubInsights
+              :dle-address="dle.dleAddress"
+              :networks="dle.insightNetworks || []"
+              :quorum-percentage="dle.quorumPercentage"
+              :token-symbol="dle.symbol"
+              @loading="markInsightsLoading"
+              @loaded="markInsightsLoaded"
+            />
             </div>
-
-
+            <div class="dle-card-more">
+              <button
+                type="button"
+                class="btn btn-primary"
+                @click.stop="openDleManagement(dle.dleAddress)"
+              >
+                {{ t('common.details') }}
+              </button>
+            </div>
+            </div>
+            </div>
           </div>
         </div>
+      </div>
+      <div class="management-hub">
+        <AdminHubCards />
+      </div>
       </div>
     </AdminPageShell>
   </BaseLayout>
@@ -152,7 +150,8 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
-import AdminSectionTabs from '../components/admin/AdminSectionTabs.vue';
+import AdminHubCards from '../components/admin/AdminHubCards.vue';
+import DleHubInsights from '../components/admin/DleHubInsights.vue';
 import api from '@/api/axios';
 import UiGlyph from '../components/UiGlyph.vue';
 
@@ -172,6 +171,27 @@ function activityCodesLabel(dle) {
     : t('smartcontracts.management.isicCodes');
 }
 
+function dleInsightNetworks(dle) {
+  const fromNet = dle?.networks || dle?.deployedNetworks || [];
+  if (Array.isArray(fromNet) && fromNet.length) {
+    return fromNet
+      .map((n) => ({
+        chainId: Number(n.chainId),
+        address: n.address || dle.dleAddress,
+      }))
+      .filter((n) => Number.isFinite(n.chainId) && n.chainId > 0);
+  }
+  const ids = dle?.supportedChainIds || [];
+  return ids
+    .map((id) => ({ chainId: Number(id), address: dle.dleAddress }))
+    .filter((n) => Number.isFinite(n.chainId) && n.chainId > 0);
+}
+
+function withInsightNetworks(dle) {
+  if (!dle) return null;
+  return { ...dle, insightNetworks: dleInsightNetworks(dle) };
+}
+
 // Определяем props
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -187,6 +207,23 @@ const router = useRouter();
 
 // Состояние для DLE
 const deployedDles = ref([]);
+const isLoadingDles = ref(true);
+const insightsPending = ref({});
+
+function markInsightsLoading(address) {
+  if (!address || insightsPending.value[address] === true) return;
+  insightsPending.value = { ...insightsPending.value, [address]: true };
+}
+
+function markInsightsLoaded(address) {
+  if (!address || insightsPending.value[address] === false) return;
+  insightsPending.value = { ...insightsPending.value, [address]: false };
+}
+
+function isDleCardPending(dle) {
+  if (!dle?.insightNetworks?.length) return false;
+  return insightsPending.value[dle.dleAddress] !== false;
+}
 
 
 
@@ -236,6 +273,7 @@ const openSettings = () => {
 
 // Загрузка деплоированных DLE из блокчейна
 async function loadDeployedDles() {
+  isLoadingDles.value = true;
   try {
     const response = await api.get('/dle-v2');
 
@@ -284,12 +322,12 @@ async function loadDeployedDles() {
                 participantCount: blockchainData.participantCount || 0
               };
 
-              return combinedDle;
+              return withInsightNetworks(combinedDle);
             } else {
-              return dle;
+              return withInsightNetworks(dle);
             }
           } catch (error) {
-            return dle;
+            return withInsightNetworks(dle);
           }
         })
       );
@@ -302,45 +340,12 @@ async function loadDeployedDles() {
   } catch (error) {
     console.error('[ManagementView] Ошибка при загрузке DLE:', error);
     deployedDles.value = [];
+  } finally {
+    isLoadingDles.value = false;
   }
 }
 
 // Функции для работы с DLE
-function shortenAddress(address) {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function getChainName(chainId) {
-  const chainNames = {
-    1: 'Ethereum',
-    11155111: 'Sepolia',
-    17000: 'Holesky',
-    421614: 'Arbitrum Sepolia',
-    84532: 'Base Sepolia',
-    137: 'Polygon',
-    56: 'BSC',
-    42161: 'Arbitrum'
-  };
-  return chainNames[chainId] || `Chain ${chainId}`;
-}
-
-function getExplorerUrl(chainId, address) {
-  const explorers = {
-    1: 'https://etherscan.io',
-    11155111: 'https://sepolia.etherscan.io',
-    17000: 'https://holesky.etherscan.io',
-    421614: 'https://sepolia.arbiscan.io',
-    84532: 'https://sepolia.basescan.org',
-    137: 'https://polygonscan.com',
-    56: 'https://bscscan.com',
-    42161: 'https://arbiscan.io'
-  };
-  const baseUrl = explorers[chainId] || 'https://etherscan.io';
-  return `${baseUrl}/address/${address}`;
-}
-
-
 function formatTimestamp(timestamp) {
   if (!timestamp) return '';
   
@@ -362,23 +367,6 @@ function formatTimestamp(timestamp) {
     hour: '2-digit',
     minute: '2-digit'
   });
-}
-
-function formatTokenAmount(amount) {
-  if (!amount) return '0';
-  const num = parseFloat(amount);
-  if (num === 0) return '0';
-  
-  // Для очень маленьких чисел показываем с большей точностью
-  if (num < 1) {
-    return num.toLocaleString('ru-RU', { 
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 18 
-    });
-  }
-  
-  // Для больших чисел показываем с разделителями тысяч
-  return num.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }
 
 function openDleOnEtherscan(address) {
@@ -405,8 +393,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.management-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.management-hub {
+  width: 100%;
+  min-width: 0;
+}
+
 .deployed-dles-section {
   width: 100%;
+  min-width: 0;
   margin-top: 0;
 }
 
@@ -425,10 +426,7 @@ onMounted(() => {
   margin: 0;
 }
 
-.loading-dles,
 .no-dles {
-  text-align: center;
-  padding: 2rem;
   color: var(--theme-text-muted, #666);
 }
 
@@ -443,7 +441,7 @@ onMounted(() => {
 
 .dles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   width: 100%;
   min-width: 0;
@@ -495,21 +493,66 @@ onMounted(() => {
 }
 
 .dle-card {
+  position: relative;
   background: white;
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid #e9ecef;
   transition: all 0.3s ease;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-.dle-card:hover {
+.dle-card:hover:not(.dle-card--placeholder):not(.dle-card--busy) {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
   cursor: pointer;
+}
+
+.dle-card--busy {
+  min-height: 14rem;
+  cursor: default;
+}
+
+.dle-card--busy .dle-card__fill {
+  visibility: hidden;
+}
+
+.dle-card__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: #fff;
+  border-radius: inherit;
+  color: var(--theme-text-muted, #666);
+}
+
+.dle-card__veil p {
+  margin: 0;
+}
+
+.dle-card--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 12rem;
+  text-align: center;
+  color: var(--theme-text-muted, #666);
+  cursor: default;
+}
+
+.dle-card--placeholder p {
+  margin: 0;
 }
 
 .dle-card.selected {
@@ -544,8 +587,65 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.dle-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dle-card-panels {
+  display: grid;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.dle-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 0.85rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.dle-identity__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-dark, #1f2937);
+}
+
+.dle-identity__location {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--color-dark, #1f2937);
+}
+
+.dle-identity__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dle-card-more {
+  display: flex;
+  justify-content: center;
+}
+
 .dle-details {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .dle-card-panels {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 .detail-item {

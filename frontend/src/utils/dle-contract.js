@@ -533,21 +533,22 @@ export async function voteForProposal(dleAddress, proposalId, support, chainId) 
     // Дополнительная диагностика перед голосованием
     try {
       console.log('🔍 [VOTE DEBUG] Проверяем состояние предложения...');
-      const proposalState = await dle.getProposalState(proposalId);
-      console.log('🔍 [VOTE DEBUG] Состояние предложения:', proposalState);
-      
-      // Проверяем, можно ли голосовать (состояние должно быть 0 = Pending)
-      if (Number(proposalState) !== 0) {
-        throw new Error(t('dleContract.errors.proposalWrongState', { state: proposalState }));
+      const proposalState = await dle.getProposalState.staticCall(proposalId);
+      const stateNum = Number(proposalState);
+      console.log('🔍 [VOTE DEBUG] Состояние предложения:', stateNum);
+
+      // 0=Pending — голосование только в этом состоянии
+      if (!Number.isFinite(stateNum) || stateNum !== 0) {
+        throw new Error(t('dleContract.errors.proposalWrongState', { state: stateNum }));
       }
-      
+
       console.log('🔍 [VOTE DEBUG] Предложение в правильном состоянии для голосования');
-      
+
       // Проверяем право голоса (если доступно)
       try {
-        const proposal = await dle.proposals(proposalId);
+        const proposal = await dle.proposals.staticCall(proposalId);
         if (proposal.snapshotTimepoint) {
-          const votingPower = await dle.getPastVotes(signer.address, proposal.snapshotTimepoint);
+          const votingPower = await dle.getPastVotes.staticCall(voter, proposal.snapshotTimepoint);
           console.log('🔍 [VOTE DEBUG] Право голоса:', votingPower.toString());
           if (votingPower === 0n) {
             throw new Error(t('dleContract.errors.noVotingPower'));

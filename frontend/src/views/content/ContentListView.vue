@@ -21,12 +21,6 @@
     <AdminPageShell :show-close="true" :fallback="{ name: 'crm' }">
       <HubGrid>
         <HubCard
-          v-if="canAccessPath('/content/create')"
-          :title="t('content.list.createPage.title')"
-          :description="t('content.list.createPage.description')"
-          @open="goToCreate"
-        />
-        <HubCard
           v-if="canAccessPath('/content/published')"
           :title="t('content.list.published.title')"
           :description="t('content.list.published.description')"
@@ -62,12 +56,6 @@
           :description="t('content.list.media.description')"
           @open="goToMedia"
         />
-        <HubCard
-          v-if="isEditor && canAccessPath('/content/store')"
-          :title="t('content.list.store.title')"
-          :description="t('content.list.store.description')"
-          :to="{ name: 'content-store' }"
-        />
       </HubGrid>
     </AdminPageShell>
   </BaseLayout>
@@ -102,7 +90,6 @@ onMounted(() => {
   ensureScreenAccessLoaded();
 });
 
-function goToCreate() { router.push({ name: 'content-create' }); }
 function goToTemplates() { router.push({ name: 'content-templates' }); }
 function goToMedia() { router.push({ name: 'content-media' }); }
 function goToPublished() { router.push({ name: 'content-published' }); }

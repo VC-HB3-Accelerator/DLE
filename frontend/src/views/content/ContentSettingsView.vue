@@ -209,7 +209,7 @@ const LEGACY_VAR_ALIASES = {
 };
 
 const { t, locale } = useI18n();
-const { hasPermission } = usePermissions();
+const { hasPermission, PERMISSIONS } = usePermissions();
 const canManageDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 const formFields = computed(() =>
   (pack.value?.variables || []).filter((v) => v.form !== false)

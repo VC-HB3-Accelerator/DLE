@@ -247,7 +247,11 @@
 
           <!-- Кнопки действий -->
           <div class="form-actions">
-<button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+            <button type="button" class="btn btn-outline" :disabled="isSubmitting" @click="openPreview">
+              <UiGlyph name="eye" />
+              {{ t('content.editor.preview') }}
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
               <UiGlyph name="globe" />
               {{ isSubmitting ? t('content.editor.publishing') : t('content.editor.publish') }}
             </button>
@@ -255,11 +259,46 @@
         </form>
       </div>
     </div>
+    <Teleport to="body">
+      <div
+        v-if="previewOpen"
+        class="preview-overlay"
+        @click.self="closePreview"
+      >
+        <div class="preview-dialog" role="dialog" aria-modal="true" :aria-label="t('content.editor.preview')">
+          <div class="preview-dialog__bar">
+            <div class="preview-dialog__bar-text">
+              <strong>{{ t('content.editor.preview') }}</strong>
+              <span>{{ t('content.editor.previewNotPublished') }}</span>
+            </div>
+            <button type="button" class="preview-dialog__close" @click="closePreview">
+              {{ t('common.close') }}
+            </button>
+          </div>
+          <div class="preview-dialog__body">
+            <p v-if="form.format !== 'html'" class="preview-dialog__empty">
+              {{ t('content.editor.previewFileOnly') }}
+            </p>
+            <article v-else class="preview-article">
+              <h1>{{ form.title.trim() || t('content.editor.pageTitlePlaceholder') }}</h1>
+              <p v-if="form.summary.trim()" class="preview-article__summary">{{ form.summary }}</p>
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div
+                v-if="previewHtml"
+                class="preview-article__content"
+                v-html="previewHtml"
+              />
+              <p v-else class="preview-dialog__empty">{{ t('content.editor.previewEmpty') }}</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
@@ -273,6 +312,7 @@ import { PERMISSIONS } from './permissions.js';
 import { useAuthContext } from '../composables/useAuth';
 import { usePermissions } from '../composables/usePermissions';
 import UiGlyph from '../components/UiGlyph.vue';
+import DOMPurify from 'dompurify';
 
 // Props
 const props = defineProps({
@@ -376,6 +416,43 @@ const ogImagePreviewUrl = computed(() => {
   if (String(url).startsWith('http') || String(url).startsWith('data:')) return url;
   if (typeof window === 'undefined') return url;
   return `${window.location.origin}${String(url).startsWith('/') ? '' : '/'}${url}`;
+});
+
+const previewOpen = ref(false);
+const PREVIEW_SANITIZE = {
+  ADD_TAGS: ['video', 'source', 'img', 'iframe', 'pre', 'code'],
+  ADD_ATTR: [
+    'controls', 'autoplay', 'loop', 'muted', 'poster', 'preload', 'playsinline',
+    'src', 'alt', 'title', 'width', 'height', 'style', 'class', 'loading',
+    'frameborder', 'allowfullscreen', 'allow'
+  ],
+  ALLOW_DATA_ATTR: true,
+  KEEP_CONTENT: true
+};
+
+const previewHtml = computed(() => {
+  const raw = form.value.content || '';
+  if (!String(raw).trim()) return '';
+  return DOMPurify.sanitize(raw, PREVIEW_SANITIZE);
+});
+
+function onPreviewKeydown(e) {
+  if (e.key === 'Escape') closePreview();
+}
+
+function openPreview() {
+  previewOpen.value = true;
+}
+
+function closePreview() {
+  previewOpen.value = false;
+}
+
+watch(previewOpen, (open) => {
+  if (typeof document === 'undefined') return;
+  document.body.style.overflow = open ? 'hidden' : '';
+  if (open) document.addEventListener('keydown', onPreviewKeydown);
+  else document.removeEventListener('keydown', onPreviewKeydown);
 });
 
 function openOgPicker() {
@@ -773,7 +850,17 @@ onMounted(async () => {
   
   if (isEditMode.value) {
     await loadPageForEdit();
+  } else {
+    const vis = route.query.visibility;
+    if (vis === 'internal' || vis === 'public') {
+      form.value.visibility = vis;
+    }
   }
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onPreviewKeydown);
+  document.body.style.overflow = '';
 });
 </script>
 
@@ -1102,6 +1189,130 @@ onMounted(async () => {
   .content-stats {
     flex-direction: column;
     gap: 5px;
+  }
+}
+
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.preview-dialog {
+  background: var(--theme-bg, #fff);
+  border-radius: 12px;
+  width: min(920px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.2);
+}
+
+.preview-dialog__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.preview-dialog__bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preview-dialog__bar-text strong {
+  font-size: 1rem;
+  color: var(--color-dark, #1f2a37);
+}
+
+.preview-dialog__bar-text span {
+  font-size: 0.85rem;
+  color: var(--color-grey-dark, #606266);
+}
+
+.preview-dialog__close {
+  border: 1px solid var(--color-primary);
+  background: #fff;
+  color: var(--color-primary);
+  border-radius: var(--radius-sm, 8px);
+  padding: 8px 14px;
+  cursor: pointer;
+  font: inherit;
+  flex-shrink: 0;
+}
+
+.preview-dialog__close:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.preview-dialog__body {
+  overflow: auto;
+  padding: 24px 28px 40px;
+  flex: 1;
+}
+
+.preview-dialog__empty {
+  margin: 0;
+  color: var(--color-grey-dark, #606266);
+}
+
+.preview-article h1 {
+  margin: 0 0 12px;
+  font-size: 1.85rem;
+  line-height: 1.25;
+  color: var(--color-dark, #1f2a37);
+}
+
+.preview-article__summary {
+  margin: 0 0 20px;
+  color: var(--color-grey-dark, #606266);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.preview-article__content {
+  line-height: 1.65;
+  color: var(--color-dark, #1f2a37);
+}
+
+.preview-article__content :deep(img),
+.preview-article__content :deep(video),
+.preview-article__content :deep(iframe) {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.25rem 0;
+  border-radius: 8px;
+}
+
+.preview-article__content :deep(iframe),
+.preview-article__content :deep(video) {
+  width: 100%;
+  min-height: 280px;
+}
+
+@media (max-width: 640px) {
+  .preview-overlay {
+    padding: 0;
+  }
+  .preview-dialog {
+    border-radius: 0;
+  }
+  .preview-dialog__body {
+    padding: 16px 16px 32px;
   }
 }
 </style> 

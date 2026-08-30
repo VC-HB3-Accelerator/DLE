@@ -764,6 +764,23 @@ router.post('/get-all-modules', async (req, res) => {
 
     console.log(`[DLE Modules] Получение модулей on-chain для DLE: ${dleAddress}`);
 
+    const dleAttachService = require('../services/dleAttachService');
+    const attached = await dleAttachService.findDeployRowByDleAddress(dleAddress);
+    if (!attached) {
+      console.log(`[DLE Modules] книга не на этой ОС, карточки модулей не отдаём: ${dleAddress}`);
+      return res.json({
+        success: true,
+        data: {
+          modules: [],
+          requiresGovernance: true,
+          totalModules: 0,
+          activeModules: 0,
+          supportedNetworks: [],
+          chainId: null,
+        },
+      });
+    }
+
     const { provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
       preferChainId,
     });
@@ -1033,7 +1050,7 @@ router.post('/get-treasury-holdings', async (req, res) => {
         error: null,
       };
       try {
-        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
+        const rpcUrl = await rpcProviderService.getVerifiedRpcUrlByChainId(chainId);
         if (!rpcUrl) {
           row.error = 'RPC не найден';
           chains.push(row);

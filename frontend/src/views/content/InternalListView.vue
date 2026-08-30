@@ -26,7 +26,16 @@
       </div>
 
       <div v-else class="internal-page__list-wrap">
-        <BlogFeedToolbar v-model="activeFilter" :filters="sectionFilters" />
+        <BlogFeedToolbar v-model="activeFilter" :filters="sectionFilters">
+          <button
+            v-if="canCreatePage"
+            type="button"
+            class="internal-page__create"
+            @click="goToCreate"
+          >
+            {{ t('common.create') }}
+          </button>
+        </BlogFeedToolbar>
 
         <div v-if="canManageLegalDocs && address" class="internal-page__access">
           <label for="permission-filter">{{ t('content.internal.accessLevelLabel') }}</label>
@@ -188,6 +197,7 @@ import pagesService from '../../services/pagesService';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from './permissions.js';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const ALL_FILTER = 'all';
 const props = defineProps({
@@ -207,6 +217,7 @@ const { hasPermission } = usePermissions();
 
 const canManageLegalDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 const canManageDocs = canManageLegalDocs;
+const canCreatePage = computed(() => canAccessPath('/content/create'));
 
 const pages = ref([]);
 const isLoading = ref(false);
@@ -344,6 +355,10 @@ function goToIndex() {
   router.push({ name: 'content-internal', query });
 }
 
+function goToCreate() {
+  router.push({ name: 'content-create', query: { visibility: 'internal' } });
+}
+
 function editPage(id) {
   router.push({ name: 'content-create', query: { edit: id } });
 }
@@ -442,6 +457,7 @@ async function loadPages() {
 }
 
 onMounted(async () => {
+  await ensureScreenAccessLoaded();
   applySectionFromRoute();
   await loadPages();
   if (canManageDocs.value) await loadCategories();
@@ -469,6 +485,23 @@ onBeforeUnmount(() => {
   width: 100%;
   box-sizing: border-box;
   margin: 0 auto;
+}
+
+.internal-page__create {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--color-primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.internal-page__create:hover {
+  opacity: 0.92;
 }
 
 .internal-page__access {

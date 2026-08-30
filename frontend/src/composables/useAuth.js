@@ -21,7 +21,7 @@ const t = (key, params) => i18n.global.t(key, params);
 // === SINGLETON STATE ===
 const isAuthenticated = ref(false);
 const authType = ref(null);
-const userId = ref(null);
+export const userId = ref(null);
 const address = ref(null);
 const telegramId = ref(null);
 const email = ref(null);

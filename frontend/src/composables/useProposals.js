@@ -10,7 +10,7 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
-import { ref, computed } from 'vue';
+import { ref, unref, watch } from 'vue';
 import { getProposals } from '@/services/proposalsService';
 import { ethers } from 'ethers';
 import { useProposalValidation } from './useProposalValidation';
@@ -83,7 +83,19 @@ function getChainName(chainId) {
   return chainNames[chainId] || `Chain ${chainId}`;
 }
 
-export function useProposals(dleAddress, isAuthenticated, userAddress) {
+function proposalChainId(proposal) {
+  return Number(proposal?.chainId || proposal?.chains?.[0]?.chainId || 0);
+}
+
+function sortProposalQueue(list) {
+  return list.sort((a, b) => {
+    const idDiff = Number(b.id ?? 0) - Number(a.id ?? 0);
+    if (idDiff !== 0) return idDiff;
+    return Number(b.createdAt || 0) - Number(a.createdAt || 0);
+  });
+}
+
+export function useProposals(dleAddress, isAuthenticated, userAddress, selectedChainId) {
   const proposals = ref([]);
   const filteredProposals = ref([]);
   const isLoading = ref(false);
@@ -330,8 +342,14 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       filteredProposals.value = [];
       return;
     }
-    
-    let filtered = [...proposals.value];
+
+    const cid = Number(unref(selectedChainId) || 0);
+    if (!Number.isFinite(cid) || cid <= 0) {
+      filteredProposals.value = [];
+      return;
+    }
+
+    let filtered = proposals.value.filter((proposal) => proposalChainId(proposal) === cid);
 
     if (statusFilter.value) {
       filtered = filtered.filter(proposal => {
@@ -356,8 +374,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       );
     }
 
-    filteredProposals.value = filtered;
+    filteredProposals.value = sortProposalQueue(filtered);
   };
+
+  watch(() => Number(unref(selectedChainId) || 0), filterProposals);
 
   /** Карточка по uniqueId (сеть+id) или по on-chain id, если он один в списке. */
   const findProposal = (ref) => {

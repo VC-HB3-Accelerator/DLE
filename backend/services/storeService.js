@@ -18,6 +18,7 @@ const {
 } = require('./voiceCallAmount');
 
 const { getPool } = db;
+const storeReviews = require('./storeReviewsService');
 
 /** Без voice-call хвостов: amount_unique = sticker, tail = 0 */
 const PAY_TAIL_UNITS = '0';
@@ -28,6 +29,7 @@ const TREASURY_READ_ABI = [
   'function getAllTokens() view returns (address[])',
   'function getTokenInfo(address tokenAddress) view returns (tuple(address tokenAddress, string symbol, uint8 decimals, bool isActive, bool isNative, uint256 addedTimestamp, uint256 balance))',
   'function getTokenBalance(address tokenAddress) view returns (uint256)',
+  'function getRealTokenBalance(address tokenAddress) view returns (uint256)',
 ];
 const ERC20_META_ABI = [
   'function symbol() view returns (string)',
@@ -42,6 +44,26 @@ function normalizeAddress(value) {
     const err = new Error('Некорректный адрес');
     err.status = 400;
     err.code = 'INVALID_ADDRESS';
+    throw err;
+  }
+}
+
+function isNativeTokenAddress(value) {
+  if (value == null || String(value).trim() === '') return true;
+  try {
+    return ethers.getAddress(String(value).trim()) === ethers.ZeroAddress;
+  } catch {
+    return false;
+  }
+}
+
+function assertPayTokenErc20(address) {
+  if (isNativeTokenAddress(address)) {
+    const err = new Error(
+      'Токен оплаты должен быть ERC-20 (не нативная монета 0x0). Выберите токен из казны в карточке товара.'
+    );
+    err.status = 400;
+    err.code = 'PAY_TOKEN_MUST_BE_ERC20';
     throw err;
   }
 }
@@ -141,6 +163,8 @@ function mapProductPublic(row, mediaRows = [], sectionIds = null) {
     section_ids: full.section_ids,
     media_ids: full.media_ids,
     media: full.media,
+    rating_avg: full.rating_avg ?? null,
+    review_count: full.review_count ?? 0,
   };
 }
 
@@ -371,11 +395,15 @@ async function listProducts({ publishedOnly = false, sectionId = null, sectionSl
   }
 
   const { rows } = await db.getQuery()(sql, params);
+  const ratingMap = await storeReviews.loadRatingMap(rows.map((r) => r.id));
   const out = [];
   for (const row of rows) {
     const media = await loadProductMedia(row.id);
     const section_ids = await loadProductSectionIds(row.id);
-    out.push(publishedOnly ? mapProductPublic(row, media, section_ids) : mapProduct(row, media, section_ids));
+    const mapped = publishedOnly
+      ? mapProductPublic(row, media, section_ids)
+      : mapProduct(row, media, section_ids);
+    out.push(storeReviews.attachRatings(mapped, ratingMap));
   }
   return out;
 }
@@ -391,7 +419,11 @@ async function getProduct(id, { publishedOnly = false } = {}) {
   }
   const media = await loadProductMedia(row.id);
   const section_ids = await loadProductSectionIds(row.id);
-  return publishedOnly ? mapProductPublic(row, media, section_ids) : mapProduct(row, media, section_ids);
+  const mapped = publishedOnly
+    ? mapProductPublic(row, media, section_ids)
+    : mapProduct(row, media, section_ids);
+  const ratingMap = await storeReviews.loadRatingMap([row.id]);
+  return storeReviews.attachRatings(mapped, ratingMap);
 }
 
 function validateProductPayload(payload) {
@@ -404,12 +436,7 @@ function validateProductPayload(payload) {
   }
   const kind = payload.kind === 'service' ? 'service' : 'product';
   const pay_token_address = normalizeAddress(payload.pay_token_address);
-  if (!pay_token_address || pay_token_address === ethers.ZeroAddress) {
-    const err = new Error('Токен оплаты должен быть ERC-20 (не нативная монета 0x0)');
-    err.status = 400;
-    err.code = 'PAY_TOKEN_MUST_BE_ERC20';
-    throw err;
-  }
+  assertPayTokenErc20(pay_token_address);
   const pay_token_decimals = Number(payload.pay_token_decimals);
   if (!Number.isInteger(pay_token_decimals) || pay_token_decimals < 0 || pay_token_decimals > 18) {
     const err = new Error('Некорректные decimals pay-токена');
@@ -430,7 +457,8 @@ function validateProductPayload(payload) {
   );
 
   let license_token_address = null;
-  let license_token_decimals = null;
+  // колонка NOT NULL: без токен-чека пишем 0 (чек выключен — C2)
+  let license_token_decimals = 0;
   let license_token_symbol = '';
   let license_amount_units = null;
   let receipt_standard = null;
@@ -619,6 +647,7 @@ async function createOrder({ productId, buyerAddress, userId, qty: qtyRaw = 1 })
 
   const buyer = normalizeAddress(buyerAddress);
   const product = await getProduct(productId);
+  assertPayTokenErc20(product.pay_token_address);
   if (!product.published) {
     const err = new Error('Товар не опубликован');
     err.status = 400;
@@ -678,7 +707,7 @@ async function createOrder({ productId, buyerAddress, userId, qty: qtyRaw = 1 })
       product.id, buyer, userId || null, product.title,
       sticker.toString(), product.pay_token_address, product.pay_token_decimals, product.pay_token_symbol,
       receiptEnabled ? product.license_token_address : null,
-      receiptEnabled ? product.license_token_decimals : null,
+      receiptEnabled ? Number(product.license_token_decimals || 0) : 0,
       receiptEnabled ? product.license_token_symbol : '',
       licenseAmount,
       qty,
@@ -916,7 +945,60 @@ async function listOrdersMine(buyer) {
     `SELECT * FROM store_orders WHERE lower(buyer) = lower($1) ORDER BY created_at DESC LIMIT 200`,
     [addr]
   );
-  return rows.map((r) => mapOrder(r));
+  return attachBuyerReviews(rows, addr);
+}
+
+async function listOrdersForUserId(userId) {
+  const rows = await storeReviews.listOrdersForContactUserId(userId);
+  return attachBuyerReviews(rows);
+}
+
+async function loadCoverByProductIds(productIds) {
+  const ids = [...new Set((productIds || []).filter(Boolean))];
+  const map = {};
+  if (!ids.length) return map;
+  const { rows } = await db.getQuery()(
+    `SELECT DISTINCT ON (spm.product_id)
+       spm.product_id,
+       spm.content_media_id,
+       spm.sort_order,
+       cm.file_name,
+       cm.media_type,
+       CASE
+         WHEN cm.public_id IS NOT NULL AND cm.public_id <> '' THEN '/v/' || cm.public_id
+         ELSE '/api/uploads/media/' || cm.id::text || '/file'
+       END AS url
+     FROM store_product_media spm
+     LEFT JOIN content_media cm ON cm.id = spm.content_media_id
+     WHERE spm.product_id = ANY($1::uuid[])
+     ORDER BY spm.product_id, spm.sort_order ASC, spm.id ASC`,
+    [ids]
+  );
+  for (const r of rows) {
+    map[r.product_id] = mapMediaRows([r])[0] || null;
+  }
+  return map;
+}
+
+async function attachBuyerReviews(orderRows, buyerHint = null) {
+  const out = [];
+  for (const row of orderRows) {
+    const mapped = mapOrder(row);
+    const buyer = buyerHint || mapped.buyer;
+    try {
+      mapped.my_review = mapped.product_id
+        ? await storeReviews.getReviewForBuyer(mapped.product_id, buyer)
+        : null;
+    } catch {
+      mapped.my_review = null;
+    }
+    out.push(mapped);
+  }
+  const covers = await loadCoverByProductIds(out.map((o) => o.product_id));
+  for (const o of out) {
+    o.cover = covers[o.product_id] || null;
+  }
+  return out;
 }
 
 async function expireAwaitingOrders() {
@@ -1013,68 +1095,187 @@ async function enrichOrderTreasuryBalances(row) {
   };
 }
 
-async function listTreasuryTokens() {
-  const settings = await getSettings();
-  if (!settings.treasury_address || !settings.primary_chain_id) {
-    return [];
-  }
+function listedTokenAddress(raw) {
+  if (raw == null || raw === ethers.ZeroAddress) return ethers.ZeroAddress;
   try {
-    const provider = await getProvider(settings.primary_chain_id);
-    const treasury = new ethers.Contract(settings.treasury_address, TREASURY_READ_ABI, provider);
-    const addresses = await treasury.getAllTokens();
-    const out = [];
-    for (const addr of addresses || []) {
-      try {
-        const info = await treasury.getTokenInfo(addr);
-        const tokenAddress = ethers.getAddress(info.tokenAddress || addr);
-        if (info.isActive === false) continue;
-        let liveBal = null;
-        try {
-          liveBal = await readTokenBalanceHuman(
-            settings.treasury_address,
-            tokenAddress,
-            Number(info.decimals),
-            settings.primary_chain_id
-          );
-        } catch (_) {
-          liveBal = fromUnits(info.balance, info.decimals);
-        }
-        out.push({
-          address: tokenAddress,
-          symbol: info.symbol || '',
-          decimals: Number(info.decimals),
-          balance_cached: unitsToString(info.balance),
-          balance_human: liveBal,
-          in_treasury: true,
-          is_active: Boolean(info.isActive),
-        });
-      } catch (inner) {
-        try {
-          const erc20 = new ethers.Contract(addr, ERC20_META_ABI, provider);
-          const [symbol, decimals, bal] = await Promise.all([
-            erc20.symbol(),
-            erc20.decimals(),
-            erc20.balanceOf(settings.treasury_address),
-          ]);
-          out.push({
-            address: ethers.getAddress(addr),
-            symbol: String(symbol || ''),
-            decimals: Number(decimals),
-            balance_cached: unitsToString(bal),
-            balance_human: fromUnits(bal, decimals),
-            in_treasury: true,
-            is_active: true,
-          });
-        } catch (e2) {
-          logger.warn('[store] token meta skip:', addr, e2.message);
-        }
-      }
-    }
-    return out;
-  } catch (error) {
-    logger.warn('[store] listTreasuryTokens:', error.message);
+    return ethers.getAddress(raw);
+  } catch {
+    return ethers.ZeroAddress;
+  }
+}
+
+async function readErc20Meta(provider, tokenAddress, treasuryAddress, info) {
+  const erc20 = new ethers.Contract(tokenAddress, ERC20_META_ABI, provider);
+  let symbol = String(info?.symbol || '');
+  if (!symbol) {
+    try { symbol = String(await erc20.symbol()); } catch (_) { symbol = ''; }
+  }
+  let decimals;
+  try {
+    decimals = Number(await erc20.decimals());
+  } catch (_) {
+    decimals = Number(info?.decimals);
+  }
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
+    decimals = 18;
+  }
+  let rawBal = info?.balance;
+  try {
+    rawBal = await erc20.balanceOf(treasuryAddress);
+  } catch (_) {
+    if (rawBal == null) rawBal = 0n;
+  }
+  return {
+    symbol,
+    decimals,
+    balance_cached: unitsToString(rawBal),
+    balance_human: fromUnits(rawBal, decimals),
+  };
+}
+
+async function listTreasuryTokens(opts = {}) {
+  const settings = await getSettings();
+  const treasuryAddress = opts.treasury_address
+    ? normalizeAddress(opts.treasury_address)
+    : settings.treasury_address;
+  const chainId = opts.chain_id != null && opts.chain_id !== ''
+    ? Number(opts.chain_id)
+    : settings.primary_chain_id;
+  if (!treasuryAddress || !chainId) {
     return [];
   }
+  const provider = await getProvider(chainId);
+  const treasury = new ethers.Contract(treasuryAddress, TREASURY_READ_ABI, provider);
+  let addresses;
+  try {
+    addresses = await treasury.getAllTokens();
+  } catch (error) {
+    logger.warn('[store] listTreasuryTokens getAllTokens:', error.message);
+    const err = new Error('Не удалось прочитать реестр токенов казны из сети');
+    err.status = 502;
+    err.code = 'TREASURY_TOKENS_UNAVAILABLE';
+    throw err;
+  }
+  const out = [];
+  const seen = new Set();
+  for (const raw of addresses || []) {
+    const tokenAddress = listedTokenAddress(raw);
+    if (isNativeTokenAddress(tokenAddress)) continue;
+    const key = tokenAddress.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      let info = null;
+      try {
+        info = await treasury.getTokenInfo(tokenAddress);
+      } catch (_) {
+        info = null;
+      }
+      const isNative = Boolean(info?.isNative);
+      if (isNative) continue;
+      if (info && info.isActive === false) continue;
+      const meta = await readErc20Meta(provider, tokenAddress, treasuryAddress, info);
+      out.push({
+        address: tokenAddress,
+        symbol: meta.symbol,
+        decimals: meta.decimals,
+        balance_cached: meta.balance_cached,
+        balance_human: meta.balance_human,
+        in_treasury: true,
+        is_active: info ? Boolean(info.isActive) : true,
+        is_native: false,
+      });
+    } catch (e2) {
+      logger.warn('[store] token meta skip:', tokenAddress, e2.message);
+    }
+  }
+  return out;
+}
+
+const BOOK_NETWORK_NAMES = {
+  1: 'Ethereum Mainnet',
+  11155111: 'Sepolia',
+  17000: 'Holesky',
+  137: 'Polygon',
+  42161: 'Arbitrum One',
+  421614: 'Arbitrum Sepolia',
+  10: 'Optimism',
+  8453: 'Base',
+  84532: 'Base Sepolia',
+  56: 'BNB Smart Chain',
+};
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Адрес книги один во всех сетях. RPC берём из БД, ищем контракт,
+ * для каждой найденной сети читаем слот казны.
+ */
+async function discoverBook(dleAddressRaw) {
+  const dleAddress = normalizeAddress(dleAddressRaw);
+  const rpcProviderService = require('./rpcProviderService');
+  const { resolveBookSlot } = require('../utils/bookModuleSlot');
+  const providers = await rpcProviderService.getAllRpcProviders();
+  if (!Array.isArray(providers) || providers.length === 0) {
+    const err = new Error('В базе нет RPC для связи с блокчейном');
+    err.status = 400;
+    err.code = 'RPC_MISSING';
+    throw err;
+  }
+
+  const byChain = new Map();
+  for (const rpc of providers) {
+    const chainId = Number(rpc.chain_id);
+    if (!Number.isFinite(chainId) || chainId <= 0 || byChain.has(chainId)) continue;
+    byChain.set(chainId, rpc);
+  }
+
+  const found = [];
+  await Promise.all([...byChain.entries()].map(async ([chainId, rpc]) => {
+    try {
+      const url = rpc.rpc_url || await rpcProviderService.getRpcUrlByChainId(chainId);
+      if (!url) return;
+      const provider = new ethers.JsonRpcProvider(url, chainId, { staticNetwork: true });
+      const code = await withTimeout(provider.getCode(dleAddress), 8000, `RPC timeout chain ${chainId}`);
+      if (!code || code === '0x') return;
+      const dle = new ethers.Contract(
+        dleAddress,
+        ['function getModuleAddress(bytes32) view returns (address)'],
+        provider
+      );
+      const slot = await withTimeout(resolveBookSlot(dle, 'treasury'), 8000, `treasury slot timeout ${chainId}`);
+      const treasury = slot?.moduleAddress && slot.moduleAddress !== ethers.ZeroAddress
+        ? ethers.getAddress(slot.moduleAddress)
+        : null;
+      found.push({
+        chain_id: chainId,
+        network_name: BOOK_NETWORK_NAMES[chainId] || `Chain ${chainId}`,
+        treasury_address: treasury,
+      });
+    } catch (error) {
+      logger.warn('[store] discoverBook skip chain', chainId, error.message);
+    }
+  }));
+
+  found.sort((a, b) => a.chain_id - b.chain_id);
+  if (!found.length) {
+    const err = new Error('По этому адресу книги нет контракта ни в одной сети, для которой в базе есть RPC');
+    err.status = 404;
+    err.code = 'BOOK_NOT_FOUND';
+    throw err;
+  }
+  return {
+    primary_dle_address: dleAddress,
+    networks: found,
+  };
 }
 
 /**
@@ -1091,6 +1292,9 @@ async function resolveToken(tokenAddress, options = {}) {
   }
   const address = normalizeAddress(tokenAddress);
   const standard = String(options.standard || 'erc20').toLowerCase();
+  if (standard === 'erc20') {
+    assertPayTokenErc20(address);
+  }
   const provider = await getProvider(settings.primary_chain_id);
   const treasuryAddr = settings.treasury_address;
 
@@ -1286,8 +1490,34 @@ async function markPaidAtomic(orderId, matched) {
        RETURNING *`,
       [orderId, matched.txHash, matched.logIndex]
     );
+    if (row.checkout_id) {
+      await client.query(
+        `UPDATE store_checkouts
+         SET status = 'paid', tx_hash = $2, tx_log_index = $3, paid_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND status = 'awaiting_payment'`,
+        [row.checkout_id, matched.txHash, matched.logIndex]
+      );
+      await client.query(
+        `UPDATE store_orders
+         SET status = 'paid', tx_hash = $2, tx_log_index = $3, paid_at = NOW(), updated_at = NOW()
+         WHERE checkout_id = $1 AND status = 'awaiting_payment'`,
+        [row.checkout_id, matched.txHash, matched.logIndex]
+      );
+    }
     await client.query('COMMIT');
-    return mapOrder(updated[0]);
+    const paid = mapOrder(updated[0]);
+    try {
+      await storeReviews.recordPaidActivity({
+        userId: paid.user_id,
+        buyer: paid.buyer,
+        checkoutId: paid.checkout_id,
+        orderId: paid.id,
+        productId: paid.product_id,
+      });
+    } catch (e) {
+      logger.warn('[store] paid activity skipped:', e.message);
+    }
+    return paid;
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
     throw error;
@@ -1626,6 +1856,8 @@ async function markRefundProposed(orderId, proposalId) {
 module.exports = {
   SLOT_STATUSES,
   normalizeAddress,
+  isNativeTokenAddress,
+  assertPayTokenErc20,
   orderProposalRef,
   getSettings,
   saveSettings,
@@ -1639,6 +1871,7 @@ module.exports = {
   getOrder,
   listOrdersCrm,
   listOrdersMine,
+  listOrdersForUserId,
   cancelOrder,
   expireAwaitingOrders,
   checkOrderPayment,
@@ -1654,6 +1887,7 @@ module.exports = {
   mapProduct,
   countWalletSlots,
   listTreasuryTokens,
+  discoverBook,
   resolveToken,
   enrichOrderTreasuryBalances,
 };

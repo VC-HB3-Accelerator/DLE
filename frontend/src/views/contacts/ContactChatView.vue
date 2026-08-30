@@ -63,6 +63,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import ChatInterface from '@/components/ChatInterface.vue';
 import messagesService from '@/services/messagesService.js';
 import { getConversationByUserId, getMessagesByConversationId } from '@/services/messagesService.js';
+import { notifyStoreCabinetAsk } from '@/services/storeService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { useContactDetailsContext } from '@/composables/useContactDetails';
@@ -214,8 +215,8 @@ function saveDraftSoon() {
   }, 600);
 }
 
-async function handleSendMessage({ message, attachments = [] }) {
-  if (!contact.value?.id) return;
+async function handleSendMessage({ message, attachments = [], silent = false }) {
+  if (!contact.value?.id) return false;
 
   if (broadcastDraftMode.value) {
     const text = String(message || '').trim();
@@ -223,22 +224,26 @@ async function handleSendMessage({ message, attachments = [] }) {
     await saveBroadcastDraft();
     chatNewMessage.value = text;
     ElMessage.success(t('contacts.broadcast.drafts.savedInChat'));
-    return;
+    return true;
   }
 
   if (contact.value.is_blocked) {
     ElMessageBox.alert(t('contacts.details.userBlocked'), t('common.error'), { type: 'error' });
-    return;
+    return false;
   }
 
   const hasAnyId = contact.value.email || contact.value.telegram || contact.value.wallet;
   if (!isGuestContact.value && !hasAnyId) {
     ElMessageBox.alert(t('contacts.details.noIdentifiers'), t('common.error'), { type: 'warning' });
-    return;
+    return false;
   }
 
   const files = Array.isArray(attachments) ? attachments.slice(0, 1) : [];
-  if (!String(message || '').trim() && files.length === 0) return;
+  if (!String(message || '').trim() && files.length === 0) return false;
+
+  const sessionUserId = Number(currentUserId.value);
+  const contactNum = Number(contact.value.id);
+  const isOwnCard = Number.isInteger(sessionUserId) && sessionUserId > 0 && sessionUserId === contactNum;
 
   try {
     const result = isGuestContact.value
@@ -251,16 +256,18 @@ async function handleSendMessage({ message, attachments = [] }) {
         conversationId: conversationId.value,
         message,
         attachments: files,
-        toUserId: contact.value.id
+        toUserId: isOwnCard ? undefined : contact.value.id
       });
 
     if (result?.success) {
       chatNewMessage.value = '';
       await loadMessages();
-      ElMessageBox.alert(t('contacts.details.sendSuccess'), t('common.success'), { type: 'success' });
-    } else {
-      throw new Error(result?.message || t('common.unknownError'));
+      if (!silent) {
+        ElMessageBox.alert(t('contacts.details.sendSuccess'), t('common.success'), { type: 'success' });
+      }
+      return true;
     }
+    throw new Error(result?.message || t('common.unknownError'));
   } catch (e) {
     const code = e?.response?.data?.code;
     ElMessageBox.alert(
@@ -270,6 +277,7 @@ async function handleSendMessage({ message, attachments = [] }) {
       t('common.error'),
       { type: 'error' }
     );
+    return false;
   }
 }
 
@@ -301,6 +309,8 @@ async function handleAiReply(selectedMessages = []) {
   }
 }
 
+let storeAskSent = false;
+
 async function bootstrap() {
   if (isCreateMode.value) {
     router.replace({ name: 'contact-profile', params: { id: 'new' } });
@@ -308,6 +318,36 @@ async function bootstrap() {
   }
   await loadMessages();
   await loadBroadcastDraft();
+  await maybeSendStoreAsk();
+}
+
+async function maybeSendStoreAsk() {
+  if (broadcastDraftMode.value || isCreateMode.value) return;
+  const raw = String(route.query.storeAsk || '').trim();
+  if (!raw || storeAskSent) return;
+  const ids = [...new Set(raw.split(',').map((x) => x.trim()).filter(Boolean))];
+  if (!ids.length) return;
+  storeAskSent = true;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const links = ids.map((id) => `${origin}/store/${id}`).join('\n');
+  const message = t('store.cabinet.askMessage', { links });
+  const ok = await handleSendMessage({ message, attachments: [], silent: true });
+  if (!ok) {
+    storeAskSent = false;
+    return;
+  }
+  try {
+    await notifyStoreCabinetAsk(ids, route.params.id);
+  } catch {
+    /* событие CRM не должно откатывать уже отправленное сообщение */
+  }
+  const q = { ...route.query };
+  delete q.storeAsk;
+  await router.replace({
+    name: 'contact-details',
+    params: { id: route.params.id },
+    query: q,
+  });
 }
 
 onMounted(bootstrap);
@@ -328,19 +368,27 @@ watch(userId, async () => {
   chatNewMessage.value = '';
   chatAttachments.value = [];
   draftSubject.value = '';
+  storeAskSent = false;
   await loadMessages();
   await loadBroadcastDraft();
+  await maybeSendStoreAsk();
 });
 
 watch(() => contact.value?.id, async (newId, oldId) => {
   if (newId && newId !== oldId) {
+    storeAskSent = false;
     await loadMessages();
     await loadBroadcastDraft();
+    await maybeSendStoreAsk();
   }
 });
 
 watch(broadcastCampaignId, async () => {
   await loadBroadcastDraft();
+});
+
+watch(() => route.query.storeAsk, async () => {
+  await maybeSendStoreAsk();
 });
 </script>
 

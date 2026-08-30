@@ -104,6 +104,7 @@ import {
   getRegionSwitcherList,
 } from '../config/regions';
 import { getEnabledLocalesCache } from '../config/enabledLocalesCache';
+import { localeFromHostname, setAppLocale } from '../locales';
 import { fetchRegionUrls } from '../services/regionUrlsService';
 import { fetchSidebarNav } from '../services/sidebarNavService';
 
@@ -126,12 +127,19 @@ const currentServerLabel = computed(() => {
 });
 
 function ensureCurrentLocaleAllowed() {
+  const hostDefault = localeFromHostname(window.location.hostname);
+  if (hostDefault === 'ru') {
+    if (currentLocale.value !== 'ru') {
+      setAppLocale('ru');
+    }
+    return;
+  }
   const allowed = enabledLocales.value;
   if (!allowed.length) {
     return;
   }
   if (!allowed.includes(currentLocale.value)) {
-    setLocale(allowed[0]);
+    setAppLocale(allowed.includes(hostDefault) ? hostDefault : allowed[0]);
   }
 }
 function closeMenus() {

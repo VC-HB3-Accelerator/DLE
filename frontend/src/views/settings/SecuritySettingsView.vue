@@ -20,6 +20,12 @@
         @open="handleRpcDetailsClick"
       />
       <HubCard
+        v-if="canAccessPath('/settings/dle-v2-deploy')"
+        :title="$t('settings.index.blockchain.title')"
+        :description="$t('settings.index.blockchain.description')"
+        @open="goDeploy"
+      />
+      <HubCard
         v-if="canAccessPath('/settings/security/auth')"
         :title="$t('settings.security.authentication')"
         :description="authDesc"
@@ -111,6 +117,14 @@ function goAuthDetails() {
     return;
   }
   router.push({ name: 'settings-security-auth' });
+}
+
+function goDeploy() {
+  if (!canManageSettings.value) {
+    showNoAccessModal.value = true;
+    return;
+  }
+  router.push({ name: 'settings-dle-v2-deploy' });
 }
 
 function handleRolesDetailsClick() {

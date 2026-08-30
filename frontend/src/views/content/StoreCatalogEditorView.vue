@@ -11,7 +11,8 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="store-hub page-with-close">
-      <PageCloseButton :fallback="{ name: 'content-list' }" />
+      <PageCloseButton :fallback="{ name: 'crm' }" />
+      <StoreAdminNav />
 
       <div v-if="!isEditor" class="store-hub__forbidden">
         <h1>{{ t('store.editor.title') }}</h1>
@@ -22,9 +23,6 @@
         <header class="store-hub__header">
           <h1>{{ t('store.editor.title') }}</h1>
           <div class="store-hub__header-actions">
-            <router-link class="btn btn-secondary" :to="{ name: 'content-store-settings' }">
-              {{ t('store.editor.openSettings') }}
-            </router-link>
             <router-link class="btn btn-secondary" :to="{ name: 'content-store-sections' }">
               {{ t('store.editor.sectionsManage') }}
             </router-link>
@@ -119,6 +117,7 @@ import { useI18n } from 'vue-i18n';
 import { ethers } from 'ethers';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import StoreAdminNav from '../../components/store/StoreAdminNav.vue';
 import ImportStoreProductsModal from '../../components/ImportStoreProductsModal.vue';
 import { usePermissions } from '../../composables/usePermissions';
 import { fetchStoreProducts, fetchStoreSections } from '../../services/storeService';

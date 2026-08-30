@@ -24,6 +24,40 @@ export function isNativePayToken(tokenAddress) {
   }
 }
 
+function checksumAddr(value) {
+  try {
+    const s = String(value || '').trim();
+    if (!s) return '';
+    return ethers.getAddress(s);
+  } catch {
+    return '';
+  }
+}
+
+/** Адреса кошелька: сессия SIWE и/или привязанный идентификатор. */
+export function collectWalletAddresses(sessionAddress, identities = []) {
+  const out = [];
+  const add = (value) => {
+    const addr = checksumAddr(value);
+    if (addr && !out.includes(addr)) out.push(addr);
+  };
+  add(sessionAddress);
+  for (const row of identities || []) {
+    if (String(row?.provider || '').toLowerCase() !== 'wallet') continue;
+    add(row.provider_id || row.value || row.providerId);
+  }
+  return out;
+}
+
+/** Кнопка оплаты: есть кошелёк, и он совпадает с buyer заявки (если buyer уже известен). */
+export function hasWalletForPay({ sessionAddress, identities, buyer } = {}) {
+  const wallets = collectWalletAddresses(sessionAddress, identities);
+  if (!wallets.length) return false;
+  const buyerAddr = checksumAddr(buyer);
+  if (!buyerAddr) return true;
+  return wallets.includes(buyerAddr);
+}
+
 /**
  * @param {{
  *   tokenAddress: string,

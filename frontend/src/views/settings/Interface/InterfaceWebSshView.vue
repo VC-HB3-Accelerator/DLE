@@ -17,7 +17,7 @@
     :token-balances="tokenBalances"
     :is-loading-tokens="isLoadingTokens"
   >
-    <AdminPageShell :show-close="true" fallback="/settings/interface" variant="panel">
+    <AdminPageShell :show-close="true" fallback="/vds?tab=hosting" variant="panel">
       <h2 class="webssh-title">{{ $t('settings.interface.vds.setupTitle') }}</h2>
       <WebSshForm />
     </AdminPageShell>

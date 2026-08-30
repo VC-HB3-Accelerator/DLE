@@ -15,7 +15,6 @@ import HomeView from '../views/HomeView.vue';
 // Импортируем (пока не созданные) компоненты для подстраниц настроек
 const SettingsAiView = () => import('../views/settings/AiSettingsView.vue');
 const SettingsSecurityView = () => import('../views/settings/SecuritySettingsView.vue');
-const SettingsInterfaceView = () => import('../views/settings/Interface/InterfaceSettingsView.vue');
 
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
@@ -30,6 +29,7 @@ import {
   syncActionAccessRole,
   hasActionAccess
 } from '@/composables/useActionAccess.js';
+import { userId as sessionUserId } from '@/composables/useAuth';
 
 // console.log('router/index.js: Script loaded');
 
@@ -59,8 +59,7 @@ const routes = [
   {
     path: '/crm',
     name: 'crm',
-    meta: { closeFallback: 'management' },
-    component: () => import('../views/CrmView.vue'),
+    redirect: { name: 'management' },
   },
   {
     path: '/settings',
@@ -71,8 +70,7 @@ const routes = [
       {
         path: '',
         name: 'settings-index',
-        meta: { closeFallback: 'crm' },
-        component: () => import('@/views/settings/SettingsIndexView.vue'),
+        redirect: { name: 'management' },
       },
       {
         path: 'ai',
@@ -85,7 +83,7 @@ const routes = [
         path: 'dle-v2-deploy',
         name: 'settings-dle-v2-deploy',
         component: () => import('../views/settings/DleDeployFormView.vue'),
-        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-security', permissionFallback: 'settings-security' },
       },
       {
         path: 'security/rpc',
@@ -126,15 +124,7 @@ const routes = [
       {
         path: 'interface',
         name: 'settings-interface',
-        meta: { closeFallback: 'settings-index' },
-        component: SettingsInterfaceView,
-        // children: [
-        //   {
-        //     path: 'webssh',
-        //     name: 'settings-interface-webssh',
-        //     component: () => import('../views/settings/Interface/InterfaceWebSshView.vue'),
-        //   }
-        // ]
+        redirect: { name: 'vds-management', query: { tab: 'hosting' } },
       },
       {
         path: 'webssh',
@@ -266,7 +256,7 @@ const routes = [
     path: '/settings/interface/webssh',
     name: 'webssh-settings',
     component: () => import('@/views/settings/Interface/InterfaceWebSshView.vue'),
-    meta: { requiresAuth: true, closeFallback: 'settings-interface' }
+    meta: { requiresAuth: true, closeFallback: '/vds?tab=hosting' }
   },
   {
     path: '/tables',
@@ -327,6 +317,18 @@ const routes = [
         name: 'contact-profile',
         meta: { closeFallback: 'contacts-list' },
         component: () => import('../views/contacts/ContactProfileView.vue'),
+      },
+      {
+        path: 'orders',
+        name: 'contact-orders',
+        meta: { closeFallback: 'contacts-list' },
+        component: () => import('../views/contacts/ContactOrdersView.vue'),
+      },
+      {
+        path: 'cart',
+        name: 'contact-cart',
+        meta: { closeFallback: 'contacts-list' },
+        component: () => import('../views/contacts/ContactCartView.vue'),
       },
       {
         path: 'conference',
@@ -496,13 +498,13 @@ const routes = [
     path: '/content/store',
     name: 'content-store',
     component: () => import('../views/content/StoreCatalogEditorView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-list', permissionFallback: 'content-list' },
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'crm', permissionFallback: 'crm-store' },
   },
   {
     path: '/content/store/settings',
     name: 'content-store-settings',
     component: () => import('../views/content/StoreSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'crm', permissionFallback: 'crm-store' },
   },
   {
     path: '/content/store/sections',
@@ -730,7 +732,7 @@ const routes = [
     path: '/vds',
     name: 'vds-management',
     component: () => import('../views/VdsManagementView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'crm' }
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'management' }
   },
   {
     path: '/connect-wallet',
@@ -761,6 +763,18 @@ const router = createRouter({
   routes,
 });
 
+function isOwnContactScreen(to) {
+  const id = to.params?.id;
+  const me = sessionUserId?.value;
+  if (me == null || id == null || id === 'new') return false;
+  if (String(id).startsWith('guest_')) return false;
+  if (String(id) !== String(me)) return false;
+  return to.name === 'contact-details'
+    || to.name === 'contact-profile'
+    || to.name === 'contact-orders'
+    || to.name === 'contact-cart';
+}
+
 // console.log('router/index.js: Router created');
 
 // Защита маршрутов — meta.permission / meta.requiresAuth + матрица экранов по роли
@@ -778,6 +792,9 @@ router.beforeEach(async (to, from, next) => {
     await ensureActionAccessLoaded();
     if (!canAccessPath(to.path)) {
       console.log('[Router] Экран скрыт матрицей ролей:', to.path);
+      if (isOwnContactScreen(to)) {
+        return next();
+      }
       if (to.meta?.permissionFallback) {
         return next({ name: to.meta.permissionFallback });
       }
@@ -821,6 +838,9 @@ router.beforeEach(async (to, from, next) => {
     await syncActionAccessRole(userRole);
 
     if (!canAccessPath(to.path)) {
+      if (isOwnContactScreen(to)) {
+        return next();
+      }
       return next({ name: 'home' });
     }
 

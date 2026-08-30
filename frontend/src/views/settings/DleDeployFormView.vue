@@ -12,7 +12,7 @@
 
 <template>
   <div class="dle-form-container page-with-close">
-    <PageCloseButton fallback="/settings" />
+    <PageCloseButton fallback="/settings/security" />
     <!-- Форма -->
     <div class="form-content">
       <!-- Выбор страны -->

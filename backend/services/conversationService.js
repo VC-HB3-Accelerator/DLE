@@ -67,17 +67,24 @@ async function getOrCreateConversation(userId, title = 'Новая беседа'
  */
 async function getOrCreatePublicConversation(userId1, userId2) {
   try {
+    const id1 = Number(userId1);
+    const id2 = Number(userId2);
+    if (!Number.isInteger(id1) || !Number.isInteger(id2) || id1 <= 0 || id2 <= 0) {
+      throw new Error('Некорректные id для публичной беседы');
+    }
+
     // Ищем существующую публичную беседу между этими пользователями
     const { rows: existing } = await db.getQuery()(
       `SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at, c.conversation_type
        FROM conversations c
-       INNER JOIN conversation_participants cp1 ON c.id = cp1.conversation_id
-       INNER JOIN conversation_participants cp2 ON c.id = cp2.conversation_id
+       INNER JOIN conversation_participants cp1
+         ON c.id = cp1.conversation_id AND cp1.user_id = $1
+       INNER JOIN conversation_participants cp2
+         ON c.id = cp2.conversation_id AND cp2.user_id = $2
        WHERE c.conversation_type = 'public_chat'
-         AND cp1.user_id = $1 AND cp2.user_id = $2
        ORDER BY c.created_at DESC
        LIMIT 1`,
-      [userId1, userId2]
+      [id1, id2]
     );
 
     if (existing.length > 0) {
@@ -89,19 +96,20 @@ async function getOrCreatePublicConversation(userId1, userId2) {
       `INSERT INTO conversations (user_id, title, conversation_type)
        VALUES ($1, $2, 'public_chat')
        RETURNING id, user_id, title, created_at, updated_at, conversation_type`,
-      [userId1, `Публичная беседа ${userId1}-${userId2}`]
+      [id1, `Публичная беседа ${id1}-${id2}`]
     );
 
     const conversation = newConv[0];
 
-    // Добавляем участников
+    // Один user_id — одна строка (вопрос с своей карточки: id1 === id2)
     await db.getQuery()(
-      `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)`,
-      [conversation.id, userId1]
-    );
-    await db.getQuery()(
-      `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)`,
-      [conversation.id, userId2]
+      `INSERT INTO conversation_participants (conversation_id, user_id)
+       SELECT $1, x FROM unnest(ARRAY[$2::int, $3::int]) AS x
+       WHERE NOT EXISTS (
+         SELECT 1 FROM conversation_participants
+         WHERE conversation_id = $1 AND user_id = x
+       )`,
+      [conversation.id, id1, id2]
     );
 
     logger.info('[ConversationService] Создана публичная беседа:', conversation.id);

@@ -20,12 +20,7 @@
 
       <div v-else class="store-sections__wrap">
         <header class="store-sections__header">
-          <div>
-            <router-link class="store-sections__back" :to="{ name: 'content-store' }">
-              ← {{ t('store.editor.backToCatalog') }}
-            </router-link>
-            <h1>{{ t('store.editor.sectionsManage') }}</h1>
-          </div>
+          <h1>{{ t('store.editor.sectionsManage') }}</h1>
           <router-link class="btn btn-primary" :to="{ name: 'content-store-section-new' }">
             {{ t('store.editor.sectionCreate') }}
           </router-link>
@@ -125,14 +120,8 @@ watch(isEditor, (ok) => {
   margin-bottom: 1.25rem;
 }
 .store-sections__header h1 {
-  margin: 0.35rem 0 0;
+  margin: 0;
   font-size: 1.35rem;
-}
-.store-sections__back {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  text-decoration: none;
-  color: inherit;
 }
 .store-sections__list {
   list-style: none;

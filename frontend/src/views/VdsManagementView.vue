@@ -19,7 +19,7 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="vds-management-container page-with-close">
-      <PageCloseButton :fallback="{ name: 'crm' }" />
+      <PageCloseButton :fallback="{ name: 'management' }" />
       <div class="vds-header">
         <div class="status-badge" :class="{ online: isOnline }">
           <div class="status-indicator" :class="{ online: isOnline }"></div>
@@ -27,6 +27,11 @@
         </div>
       </div>
 
+      <VdsSectionTabs />
+
+      <ServerHostingBlocks v-if="isHostingTab" hide-title />
+
+      <div v-if="isSettingsTab" class="vds-settings-tab">
       <!-- Настройки VDS -->
       <div class="settings-section">
         <div class="section-header">
@@ -465,6 +470,7 @@
           </div>
         </div>
       </div>
+      </div>
 
       <!-- Модальные окна -->
       <!-- Модальное окно создания пользователя -->
@@ -545,11 +551,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, reactive, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import ServerHostingBlocks from '@/components/admin/ServerHostingBlocks.vue';
+import VdsSectionTabs from '@/components/admin/VdsSectionTabs.vue';
 import axios from 'axios';
 import Chart from 'chart.js/auto';
 import { usePermissions } from '../composables/usePermissions';
@@ -568,6 +576,9 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const route = useRoute();
+const isSettingsTab = computed(() => String(route.query.tab || '') === 'settings');
+const isHostingTab = computed(() => !isSettingsTab.value);
 
 // Проверка прав доступа
 const { currentRole, canManageSettings } = usePermissions();
@@ -1380,7 +1391,23 @@ const formatBytes = (bytes) => {
 };
 
 // Инициализация графиков
+const destroyCharts = () => {
+  if (cpuChartInstance) {
+    cpuChartInstance.destroy();
+    cpuChartInstance = null;
+  }
+  if (ramChartInstance) {
+    ramChartInstance.destroy();
+    ramChartInstance = null;
+  }
+  if (trafficChartInstance) {
+    trafficChartInstance.destroy();
+    trafficChartInstance = null;
+  }
+};
+
 const initCharts = async () => {
+  destroyCharts();
   await nextTick();
   
   if (cpuChart.value) {
@@ -1512,7 +1539,9 @@ const updateCharts = () => {
 onMounted(async () => {
   await loadSettings();
   await loadContainers();
-  await initCharts();
+  if (isSettingsTab.value) {
+    await initCharts();
+  }
   await loadStats();
   
   if (isEditor.value) {
@@ -1523,13 +1552,19 @@ onMounted(async () => {
   statsInterval = setInterval(loadStats, 5000);
 });
 
+watch(isSettingsTab, async (onSettings) => {
+  if (onSettings) {
+    await initCharts();
+  } else {
+    destroyCharts();
+  }
+});
+
 onUnmounted(() => {
   if (statsInterval) {
     clearInterval(statsInterval);
   }
-  if (cpuChartInstance) cpuChartInstance.destroy();
-  if (ramChartInstance) ramChartInstance.destroy();
-  if (trafficChartInstance) trafficChartInstance.destroy();
+  destroyCharts();
 });
 </script>
 
@@ -1553,9 +1588,15 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
   border-bottom: 2px solid #f0f0f0;
+}
+
+.vds-settings-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .vds-header h1 {

@@ -9,7 +9,7 @@ export function useLocale() {
 
   function setLocale(next) {
     if (SUPPORTED.includes(next)) {
-      setAppLocale(next);
+      setAppLocale(next, { explicit: true });
     }
   }
 

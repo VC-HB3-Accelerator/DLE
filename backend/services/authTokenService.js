@@ -129,38 +129,19 @@ async function upsertAuthToken(token) {
   console.log('[AuthTokenService] readonlyThreshold:', readonlyThreshold);
   console.log('[AuthTokenService] editorThreshold:', editorThreshold);
   
-  const all = await getAllAuthTokens();
-  const existing =
-    (await findAuthTokenRow(address, network))
-    || (all || []).find((t) => addressesEqual(t.address, address))
-    || null;
+  // Дверь = адрес + сеть. Один DLE в Ethereum и Sepolia — две строки, не переезд.
+  const existing = await findAuthTokenRow(address, network);
 
   if (existing) {
-    const sameNetwork = String(existing.network || '').trim() === network;
-    if (!sameNetwork) {
-      await encryptedDb.deleteData('auth_tokens', {
-        address: existing.address,
-        network: existing.network,
-      });
-      await encryptedDb.saveData('auth_tokens', {
-        name: token.name,
-        address,
-        network,
-        min_balance: minBalance,
-        readonly_threshold: readonlyThreshold,
-        editor_threshold: editorThreshold
-      });
-    } else {
-      await encryptedDb.saveData('auth_tokens', {
-        name: token.name,
-        min_balance: minBalance,
-        readonly_threshold: readonlyThreshold,
-        editor_threshold: editorThreshold
-      }, {
-        address: existing.address,
-        network: existing.network
-      });
-    }
+    await encryptedDb.saveData('auth_tokens', {
+      name: token.name,
+      min_balance: minBalance,
+      readonly_threshold: readonlyThreshold,
+      editor_threshold: editorThreshold
+    }, {
+      address: existing.address,
+      network: existing.network
+    });
   } else {
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,

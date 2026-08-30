@@ -55,6 +55,14 @@
           <div class="empty-icon"><BlogGlyph name="book" /></div>
           <h3>{{ t('blog.emptyTitle') }}</h3>
           <p>{{ t('blog.emptyDescription') }}</p>
+          <button
+            v-if="canCreatePage"
+            type="button"
+            class="empty-create"
+            @click="goToCreate"
+          >
+            {{ t('common.create') }}
+          </button>
         </div>
 
         <!-- Лента статей (feed) -->
@@ -88,6 +96,7 @@ import pagesService from '../services/pagesService';
 import blogFeedService from '../services/blogFeedService';
 import { usePermissions } from '../composables/usePermissions';
 import { PERMISSIONS } from '../composables/permissions.js';
+import { canAccessPath, ensureScreenAccessLoaded } from '../composables/useScreenAccess.js';
 
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -110,6 +119,7 @@ const feedFilters = ref([]);
 const activeFilter = ref('');
 const loadPagesRequestId = ref(0);
 const canManageFeed = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
+const canCreatePage = computed(() => canAccessPath('/content/create'));
 
 const currentSlug = computed(() => {
   return route.params.slug || null;
@@ -138,6 +148,10 @@ const filteredPages = computed(() => {
 
 function openFeedSettings() {
   router.push({ name: 'blog-feed-settings' });
+}
+
+function goToCreate() {
+  router.push({ name: 'content-create' });
 }
 
 function getArticleUrl(page) {
@@ -355,6 +369,7 @@ watch(
 );
 
 onMounted(async () => {
+  await ensureScreenAccessLoaded();
   const fromUrl = readFilterFromRoute();
   if (fromUrl) {
     activeFilter.value = fromUrl;
@@ -474,8 +489,22 @@ onMounted(async () => {
 
 .empty-state p {
   color: var(--color-grey);
-  margin: 0;
+  margin: 0 0 var(--spacing-lg);
   font-size: var(--font-size-md);
+}
+
+.empty-create {
+  padding: 10px 20px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.empty-create:hover {
+  opacity: 0.9;
 }
 
 .blog-feed {

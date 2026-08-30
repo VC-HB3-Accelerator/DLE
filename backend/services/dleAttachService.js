@@ -10,7 +10,6 @@ const { ethers } = require('ethers');
 const logger = require('../utils/logger');
 const rpcProviderService = require('./rpcProviderService');
 const encryptedDb = require('./encryptedDatabaseService');
-const deployParamsService = require('./deployParamsService');
 const {
   DLE_GET_DLE_INFO,
 } = require('../constants/dleReadAbi');
@@ -324,7 +323,7 @@ async function detachByDleAddress(address) {
   if (!row) {
     return { detached: false, reason: 'no_tail' };
   }
-  await deployParamsService.deleteDeployParams(row.deployment_id);
+  await encryptedDb.deleteData('deploy_params', { deployment_id: row.deployment_id });
   logger.info(`[dleAttach] хвост снят: ${row.deployment_id}`);
   return { detached: true, deploymentId: row.deployment_id };
 }
@@ -414,7 +413,7 @@ async function delistFromOs(address, { requireInactive = true, chainId = null } 
   let removedDeploy = false;
   if (row) {
     deploymentId = row.deployment_id;
-    await deployParamsService.deleteDeployParams(row.deployment_id);
+    await encryptedDb.deleteData('deploy_params', { deployment_id: row.deployment_id });
     removedDeploy = true;
   }
 
@@ -454,6 +453,22 @@ async function delistFromOs(address, { requireInactive = true, chainId = null } 
     }
   }
 
+  const modulesDir = path.join(__dirname, '../scripts/contracts-data/modules');
+  const removedModuleFiles = [];
+  if (fs.existsSync(modulesDir)) {
+    for (const file of fs.readdirSync(modulesDir)) {
+      if (!file.endsWith('.json')) continue;
+      if (!file.toLowerCase().includes(normalized)) continue;
+      const filePath = path.join(modulesDir, file);
+      try {
+        fs.unlinkSync(filePath);
+        removedModuleFiles.push(file);
+      } catch (e) {
+        logger.warn(`[dleAttach] delist module file ${file}: ${e.message}`);
+      }
+    }
+  }
+
   let footerCleared = false;
   try {
     const footer = await footerDleService.getFooterSelection();
@@ -467,7 +482,7 @@ async function delistFromOs(address, { requireInactive = true, chainId = null } 
   }
 
   logger.info(
-    `[dleAttach] delistFromOs ${normalized} chain=${resolvedChainId} deploy=${removedDeploy} auth=${removedAuthTokens} files=${removedFiles.length} footer=${footerCleared}`
+    `[dleAttach] delistFromOs ${normalized} chain=${resolvedChainId} deploy=${removedDeploy} auth=${removedAuthTokens} files=${removedFiles.length} modules=${removedModuleFiles.length} footer=${footerCleared}`
   );
   return {
     delisted: true,
@@ -478,6 +493,7 @@ async function delistFromOs(address, { requireInactive = true, chainId = null } 
     removedDeploy,
     removedAuthTokens,
     removedFiles,
+    removedModuleFiles,
     footerCleared,
   };
 }

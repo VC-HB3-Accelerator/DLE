@@ -27,14 +27,24 @@ const { isUserBlocked } = require('../utils/userUtils');
  * @param {boolean} isAdminSender - Является ли отправитель админом
  * @returns {string} - Тип сообщения: 'user_chat', 'admin_chat', 'public'
  */
+function normalizeNumericUserId(raw) {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 function determineMessageType(recipientId, userId, isAdminSender) {
+  const recipientNum = normalizeNumericUserId(recipientId);
+  const senderNum = normalizeNumericUserId(userId);
+
   // 1. Личный чат с ИИ (recipientId не указан или равен userId)
-  if (!recipientId || recipientId === userId) {
+  // FormData отдаёт строки: "145" === 145 иначе ложно уходит в public и падает на unique participants
+  if (!recipientNum || (senderNum && recipientNum === senderNum)) {
     return 'user_chat';
   }
   
   // 2. Приватное сообщение к редактору (recipientId = 1)
-  if (recipientId === 1) {
+  if (recipientNum === 1) {
     return 'admin_chat';
   }
   

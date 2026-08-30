@@ -35,6 +35,14 @@
           {{ dleAddress }}
         </div>
       </div>
+      <div v-if="dleAddress" class="voting-chain-hub">
+        <VotingChainSelect
+          v-model="votingChain"
+          :chains="votingChains"
+          :is-loading="isLoadingVotingChains"
+        />
+        <p class="voting-chain-hub__note">{{ t('smartcontracts.proposals.networkNote') }}</p>
+      </div>
 
       <!-- Уведомление о необходимости авторизации -->
       <div v-if="!canGovern" class="auth-notice">
@@ -51,7 +59,7 @@
           <button
             type="button"
             class="btn-action delegation-btn"
-            :disabled="isDelegating"
+            :disabled="isDelegating || !hasVotingChain"
             @click="handleDelegate"
           >
             {{ isDelegating ? t('smartcontracts.proposals.delegating') : t('smartcontracts.proposals.delegateButton') }}
@@ -59,8 +67,12 @@
         </div>
       </div>
 
+      <div v-if="!hasVotingChain" class="select-network-first">
+        <p>{{ t('smartcontracts.proposals.selectNetworkFirst') }}</p>
+      </div>
+
       <!-- Основной контент -->
-      <div class="proposals-content">
+      <div v-else class="proposals-content">
 
         <!-- Фильтры и поиск -->
         <div class="proposals-filters">
@@ -298,14 +310,18 @@ import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { useProposals } from '@/composables/useProposals';
 import { usePermissions } from '@/composables/usePermissions';
+import { useVotingChains } from '@/composables/useVotingChains';
 import { getDelegationStatus, delegateVotingPowerToSelf } from '@/utils/dle-contract';
 import BaseLayout from '@/components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import VotingChainSelect from '@/components/VotingChainSelect.vue';
 
 export default {
   name: 'DleProposalsView',
   components: {
-    BaseLayout
+    BaseLayout,
+    PageCloseButton,
+    VotingChainSelect
   },
   props: {
     isAuthenticated: {
@@ -338,6 +354,13 @@ export default {
     });
 
     const {
+      chains: votingChains,
+      votingChain,
+      isLoading: isLoadingVotingChains,
+      hasVotingChain,
+    } = useVotingChains(dleAddress);
+
+    const {
       proposals,
       filteredProposals,
       isLoading,
@@ -362,19 +385,13 @@ export default {
       canExecute,
       canExecuteMultichain,
       canCancel
-    } = useProposals(dleAddress, computed(() => props.isAuthenticated), address);
+    } = useProposals(dleAddress, computed(() => props.isAuthenticated), address, votingChain);
 
     const needsDelegation = ref(false);
     const isDelegating = ref(false);
     const connectedWallet = ref(null);
 
     const showDelegationPrompt = computed(() => Boolean(connectedWallet.value && needsDelegation.value));
-
-    const votingChainId = computed(() => {
-      const first = proposals.value[0];
-      if (!first) return null;
-      return first.chainId || first.chains?.[0]?.chainId || null;
-    });
 
     const refreshDelegationStatus = async () => {
       if (!dleAddress.value) {
@@ -403,9 +420,13 @@ export default {
 
     const handleDelegate = async () => {
       if (!dleAddress.value) return;
+      if (!hasVotingChain.value) {
+        window.alert(t('smartcontracts.createProposal.votingChainRequired'));
+        return;
+      }
       isDelegating.value = true;
       try {
-        const result = await delegateVotingPowerToSelf(dleAddress.value, votingChainId.value);
+        const result = await delegateVotingPowerToSelf(dleAddress.value, Number(votingChain.value));
         await refreshDelegationStatus();
         if (result.alreadyDelegated) {
           window.alert(t('smartcontracts.proposals.delegationAlreadyDone'));
@@ -475,6 +496,10 @@ export default {
       statusFilter,
       searchQuery,
       dleAddress,
+      votingChain,
+      votingChains,
+      isLoadingVotingChains,
+      hasVotingChain,
       isAuthenticated: props.isAuthenticated,
       canGovern,
       loadProposals,
@@ -580,6 +605,22 @@ export default {
   border: none;
 }
 
+.voting-chain-hub {
+  max-width: 520px;
+  margin: 0 0 1.5rem;
+}
+
+.voting-chain-hub__note {
+  margin: -8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-grey-dark, #555);
+}
+
+.select-network-first {
+  padding: 12px 0 24px;
+  color: var(--color-grey-dark, #555);
+}
+
 .proposals-filters {
   display: flex;
   gap: 16px;
@@ -656,8 +697,8 @@ export default {
 }
 
 .proposals-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   width: 100%;
   min-width: 0;
@@ -915,10 +956,6 @@ export default {
     min-width: auto;
     width: 100%;
     box-sizing: border-box;
-  }
-
-  .proposals-grid {
-    grid-template-columns: 1fr;
   }
 }
 
