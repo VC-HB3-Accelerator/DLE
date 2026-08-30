@@ -132,9 +132,10 @@ wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Acceler
 
 ### Релизы и артефакты
 
-Latest **v1.0.7** — полный шаблон с Docker-образами, томами и ключом шифрования; архив разделён на части (`dle-template.tar.gz.part-*`).
+Latest **v1.0.8** — полный шаблон с Docker-образами, томами и ключом шифрования; архив разделён на части (`dle-template.tar.gz.part-*`).
 
-- [Релиз v1.0.7](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) (Latest)
+- [Релиз v1.0.8](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.8) (Latest)
+- [Релиз v1.0.7](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) — предыдущая версия
 - [Релиз v1.0.6](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.6) — предыдущая версия
 - [Релиз v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) — предыдущая версия
 - [Релиз v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — предыдущая версия

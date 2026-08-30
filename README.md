@@ -128,9 +128,10 @@ Illustrative DLE application scenarios. Mentions of well-known companies and bra
 
 ### Releases and artifacts
 
-Latest **v1.0.7** — full application template with Docker images, volumes, and encryption key; archive is split into parts (`dle-template.tar.gz.part-*`).
+Latest **v1.0.8** — full application template with Docker images, volumes, and encryption key; archive is split into parts (`dle-template.tar.gz.part-*`).
 
-- [Release v1.0.7](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) (Latest)
+- [Release v1.0.8](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.8) (Latest)
+- [Release v1.0.7](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) — previous version
 - [Release v1.0.6](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.6) — previous version
 - [Release v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) — previous version
 - [Release v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — previous version

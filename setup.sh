@@ -25,7 +25,7 @@ print_red() {
 }
 
 # Версия релиза для установки (обновляется при выходе нового релиза)
-ARCHIVE_VERSION="v1.0.6"
+ARCHIVE_VERSION="v1.0.8"
 
 # Базовый URL репозитория DLE на выбранном зеркале (без завершающего /).
 # Примеры:
@@ -38,14 +38,13 @@ DLE_BASE_URL="${DLE_BASE_URL:-}"
 ARCHIVE_BASE_URL=""
 CLONE_URL=""
 
-# Список частей архива (v1.0.6: 6×~1G; при следующем релизе сверьте ls dle-template.tar.gz.part-*)
+# Список частей архива (v1.0.8: 5×~1G; при следующем релизе сверьте ls dle-template.tar.gz.part-*)
 ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-aa"
   "dle-template.tar.gz.part-ab"
   "dle-template.tar.gz.part-ac"
   "dle-template.tar.gz.part-ad"
   "dle-template.tar.gz.part-ae"
-  "dle-template.tar.gz.part-af"
 )
 
 # Нормализация и применение базового URL зеркала
