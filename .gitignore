@@ -253,9 +253,6 @@ backend/DLE_VERSION
 # Database initialization helper script
 scripts/internal/db/db_init_helper.sh
 
-# License-token whitelist balance helper (внутренний, не для публикации)
-backend/services/tokenWhitelistBalanceCheck.js
-
 # Blog content (будет перенесен в блог приложения)
 blog-content/
 

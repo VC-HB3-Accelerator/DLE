@@ -44,5 +44,7 @@ yarn-error.log*
 *.sqlite
 *.sqlite3 
 
-# Конфиденциальные/служебные константы backend
-constants/
+# Служебные константы backend: в git нужны ABI и ID модулей (без них бэкенд не стартует)
+constants/*
+!constants/dleReadAbi.js
+!constants/moduleIds.js

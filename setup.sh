@@ -571,22 +571,29 @@ copy_encryption_key() {
   fi
 }
 
+# Docker при отсутствии пути создаёт DLE_VERSION как каталог — тогда запись версии падает.
+ensure_dle_version_file() {
+  local ver="${ARCHIVE_VERSION:-v0.0.0}"
+  if [ -d DLE_VERSION ]; then
+    print_yellow "⚠️  DLE_VERSION был каталогом — заменяю на файл"
+    rm -rf DLE_VERSION
+  fi
+  echo -n "$ver" > DLE_VERSION
+  print_green "✅ DLE_VERSION=$ver"
+}
+
 # Запуск приложения
 start_application() {
   print_blue "🚀 Запуск приложения..."
-  
+
+  ensure_dle_version_file
+
   if docker-compose up -d; then
     print_green "✅ Приложение запущено"
   else
     print_red "❌ Ошибка запуска приложения"
     print_yellow "Проверьте логи: docker-compose logs"
     exit 1
-  fi
-
-  # Версия для последующих update.sh
-  if [ -n "${ARCHIVE_VERSION:-}" ]; then
-    echo -n "$ARCHIVE_VERSION" > DLE_VERSION
-    print_green "✅ DLE_VERSION=$ARCHIVE_VERSION"
   fi
 }
 
