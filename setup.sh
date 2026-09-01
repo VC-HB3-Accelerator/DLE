@@ -433,8 +433,13 @@ import_images() {
 # Имена образов в архиве = project name у автора (digital_legal_entitydle-*).
 # Клиент клонирует в DLE → без выравнивания compose пересоберёт всё с нуля.
 align_compose_project_with_loaded_images() {
+  # Сначала образ из установочного архива (dle-frontend-nginx), не случайный
+  # leftover вроде digital_legal_entitydle-frontend-nginx на машине автора.
   local repo
-  repo=$(docker images --format '{{.Repository}}' | grep -E 'frontend-nginx$' | head -1 || true)
+  repo=$(docker images --format '{{.Repository}}' | grep -E '^dle-frontend-nginx$' | head -1 || true)
+  if [ -z "$repo" ]; then
+    repo=$(docker images --format '{{.Repository}}' | grep -E 'frontend-nginx$' | head -1 || true)
+  fi
   if [ -z "$repo" ]; then
     print_yellow "⚠️  Не найден загруженный *-frontend-nginx — COMPOSE_PROJECT_NAME не выставлен"
     return 0
