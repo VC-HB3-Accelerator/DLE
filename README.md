@@ -20,8 +20,8 @@ This command installs the OS from **this** repository and its release (clone + a
 **Step 2.** Copy and paste the command into the terminal — **install the DLE template** (the script installs Docker automatically if missing):
 
 ```bash
-BASE=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
-curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
+  | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
 ### macOS
@@ -45,8 +45,8 @@ Wait until Docker Desktop is running.
 **Step 4.** Copy and paste the command into the terminal — **install the DLE template**:
 
 ```bash
-curl -fsSL https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/raw/branch/main/setup.sh \
-  | bash -s -- --base-url=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
+  | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
 ### Windows
@@ -70,7 +70,7 @@ winget install -e --id Docker.DockerDesktop
 **Step 5.** Copy and paste the command into the terminal — **install the DLE template**:
 
 ```powershell
-wsl bash -c "cd ~ && curl -fsSL https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/raw/branch/main/setup.sh | bash -s -- --base-url=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE"
+wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
 ```
 
 Install goes to the WSL home directory (`~/DLE`), not the `C:` drive.
@@ -124,19 +124,19 @@ Illustrative DLE application scenarios. Mentions of well-known companies and bra
 | [ai-assistant.md](docs.en/ai-assistant.md) | AI agents: architecture, examples, setup |
 | [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Blockchain for business and practical cases |
 | [security.md](docs.en/security.md) | Security and regulatory alignment |
-| [FAQ](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/en/FAQ.md) | Frequently asked questions |
+| [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/en/FAQ.md) | Frequently asked questions |
 
 ### Releases and artifacts
 
 Latest **v1.0.8** — full application template with Docker images, volumes, and encryption key; archive is split into parts (`dle-template.tar.gz.part-*`).
 
-- [Release v1.0.8](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.8) (Latest)
-- [Release v1.0.7](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) — previous version
-- [Release v1.0.6](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.6) — previous version
-- [Release v1.0.3](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) — previous version
-- [Release v1.0.2](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — previous version
-- [Release v1.0.1](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — previous version
-- [Release v1.0.0](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — previous version
+- [Release v1.0.8](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.8) (Latest)
+- [Release v1.0.7](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) — previous version
+- [Release v1.0.6](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.6) — previous version
+- [Release v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) — previous version
+- [Release v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — previous version
+- [Release v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — previous version
+- [Release v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — previous version
 
 ### Command to run the OS
 

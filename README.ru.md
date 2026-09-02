@@ -20,8 +20,8 @@
 **Шаг 2.** Скопируйте и вставьте команду в терминал — **установка шаблона DLE** (Docker поставит скрипт сам, если его нет):
 
 ```bash
-BASE=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
-curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
+  | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
 ### macOS
@@ -45,8 +45,8 @@ open -a Docker
 **Шаг 4.** Скопируйте и вставьте команду в терминал — **установка шаблона DLE**:
 
 ```bash
-curl -fsSL https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/raw/branch/main/setup.sh \
-  | bash -s -- --base-url=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
+  | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
 ### Windows
@@ -70,7 +70,7 @@ winget install -e --id Docker.DockerDesktop
 **Шаг 5.** Скопируйте и вставьте команду в терминал — **установка шаблона DLE**:
 
 ```powershell
-wsl bash -c "cd ~ && curl -fsSL https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/raw/branch/main/setup.sh | bash -s -- --base-url=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE"
+wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
 ```
 
 Установка в домашний каталог WSL (`~/DLE`), не на диск `C:`.
@@ -128,19 +128,19 @@ wsl bash -c "cd ~ && curl -fsSL https://hb3-accelerator.com/gitea/VC-HB3-Acceler
 | [blockchain-for-business.md](docs.ru/blockchain-for-business.md) | Полный индексируемый блокчейн-корпус: профиль, управление, модули и регуляторные цели |
 | [security.md](docs.ru/security.md) | Полный индексируемый корпус безопасности и границ ответственности |
 | [governance.md](data-room/Source_Documents/ru/governance.md) | Индексируемый инвесторский корпус целевой модели управления фондом |
-| [FAQ](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/ru/FAQ.md) | Частые вопросы |
+| [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/ru/FAQ.md) | Частые вопросы |
 
 ### Релизы и артефакты
 
 Latest **v1.0.8** — полный шаблон с Docker-образами, томами и ключом шифрования; архив разделён на части (`dle-template.tar.gz.part-*`).
 
-- [Релиз v1.0.8](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.8) (Latest)
-- [Релиз v1.0.7](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) — предыдущая версия
-- [Релиз v1.0.6](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.6) — предыдущая версия
-- [Релиз v1.0.3](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) — предыдущая версия
-- [Релиз v1.0.2](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — предыдущая версия
-- [Релиз v1.0.1](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — предыдущая версия
-- [Релиз v1.0.0](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — предыдущая версия
+- [Релиз v1.0.8](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.8) (Latest)
+- [Релиз v1.0.7](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.7) — предыдущая версия
+- [Релиз v1.0.6](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.6) — предыдущая версия
+- [Релиз v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) — предыдущая версия
+- [Релиз v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — предыдущая версия
+- [Релиз v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — предыдущая версия
+- [Релиз v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — предыдущая версия
 
 ### Команда для запуска ОС
 
