@@ -803,7 +803,10 @@ function isRenderableArticleHtml(html, article = {}) {
  */
 async function getBlogArticles() {
   try {
+    // for_seo=1 — все public+blog страницы, без подборки фильтра ленты.
+    // Иначе Publish новой статьи не видит slug: membership пишется после prerender.
     const url = new URL('/api/pages/blog/all', BACKEND_API_URL);
+    url.searchParams.set('for_seo', '1');
     const mod = url.protocol === 'https:' ? https : http;
 
     console.log('[pre-render] Запрос списка статей через API:', url.toString());
@@ -920,9 +923,11 @@ async function renderArticlesToDir({
 }) {
   let articlesToRender = articles;
   if (specificSlug) {
-    articlesToRender = articles.filter((a) => a.slug && a.slug.trim() === specificSlug.trim());
+    const wanted = specificSlug.trim();
+    articlesToRender = articles.filter((a) => a.slug && a.slug.trim() === wanted);
     if (articlesToRender.length === 0) {
-      console.warn(`[pre-render] Slug "${specificSlug}" не найден в ${pathPrefix}`);
+      console.warn(`[pre-render] Slug "${wanted}" нет в списке ${pathPrefix}, рендер по API статьи`);
+      articlesToRender = [{ slug: wanted }];
     }
   }
 

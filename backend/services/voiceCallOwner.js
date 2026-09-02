@@ -78,8 +78,9 @@ function sanitizeReturnUrl(raw) {
   const value = String(raw || '').trim();
   if (!value.startsWith('/')) return null;
   if (value.startsWith('//')) return null;
-  if (!/^\/contacts\/\d+\/conference(?:\?.*)?$/.test(value)) return null;
-  return value;
+  if (/^\/book-call(?:\?.*)?$/.test(value)) return value;
+  if (/^\/contacts\/\d+\/(?:conference|profile)(?:\?.*)?$/.test(value)) return value;
+  return null;
 }
 
 module.exports = {

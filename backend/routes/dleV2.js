@@ -85,6 +85,8 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
           userRole = ROLES.READONLY;
         } else if (req.user.userAccessLevel.level === 'editor') {
           userRole = ROLES.EDITOR;
+        } else if (req.user?.id) {
+          userRole = ROLES.USER;
         }
       } else if (req.user?.id) {
         userRole = ROLES.USER;

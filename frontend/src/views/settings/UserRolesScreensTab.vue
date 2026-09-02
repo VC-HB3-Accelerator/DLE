@@ -63,7 +63,8 @@ import api from '@/api/axios';
 import {
   SCREEN_GROUPS,
   SCREEN_ROLES,
-  EDITOR_LOCKED_SCREENS
+  EDITOR_LOCKED_SCREENS,
+  cloneDefaultScreens
 } from '@/shared/roleScreenCaps.js';
 import { invalidateScreenAccess } from '@/composables/useScreenAccess.js';
 
@@ -74,6 +75,7 @@ const roleKeys = SCREEN_ROLES;
 const screenGroups = SCREEN_GROUPS;
 const matrix = reactive({
   guest: {},
+  user: {},
   readonly: {},
   editor: {}
 });
@@ -98,7 +100,7 @@ async function loadMatrix() {
     });
     if (!data?.success || !data.data) throw new Error('load failed');
     for (const role of roleKeys) {
-      matrix[role] = { ...data.data[role] };
+      matrix[role] = { ...(data.data[role] || cloneDefaultScreens(role)) };
     }
     loaded.value = true;
   } catch (error) {
@@ -111,11 +113,9 @@ async function saveMatrix() {
   if (!loaded.value || saving.value) return;
   saving.value = true;
   try {
-    const { data } = await api.put('/settings/role-screen-capabilities', {
-      guest: { ...matrix.guest },
-      readonly: { ...matrix.readonly },
-      editor: { ...matrix.editor }
-    }, {
+    const payload = {};
+    for (const role of roleKeys) payload[role] = { ...matrix[role] };
+    const { data } = await api.put('/settings/role-screen-capabilities', payload, {
       headers: { 'Cache-Control': 'no-store' }
     });
     if (!data?.success) throw new Error(data?.error || 'save failed');

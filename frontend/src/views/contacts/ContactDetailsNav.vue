@@ -47,11 +47,11 @@ const isRegisteredContact = computed(() => {
   return Number.isInteger(n) && n > 0;
 });
 
-const showConference = computed(() => isEditor.value && isRegisteredContact.value);
 const isOwnCard = computed(() => (
   sessionUserId.value != null
   && String(sessionUserId.value) === String(contactId.value)
 ));
+const showConference = computed(() => (isEditor.value || isOwnCard.value) && isRegisteredContact.value);
 
 const navItems = [
   { name: 'contact-details', labelKey: 'contacts.details.nav.chat' },

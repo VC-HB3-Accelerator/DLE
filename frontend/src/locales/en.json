@@ -701,6 +701,7 @@
     "uncategorized": "Uncategorized",
     "title": "Blog",
     "description": "Publications and articles",
+    "newPost": "New post",
     "share": {
       "title": "Share",
       "action": "Share",
@@ -1336,6 +1337,8 @@
   "crm": {
     "contacts": "Contacts",
     "contactsDesc": "Manage contacts, clients, and partners",
+    "myProfile": "My profile",
+    "myProfileDesc": "Your contact card",
     "tables": "Tables",
     "tablesDesc": "Create and manage data tables",
     "content": "Content",
@@ -3684,10 +3687,10 @@
   },
   "permissions": {
     "roles": {
-      "guest": "Unauthorized guest",
-      "user": "Authorized guest",
-      "readonly": "Admin (read-only)",
-      "editor": "Admin (editor)",
+      "guest": "Guest",
+      "user": "User",
+      "readonly": "Reader",
+      "editor": "Editor",
       "unknown": "Unknown role"
     },
     "errors": {

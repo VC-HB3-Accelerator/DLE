@@ -12,7 +12,7 @@ async function resolveSessionScreenRole(req) {
       const level = await authService.getUserAccessLevel(req.session.address);
       req.session.userAccessLevel = level;
       if (level?.level === 'readonly' || level?.level === 'editor') return level.level;
-      return 'guest';
+      return 'user';
     }
     const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [req.session.userId]);
     const role = roleResult.rows[0]?.role;
@@ -20,7 +20,7 @@ async function resolveSessionScreenRole(req) {
   } catch (err) {
     logger.warn('[Settings] resolveSessionScreenRole:', err.message);
   }
-  return 'guest';
+  return 'user';
 }
 
 async function resolveSessionActionRole(req) {

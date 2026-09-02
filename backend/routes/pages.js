@@ -1844,8 +1844,10 @@ router.get('/blog/all', async (req, res) => {
       return res.json([]);
     }
     
-    // Поддержка фильтрации по категории, поиску и режиму сортировки ленты
-    const { category, search, filter: filterSlug } = req.query;
+    // Поддержка фильтрации по категории, поиску и режиму сортировки ленты.
+    // for_seo=1 — полный список для prerender/sitemap, без подборки default-фильтра.
+    const { category, search, filter: filterSlug, for_seo: forSeoRaw } = req.query;
+    const forSeo = forSeoRaw === '1' || forSeoRaw === 'true';
     let whereClause = `WHERE visibility = 'public' AND status = 'published' AND show_in_blog = TRUE`;
     const params = [];
     let paramIndex = 1;
@@ -1916,22 +1918,33 @@ router.get('/blog/all', async (req, res) => {
     let sorted = withPreviews;
     try {
       const blogFeedService = require('../services/blogFeedService');
-      const activeFilter = await blogFeedService.getFilterBySlug(
-        typeof filterSlug === 'string' ? filterSlug : null
-      );
       const pinnedMap = await blogFeedService.getPinnedMap();
-      const curatedIds = activeFilter?.id
-        ? await blogFeedService.getFilterPageIds(activeFilter.id)
-        : null;
-      const restricted = blogFeedService.applyFilterPageRestriction(withPreviews, curatedIds);
-      sorted = blogFeedService.sortFeedPages(restricted, {
-        sortBy: activeFilter?.sort_by || 'new',
-        pinnedMap,
-      }).map((page) => ({
-        ...page,
-        is_pinned: pinnedMap.has(page.id),
-        pin_position: pinnedMap.has(page.id) ? pinnedMap.get(page.id) : null,
-      }));
+      if (forSeo) {
+        sorted = blogFeedService.sortFeedPages(withPreviews, {
+          sortBy: 'new',
+          pinnedMap,
+        }).map((page) => ({
+          ...page,
+          is_pinned: pinnedMap.has(page.id),
+          pin_position: pinnedMap.has(page.id) ? pinnedMap.get(page.id) : null,
+        }));
+      } else {
+        const activeFilter = await blogFeedService.getFilterBySlug(
+          typeof filterSlug === 'string' ? filterSlug : null
+        );
+        const curatedIds = activeFilter?.id
+          ? await blogFeedService.getFilterPageIds(activeFilter.id)
+          : null;
+        const restricted = blogFeedService.applyFilterPageRestriction(withPreviews, curatedIds);
+        sorted = blogFeedService.sortFeedPages(restricted, {
+          sortBy: activeFilter?.sort_by || 'new',
+          pinnedMap,
+        }).map((page) => ({
+          ...page,
+          is_pinned: pinnedMap.has(page.id),
+          pin_position: pinnedMap.has(page.id) ? pinnedMap.get(page.id) : null,
+        }));
+      }
     } catch (sortErr) {
       console.warn('[pages] GET /blog/all: feed sort fallback:', sortErr.message);
     }

@@ -114,6 +114,15 @@
               :alt="p.title"
               class="storefront__cover"
             >
+            <video
+              v-else-if="coverOf(p)?.media_type === 'video' && coverOf(p)?.url"
+              class="storefront__cover"
+              :src="videoPreviewSrc(coverOf(p).url)"
+              muted
+              playsinline
+              preload="metadata"
+              @loadedmetadata="onVideoPreviewMeta"
+            />
             <div v-else-if="coverOf(p)?.media_type === 'video'" class="storefront__cover storefront__cover--video">
               {{ t('store.storefront.video') }}
             </div>
@@ -145,6 +154,15 @@
               <button type="button" class="btn btn-primary" :disabled="buyingId === p.id" @click="buyNow(p)">
                 {{ buyingId === p.id ? t('store.common.saving') : t('store.storefront.buy') }}
               </button>
+              <router-link
+                v-if="canEditCard"
+                class="storefront__gear"
+                :to="{ name: 'content-store-product-edit', params: { id: p.id } }"
+                :title="t('store.editor.editCard')"
+                :aria-label="t('store.editor.editCard')"
+              >
+                <el-icon :size="18"><Setting /></el-icon>
+              </router-link>
               <button
                 type="button"
                 class="btn btn-secondary storefront__reviews"
@@ -177,7 +195,7 @@ import { ethers } from 'ethers';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import StoreRating from '@/components/store/StoreRating.vue';
-import { Grid, List, Plus, ShoppingCart, User } from '@element-plus/icons-vue';
+import { Grid, List, Plus, Setting, ShoppingCart, User } from '@element-plus/icons-vue';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
@@ -210,6 +228,9 @@ const cartTo = computed(() => storeCartRoute(userId.value));
 const ordersTo = computed(() => storeOrdersRoute(userId.value));
 const canCreateCard = computed(() =>
   hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS) && canAccessPath('/content/store/product/new')
+);
+const canEditCard = computed(() =>
+  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS) && canAccessPath('/content/store/product/:id')
 );
 
 const VIEW_KEY = 'dle_store_view_mode_v1';
@@ -294,6 +315,23 @@ function formatUnits(units, decimals) {
 function coverOf(product) {
   const list = Array.isArray(product?.media) ? product.media : [];
   return list[0] || null;
+}
+
+function videoPreviewSrc(url) {
+  const src = String(url || '');
+  if (!src) return '';
+  return src.includes('#') ? src : `${src}#t=0.1`;
+}
+
+function onVideoPreviewMeta(e) {
+  const el = e?.target;
+  if (!el || typeof el.currentTime !== 'number') return;
+  if (el.currentTime >= 0.05) return;
+  try {
+    el.currentTime = 0.1;
+  } catch {
+    /* ignore */
+  }
 }
 
 function ratingTitle(product) {
@@ -537,6 +575,7 @@ onUnmounted(() => {
   object-fit: cover;
   display: block;
   background: color-mix(in srgb, currentColor 8%, transparent);
+  pointer-events: none;
 }
 .storefront__cover--empty,
 .storefront__cover--video {
@@ -581,6 +620,18 @@ onUnmounted(() => {
   flex-wrap: wrap;
   margin-top: auto;
   padding-top: 0.5rem;
+}
+.storefront__gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 .storefront__reviews {
   gap: 0.4rem;

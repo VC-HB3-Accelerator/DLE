@@ -29,8 +29,33 @@ export async function applyUpdateHere({ dleContract, fromVersion }) {
 }
 
 export async function fetchApplyJob(jobId) {
-  const response = await api.get(`/updates/apply-here/${encodeURIComponent(jobId)}`);
+  const response = await api.get(`/updates/apply-here/${encodeURIComponent(jobId)}`, {
+    timeout: 8000,
+  });
   return response.data?.data;
+}
+
+/** Короткий ping, пока backend/nginx поднимаются после recreate. */
+export async function fetchInstanceHealth(timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch('/api/health', {
+      method: 'GET',
+      credentials: 'include',
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return false;
+    const type = response.headers.get('content-type') || '';
+    if (!type.includes('application/json')) return false;
+    const data = await response.json();
+    return data?.status === 'ok' || data?.status === 'warning';
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchHubSettings() {

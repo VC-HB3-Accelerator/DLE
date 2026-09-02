@@ -44,7 +44,7 @@
           type="text"
           class="form-control"
           :placeholder="t('settings.updates.dleContractPlaceholder')"
-          :disabled="isApplying"
+          :disabled="isApplying || applyPhase === 'ready'"
         />
       </label>
       <p class="form-hint">{{ t('settings.updates.dleContractHint') }}</p>
@@ -53,8 +53,42 @@
         {{ t('settings.updates.appRootMissing') }}
       </p>
       <p v-if="applyError" class="alert alert-danger">{{ applyError }}</p>
-      <p v-if="applySuccess" class="alert alert-success">{{ applySuccess }}</p>
+      <p v-if="applySuccess && applyPhase === 'idle'" class="alert alert-success">{{ applySuccess }}</p>
+
+      <div
+        v-if="showApplyProgress"
+        class="updates-settings__live"
+        :aria-busy="applyPhase !== 'ready' ? 'true' : 'false'"
+      >
+        <div class="updates-settings__live-head">
+          <div v-if="applyPhase !== 'ready'" class="updates-settings__spinner" aria-hidden="true" />
+          <strong>{{ t('settings.updates.applyLiveTitle') }}</strong>
+        </div>
+        <ol class="updates-settings__steps">
+          <li
+            v-for="step in applySteps"
+            :key="step.id"
+            class="updates-settings__step"
+            :class="stepClass(step.id)"
+          >
+            <span class="updates-settings__step-mark" aria-hidden="true" />
+            <span>{{ t(step.labelKey) }}</span>
+          </li>
+        </ol>
+        <p class="updates-settings__live-status" aria-live="polite">{{ liveStatusText }}</p>
+        <p v-if="jobDetail" class="form-hint">{{ jobDetail }}</p>
+      </div>
+
       <button
+        v-if="applyPhase === 'ready'"
+        type="button"
+        class="btn btn-primary"
+        @click="handleReloadPage"
+      >
+        {{ t('settings.updates.reloadPage') }}
+      </button>
+      <button
+        v-else
         type="button"
         class="btn btn-primary"
         :disabled="isApplying || !latest || !status.appRootReady"
@@ -135,7 +169,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { useAuthContext } from '@/composables/useAuth';
@@ -145,6 +179,8 @@ import {
   fetchUpdatesStatus,
   fetchLatestUpdate,
   applyUpdateHere,
+  fetchApplyJob,
+  fetchInstanceHealth,
   fetchHubSettings,
   saveHubSettings,
 } from '@/services/updatesService';
@@ -162,6 +198,49 @@ const loadError = ref('');
 const applyError = ref('');
 const applySuccess = ref('');
 const isApplying = ref(false);
+const applyPhase = ref('idle');
+const jobDetail = ref('');
+const applyJobId = ref('');
+const applyVersion = ref('');
+
+const APPLY_STORAGE_KEY = 'dle-updates-apply-job';
+const APPLY_STORAGE_MAX_MS = 45 * 60 * 1000;
+const JOB_POLL_MS = 2000;
+const HEALTH_POLL_MS = 3000;
+const DOWN_STREAK_TO_REBUILD = 2;
+const UP_STREAK_TO_READY = 2;
+
+const applySteps = [
+  { id: 'downloading', labelKey: 'settings.updates.phaseDownloading' },
+  { id: 'applying', labelKey: 'settings.updates.phaseUpdateSh' },
+  { id: 'rebuilding', labelKey: 'settings.updates.phaseRebuild' },
+];
+
+const showApplyProgress = computed(() => (
+  applyPhase.value !== 'idle' && applyPhase.value !== 'error'
+));
+
+const liveStatusText = computed(() => {
+  switch (applyPhase.value) {
+    case 'downloading':
+      return t('settings.updates.phaseDownloadingHint');
+    case 'applying':
+      return t('settings.updates.phaseUpdateShHint');
+    case 'started':
+      return t('settings.updates.phaseUpdateShHint');
+    case 'rebuilding':
+      return t('settings.updates.phaseWaitingSite');
+    case 'ready':
+      return t('settings.updates.phaseSiteReady');
+    default:
+      return '';
+  }
+});
+
+let pollTimer = null;
+let pollCancelled = false;
+let downStreak = 0;
+let upStreak = 0;
 
 const hubMeta = ref({});
 const hubSettingsLoaded = ref(false);
@@ -245,9 +324,234 @@ async function loadPage() {
   }
 }
 
+function stepIndex(phase) {
+  if (phase === 'downloading') return 0;
+  if (phase === 'applying') return 1;
+  if (phase === 'started' || phase === 'rebuilding') return 2;
+  if (phase === 'ready') return 3;
+  return -1;
+}
+
+function stepClass(stepId) {
+  const order = { downloading: 0, applying: 1, rebuilding: 2 };
+  const current = stepIndex(applyPhase.value);
+  const idx = order[stepId];
+  if (current > idx) return 'updates-settings__step--done';
+  if (current === idx) return 'updates-settings__step--active';
+  return '';
+}
+
+function stopPolling() {
+  pollCancelled = true;
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function schedulePoll(delayMs) {
+  if (pollCancelled) return;
+  pollTimer = setTimeout(() => {
+    pollTimer = null;
+    tickApplyProgress();
+  }, delayMs);
+}
+
+function persistApplyJob(phaseOverride) {
+  if (!applyJobId.value) return;
+  try {
+    sessionStorage.setItem(APPLY_STORAGE_KEY, JSON.stringify({
+      jobId: applyJobId.value,
+      version: applyVersion.value,
+      phase: phaseOverride || applyPhase.value,
+      startedAt: Date.now(),
+    }));
+  } catch {
+    // private mode / quota
+  }
+}
+
+function clearPersistedApplyJob() {
+  try {
+    sessionStorage.removeItem(APPLY_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function readPersistedApplyJob() {
+  try {
+    const raw = sessionStorage.getItem(APPLY_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data?.jobId || !data?.startedAt) return null;
+    if (Date.now() - Number(data.startedAt) > APPLY_STORAGE_MAX_MS) {
+      sessionStorage.removeItem(APPLY_STORAGE_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function isUnavailableError(error) {
+  const status = error.response?.status;
+  if (status === 502 || status === 503 || status === 504) return true;
+  if (!error.response) return true;
+  const code = error.code || '';
+  return code === 'ECONNABORTED'
+    || code === 'ERR_NETWORK'
+    || code === 'ERR_CANCELED'
+    || code === 'ECONNRESET';
+}
+
+function applyJobStatusToPhase(status) {
+  if (status === 'downloading') return 'downloading';
+  if (status === 'applying') return 'applying';
+  if (status === 'started') return 'started';
+  if (status === 'error') return 'error';
+  return applyPhase.value === 'idle' ? 'downloading' : applyPhase.value;
+}
+
+function markReady() {
+  applyPhase.value = 'ready';
+  isApplying.value = false;
+  jobDetail.value = '';
+  applySuccess.value = applyVersion.value
+    ? t('settings.updates.applyStarted', { version: applyVersion.value })
+    : '';
+  persistApplyJob('ready');
+  stopPolling();
+}
+
+async function probeSiteUntilReady() {
+  if (pollCancelled) return;
+  const ok = await fetchInstanceHealth();
+  if (pollCancelled) return;
+  if (ok) {
+    upStreak += 1;
+    downStreak = 0;
+    if (upStreak >= UP_STREAK_TO_READY) {
+      markReady();
+      return;
+    }
+  } else {
+    upStreak = 0;
+    applyPhase.value = 'rebuilding';
+  }
+  schedulePoll(HEALTH_POLL_MS);
+}
+
+async function tickApplyProgress() {
+  if (pollCancelled) return;
+
+  if (applyPhase.value === 'rebuilding' || applyPhase.value === 'ready') {
+    if (applyPhase.value === 'ready') return;
+    await probeSiteUntilReady();
+    return;
+  }
+
+  const jobId = applyJobId.value;
+  if (!jobId) {
+    await probeSiteUntilReady();
+    return;
+  }
+
+  try {
+    const job = await fetchApplyJob(jobId);
+    downStreak = 0;
+    jobDetail.value = job?.message || '';
+    const nextPhase = applyJobStatusToPhase(job?.status);
+    if (nextPhase === 'error') {
+      applyPhase.value = 'error';
+      isApplying.value = false;
+      applyError.value = job?.message || t('settings.updates.applyError');
+      clearPersistedApplyJob();
+      stopPolling();
+      return;
+    }
+    applyPhase.value = nextPhase;
+    persistApplyJob();
+    schedulePoll(JOB_POLL_MS);
+  } catch (error) {
+    const status = error.response?.status;
+    if (status === 404 || status === 401) {
+      const progressed = applyPhase.value === 'applying'
+        || applyPhase.value === 'started'
+        || applyPhase.value === 'rebuilding';
+      if (status === 404 && !progressed) {
+        const siteUp = await fetchInstanceHealth();
+        if (pollCancelled) return;
+        if (siteUp) {
+          applyPhase.value = 'error';
+          isApplying.value = false;
+          applyError.value = error.response?.data?.error
+            || t('settings.updates.applyError');
+          clearPersistedApplyJob();
+          stopPolling();
+          return;
+        }
+      }
+      applyPhase.value = 'rebuilding';
+      jobDetail.value = '';
+      persistApplyJob('rebuilding');
+      await probeSiteUntilReady();
+      return;
+    }
+    if (isUnavailableError(error)) {
+      downStreak += 1;
+      if (downStreak >= DOWN_STREAK_TO_REBUILD) {
+        applyPhase.value = 'rebuilding';
+        jobDetail.value = '';
+        persistApplyJob('rebuilding');
+        await probeSiteUntilReady();
+        return;
+      }
+      schedulePoll(JOB_POLL_MS);
+      return;
+    }
+    applyPhase.value = 'error';
+    isApplying.value = false;
+    applyError.value = error.response?.data?.error
+      || error.message
+      || t('settings.updates.applyError');
+    stopPolling();
+  }
+}
+
+function startApplyPolling(jobId, version) {
+  stopPolling();
+  pollCancelled = false;
+  downStreak = 0;
+  upStreak = 0;
+  applyJobId.value = jobId;
+  applyVersion.value = version || '';
+  persistApplyJob();
+  schedulePoll(400);
+}
+
+async function resumeApplyIfNeeded() {
+  const stored = readPersistedApplyJob();
+  if (!stored?.jobId) return;
+  applyJobId.value = stored.jobId;
+  applyVersion.value = stored.version || latest.value?.version || '';
+  applyError.value = '';
+  applySuccess.value = '';
+  if (stored.phase === 'ready') {
+    applyPhase.value = 'ready';
+    isApplying.value = false;
+    return;
+  }
+  applyPhase.value = stored.phase || 'started';
+  isApplying.value = true;
+  startApplyPolling(stored.jobId, applyVersion.value);
+}
+
 async function handleApplyHere() {
   applyError.value = '';
   applySuccess.value = '';
+  jobDetail.value = '';
   const contract = String(dleContract.value || '').trim();
   if (!/^0x[a-fA-F0-9]{40}$/.test(contract)) {
     applyError.value = t('settings.updates.invalidContract');
@@ -259,26 +563,44 @@ async function handleApplyHere() {
   }
 
   isApplying.value = true;
+  applyPhase.value = 'downloading';
   try {
     const job = await applyUpdateHere({
       dleContract: contract,
       fromVersion: status.value.currentVersion,
     });
-    applySuccess.value = t('settings.updates.applyStarted', {
-      version: job?.version || latest.value.version,
-    });
+    const version = job?.version || latest.value.version;
+    applyPhase.value = applyJobStatusToPhase(job?.status) || 'downloading';
+    jobDetail.value = job?.message || '';
+    if (applyPhase.value === 'error') {
+      isApplying.value = false;
+      applyError.value = job?.message || t('settings.updates.applyError');
+      return;
+    }
+    if (!job?.id) {
+      isApplying.value = false;
+      applyPhase.value = 'error';
+      applyError.value = t('settings.updates.applyError');
+      return;
+    }
+    startApplyPolling(job.id, version);
   } catch (error) {
-    const status = error.response?.status;
-    if (status === 403) {
+    isApplying.value = false;
+    applyPhase.value = 'error';
+    const httpStatus = error.response?.status;
+    if (httpStatus === 403) {
       applyError.value = t('settings.updates.notEntitled');
     } else {
       applyError.value = error.response?.data?.error
         || error.message
         || t('settings.updates.applyError');
     }
-  } finally {
-    isApplying.value = false;
   }
+}
+
+function handleReloadPage() {
+  clearPersistedApplyJob();
+  window.location.reload();
 }
 
 async function handleSaveHubSettings() {
@@ -314,7 +636,14 @@ watch(isAuthenticated, (ok) => {
   if (ok) loadPage();
 });
 
-onMounted(loadPage);
+onMounted(async () => {
+  await loadPage();
+  await resumeApplyIfNeeded();
+});
+
+onUnmounted(() => {
+  stopPolling();
+});
 </script>
 
 <style scoped>
@@ -374,6 +703,83 @@ onMounted(loadPage);
   margin: 0 0 var(--spacing-md);
   color: var(--color-text);
   font-weight: 500;
+}
+
+.updates-settings__live {
+  margin: 0 0 var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-grey-light, #e5e7eb);
+  border-radius: var(--block-radius, 8px);
+  background: color-mix(in srgb, var(--color-primary) 6%, white);
+}
+
+.updates-settings__live-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  color: var(--color-dark);
+}
+
+.updates-settings__spinner {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 3px solid var(--color-grey-light, #e5e7eb);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: updates-spin 0.8s linear infinite;
+}
+
+@keyframes updates-spin {
+  to { transform: rotate(360deg); }
+}
+
+.updates-settings__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.updates-settings__step {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--theme-text-muted);
+}
+
+.updates-settings__step--done,
+.updates-settings__step--active {
+  color: var(--color-text);
+}
+
+.updates-settings__step--active {
+  font-weight: 600;
+}
+
+.updates-settings__step-mark {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-grey-light, #d1d5db);
+}
+
+.updates-settings__step--done .updates-settings__step-mark,
+.updates-settings__step--active .updates-settings__step-mark {
+  background: var(--color-primary);
+}
+
+.updates-settings__step--active .updates-settings__step-mark {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.updates-settings__live-status {
+  margin: var(--spacing-md) 0 0;
+  color: var(--color-text);
+  line-height: 1.45;
 }
 
 @media (max-width: 768px) {

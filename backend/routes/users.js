@@ -21,6 +21,20 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePermission, getUserRole } = require('../middleware/permissions');
 const { PERMISSIONS, ROLES, hasPermission } = require('../shared/permissions');
 
+function requireViewContactsOrSelf(req, res, next) {
+  const id = req.params?.id;
+  const me = req.session?.userId || req.user?.id;
+  if (
+    id
+    && me
+    && !String(id).startsWith('guest_')
+    && String(id) === String(me)
+  ) {
+    return next();
+  }
+  return requirePermission(PERMISSIONS.VIEW_CONTACTS)(req, res, next);
+}
+
 /** user / readonly в CRM: только свой профиль + editors */
 function isCrmLimitedRole(role) {
   return role === ROLES.USER || role === ROLES.READONLY || role === 'user' || role === 'readonly';
@@ -1375,7 +1389,7 @@ router.delete('/:id/identities/:identityId', requireAuth, requirePermission(PERM
 
 // Получить пользователя по id
 // Получение деталей конкретного контакта
-router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res, next) => {
+router.get('/:id', requireAuth, requireViewContactsOrSelf, async (req, res, next) => {
   const userId = req.params.id;
 
   // Получаем ключ шифрования

@@ -32,7 +32,16 @@
           :filters="feedFilters"
           :can-manage="canManageFeed"
           @open-settings="openFeedSettings"
-        />
+        >
+          <button
+            v-if="canCreatePage"
+            type="button"
+            class="blog-new-post"
+            @click="goToCreate"
+          >
+            {{ t('blog.newPost') }}
+          </button>
+        </BlogFeedToolbar>
 
         <!-- Загрузка -->
         <div v-if="isLoading" class="loading-state">
@@ -61,7 +70,7 @@
             class="empty-create"
             @click="goToCreate"
           >
-            {{ t('common.create') }}
+            {{ t('blog.newPost') }}
           </button>
         </div>
 
@@ -151,7 +160,7 @@ function openFeedSettings() {
 }
 
 function goToCreate() {
-  router.push({ name: 'content-create' });
+  router.push({ name: 'content-create', query: { visibility: 'public' } });
 }
 
 function getArticleUrl(page) {
@@ -493,18 +502,24 @@ onMounted(async () => {
   font-size: var(--font-size-md);
 }
 
+.blog-new-post,
 .empty-create {
-  padding: 10px 20px;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-md, 8px);
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
   background: var(--color-primary);
   color: #fff;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
+.blog-new-post:hover,
 .empty-create:hover {
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 .blog-feed {

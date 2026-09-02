@@ -2,11 +2,12 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * Матрица видимости экранов/блоков по ролям ОС (guest / readonly / editor).
- * Роль user в UI наследует guest. Не заменяет PERMISSIONS_MAP.
+ * Матрица видимости экранов/блоков по ролям ОС.
+ * guest — без входа; user — вошёл, токенов нет; readonly/editor — по токенам.
+ * Не заменяет PERMISSIONS_MAP.
  */
 
-const SCREEN_ROLES = Object.freeze(['guest', 'readonly', 'editor']);
+const SCREEN_ROLES = Object.freeze(['guest', 'user', 'readonly', 'editor']);
 
 /** Редактор не может закрыть себе страницу матрицы — иначе lock-out. */
 const EDITOR_LOCKED_SCREENS = Object.freeze(['/settings/security/roles']);
@@ -187,6 +188,7 @@ function normalizePath(path) {
 
 function roleKeyForScreens(role) {
   const r = String(role || '').trim().toLowerCase();
+  if (r === 'user') return 'user';
   if (r === 'readonly') return 'readonly';
   if (r === 'editor') return 'editor';
   return 'guest';
@@ -274,9 +276,30 @@ function defaultFullAccessScreens() {
   return out;
 }
 
+/** Юзер = гость + свой контакт / запись к сотруднику. Не весь CRM. */
+function defaultUserScreens() {
+  const out = defaultGuestScreens();
+  const extra = [
+    '/contacts-list',
+    '/contacts/:id',
+    '/contacts/:id/profile',
+    '/contacts/:id/orders',
+    '/contacts/:id/cart',
+    '/contacts/:id/conference',
+    '/contacts/:id/conference/live/:sessionId',
+    '/personal-messages',
+    '/conference/live/:sessionId'
+  ];
+  for (const key of extra) {
+    if (Object.prototype.hasOwnProperty.call(out, key)) out[key] = true;
+  }
+  return out;
+}
+
 function cloneDefaultScreens(role) {
   const key = roleKeyForScreens(role);
   if (key === 'guest') return defaultGuestScreens();
+  if (key === 'user') return defaultUserScreens();
   return defaultFullAccessScreens();
 }
 
@@ -332,6 +355,7 @@ function validateScreensMatrix(body) {
 function buildDefaultMatrix() {
   return {
     guest: cloneDefaultScreens('guest'),
+    user: cloneDefaultScreens('user'),
     readonly: cloneDefaultScreens('readonly'),
     editor: cloneDefaultScreens('editor')
   };

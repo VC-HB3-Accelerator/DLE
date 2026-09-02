@@ -17,10 +17,10 @@
 
 // Роли в системе
 const ROLES = {
-  GUEST: 'guest',           // Неавторизованный гость
-  USER: 'user',             // Авторизованный гость (0 токенов)
-  READONLY: 'readonly',     // Админ чтение (токены > 0 && < X)
-  EDITOR: 'editor'          // Админ редактор (токены >= X)
+  GUEST: 'guest',           // Гость — без входа
+  USER: 'user',             // Юзер — вошёл, токенов нет
+  READONLY: 'readonly',     // Читатель — токены ниже порога редактора
+  EDITOR: 'editor'          // Редактор — токены на пороге редактора
 };
 
 // Список всех прав в системе
@@ -180,10 +180,10 @@ function hasAllPermissions(role, permissions) {
  */
 function getRoleDescription(role) {
   const descriptions = {
-    [ROLES.GUEST]: 'Неавторизованный гость',
-    [ROLES.USER]: 'Авторизованный гость',
-    [ROLES.READONLY]: 'Админ (только чтение)',
-    [ROLES.EDITOR]: 'Админ (редактор)'
+    [ROLES.GUEST]: 'Гость',
+    [ROLES.USER]: 'Юзер',
+    [ROLES.READONLY]: 'Читатель',
+    [ROLES.EDITOR]: 'Редактор'
   };
   
   return descriptions[role] || 'Неизвестная роль';

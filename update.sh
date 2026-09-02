@@ -104,8 +104,155 @@ version_lt() {
   [ "$a" != "$b" ] && ! version_ge "$a" "$b"
 }
 
+# apply-here идёт из контейнера backend: там есть node, python3 часто нет.
+json_field() {
+  local file="$1"
+  local spec="$2"
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs");
+      const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      let v = m;
+      for (const k of process.argv[2].split(".")) {
+        v = v == null ? undefined : v[k];
+      }
+      if (Array.isArray(v)) process.stdout.write(v.join(" "));
+      else process.stdout.write(v == null || v === undefined ? "" : String(v));
+    ' "$file" "$spec"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c '
+import json, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))
+v = m
+for k in sys.argv[2].split("."):
+    v = None if v is None else (v.get(k) if isinstance(v, dict) else None)
+if isinstance(v, list):
+    sys.stdout.write(" ".join(str(x) for x in v))
+elif v is None:
+    sys.stdout.write("")
+else:
+    sys.stdout.write(str(v))
+' "$file" "$spec"
+  else
+    print_error "Нужен node или python3, чтобы прочитать manifest.json"
+    exit 1
+  fi
+}
+
+json_stdin_field() {
+  local spec="$1"
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      let s = "";
+      process.stdin.on("data", (d) => { s += d; });
+      process.stdin.on("end", () => {
+        let v = JSON.parse(s || "{}");
+        for (const k of process.argv[1].split(".")) {
+          v = v == null ? undefined : v[k];
+        }
+        process.stdout.write(v == null || v === undefined ? "" : String(v));
+      });
+    ' "$spec"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c '
+import json, sys
+j = json.load(sys.stdin)
+v = j
+for k in sys.argv[1].split("."):
+    v = None if v is None else (v.get(k) if isinstance(v, dict) else None)
+sys.stdout.write("" if v is None else str(v))
+' "$spec"
+  else
+    print_error "Нужен node или python3"
+    exit 1
+  fi
+}
+
+json_pretty() {
+  local file="$1"
+  if command -v node >/dev/null 2>&1; then
+    node -e 'console.log(JSON.stringify(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")), null, 2))' "$file"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -m json.tool "$file"
+  else
+    cat "$file"
+  fi
+}
+
+# Имя стека и каталог на ХОСТЕ (не basename /host-project из контейнера backend).
+detect_compose_project() {
+  if [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
+    echo "$COMPOSE_PROJECT_NAME"
+    return
+  fi
+  local p
+  p="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' dapp-backend 2>/dev/null || true)"
+  if [ -n "$p" ]; then
+    echo "$p"
+    return
+  fi
+  if [ "$(basename "$APP_DIR")" = "host-project" ]; then
+    echo "dapp"
+    return
+  fi
+  basename "$APP_DIR" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-'
+}
+
+detect_host_app_dir() {
+  if [ -n "${DLE_HOST_APP_DIR:-}" ]; then
+    echo "$DLE_HOST_APP_DIR"
+    return
+  fi
+  local src
+  src="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/host-project"}}{{.Source}}{{end}}{{end}}' "$(hostname)" 2>/dev/null || true)"
+  if [ -z "$src" ]; then
+    src="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' dapp-backend 2>/dev/null || true)"
+  fi
+  if [ -n "$src" ]; then
+    echo "$src"
+    return
+  fi
+  echo "$APP_DIR"
+}
+
+detect_compose_runner_image() {
+  if [ -n "${DLE_COMPOSE_RUNNER_IMAGE:-}" ]; then
+    echo "$DLE_COMPOSE_RUNNER_IMAGE"
+    return
+  fi
+  local img
+  img="$(docker inspect -f '{{.Config.Image}}' dapp-backend 2>/dev/null || true)"
+  if [ -n "$img" ]; then
+    echo "$img"
+    return
+  fi
+  echo "digital_legal_entitydle-backend:latest"
+}
+
+# apply-here: CLI в контейнере, docker.sock — хостовый. -f /host-project даёт project=host-project
+# и bind'ы /host-project/... на хосте (каталога нет) + конфликт имён dapp-*.
+# Если хостовый путь не виден в этом namespace — compose через sibling с тем же bind.
 compose() {
-  docker compose -f "$COMPOSE_FILE" "$@"
+  if [ -d "$HOST_APP_DIR" ]; then
+    docker compose \
+      --project-name "$COMPOSE_PROJECT" \
+      --project-directory "$HOST_APP_DIR" \
+      -f "$COMPOSE_FILE" \
+      "$@"
+    return
+  fi
+  docker run --rm \
+    --entrypoint docker \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "${HOST_APP_DIR}:${HOST_APP_DIR}" \
+    -w "${HOST_APP_DIR}" \
+    -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT}" \
+    "$COMPOSE_RUNNER_IMAGE" \
+    compose \
+      --project-name "$COMPOSE_PROJECT" \
+      --project-directory "$HOST_APP_DIR" \
+      -f "$COMPOSE_FILE" \
+      "$@"
 }
 
 APP_DIR="$(detect_app_dir)"
@@ -122,6 +269,11 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
   fi
 fi
+
+COMPOSE_PROJECT="$(detect_compose_project)"
+HOST_APP_DIR="$(detect_host_app_dir)"
+COMPOSE_RUNNER_IMAGE="$(detect_compose_runner_image)"
+print_info "Compose project=$COMPOSE_PROJECT host_dir=$HOST_APP_DIR"
 
 CURRENT="0.0.0"
 if [ -f DLE_VERSION ]; then
@@ -144,7 +296,7 @@ if [ -z "$PACK" ] && [ -n "$API_BASE" ]; then
     print_error "authorize не удался (сеть / 403 / stub)"
     exit 1
   fi
-  DOWNLOAD_URL="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("data",{}).get("downloadUrl") or "")' <<<"$AUTH_JSON")"
+  DOWNLOAD_URL="$(json_stdin_field data.downloadUrl <<<"$AUTH_JSON")"
   if [ -z "$DOWNLOAD_URL" ]; then
     print_error "В ответе authorize нет downloadUrl: $AUTH_JSON"
     exit 1
@@ -179,8 +331,8 @@ if [ ! -f "$WORK/manifest.json" ]; then
   exit 1
 fi
 
-TARGET="$(python3 -c 'import json; print(json.load(open("'"$WORK"'/manifest.json"))["version"])')"
-MIN_FROM="$(python3 -c 'import json; print(json.load(open("'"$WORK"'/manifest.json")).get("min_from",""))')"
+TARGET="$(json_field "$WORK/manifest.json" version)"
+MIN_FROM="$(json_field "$WORK/manifest.json" min_from)"
 
 print_info "Целевая версия: $TARGET (min_from=$MIN_FROM)"
 
@@ -201,7 +353,7 @@ fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   print_success "dry-run OK: можно обновлять $CURRENT → $TARGET"
-  python3 -m json.tool "$WORK/manifest.json" | head -n 40
+  json_pretty "$WORK/manifest.json" | head -n 40
   exit 0
 fi
 
@@ -242,13 +394,16 @@ shopt -u nullglob
 
 # --- pull public ---
 print_info "compose pull публичных образов…"
-python3 - <<PY
-import json, subprocess
-m = json.load(open("$WORK/manifest.json"))
-for img in m.get("pull_images") or []:
-    print(f"  pull {img}")
-    subprocess.call(["docker", "pull", img])
-PY
+PULL_IMAGES="$(json_field "$WORK/manifest.json" pull_images)"
+if [ -n "$PULL_IMAGES" ]; then
+  # shellcheck disable=SC2086
+  for img in $PULL_IMAGES; do
+    print_info "  pull $img"
+    docker pull "$img" || print_warning "pull не удался: $img"
+  done
+else
+  print_info "  публичных образов в pack нет — пропуск"
+fi
 
 # --- overlay (не трогаем ssl, .env) ---
 print_info "Overlay файлов…"
@@ -293,7 +448,11 @@ if [ -f "$WORK/update.sh" ]; then
 fi
 
 # --- recreate ---
-SERVICES="$(python3 -c 'import json; print(" ".join(json.load(open("'"$WORK"'/manifest.json")).get("recreate_services") or []))')"
+SERVICES="$(json_field "$WORK/manifest.json" recreate_services)"
+if [ -z "$SERVICES" ]; then
+  print_error "В manifest.json нет recreate_services"
+  exit 1
+fi
 print_info "compose up -d --force-recreate $SERVICES"
 # shellcheck disable=SC2086
 compose up -d --force-recreate $SERVICES

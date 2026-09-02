@@ -40,13 +40,22 @@ export async function ensureActionAccessLoaded(force = false) {
         role.value = roleKeyForActions(data.data.role);
         actions.value = data.data.actions;
       } else {
-        role.value = 'guest';
-        actions.value = cloneDefaultActions('guest');
+        const { userId } = await import('./useAuth.js');
+        const key = userId.value ? 'user' : 'guest';
+        role.value = key;
+        actions.value = cloneDefaultActions(key);
       }
     } catch (err) {
       console.warn('[useActionAccess] fallback defaults', err?.message || err);
-      role.value = 'guest';
-      actions.value = cloneDefaultActions('guest');
+      try {
+        const { userId } = await import('./useAuth.js');
+        const key = userId.value ? 'user' : 'guest';
+        role.value = key;
+        actions.value = cloneDefaultActions(key);
+      } catch {
+        role.value = 'guest';
+        actions.value = cloneDefaultActions('guest');
+      }
     } finally {
       loaded.value = true;
       inflight = null;

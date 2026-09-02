@@ -5,7 +5,7 @@
  * Копия shared/roleScreenCaps.js для Vite.
  */
 
-export const SCREEN_ROLES = Object.freeze(['guest', 'readonly', 'editor']);
+export const SCREEN_ROLES = Object.freeze(['guest', 'user', 'readonly', 'editor']);
 
 export const EDITOR_LOCKED_SCREENS = Object.freeze(['/settings/security/roles']);
 
@@ -181,6 +181,7 @@ export function normalizePath(path) {
 
 export function roleKeyForScreens(role) {
   const r = String(role || '').trim().toLowerCase();
+  if (r === 'user') return 'user';
   if (r === 'readonly') return 'readonly';
   if (r === 'editor') return 'editor';
   return 'guest';
@@ -267,9 +268,29 @@ function defaultFullAccessScreens() {
   return out;
 }
 
+function defaultUserScreens() {
+  const out = defaultGuestScreens();
+  const extra = [
+    '/contacts-list',
+    '/contacts/:id',
+    '/contacts/:id/profile',
+    '/contacts/:id/orders',
+    '/contacts/:id/cart',
+    '/contacts/:id/conference',
+    '/contacts/:id/conference/live/:sessionId',
+    '/personal-messages',
+    '/conference/live/:sessionId'
+  ];
+  for (const key of extra) {
+    if (Object.prototype.hasOwnProperty.call(out, key)) out[key] = true;
+  }
+  return out;
+}
+
 export function cloneDefaultScreens(role) {
   const key = roleKeyForScreens(role);
   if (key === 'guest') return defaultGuestScreens();
+  if (key === 'user') return defaultUserScreens();
   return defaultFullAccessScreens();
 }
 
@@ -325,6 +346,7 @@ export function validateScreensMatrix(body) {
 export function buildDefaultMatrix() {
   return {
     guest: cloneDefaultScreens('guest'),
+    user: cloneDefaultScreens('user'),
     readonly: cloneDefaultScreens('readonly'),
     editor: cloneDefaultScreens('editor')
   };

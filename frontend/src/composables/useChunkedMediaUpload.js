@@ -199,7 +199,8 @@ export async function uploadContentMedia(file, { pageId, onProgress, signal } = 
 
     throwIfAborted(signal);
     if (onProgress) onProgress({ percent: 99, phase: 'complete' });
-    const completeRes = await api.post(`/uploads/media/${uploadId}/complete`, null, { signal });
+    // {} — не null: axios шлёт application/json, express.json({strict}) отклоняет тело `null`.
+    const completeRes = await api.post(`/uploads/media/${uploadId}/complete`, {}, { signal });
     try { sessionStorage.removeItem(key); } catch { /* ignore */ }
     if (onProgress) onProgress({ percent: 100, phase: 'done' });
     return completeRes.data && completeRes.data.data;

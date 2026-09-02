@@ -29,7 +29,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import api from '@/api/axios';
-import { CHAT_CAP_KEYS, CHAT_CAP_ROLES } from '@/shared/chatRoleCaps.js';
+import { CHAT_CAP_KEYS, CHAT_CAP_ROLES, cloneDefaultCaps } from '@/shared/chatRoleCaps.js';
 
 const { t } = useI18n();
 const loaded = ref(false);
@@ -38,6 +38,7 @@ const roleKeys = CHAT_CAP_ROLES;
 const capKeys = CHAT_CAP_KEYS;
 const matrix = reactive({
   guest: {},
+  user: {},
   readonly: {},
   editor: {}
 });
@@ -50,7 +51,7 @@ async function loadMatrix() {
     });
     if (!data?.success || !data.data) throw new Error('load failed');
     for (const role of roleKeys) {
-      matrix[role] = { ...data.data[role] };
+      matrix[role] = { ...(data.data[role] || cloneDefaultCaps()) };
     }
     loaded.value = true;
   } catch (error) {
@@ -63,11 +64,9 @@ async function saveMatrix() {
   if (!loaded.value || saving.value) return;
   saving.value = true;
   try {
-    const { data } = await api.put('/settings/chat-role-capabilities', {
-      guest: { ...matrix.guest },
-      readonly: { ...matrix.readonly },
-      editor: { ...matrix.editor }
-    }, {
+    const payload = {};
+    for (const role of roleKeys) payload[role] = { ...matrix[role] };
+    const { data } = await api.put('/settings/chat-role-capabilities', payload, {
       headers: { 'Cache-Control': 'no-store' }
     });
     if (!data?.success) throw new Error(data?.error || 'save failed');

@@ -63,7 +63,8 @@ import api from '@/api/axios';
 import {
   ACTION_GROUPS,
   ACTION_ROLES,
-  EDITOR_LOCKED_ACTIONS
+  EDITOR_LOCKED_ACTIONS,
+  cloneDefaultActions
 } from '@/shared/roleActionCaps.js';
 import { invalidateActionAccess } from '@/composables/useActionAccess.js';
 
@@ -99,7 +100,7 @@ async function loadMatrix() {
     });
     if (!data?.success || !data.data) throw new Error('load failed');
     for (const role of roleKeys) {
-      matrix[role] = { ...data.data[role] };
+      matrix[role] = { ...(data.data[role] || cloneDefaultActions(role)) };
     }
     loaded.value = true;
   } catch (error) {

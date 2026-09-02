@@ -26,8 +26,47 @@ const {
   isScreenAllowedByMap
 } = loadShared('roleScreenCaps');
 
+function screensAreEmpty(screens) {
+  return !screens || typeof screens !== 'object' || Array.isArray(screens) || Object.keys(screens).length === 0;
+}
+
+async function persistRoleScreens(role, screens) {
+  await db.getQuery()(
+    `INSERT INTO role_screen_capabilities (role_key, screens, updated_at, updated_by)
+     VALUES ($1, $2::jsonb, NOW(), NULL)
+     ON CONFLICT (role_key) DO UPDATE SET
+       screens = EXCLUDED.screens,
+       updated_at = NOW()`,
+    [role, JSON.stringify(screens)]
+  );
+}
+
+let ensuringDefaults = null;
+async function ensureStoredDefaults() {
+  if (ensuringDefaults) return ensuringDefaults;
+  ensuringDefaults = (async () => {
+    for (const role of SCREEN_ROLES) {
+      const { rows } = await db.getQuery()(
+        `SELECT screens FROM role_screen_capabilities WHERE role_key = $1`,
+        [role]
+      );
+      if (!rows.length || screensAreEmpty(rows[0].screens)) {
+        await persistRoleScreens(role, cloneDefaultScreens(role));
+      }
+    }
+  })()
+    .catch((err) => {
+      logger.warn('[roleScreenCaps] ensure defaults:', err.message);
+    })
+    .finally(() => {
+      ensuringDefaults = null;
+    });
+  return ensuringDefaults;
+}
+
 async function getScreens(role) {
   const key = roleKeyForScreens(role);
+  await ensureStoredDefaults();
   const { rows } = await db.getQuery()(
     `SELECT role_key, screens FROM role_screen_capabilities WHERE role_key = $1`,
     [key]
@@ -45,6 +84,7 @@ async function getScreensForUi(role) {
 }
 
 async function getMatrix() {
+  await ensureStoredDefaults();
   const { rows } = await db.getQuery()(
     `SELECT role_key, screens FROM role_screen_capabilities WHERE role_key = ANY($1::text[])`,
     [SCREEN_ROLES]

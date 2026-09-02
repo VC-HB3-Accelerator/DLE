@@ -763,16 +763,18 @@ const router = createRouter({
   routes,
 });
 
-function isOwnContactScreen(to) {
+function isOwnContactScreen(to, meOverride) {
   const id = to.params?.id;
-  const me = sessionUserId?.value;
+  const me = meOverride ?? sessionUserId?.value;
   if (me == null || id == null || id === 'new') return false;
   if (String(id).startsWith('guest_')) return false;
   if (String(id) !== String(me)) return false;
   return to.name === 'contact-details'
     || to.name === 'contact-profile'
     || to.name === 'contact-orders'
-    || to.name === 'contact-cart';
+    || to.name === 'contact-cart'
+    || to.name === 'contact-conference'
+    || to.name === 'contact-conference-live';
 }
 
 // console.log('router/index.js: Router created');
@@ -792,7 +794,7 @@ router.beforeEach(async (to, from, next) => {
     await ensureActionAccessLoaded();
     if (!canAccessPath(to.path)) {
       console.log('[Router] Экран скрыт матрицей ролей:', to.path);
-      if (isOwnContactScreen(to)) {
+      if (isOwnContactScreen(to, sessionUserId?.value)) {
         return next();
       }
       if (to.meta?.permissionFallback) {
@@ -833,12 +835,12 @@ router.beforeEach(async (to, from, next) => {
       userRole = 'editor';
     }
 
-    const screenRole = userRole === 'user' ? 'guest' : userRole;
+    const screenRole = userRole;
     await syncScreenAccessRole(screenRole);
     await syncActionAccessRole(userRole);
 
     if (!canAccessPath(to.path)) {
-      if (isOwnContactScreen(to)) {
+      if (isOwnContactScreen(to, authData.userId ?? sessionUserId?.value)) {
         return next();
       }
       return next({ name: 'home' });
@@ -850,6 +852,10 @@ router.beforeEach(async (to, from, next) => {
         return next({ name: 'contact-conference', params: { id: contactId } });
       }
       return next({ name: 'home' });
+    }
+
+    if (isOwnContactScreen(to, authData.userId ?? sessionUserId?.value)) {
+      return next();
     }
 
     if (requiresAuth && !requiredPermission) {

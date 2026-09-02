@@ -32,6 +32,23 @@ function actorId(req) {
   return req.user?.id || req.session?.userId || null;
 }
 
+function isSelfContactParam(req, contactId) {
+  const me = Number(req.session?.userId || req.user?.id);
+  const id = Number(contactId);
+  return Number.isInteger(me) && me > 0 && me === id;
+}
+
+function requireEditorContactsOrSelf(req, res, next) {
+  if (isSelfContactParam(req, req.params.contactId)) {
+    req.conferenceSelfAccess = true;
+    return next();
+  }
+  return requirePermission(PERMISSIONS.EDIT_CONTACTS)(req, res, () => {
+    if (!ensureEditorAccess(req, res)) return;
+    next();
+  });
+}
+
 router.get(
   '/ai-agent/settings',
   requireAuth,
@@ -117,9 +134,8 @@ router.get(
 router.get(
   '/contact/:contactId',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireEditorContactsOrSelf,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.getEditableSessionForContact(req.params.contactId);
       const history = await conferenceService.listSessionsForContact(req.params.contactId, { limit: 10 });

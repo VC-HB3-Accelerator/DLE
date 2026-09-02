@@ -2,13 +2,18 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * Кэш матрицы видимости экранов для текущей роли (guest / readonly / editor).
+ * Кэш матрицы видимости экранов для текущей роли (guest / user / readonly / editor).
  */
 
 import { computed, ref } from 'vue';
 import api from '@/api/axios';
 import { isScreenAllowed, roleKeyForScreens } from '@/shared/roleScreenAllowlist.js';
 import { cloneDefaultScreens } from '@/shared/roleScreenCaps.js';
+import { userId as sessionUserId } from '@/composables/useAuth';
+
+function fallbackScreenRole() {
+  return sessionUserId?.value ? 'user' : 'guest';
+}
 
 const screens = ref(null);
 const role = ref('guest');
@@ -36,13 +41,15 @@ export async function ensureScreenAccessLoaded(force = false) {
         role.value = roleKeyForScreens(data.data.role);
         screens.value = data.data.screens;
       } else {
-        role.value = 'guest';
-        screens.value = cloneDefaultScreens('guest');
+        const key = fallbackScreenRole();
+        role.value = key;
+        screens.value = cloneDefaultScreens(key);
       }
     } catch (err) {
       console.warn('[useScreenAccess] fallback defaults', err?.message || err);
-      role.value = 'guest';
-      screens.value = cloneDefaultScreens('guest');
+      const key = fallbackScreenRole();
+      role.value = key;
+      screens.value = cloneDefaultScreens(key);
     } finally {
       loaded.value = true;
       inflight = null;

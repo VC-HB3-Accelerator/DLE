@@ -57,6 +57,30 @@ function getComposeFile(appRoot) {
   return 'docker-compose.prod.yml';
 }
 
+function inspectComposeContext() {
+  const empty = { project: '', hostDir: '', image: '' };
+  try {
+    const project = execFileSync(
+      'docker',
+      ['inspect', '-f', '{{index .Config.Labels "com.docker.compose.project"}}', 'dapp-backend'],
+      { encoding: 'utf8', timeout: 8000 }
+    ).trim();
+    const hostDir = execFileSync(
+      'docker',
+      ['inspect', '-f', '{{index .Config.Labels "com.docker.compose.project.working_dir"}}', 'dapp-backend'],
+      { encoding: 'utf8', timeout: 8000 }
+    ).trim();
+    const image = execFileSync(
+      'docker',
+      ['inspect', '-f', '{{.Config.Image}}', 'dapp-backend'],
+      { encoding: 'utf8', timeout: 8000 }
+    ).trim();
+    return { project, hostDir, image };
+  } catch {
+    return empty;
+  }
+}
+
 function getHubBaseFromSettings(settings) {
   return require('./updatesHubSettingsService').resolveHubBase(settings);
 }
@@ -279,6 +303,7 @@ async function startApplyHere({ dleContract, fromVersion, walletAddress, userId,
       setJob(jobId, { status: 'applying', message: 'Запуск update.sh…' });
 
       const composeFile = getComposeFile(appRoot);
+      const composeCtx = inspectComposeContext();
       const logPath = path.join(appRoot, 'backups', `apply-${jobId}.log`);
       fs.mkdirSync(path.dirname(logPath), { recursive: true });
       const logFd = fs.openSync(logPath, 'w');
@@ -295,6 +320,9 @@ async function startApplyHere({ dleContract, fromVersion, walletAddress, userId,
             // CLI из образа backend (/usr/local/bin/docker) должен быть первым — не docker.io 1.41
             PATH: `/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
             KEEP_PACK: '0',
+            ...(composeCtx.project ? { COMPOSE_PROJECT_NAME: composeCtx.project } : {}),
+            ...(composeCtx.hostDir ? { DLE_HOST_APP_DIR: composeCtx.hostDir } : {}),
+            ...(composeCtx.image ? { DLE_COMPOSE_RUNNER_IMAGE: composeCtx.image } : {}),
           },
         }
       );

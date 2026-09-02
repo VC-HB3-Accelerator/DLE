@@ -27,6 +27,17 @@ const {
   CHAT_CAP_KEYS
 } = loadShared('chatRoleCaps');
 
+async function persistMissingRoleCaps(role) {
+  const caps = cloneDefaultCaps();
+  await db.getQuery()(
+    `INSERT INTO chat_role_capabilities
+       (role_key, send_text, send_file, send_video, send_audio, send_call, updated_at, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW(), NULL)
+     ON CONFLICT (role_key) DO NOTHING`,
+    [role, caps.send_text, caps.send_file, caps.send_video, caps.send_audio, caps.send_call]
+  );
+}
+
 async function getCaps(role) {
   const key = roleKeyForChatCaps(role);
   const { rows } = await db.getQuery()(
@@ -34,7 +45,21 @@ async function getCaps(role) {
      FROM chat_role_capabilities WHERE role_key = $1`,
     [key]
   );
-  return normalizeCapRow(rows[0]);
+  if (!rows.length) {
+    try {
+      await persistMissingRoleCaps(key);
+    } catch (err) {
+      logger.warn('[chatRoleCaps] seed missing role:', err.message);
+    }
+  }
+  const again = rows.length
+    ? rows
+    : (await db.getQuery()(
+        `SELECT role_key, send_text, send_file, send_video, send_audio, send_call
+         FROM chat_role_capabilities WHERE role_key = $1`,
+        [key]
+      )).rows;
+  return normalizeCapRow(again[0]);
 }
 
 async function getCapsForUi(role) {
@@ -47,6 +72,13 @@ async function getCapsForUi(role) {
 }
 
 async function getMatrix() {
+  for (const role of CHAT_CAP_ROLES) {
+    try {
+      await persistMissingRoleCaps(role);
+    } catch (err) {
+      logger.warn('[chatRoleCaps] seed matrix role:', err.message);
+    }
+  }
   const { rows } = await db.getQuery()(
     `SELECT role_key, send_text, send_file, send_video, send_audio, send_call
      FROM chat_role_capabilities WHERE role_key = ANY($1::text[])`,

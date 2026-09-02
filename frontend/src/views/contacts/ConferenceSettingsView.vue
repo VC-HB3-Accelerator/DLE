@@ -22,15 +22,19 @@
 
     <template v-else>
       <div class="top-actions">
-        <el-button
-          type="primary"
-          :disabled="!connectTargetId"
-          :loading="connecting"
-          @click="connect(connectTargetId)"
-        >
+            <el-button
+              v-if="canManageConference"
+              type="primary"
+              :disabled="!connectTargetId"
+              :loading="connecting"
+              @click="connect(connectTargetId)"
+            >
           {{ t('contacts.conference.actions.connect') }}
         </el-button>
-        <el-button @click="startCreate">
+        <el-button
+          v-if="canManageConference"
+          @click="startCreate"
+        >
           {{ t('contacts.conference.actions.create') }}
         </el-button>
         <el-button :disabled="loading" @click="load">
@@ -64,6 +68,7 @@
               </div>
             </div>
             <el-button
+              v-if="canManageConference"
               type="primary"
               size="small"
               :loading="connecting && connectingId === item.id"
@@ -288,10 +293,13 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import conferenceService from '@/services/conferenceService';
 import contactsService from '@/services/contactsService';
+import { usePermissions } from '@/composables/usePermissions';
 
 const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const { isEditor } = usePermissions();
+const canManageConference = computed(() => isEditor.value);
 
 const loading = ref(false);
 const saving = ref(false);
@@ -406,7 +414,7 @@ function applySession(session) {
 
 function selectSession(item) {
   isCreateMode.value = false;
-  showForm.value = ['draft', 'scheduled'].includes(item.status);
+  showForm.value = canManageConference.value && ['draft', 'scheduled'].includes(item.status);
   applySession(item);
   loadParticipants();
 }
@@ -441,7 +449,7 @@ function cancelForm() {
 }
 
 async function loadParticipants() {
-  if (!selectedId.value || isCreateMode.value) {
+  if (!canManageConference.value || !selectedId.value || isCreateMode.value) {
     participants.value = [];
     return;
   }
@@ -539,6 +547,10 @@ async function inviteParticipant(userId) {
 }
 
 async function applyParticipantIdsFromQuery() {
+  if (!canManageConference.value) {
+    clearParticipantQuery();
+    return;
+  }
   const raw = route.query.participantIds;
   if (!raw || !selectedId.value) return;
 
@@ -590,18 +602,18 @@ async function load() {
 
     if (data.session && ['draft', 'scheduled'].includes(data.session.status)) {
       applySession(data.session);
-      showForm.value = Boolean(route.query.participantIds) || false;
+      showForm.value = canManageConference.value && Boolean(route.query.participantIds);
       isCreateMode.value = false;
       await loadParticipants();
     } else if (upcomingList.value.length) {
       selectedId.value = upcomingList.value[0].id;
       applySession(upcomingList.value[0]);
-      showForm.value = Boolean(route.query.participantIds);
+      showForm.value = canManageConference.value && Boolean(route.query.participantIds);
       isCreateMode.value = false;
       await loadParticipants();
     } else {
       // Нет сессии — создаём черновик, чтобы можно было добавить участников из списка
-      if (route.query.participantIds) {
+      if (route.query.participantIds && canManageConference.value) {
         const created = await conferenceService.saveContactSession(contactId.value, {
           create_new: true,
           title: '',
@@ -618,10 +630,15 @@ async function load() {
           await loadParticipants();
         }
       } else {
-        showForm.value = true;
-        isCreateMode.value = true;
-        resetFormDefaults();
-        participants.value = [];
+        if (canManageConference.value) {
+          showForm.value = true;
+          isCreateMode.value = true;
+          resetFormDefaults();
+          participants.value = [];
+        } else {
+          showForm.value = false;
+          isCreateMode.value = false;
+        }
       }
     }
 
@@ -629,7 +646,7 @@ async function load() {
   } catch (e) {
     const code = e?.response?.data?.code;
     const msg = e?.response?.data?.error || t('contacts.conference.settings.loadError');
-    if (code === 'GUEST_NOT_ALLOWED' || e?.response?.status === 403) {
+    if (code === 'GUEST_NOT_ALLOWED') {
       blockedGuest.value = true;
     }
     ElMessage.error(msg);

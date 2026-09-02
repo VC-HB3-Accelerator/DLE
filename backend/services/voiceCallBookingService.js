@@ -178,7 +178,7 @@ async function bookSlot(owner, startsAt) {
     editor_user_id: editorId,
     starts_at: start.toISOString(),
     conference_id: created.session?.id || null,
-    returnUrl: `/contacts/${editorId}/conference`,
+    returnUrl: sanitizeReturnUrl(`/contacts/${owner.ownerUserId}/conference`) || bookingPageUrl(),
     local_time: `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}`
   };
 }
