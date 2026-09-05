@@ -17,7 +17,9 @@
     <AuthTokensSettings
       v-else
       :authTokens="authTokens"
+      :domainRules="domainRules"
       @update="loadAuthTokens"
+      @update-domain-rules="loadDomainRules"
     />
   </AdminPageShell>
 </template>
@@ -32,11 +34,29 @@ import AuthTokensSettings from './AuthTokensSettings.vue';
 const { t } = useI18n();
 const isLoading = ref(true);
 const authTokens = ref([]);
+const domainRules = ref([]);
+
+async function loadDomainRules() {
+  try {
+    const response = await api.get('/settings/auth-domain-rules');
+    if (response.data?.success) {
+      domainRules.value = response.data.data || [];
+    } else {
+      domainRules.value = [];
+    }
+  } catch (error) {
+    console.error('[AuthTokensSettingsView] domain rules load failed', error);
+    domainRules.value = [];
+  }
+}
 
 async function loadAuthTokens() {
   isLoading.value = true;
   try {
-    const authResponse = await api.get('/settings/auth-tokens');
+    const [authResponse] = await Promise.all([
+      api.get('/settings/auth-tokens'),
+      loadDomainRules(),
+    ]);
     if (authResponse.data?.success) {
       authTokens.value = (authResponse.data.data || []).map((token) => ({
         name: token.name,

@@ -61,21 +61,44 @@ async function listSchedule() {
   let bookings = [];
   if (editorId) {
     const { rows } = await db.getQuery()(
-      `SELECT id, starts_at, minutes, status, guest_user_id, conference_id
-       FROM ai_call_bookings
-       WHERE editor_user_id = $1 AND status <> 'cancelled' AND starts_at >= NOW()
-       ORDER BY starts_at ASC
+      `SELECT
+         b.id, b.starts_at, b.minutes, b.status, b.guest_user_id, b.conference_id,
+         cs.status AS conference_status,
+         cs.title AS conference_title
+       FROM ai_call_bookings b
+       LEFT JOIN conference_sessions cs ON cs.id = b.conference_id
+       WHERE b.editor_user_id = $1 AND b.status <> 'cancelled' AND b.starts_at >= NOW()
+       ORDER BY b.starts_at ASC
        LIMIT 120`,
       [editorId]
     );
-    bookings = rows.map((row) => ({
-      id: row.id,
-      starts_at: new Date(row.starts_at).toISOString(),
-      minutes: Number(row.minutes),
-      status: row.status,
-      guest_user_id: row.guest_user_id,
-      conference_id: row.conference_id
-    }));
+    bookings = await Promise.all(
+      rows.map(async (row) => {
+        let guestName = null;
+        let guestEmail = null;
+        if (row.guest_user_id) {
+          try {
+            const identity = await conferenceService.getContactIdentities(row.guest_user_id);
+            guestName = identity.name || null;
+            guestEmail = identity.email || null;
+          } catch (_) {
+            /* ignore */
+          }
+        }
+        return {
+          id: row.id,
+          starts_at: new Date(row.starts_at).toISOString(),
+          minutes: Number(row.minutes),
+          status: row.status,
+          guest_user_id: row.guest_user_id,
+          guest_name: guestName,
+          guest_email: guestEmail,
+          conference_id: row.conference_id,
+          conference_status: row.conference_status || null,
+          conference_title: row.conference_title || null
+        };
+      })
+    );
   }
   return {
     editor_user_id: editorId,

@@ -603,7 +603,9 @@
       "fileRequired": "Загрузите файл документа!",
       "notUpdated": "Страница не была обновлена",
       "notCreated": "Страница не была создана",
-      "createError": "Ошибка при создании страницы: "
+      "createError": "Ошибка при создании страницы: ",
+      "catalogFilters": "Раздел и поля фильтров",
+      "catalogFiltersHint": "Выберите раздел каталога и добавьте поля «имя → значение». В настройках раздела отметьте, какие имена станут фильтрами."
     }
   },
   "tables": {
@@ -769,9 +771,9 @@
     "feedSettings": {
       "open": "Настройки ленты",
       "title": "Настройки ленты",
-      "intro": "Фильтры — это подборки статей (или вся лента, если список пуст) плюс закрепления сверху.",
+      "intro": "Сначала настройте фильтры по разделам (Авто, Спецтехника и т.д.). Ниже — подборки статей и закрепления сверху.",
       "noPermission": "Недостаточно прав. Доступно только редакторам.",
-      "filtersTitle": "Фильтры",
+      "filtersTitle": "Подборки статей",
       "addFilter": "Добавить фильтр",
       "filterN": "Фильтр {n}",
       "labelRu": "Название (RU)",
@@ -800,7 +802,36 @@
         "likes": "По лайкам",
         "comments": "По комментариям",
         "popular": "Популярные (сумма)"
-      }
+      },
+      "taxonomyTitle": "Фильтры по разделам",
+      "taxonomyIntro": "У каждого раздела своя система фильтров: типы, состояние и география. Изменения сразу видны в ленте /blog.",
+      "facetsTitle": "Шаги фильтра:",
+      "facetGeo": "География",
+      "categoriesTitle": "Типы (категории раздела)",
+      "addCategory": "Добавить тип",
+      "noCategories": "Типов пока нет — добавьте, если в разделе нужен второй шаг фильтра.",
+      "saveGroupFilters": "Сохранить фильтры раздела",
+      "conditionsTitle": "Состояния (общие)",
+      "conditionsHint": "Список состояний общий для всех разделов, где включён шаг «Состояние».",
+      "addCondition": "Добавить состояние",
+      "saveConditions": "Сохранить состояния",
+      "taxonomyLoadError": "Не удалось загрузить фильтры разделов",
+      "taxonomySaveError": "Не удалось сохранить фильтры разделов",
+      "taxonomySaveSuccess": "Фильтры разделов сохранены",
+      "guestLimitTitle": "Лимит для гостей",
+      "guestLimitHint": "Максимум статей в ленте /blog для неавторизованных посетителей. Оставьте пустым — без ограничения.",
+      "guestLimitLabel": "Количество статей",
+      "guestLimitPlaceholder": "Без лимита",
+      "sectionsTitle": "Разделы каталога",
+      "sectionsIntro": "Создайте разделы и отметьте имена полей, которые станут фильтрами на ленте и в магазине. Значения полей задаются на страницах и карточках товаров.",
+      "addSection": "Добавить раздел",
+      "noSections": "Разделов пока нет — создайте первый.",
+      "filterKeysTitle": "Ключи фильтров",
+      "filterKeysHint": "Ключи берутся из полей страниц/товаров этого раздела. Можно добавить имя ключа вручную.",
+      "noKnownKeys": "Пока нет полей в этом разделе — добавьте их на страницах или товарах, либо впишите ключ ниже.",
+      "filterKeyPlaceholder": "Имя поля (например, Город)",
+      "addFilterKey": "В фильтры",
+      "confirmDeleteSection": "Выключить раздел «{name}»?"
     }
   },
   "messages": {
@@ -1474,7 +1505,8 @@
       "onChainHint": "данные из сети",
       "createCard": "Создать карточку",
       "editCard": "Изменить",
-      "openSettings": "Настройки магазина"
+      "openSettings": "Настройки магазина",
+      "catalogFiltersHint": "Раздел каталога и динамические поля для фильтров витрины (не путать с разделами витрины выше)."
     },
     "crm": {
       "title": "Заказы магазина",
@@ -2242,6 +2274,8 @@
         "weekdays": "Дни приёма",
         "preview": "Календарь слотов",
         "bookedDay": "Уже записаны на этот день",
+        "hostedTitle": "Мои конференции (как сотрудник)",
+        "hostedHint": "Сессии, где вы host — в том числе запись клиента с /book-call. «Подключиться» открывает комнату.",
         "loadFailed": "Не удалось загрузить планировщик.",
         "saveFailed": "Не удалось сохранить расписание.",
         "saved": "Расписание сохранено"
@@ -2294,7 +2328,7 @@
       },
       "list": {
         "title": "Запланированные конференции",
-        "hint": "Черновики, запланированные и активные сессии. Нажмите «Подключиться», чтобы войти в комнату.",
+        "hint": "Черновики, запланированные и активные сессии. Редактор — «Подключиться», участник на своей карточке — «Старт».",
         "empty": "Пока нет запланированных конференций"
       },
       "form": {
@@ -2309,12 +2343,17 @@
         "soloHint": "Режим solo (?solo=1): Realtime в браузере редактора для теста без участника.",
         "untitled": "Без названия",
         "back": "← К списку конференций",
-        "leave": "Выйти",
-        "end": "Завершить",
+        "leave": "Выйти из комнаты",
+        "end": "Завершить для всех",
         "ended": "Конференция завершена",
         "endedWithStats": "Завершено: ~{min} мин, сообщений {messages}, coach {coach}",
         "endError": "Не удалось завершить конференцию",
         "loadError": "Не удалось загрузить сессию",
+        "interpretError": "Не удалось подключить лайв-синхрон",
+        "listenLanguage": "Язык перевода для меня",
+        "listenLanguageHint": "Входящая речь собеседника озвучивается и показывается на этом языке",
+        "listenLanguageSaved": "Язык перевода сохранён",
+        "listenLanguageError": "Не удалось сохранить язык перевода",
         "videoTitle": "Видео",
         "videoStub": "Нажмите «В комнату», чтобы подключить видео.",
         "videoStubLocal": "Ваше видео появится здесь",
@@ -2362,20 +2401,24 @@
         "coachLocalSaved": "Правило сохранено локально (API coach — следующий шаг)",
         "coachSaved": "Coach-правило сохранено",
         "coachError": "Не удалось сохранить coach-правило",
-        "startAgent": "Запустить ИИ-агент",
-        "muteAgent": "Mute AI",
-        "unmuteAgent": "Unmute AI",
+        "startAgent": "Начать презентацию агента",
+        "muteAgent": "Заглушить голос агента",
+        "unmuteAgent": "Включить голос агента",
+        "openAgentSettings": "Настройки агента",
+        "agentStatusOff": "Агент: не запущен",
+        "agentStatusOn": "Агент: говорит",
+        "agentStatusMuted": "Агент: заглушен",
         "agentStub": "Realtime-аудио подключим на следующем шаге",
         "agentStubStarted": "Агент: презентация (заглушка)…",
-        "agentStarted": "ИИ-агент запущен",
-        "agentStartError": "Не удалось запустить ИИ-агента (проверьте ключ OpenAI и «включён» в настройках)",
-        "muteError": "Не удалось переключить Mute",
-        "realtimeConnected": "Realtime подключён (эфемерный ключ). Видео — LiveKit.",
-        "realtimeConnecting": "Подключение к OpenAI Realtime…",
-        "realtimeError": "Ошибка Realtime-соединения",
-        "realtimeReadyHint": "Микрофон/Realtime пока не подключены — разрешите доступ или проверьте ключ OpenAI / настройки агента",
-        "muted": "Агент в Mute",
-        "unmuted": "Агент снова говорит",
+        "agentStarted": "Агент начал презентацию",
+        "agentStartError": "Не удалось запустить агента (проверьте ключ провайдера и «включён» в настройках агента)",
+        "muteError": "Не удалось переключить голос агента",
+        "muted": "Голос агента выключен",
+        "unmuted": "Голос агента снова включён",
+        "realtimeConnected": "Голосовой канал агента подключён. Видео — LiveKit.",
+        "realtimeConnecting": "Подключение голосового канала…",
+        "realtimeError": "Ошибка голосового канала",
+        "realtimeReadyHint": "Микрофон или голосовой канал ещё не подключены — разрешите доступ или проверьте ключ и настройки агента",
         "roleHost": "Редактор",
         "roleAgent": "ИИ-агент",
         "roleCoach": "Coach",
@@ -2395,8 +2438,12 @@
         "scheduledAt": "Дата и время",
         "scheduledAtPlaceholder": "Необязательно — можно стартовать позже",
         "status": "Статус",
-        "guestLanguage": "Язык клиента (презентация)",
-        "hostLanguage": "Язык редактора (coach)",
+        "guestLanguage": "Язык клиента (слух / презентация)",
+        "guestLanguageHint": "На этот язык агент переводит речь редактора и ведёт презентацию. Список — языки речи Qwen Omni.",
+        "hostLanguage": "Язык редактора (слух / coach)",
+        "hostLanguageHint": "На этот язык агент переводит речь клиента. Список — языки речи Qwen Omni.",
+        "interpretationEnabled": "Лайв-синхрон: перевод речи в обе стороны",
+        "interpretationHint": "Редактор говорит — клиент слышит перевод агентом и видит текст на своём языке. Клиент говорит — редактор слышит перевод и видит текст на своём языке.",
         "agentVoice": "Голос агента",
         "agentVoicePlaceholder": "Например alloy, verse (OpenAI Realtime)",
         "presentationOutline": "План презентации",
@@ -2567,63 +2614,180 @@
           "title": "Казначейство",
           "description": "Казначейство DLE — управление ERC-20 токенами и нативными монетами, переводы, batch-операции",
           "ops": {
-            "addToken": { "title": "Добавить токен", "description": "Добавить новый ERC-20 токен в казначейство" },
-            "removeToken": { "title": "Удалить токен", "description": "Удалить токен из казначейства" },
-            "setTokenStatus": { "title": "Изменить статус токена", "description": "Активировать или деактивировать токен" },
-            "transferFunds": { "title": "Перевести средства", "description": "Перевести токены из казначейства" },
-            "transferERC721": { "title": "Перевести NFT", "description": "Перевести уникальный токен (ERC-721) из казны" },
-            "transferERC1155": { "title": "Перевести мультитокен", "description": "Перевести единицы ERC-1155 из казны" },
-            "batchTransfer": { "title": "Массовый перевод", "description": "Выполнить несколько переводов одновременно" },
-            "setPaymaster": { "title": "Установить Paymaster", "description": "Установить контракт для оплаты газа токенами" },
-            "setFundsBridge": { "title": "Сменить мост казны", "description": "Заменить TreasuryBridge через governance" },
-            "setHierarchicalVotingModule": { "title": "Установить модуль иерархического голосования", "description": "Привязать HierarchicalVotingModule, чтобы казна могла отдать внешний голос" },
-            "addGasPaymentToken": { "title": "Добавить токен для оплаты газа", "description": "Разрешить оплату газа определённым токеном" },
-            "emergencyPause": { "title": "Экстренная пауза", "description": "Приостановить все операции казначейства" }
+            "addToken": {
+              "title": "Добавить токен",
+              "description": "Добавить новый ERC-20 токен в казначейство"
+            },
+            "removeToken": {
+              "title": "Удалить токен",
+              "description": "Удалить токен из казначейства"
+            },
+            "setTokenStatus": {
+              "title": "Изменить статус токена",
+              "description": "Активировать или деактивировать токен"
+            },
+            "transferFunds": {
+              "title": "Перевести средства",
+              "description": "Перевести токены из казначейства"
+            },
+            "transferERC721": {
+              "title": "Перевести NFT",
+              "description": "Перевести уникальный токен (ERC-721) из казны"
+            },
+            "transferERC1155": {
+              "title": "Перевести мультитокен",
+              "description": "Перевести единицы ERC-1155 из казны"
+            },
+            "batchTransfer": {
+              "title": "Массовый перевод",
+              "description": "Выполнить несколько переводов одновременно"
+            },
+            "setPaymaster": {
+              "title": "Установить Paymaster",
+              "description": "Установить контракт для оплаты газа токенами"
+            },
+            "setFundsBridge": {
+              "title": "Сменить мост казны",
+              "description": "Заменить TreasuryBridge через governance"
+            },
+            "setHierarchicalVotingModule": {
+              "title": "Установить модуль иерархического голосования",
+              "description": "Привязать HierarchicalVotingModule, чтобы казна могла отдать внешний голос"
+            },
+            "addGasPaymentToken": {
+              "title": "Добавить токен для оплаты газа",
+              "description": "Разрешить оплату газа определённым токеном"
+            },
+            "emergencyPause": {
+              "title": "Экстренная пауза",
+              "description": "Приостановить все операции казначейства"
+            }
           }
         },
         "timelock": {
           "title": "Timelock",
           "description": "Модуль задержек исполнения — обязательные таймлоки для критических операций",
           "ops": {
-            "queueOperation": { "title": "Поставить операцию в очередь", "description": "Добавить операцию в очередь с задержкой" },
-            "executeOperation": { "title": "Исполнить операцию", "description": "Исполнить после истечения задержки" },
-            "cancelOperation": { "title": "Отменить операцию", "description": "Отменить операцию в очереди" },
-            "emergencyExecute": { "title": "Экстренное исполнение", "description": "Исполнить сразу (только экстренные)" },
-            "updateOperationDelay": { "title": "Обновить задержку операции", "description": "Изменить задержку для типа операции" },
-            "updateDefaultDelay": { "title": "Обновить стандартную задержку", "description": "Изменить стандартную задержку операций" }
+            "queueOperation": {
+              "title": "Поставить операцию в очередь",
+              "description": "Добавить операцию в очередь с задержкой"
+            },
+            "executeOperation": {
+              "title": "Исполнить операцию",
+              "description": "Исполнить после истечения задержки"
+            },
+            "cancelOperation": {
+              "title": "Отменить операцию",
+              "description": "Отменить операцию в очереди"
+            },
+            "emergencyExecute": {
+              "title": "Экстренное исполнение",
+              "description": "Исполнить сразу (только экстренные)"
+            },
+            "updateOperationDelay": {
+              "title": "Обновить задержку операции",
+              "description": "Изменить задержку для типа операции"
+            },
+            "updateDefaultDelay": {
+              "title": "Обновить стандартную задержку",
+              "description": "Изменить стандартную задержку операций"
+            }
           }
         },
         "reader": {
           "title": "Reader",
           "description": "Модуль чтения данных DLE — контракт, предложения и статистика",
           "ops": {
-            "getProposalSummary": { "title": "Получить сводку предложения", "description": "Полная информация о предложении" },
-            "getGovernanceParams": { "title": "Получить параметры governance", "description": "Основные параметры управления DLE" },
-            "listSupportedChains": { "title": "Список поддерживаемых сетей", "description": "Список всех поддерживаемых блокчейн-сетей" },
-            "listProposals": { "title": "Список предложений", "description": "Список предложений с пагинацией" },
-            "getVotingPowerAt": { "title": "Голосующая сила на момент времени", "description": "Голосующая сила пользователя на заданный момент" },
-            "getQuorumAt": { "title": "Кворум на момент времени", "description": "Размер кворума на заданный момент" },
-            "getProposalVotes": { "title": "Детали голосования", "description": "Детали голосования по предложению" },
-            "getAddressStats": { "title": "Статистика адреса", "description": "Статистика по конкретному адресу" },
-            "getModulesInfo": { "title": "Информация о модулях", "description": "Информация о модулях DLE" },
-            "getDLEStatus": { "title": "Статус DLE", "description": "Общий статус контракта DLE" },
-            "getProposalStates": { "title": "Состояния предложений", "description": "Состояния нескольких предложений сразу" }
+            "getProposalSummary": {
+              "title": "Получить сводку предложения",
+              "description": "Полная информация о предложении"
+            },
+            "getGovernanceParams": {
+              "title": "Получить параметры governance",
+              "description": "Основные параметры управления DLE"
+            },
+            "listSupportedChains": {
+              "title": "Список поддерживаемых сетей",
+              "description": "Список всех поддерживаемых блокчейн-сетей"
+            },
+            "listProposals": {
+              "title": "Список предложений",
+              "description": "Список предложений с пагинацией"
+            },
+            "getVotingPowerAt": {
+              "title": "Голосующая сила на момент времени",
+              "description": "Голосующая сила пользователя на заданный момент"
+            },
+            "getQuorumAt": {
+              "title": "Кворум на момент времени",
+              "description": "Размер кворума на заданный момент"
+            },
+            "getProposalVotes": {
+              "title": "Детали голосования",
+              "description": "Детали голосования по предложению"
+            },
+            "getAddressStats": {
+              "title": "Статистика адреса",
+              "description": "Статистика по конкретному адресу"
+            },
+            "getModulesInfo": {
+              "title": "Информация о модулях",
+              "description": "Информация о модулях DLE"
+            },
+            "getDLEStatus": {
+              "title": "Статус DLE",
+              "description": "Общий статус контракта DLE"
+            },
+            "getProposalStates": {
+              "title": "Состояния предложений",
+              "description": "Состояния нескольких предложений сразу"
+            }
           }
         },
         "hierarchicalVoting": {
           "title": "Иерархическое голосование",
           "description": "Модуль иерархического голосования — голосование в других DLE на основе владения токенами",
           "ops": {
-            "setTreasuryModule": { "title": "Установить Treasury модуль", "description": "Установить адрес модуля казначейства" },
-            "setModuleBridge": { "title": "Привязать мост HV", "description": "Первый раз — прямой вызов initializer. Смена уже привязанного моста — предложение." },
-            "addExternalDLE": { "title": "Добавить внешний DLE", "description": "Добавить внешний DLE для голосования" },
-            "removeExternalDLE": { "title": "Удалить внешний DLE", "description": "Удалить внешний DLE из списка" },
-            "createExternalVoteOp": { "title": "Создать операцию голоса на B", "description": "Операция vote на дочернем DLE через казну A (холдер A)" },
-            "approveOperation": { "title": "Поддержать операцию A→B", "description": "Голос холдера A «за» операцию (сила со snapshot)" },
-            "rejectOperation": { "title": "Отклонить операцию A→B", "description": "Голос холдера A «против» операции" },
-            "executeExternalVote": { "title": "Исполнить голос казны на B", "description": "Только executor после кворума A и for>against" },
-            "updateExternalDLEBalance": { "title": "Обновить баланс DLE", "description": "Обновить баланс токенов внешнего DLE" },
-            "updateAllExternalDLEBalances": { "title": "Обновить все балансы", "description": "Обновить балансы всех внешних DLE" }
+            "setTreasuryModule": {
+              "title": "Установить Treasury модуль",
+              "description": "Установить адрес модуля казначейства"
+            },
+            "setModuleBridge": {
+              "title": "Привязать мост HV",
+              "description": "Первый раз — прямой вызов initializer. Смена уже привязанного моста — предложение."
+            },
+            "addExternalDLE": {
+              "title": "Добавить внешний DLE",
+              "description": "Добавить внешний DLE для голосования"
+            },
+            "removeExternalDLE": {
+              "title": "Удалить внешний DLE",
+              "description": "Удалить внешний DLE из списка"
+            },
+            "createExternalVoteOp": {
+              "title": "Создать операцию голоса на B",
+              "description": "Операция vote на дочернем DLE через казну A (холдер A)"
+            },
+            "approveOperation": {
+              "title": "Поддержать операцию A→B",
+              "description": "Голос холдера A «за» операцию (сила со snapshot)"
+            },
+            "rejectOperation": {
+              "title": "Отклонить операцию A→B",
+              "description": "Голос холдера A «против» операции"
+            },
+            "executeExternalVote": {
+              "title": "Исполнить голос казны на B",
+              "description": "Только executor после кворума A и for>against"
+            },
+            "updateExternalDLEBalance": {
+              "title": "Обновить баланс DLE",
+              "description": "Обновить баланс токенов внешнего DLE"
+            },
+            "updateAllExternalDLEBalances": {
+              "title": "Обновить все балансы",
+              "description": "Обновить балансы всех внешних DLE"
+            }
           }
         }
       },
@@ -3011,7 +3175,7 @@
       "openInExplorer": "Открыть в блокчейн-эксплорере",
       "openProposals": "Открыть предложения",
       "creating": "Создание предложения...",
-        "errors": {
+      "errors": {
         "noModuleAddress": "Не найден адрес модуля для выбранной сети голосования",
         "createFailed": "Ошибка при создании предложения: {message}",
         "alreadyInBook": "Модуль уже в слоте выбранной сети. Предложение addModule создаётся в сети, где слот ещё пуст.",
@@ -3788,5 +3952,26 @@
       "signatureRejected": "Вы отклонили подпись в MetaMask",
       "connectFailedRetry": "Не удалось подключить кошелёк. Попробуйте снова."
     }
+  },
+  "catalogFilters": {
+    "category": "Тип",
+    "condition": "Состояние",
+    "country": "Страна",
+    "region": "Регион",
+    "city": "Город",
+    "group": "Раздел",
+    "pickGroup": "Авто / Спецтехника / Оборудование / Недвижимость",
+    "allGroups": "Все разделы",
+    "any": "Любой",
+    "reset": "Сбросить",
+    "removeChip": "Убрать фильтр «{label}»",
+    "emptyEditorStore": "По этой связке фильтров пока нет карточек. Можно создать новую.",
+    "emptyEditorBlog": "По этой связке фильтров пока нет страниц. Можно создать новую.",
+    "section": "Раздел",
+    "allSections": "Все разделы",
+    "attrsHint": "Добавьте поля «имя → значение». Эти значения можно включить как фильтры в настройках раздела.",
+    "attrKey": "Имя поля",
+    "attrValue": "Значение",
+    "addAttr": "Добавить поле"
   }
 }

@@ -55,6 +55,7 @@ function getNetworkInfo(chainId) {
   };
 }
 const authTokenService = require('../services/authTokenService');
+const authDomainRulesService = require('../services/authDomainRulesService');
 const aiProviderSettingsService = require('../services/aiProviderSettingsService');
 const aiAssistant = require('../services/ai-assistant');
 const dns = require('node:dns').promises;
@@ -151,13 +152,14 @@ router.get('/sidebar-notice', async (req, res) => {
 
 router.put('/sidebar-notice', requireAdmin, async (req, res) => {
   try {
-    const { body } = req.body || {};
+    const { body, domainDescription } = req.body || {};
     const sessionUserId = req.session?.userId;
     const updatedBy = sessionUserId != null && Number.isFinite(Number(sessionUserId))
       ? Number(sessionUserId)
       : null;
     const data = await sidebarNoticeService.setNotice({
       body,
+      domainDescription,
       updatedBy,
     });
     res.json({ success: true, data });
@@ -427,16 +429,14 @@ router.delete('/auth-token/:address/:network', requireAdmin, async (req, res, ne
   try {
     const { address, network } = req.params;
     await authTokenService.deleteAuthToken(address, network);
-    
-    // Отправляем WebSocket уведомление об удалении токена
+
     try {
       broadcastAuthTokenDeleted({ address, network });
       logger.info('WebSocket уведомление об удалении токена отправлено');
     } catch (wsError) {
       logger.error(`Ошибка при отправке WebSocket уведомления: ${wsError.message}`);
     }
-    
-    // После удаления токена перепроверяем баланс ВСЕХ авторизованных пользователей
+
     const authService = require('../services/auth-service');
     try {
       await authService.recheckAllUsersAdminStatus();
@@ -444,10 +444,98 @@ router.delete('/auth-token/:address/:network', requireAdmin, async (req, res, ne
     } catch (balanceError) {
       logger.error(`Ошибка при перепроверке балансов всех пользователей: ${balanceError.message}`);
     }
-    
+
     res.json({ success: true, message: 'Токен аутентификации удалён' });
   } catch (error) {
     logger.error('Ошибка при удалении токена аутентификации:', error);
+    next(error);
+  }
+});
+
+async function attachViewerAccess(req, res, next) {
+  try {
+    if (!req.session?.userId) {
+      return res.status(401).json({ success: false, error: 'Требуется аутентификация' });
+    }
+    const accessResolver = require('../services/accessResolverService');
+    req.viewerAccess = await accessResolver.resolveAccess(req.session.userId);
+    next();
+  } catch (error) {
+    logger.error('[settings] attachViewerAccess:', error.message);
+    next(error);
+  }
+}
+
+async function requireAuthDomainRulesManager(req, res, next) {
+  try {
+    if (!req.viewerAccess) {
+      return res.status(401).json({ success: false, error: 'Требуется аутентификация' });
+    }
+    const access = req.viewerAccess;
+    if (authDomainRulesService.isPlatformEditor(access)) {
+      return next();
+    }
+    const domainAdminCanManage = await authDomainRulesService.canManageDomainAuth(access);
+    if (domainAdminCanManage) {
+      return next();
+    }
+    return res.status(403).json({ success: false, error: 'Доступ запрещен' });
+  } catch (error) {
+    logger.error('[settings] requireAuthDomainRulesManager:', error.message);
+    next(error);
+  }
+}
+
+function handleAuthDomainRuleError(res, error, next) {
+  if (error.status) {
+    return res.status(error.status).json({ success: false, error: error.message });
+  }
+  return next(error);
+}
+
+// Corp-домены и email (TZ §4.2)
+router.get('/auth-domain-rules', requireAdmin, attachViewerAccess, async (req, res, next) => {
+  try {
+    const rules = await authDomainRulesService.listRules(req.viewerAccess);
+    res.json({ success: true, data: rules });
+  } catch (error) {
+    logger.error('Ошибка при получении corp auth rules:', error);
+    next(error);
+  }
+});
+
+router.post('/auth-domain-rules', requireAdmin, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+  try {
+    const rule = await authDomainRulesService.createRule(req.body, req.viewerAccess, req.session.userId);
+    await authDomainRulesService.recheckRolesAfterChange();
+    res.json({ success: true, data: rule, message: 'Правило сохранено' });
+  } catch (error) {
+    if (error.status) return handleAuthDomainRuleError(res, error, next);
+    logger.error('Ошибка при создании corp auth rule:', error);
+    next(error);
+  }
+});
+
+router.put('/auth-domain-rules/:id', requireAdmin, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+  try {
+    const rule = await authDomainRulesService.updateRule(req.params.id, req.body, req.viewerAccess, req.session.userId);
+    await authDomainRulesService.recheckRolesAfterChange();
+    res.json({ success: true, data: rule, message: 'Правило обновлено' });
+  } catch (error) {
+    if (error.status) return handleAuthDomainRuleError(res, error, next);
+    logger.error('Ошибка при обновлении corp auth rule:', error);
+    next(error);
+  }
+});
+
+router.delete('/auth-domain-rules/:id', requireAdmin, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+  try {
+    const result = await authDomainRulesService.deleteRule(req.params.id, req.viewerAccess, req.session.userId);
+    await authDomainRulesService.recheckRolesAfterChange();
+    res.json({ success: true, data: result, message: 'Правило удалено' });
+  } catch (error) {
+    if (error.status) return handleAuthDomainRuleError(res, error, next);
+    logger.error('Ошибка при удалении corp auth rule:', error);
     next(error);
   }
 });

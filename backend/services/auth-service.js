@@ -111,15 +111,11 @@ class AuthService {
         // Используем предварительно проверенный уровень доступа или проверяем заново
         const currentAccessLevel = userAccessLevel !== null ? userAccessLevel : await this.getUserAccessLevel(normalizedAddress);
 
-        // Если уровень доступа изменился, обновляем роль в базе данных
-        const currentRole = userData.role;
-        
-        // Используем роль из currentAccessLevel, которая уже правильно определена с учетом порогов
-        const newRole = currentAccessLevel.level;
-        
-        if (currentRole !== newRole) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, userData.id]);
-          logger.info(`Updated user ${userData.id} role to ${newRole} (access level changed, tokens: ${currentAccessLevel.tokenCount})`);
+        // Роль через единый access resolver (токены + corp email/domain)
+        const accessResolver = require('./accessResolverService');
+        const access = await accessResolver.recompute(userData.id);
+        if (userData.role !== access.role) {
+          logger.info(`Updated user ${userData.id} role to ${access.role} (access level changed, tokens: ${currentAccessLevel.tokenCount})`);
         }
 
         return {
@@ -431,26 +427,11 @@ class AuthService {
         logger.info(`[checkEmailVerification] Created new user ${userId} for email ${email} with role ${ROLES.USER}`);
       }
 
-      // Проверяем наличие кошелька и определяем роль
+      // Роль через единый access resolver (токены + corp email/domain)
       const wallet = await getLinkedWallet(userId);
-      let role = ROLES.USER; // Базовая роль для доступа к чату
-
-      if (wallet) {
-        // Если есть кошелек, проверяем уровень доступа
-        const userAccessLevel = await this.getUserAccessLevel(wallet);
-        role = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
-        
-        // Обновляем роль в БД, если она изменилась
-        if (role !== ROLES.USER) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
-        }
-        
-        logger.info(`[checkEmailVerification] User ${userId} has wallet ${wallet}, role set to ${role}`);
-      } else {
-        // Убеждаемся, что роль user установлена (даже без кошелька)
-        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
-        logger.info(`[checkEmailVerification] User ${userId} has no wallet, using basic user role`);
-      }
+      const accessResolver = require('./accessResolverService');
+      const access = await accessResolver.recompute(userId);
+      const role = access.role;
 
       broadcastContactsUpdate();
 
@@ -550,26 +531,10 @@ class AuthService {
         }
       }
 
-      // Проверяем наличие кошелька и определяем роль
-      const wallet = await getLinkedWallet(userId);
-      let role = ROLES.USER; // Базовая роль для доступа к чату
-
-      if (wallet) {
-        // Если есть кошелек, проверяем уровень доступа
-        const userAccessLevel = await this.getUserAccessLevel(wallet);
-        role = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
-        
-        // Обновляем роль в БД, если она изменилась
-        if (role !== ROLES.USER) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
-        }
-        
-        logger.info(`[verifyTelegramAuth] User ${userId} has wallet ${wallet}, role set to ${role}`);
-      } else {
-        // Убеждаемся, что роль user установлена (даже без кошелька)
-        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
-        logger.info(`[verifyTelegramAuth] User ${userId} has no wallet, using basic user role`);
-      }
+      // Роль через единый access resolver (токены + corp email/domain)
+      const accessResolver = require('./accessResolverService');
+      const access = await accessResolver.recompute(userId);
+      const role = access.role;
 
       broadcastContactsUpdate();
 
@@ -756,53 +721,15 @@ class AuthService {
    * @returns {Promise<void>}
    */
   async recheckAllUsersAdminStatus() {
-    logger.info('Starting recheck of user roles for all users with wallets');
+    logger.info('Starting recheck of user roles (wallets + email identities)');
 
     try {
-      // Получаем ключ шифрования через унифицированную утилиту
-      const encryptionUtils = require('../utils/encryptionUtils');
-      const encryptionKey = encryptionUtils.getEncryptionKey();
-
-      // Получаем всех пользователей с кошельками
-      const usersResult = await db.getQuery()(
-        `
-        SELECT DISTINCT u.id, u.role, decrypt_text(ui.provider_id_encrypted, $1) as address
-        FROM users u 
-        JOIN user_identities ui ON u.id = ui.user_id 
-        WHERE ui.provider_encrypted = encrypt_text('wallet', $1)
-        `,
-        [encryptionKey]
+      const accessResolver = require('./accessResolverService');
+      const walletResult = await accessResolver.recomputeAllWithWallets();
+      const emailResult = await accessResolver.recomputeAllWithEmailIdentities();
+      logger.info(
+        `[recheckAllUsersAdminStatus] wallets ${walletResult.updated}/${walletResult.total}, email ${emailResult.updated}/${emailResult.total}`
       );
-
-      logger.info(`Found ${usersResult.rows.length} users with wallets to recheck`);
-
-      // Перепроверяем каждого пользователя
-      for (const user of usersResult.rows) {
-        try {
-          const address = user.address;
-          const currentRole = user.role;
-          
-          logger.info(`Rechecking access level for user ${user.id} with address ${address}`);
-          
-          // Получаем новый уровень доступа
-          const accessLevel = await this.getUserAccessLevel(address);
-          const newRole = accessLevel.hasAccess ? accessLevel.level : 'user';
-          
-          // Обновляем роль только если она изменилась
-          if (currentRole !== newRole) {
-            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, user.id]);
-            logger.info(`Updated user ${user.id} role from ${currentRole} to ${newRole} (address: ${address}, tokens: ${accessLevel.tokenCount})`);
-          } else {
-            logger.info(`User ${user.id} role unchanged: ${currentRole} (address: ${address}, tokens: ${accessLevel.tokenCount})`);
-          }
-          
-        } catch (userError) {
-          logger.error(`Error rechecking user ${user.id}: ${userError.message}`);
-          // Продолжаем с другими пользователями
-        }
-      }
-
-      logger.info('Completed recheck of admin status for all users');
     } catch (error) {
       logger.error(`Error in recheckAllUsersAdminStatus: ${error.message}`);
       throw error;
@@ -976,17 +903,15 @@ class AuthService {
         });
       }
 
-      // Проверяем и обновляем роль администратора, если это идентификатор кошелька
+      // Проверяем и обновляем роль через access resolver
       let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
       if (provider === 'wallet') {
         userAccessLevel = await this.getUserAccessLevel(normalizedProviderId);
-
-        // Обновляем роль пользователя в базе данных, если нужно
-        if (userAccessLevel.hasAccess) {
-          const role = userAccessLevel.level;
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
-          logger.info(`[AuthService] Updated user ${userId} role to ${role} based on token holdings (${userAccessLevel.tokenCount} tokens)`);
-        }
+      }
+      const accessResolver = require('./accessResolverService');
+      const access = await accessResolver.recompute(userId);
+      if (provider === 'wallet' && userAccessLevel.hasAccess) {
+        logger.info(`[AuthService] User ${userId} role recomputed to ${access.role} (${userAccessLevel.tokenCount} tokens)`);
       }
 
       logger.info(
@@ -1067,34 +992,14 @@ class AuthService {
         }
       }
 
-      // 4. Проверить роль на основе привязанного кошелька
+      // 4. Роль через единый access resolver (токены + corp email/domain)
       try {
-        const linkedWallet = await getLinkedWallet(userId);
-        if (linkedWallet) {
-          logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet}. Checking role...`);
-          const userAccessLevel = await this.getUserAccessLevel(linkedWallet);
-          if (userAccessLevel.hasAccess) {
-            userRole = userAccessLevel.level;
-          } else {
-            userRole = ROLES.USER;
-          }
-          logger.info(`[handleEmailVerification] Role determined as: ${userRole}`);
-
-          // Опционально: Обновить роль в таблице users
-          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
-          if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
-            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
-            logger.info(`[handleEmailVerification] Updated user role in DB to ${userRole}`);
-          }
-        } else {
-          // Если кошелька нет, устанавливаем роль user (даже если в БД была другая роль)
-          userRole = ROLES.USER;
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
-          logger.info(`[handleEmailVerification] No linked wallet found. Role set to 'user'.`);
-        }
+        const accessResolver = require('./accessResolverService');
+        const access = await accessResolver.recompute(userId);
+        userRole = access.role;
+        logger.info(`[handleEmailVerification] Role recomputed: ${userRole}`);
       } catch (roleCheckError) {
-        logger.error(`[handleEmailVerification] Error checking user role:`, roleCheckError);
-        // В случае ошибки берем текущую роль из базы или оставляем 'user'
+        logger.error(`[handleEmailVerification] Error recomputing user role:`, roleCheckError);
         try {
           const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
           if (currentUser.rows.length > 0) {
@@ -1171,40 +1076,13 @@ class AuthService {
   async updateUserRolesPeriodically() {
     try {
       logger.info('[AuthService] Начинаем периодическую проверку ролей пользователей');
-      
-      const encryptionUtils = require('../utils/encryptionUtils');
-      const encryptionKey = encryptionUtils.getEncryptionKey();
-      
-      // Получаем всех пользователей с привязанными кошельками
-      const usersResult = await db.getQuery()(`
-        SELECT DISTINCT u.id, u.role, decrypt_text(ui.provider_id_encrypted, $1) as wallet_address
-        FROM users u
-        JOIN user_identities ui ON u.id = ui.user_id
-        WHERE ui.provider_encrypted = encrypt_text('wallet', $1)
-      `, [encryptionKey]);
 
-      let updatedCount = 0;
-      
-      for (const user of usersResult.rows) {
-        try {
-          const userAccessLevel = await this.getUserAccessLevel(user.wallet_address);
-          const expectedRole = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
-          
-          if (user.role !== expectedRole) {
-            logger.info(`[AuthService] Обновляем роль пользователя ${user.id} с ${user.role} на ${expectedRole} (токены: ${userAccessLevel.tokenCount})`);
-            const updateResult = await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2 RETURNING role', [expectedRole, user.id]);
-            logger.info(`[AuthService] SQL UPDATE выполнен для пользователя ${user.id}, результат:`, updateResult.rows[0]);
-            logger.info(`[AuthService] Обновлена роль пользователя ${user.id} с ${user.role} на ${expectedRole} (токены: ${userAccessLevel.tokenCount})`);
-            updatedCount++;
-          } else {
-            logger.info(`[AuthService] Роль пользователя ${user.id} не требует обновления: ${user.role} (токены: ${userAccessLevel.tokenCount})`);
-          }
-        } catch (error) {
-          logger.error(`[AuthService] Ошибка при обновлении роли пользователя ${user.id}:`, error);
-        }
-      }
-      
-      logger.info(`[AuthService] Периодическая проверка завершена. Обновлено ролей: ${updatedCount}`);
+      const accessResolver = require('./accessResolverService');
+      const walletResult = await accessResolver.recomputeAllWithWallets();
+      const emailResult = await accessResolver.recomputeAllWithEmailIdentities();
+      const updatedCount = walletResult.updated + emailResult.updated;
+
+      logger.info(`[AuthService] Периодическая проверка завершена. Обновлено ролей: ${updatedCount} (wallets: ${walletResult.updated}, email: ${emailResult.updated})`);
       
       if (updatedCount > 0) {
         // Уведомляем frontend об обновлении контактов
@@ -1237,6 +1115,27 @@ class AuthService {
       roleUpdateInterval = null;
       logger.info('[AuthService] Остановлена периодическая проверка ролей');
     }
+  }
+
+  /**
+   * userAccessLevel для сессии/UI: баланс токенов кошелька приоритетнее, иначе role из resolveAccess.
+   */
+  userAccessLevelFromAccess(access, walletAccessLevel = null) {
+    if (walletAccessLevel && walletAccessLevel.level) {
+      return {
+        level: walletAccessLevel.level,
+        tokenCount: walletAccessLevel.tokenCount || 0,
+        hasAccess: Boolean(walletAccessLevel.hasAccess),
+        validTokens: walletAccessLevel.validTokens,
+      };
+    }
+    const role = access?.role || ROLES.USER;
+    const elevated = role === ROLES.EDITOR || role === ROLES.READONLY;
+    return {
+      level: role,
+      tokenCount: 0,
+      hasAccess: elevated,
+    };
   }
 }
 

@@ -15,7 +15,7 @@
 
         <div class="settings-grid">
           <el-form-item :label="t('contacts.conference.settings.guestLanguage')" required>
-            <el-select v-model="form.guest_language" style="width: 100%">
+            <el-select v-model="form.guest_language" filterable style="width: 100%">
               <el-option
                 v-for="lang in languageOptions"
                 :key="`g-${lang.value}`"
@@ -25,7 +25,7 @@
             </el-select>
           </el-form-item>
           <el-form-item :label="t('contacts.conference.settings.hostLanguage')" required>
-            <el-select v-model="form.host_language" style="width: 100%">
+            <el-select v-model="form.host_language" filterable style="width: 100%">
               <el-option
                 v-for="lang in languageOptions"
                 :key="`h-${lang.value}`"
@@ -35,6 +35,13 @@
             </el-select>
           </el-form-item>
         </div>
+
+        <el-form-item>
+          <el-checkbox v-model="form.interpretation_enabled">
+            {{ t('contacts.conference.settings.interpretationEnabled') }}
+          </el-checkbox>
+          <p class="list-hint">{{ t('contacts.conference.settings.interpretationHint') }}</p>
+        </el-form-item>
 
         <el-form-item :label="t('contacts.conference.settings.presentationOutline')">
           <el-input v-model="form.presentation_outline" type="textarea" :rows="5" />
@@ -111,6 +118,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import conferenceService from '@/services/conferenceService';
+import { CONFERENCE_SPEECH_LANGUAGES } from '@/shared/conferenceSpeechLanguages';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -131,17 +139,11 @@ const form = reactive({
   presentation_outline: '',
   notes: '',
   notify_email: true,
-  notify_telegram: false
+  notify_telegram: false,
+  interpretation_enabled: true
 });
 
-const languageOptions = [
-  { value: 'ru', label: 'Русский (ru)' },
-  { value: 'en', label: 'English (en)' },
-  { value: 'de', label: 'Deutsch (de)' },
-  { value: 'fr', label: 'Français (fr)' },
-  { value: 'es', label: 'Español (es)' },
-  { value: 'zh', label: '中文 (zh)' }
-];
+const languageOptions = CONFERENCE_SPEECH_LANGUAGES;
 
 function applySession(s) {
   session.value = s;
@@ -152,6 +154,7 @@ function applySession(s) {
   form.notes = s.notes || '';
   form.notify_email = Boolean(s.notify_email);
   form.notify_telegram = Boolean(s.notify_telegram);
+  form.interpretation_enabled = s.interpretation_enabled !== false;
 }
 
 async function load() {
@@ -183,7 +186,8 @@ async function save() {
       presentation_outline: form.presentation_outline,
       notes: form.notes,
       notify_email: form.notify_email,
-      notify_telegram: form.notify_telegram
+      notify_telegram: form.notify_telegram,
+      interpretation_enabled: form.interpretation_enabled
     });
     applySession(data.session);
     ElMessage.success(t('contacts.conference.settings.saved'));

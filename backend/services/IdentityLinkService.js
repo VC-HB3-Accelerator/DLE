@@ -209,17 +209,10 @@ class IdentityLinkService {
         [token, userId, walletAddress]
       );
 
-      // 6. Проверяем админские права
-      const authService = require('./auth-service');
-      const userAccessLevel = await authService.getUserAccessLevel(walletAddress);
-
-      if (userAccessLevel.hasAccess) {
-        await db.getQuery()(
-          `UPDATE users SET role = $1 WHERE id = $2`,
-          ['editor', userId]
-        );
-        logger.info(`[IdentityLinkService] Пользователь ${userId} получил роль editor`);
-      }
+      // 6. Роль через access resolver (токены + corp email/domain)
+      const accessResolver = require('./accessResolverService');
+      const access = await accessResolver.recompute(userId);
+      logger.info(`[IdentityLinkService] Пользователь ${userId} role=${access.role}`);
 
       // 7. Создаем identifier для миграции
       const universalGuestService = require('./UniversalGuestService');
@@ -235,7 +228,7 @@ class IdentityLinkService {
         userId,
         identifier,
         provider: tokenData.source_provider,
-        role: userAccessLevel.hasAccess ? 'editor' : 'user'
+        role: access.role
       };
 
     } catch (error) {

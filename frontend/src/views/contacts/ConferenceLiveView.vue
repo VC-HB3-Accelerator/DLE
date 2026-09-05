@@ -25,6 +25,25 @@
         <span class="live-id">#{{ session.id }}</span>
         <span class="live-langs">{{ session.guest_language }} / {{ session.host_language }}</span>
       </p>
+      <div v-if="canPickListenLanguage" class="live-lang-pick">
+        <label class="live-lang-label">{{ t('contacts.conference.live.listenLanguage') }}</label>
+        <el-select
+          :model-value="myListenLanguage"
+          filterable
+          size="small"
+          style="width: 220px"
+          :loading="langSaving"
+          @change="onListenLanguageChange"
+        >
+          <el-option
+            v-for="lang in speechLanguages"
+            :key="lang.value"
+            :label="lang.label"
+            :value="lang.value"
+          />
+        </el-select>
+        <span class="live-lang-hint">{{ t('contacts.conference.live.listenLanguageHint') }}</span>
+      </div>
     </div>
 
     <div class="live-grid">
@@ -161,7 +180,7 @@
             <span class="chat-role">{{ roleLabel(item.role) }}</span>
             <div class="chat-texts">
               <span>{{ displayChatText(item) }}</span>
-              <span v-if="chatOriginal(item)" class="chat-original">{{ chatOriginal(item) }}</span>
+              <span v-if="chatSubtitle(item)" class="chat-original">{{ chatSubtitle(item) }}</span>
             </div>
           </div>
         </div>
@@ -190,7 +209,8 @@
             class="transcript-line"
           >
             <el-tag size="small">{{ roleLabel(item.role) }}</el-tag>
-            <span>{{ item.text }}</span>
+            <span>{{ displayVoiceText(item) }}</span>
+            <span v-if="voiceSubtitle(item)" class="chat-original">{{ voiceSubtitle(item) }}</span>
           </div>
         </div>
       </section>
@@ -233,40 +253,50 @@
     </div>
 
     <div class="live-actions">
-      <el-button
-        v-if="isEditor"
-        type="primary"
-        :loading="agentStarting"
-        @click="startAgent"
-      >
-        {{ t('contacts.conference.live.startAgent') }}
-      </el-button>
-      <el-button
-        v-if="isEditor"
-        :type="agentMuted ? 'success' : 'warning'"
-        :disabled="!agentRunning"
-        :loading="muteSaving"
-        @click="toggleMute"
-      >
-        {{ agentMuted
-          ? t('contacts.conference.live.unmuteAgent')
-          : t('contacts.conference.live.muteAgent') }}
-      </el-button>
-      <el-button v-if="isEditor" @click="goAgent">
-        {{ t('contacts.conference.nav.agent') }}
-      </el-button>
-      <el-button
-        v-if="isEditor"
-        type="danger"
-        plain
-        :loading="ending"
-        @click="endConference"
-      >
-        {{ t('contacts.conference.live.end') }}
-      </el-button>
-      <el-button type="danger" plain @click="leaveRoom">
-        {{ t('contacts.conference.live.leave') }}
-      </el-button>
+      <div v-if="isEditor" class="live-actions-agent">
+        <el-tag
+          size="small"
+          :type="agentRunning ? (agentMuted ? 'info' : 'success') : 'info'"
+          effect="plain"
+        >
+          {{ agentStatusLabel }}
+        </el-tag>
+        <el-button
+          v-if="!agentRunning"
+          type="primary"
+          :loading="agentStarting"
+          @click="startAgent"
+        >
+          {{ t('contacts.conference.live.startAgent') }}
+        </el-button>
+        <el-button
+          v-else
+          :type="agentMuted ? 'success' : 'warning'"
+          :loading="muteSaving"
+          @click="toggleMute"
+        >
+          {{ agentMuted
+            ? t('contacts.conference.live.unmuteAgent')
+            : t('contacts.conference.live.muteAgent') }}
+        </el-button>
+        <el-button plain @click="goAgent">
+          {{ t('contacts.conference.live.openAgentSettings') }}
+        </el-button>
+      </div>
+      <div class="live-actions-room">
+        <el-button
+          v-if="isEditor"
+          type="danger"
+          plain
+          :loading="ending"
+          @click="endConference"
+        >
+          {{ t('contacts.conference.live.end') }}
+        </el-button>
+        <el-button type="danger" @click="leaveRoom">
+          {{ t('contacts.conference.live.leave') }}
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -282,12 +312,20 @@ import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import { createConferenceRealtimeController } from '@/composables/useConferenceRealtime';
 import { createConferenceLivekitController } from '@/composables/useConferenceLivekit';
+import { createConferenceInterpretationController } from '@/composables/useConferenceInterpretation';
+import {
+  displayTextForViewer,
+  subtitleTextForViewer
+} from '@/utils/conferenceInterpretDisplay';
+import { CONFERENCE_SPEECH_LANGUAGES } from '@/shared/conferenceSpeechLanguages';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { isEditor } = usePermissions();
 const { userId } = useAuthContext();
+const speechLanguages = CONFERENCE_SPEECH_LANGUAGES;
+const langSaving = ref(false);
 
 /** Layout может перехватить × и вызвать leaveRoom (с очисткой медиа) */
 const registerPageCloseHandler = inject('registerPageCloseHandler', null);
@@ -322,6 +360,7 @@ const mediaBusy = ref(false);
 const hasRemoteVideo = ref(false);
 
 let realtime = null;
+let interpretation = null;
 let livekit = null;
 let pollTimer = null;
 let recognition = null;
@@ -366,14 +405,72 @@ const isSoloHostRealtime = computed(
 
 const isRealtimeOwner = computed(() => isRealtimePrimary.value || isSoloHostRealtime.value);
 
+const isHostViewer = computed(
+  () => isEditor.value && !isParticipantRoute.value
+);
+
+const interpretationEnabled = computed(
+  () => Boolean(session.value?.interpretation_enabled)
+);
+
+const agentStatusLabel = computed(() => {
+  if (!agentRunning.value) return t('contacts.conference.live.agentStatusOff');
+  if (agentMuted.value) return t('contacts.conference.live.agentStatusMuted');
+  return t('contacts.conference.live.agentStatusOn');
+});
+
+/** Host (created_by) → host_language; primary → guest_language */
+const canPickListenLanguage = computed(() => {
+  if (!session.value || userId.value == null) return false;
+  const uid = Number(userId.value);
+  return (
+    Number(session.value.created_by) === uid
+    || Number(session.value.contact_user_id) === uid
+  );
+});
+
+const myListenLanguage = computed(() => {
+  if (!session.value || userId.value == null) return 'en';
+  if (Number(session.value.created_by) === Number(userId.value)) {
+    return session.value.host_language || 'ru';
+  }
+  return session.value.guest_language || 'en';
+});
+
+async function onListenLanguageChange(code) {
+  const id = resolveConferenceId();
+  if (!id || !code || userId.value == null) return;
+  langSaving.value = true;
+  try {
+    const isHostActor = Number(session.value?.created_by) === Number(userId.value);
+    const payload = isHostActor
+      ? { host_language: code }
+      : { guest_language: code };
+    const data = await conferenceService.updateLanguages(id, payload);
+    if (data.session) {
+      session.value = { ...session.value, ...data.session };
+    }
+    ElMessage.success(t('contacts.conference.live.listenLanguageSaved'));
+  } catch (e) {
+    ElMessage.error(
+      e?.response?.data?.error || t('contacts.conference.live.listenLanguageError')
+    );
+  } finally {
+    langSaving.value = false;
+  }
+}
+
 /** Чат: все роли кроме coach (клиент coach не видит) */
 const visibleChatItems = computed(() =>
   (transcriptItems.value || []).filter((i) => i.role !== 'host_coach')
 );
 
-/** Голосовой транскрипт: agent + participant (mic) */
+/** Голосовой транскрипт: agent + participant + host (синхрон) */
 const voiceTranscriptItems = computed(() =>
-  (transcriptItems.value || []).filter((i) => i.role === 'agent' || i.role === 'participant')
+  (transcriptItems.value || []).filter((i) => {
+    if (i.role === 'agent' || i.role === 'participant') return true;
+    return interpretationEnabled.value && i.role === 'host';
+  })
 );
 
 const realtimeHint = computed(() => {
@@ -400,16 +497,24 @@ function roleLabel(role) {
   return t('contacts.conference.live.roleHost');
 }
 
-/** Для получателя: перевод первым; оригинал — подпись. */
 function displayChatText(item) {
-  if (!item) return '';
-  if (item.text_translated) return item.text_translated;
-  return item.text || '';
+  return displayTextForViewer(item, { isHostViewer: isHostViewer.value });
 }
 
-function chatOriginal(item) {
-  if (!item?.text_translated) return '';
-  return t('contacts.conference.live.chatOriginal', { text: item.text });
+function chatSubtitle(item) {
+  const sub = subtitleTextForViewer(item, { isHostViewer: isHostViewer.value });
+  if (!sub) return '';
+  return t('contacts.conference.live.chatOriginal', { text: sub });
+}
+
+function displayVoiceText(item) {
+  return displayTextForViewer(item, { isHostViewer: isHostViewer.value });
+}
+
+function voiceSubtitle(item) {
+  const sub = subtitleTextForViewer(item, { isHostViewer: isHostViewer.value });
+  if (!sub) return '';
+  return t('contacts.conference.live.chatOriginal', { text: sub });
 }
 
 function applyLive(data) {
@@ -464,7 +569,8 @@ async function ensureRealtime() {
         transcriptItems.value.push({
           _key: `${Date.now()}-${Math.random()}`,
           role: item.role,
-          text: item.text
+          text: item.text,
+          text_translated: item.text_translated || null
         });
       },
       onError: (err) => {
@@ -559,6 +665,32 @@ function stopLocalMedia() {
   screenOn.value = false;
 }
 
+async function ensureInterpretation() {
+  if (!interpretationEnabled.value || !isHostViewer.value) return;
+  const id = resolveConferenceId();
+  if (!id) return;
+  if (!interpretation) {
+    interpretation = createConferenceInterpretationController({
+      onStatus: () => {},
+      onError: (err) => {
+        ElMessage.error(err?.message || t('contacts.conference.live.interpretError'));
+      },
+      onInterpretLine: (line) => {
+        transcriptItems.value.push({
+          _key: `${Date.now()}-${Math.random()}`,
+          role: line.role,
+          text: line.original,
+          text_translated: line.translated || null
+        });
+      }
+    });
+  }
+  if (!interpretation.connected) {
+    const sess = await conferenceService.createInterpretationSession(id);
+    await interpretation.connect(id, sess);
+  }
+}
+
 async function ensureLivekit() {
   if (!livekit) {
     livekit = createConferenceLivekitController({
@@ -581,6 +713,15 @@ async function ensureLivekit() {
   }
   if (!livekit.connected) {
     await livekit.connect(sessionId.value);
+  }
+  if (interpretationEnabled.value && isHostViewer.value) {
+    try {
+      await ensureInterpretation();
+    } catch (e) {
+      ElMessage.warning(
+        e?.response?.data?.error || e?.message || t('contacts.conference.live.interpretError')
+      );
+    }
   }
 }
 
@@ -844,6 +985,7 @@ async function endConference() {
     stopLocalMedia();
     livekit?.disconnect();
     realtime?.disconnect();
+    interpretation?.disconnect();
     try {
       const a = data.analytics;
       if (a?.duration_sec != null) {
@@ -960,6 +1102,7 @@ onBeforeUnmount(() => {
   stopLocalMedia();
   livekit?.disconnect();
   realtime?.disconnect();
+  interpretation?.disconnect();
 });
 </script>
 
@@ -980,6 +1123,24 @@ onBeforeUnmount(() => {
 .live-langs {
   margin-left: 10px;
   color: var(--color-grey);
+}
+
+.live-lang-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.live-lang-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.live-lang-hint {
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
 }
 
 .live-grid {
@@ -1213,10 +1374,26 @@ onBeforeUnmount(() => {
 }
 
 .chat-compose,
-.coach-actions,
+.coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .live-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.live-actions-agent,
+.live-actions-room {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
@@ -1231,13 +1408,14 @@ onBeforeUnmount(() => {
   padding-left: 18px;
 }
 
-.live-actions {
-  margin-top: 18px;
-}
-
 @media (max-width: 768px) {
   .live-grid {
     grid-template-columns: 1fr;
+  }
+
+  .live-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

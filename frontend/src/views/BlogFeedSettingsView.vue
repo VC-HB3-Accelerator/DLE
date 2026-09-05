@@ -27,6 +27,8 @@
         </div>
 
         <template v-else>
+          <CatalogTaxonomySettings />
+
           <section class="feed-settings__section">
             <div class="feed-settings__section-header">
               <h3>{{ t('blog.feedSettings.filtersTitle') }}</h3>
@@ -200,6 +202,26 @@
             </ul>
           </section>
 
+          <section class="feed-settings__section">
+            <div class="feed-settings__section-header">
+              <h3>{{ t('blog.feedSettings.guestLimitTitle') }}</h3>
+            </div>
+            <p class="feed-settings__hint feed-settings__hint--tight">
+              {{ t('blog.feedSettings.guestLimitHint') }}
+            </p>
+            <label class="feed-settings__field feed-settings__field--narrow">
+              <span>{{ t('blog.feedSettings.guestLimitLabel') }}</span>
+              <input
+                v-model="guestLimitInput"
+                type="number"
+                min="0"
+                step="1"
+                :disabled="isSaving"
+                :placeholder="t('blog.feedSettings.guestLimitPlaceholder')"
+              />
+            </label>
+          </section>
+
           <p v-if="saveError" class="feed-settings__error">{{ saveError }}</p>
           <p v-if="saveSuccess" class="feed-settings__success">{{ saveSuccess }}</p>
 
@@ -219,6 +241,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
+import CatalogTaxonomySettings from '@/components/blog/CatalogTaxonomySettings.vue';
 import blogFeedService from '../services/blogFeedService';
 import pagesService from '../services/pagesService';
 import { usePermissions } from '../composables/usePermissions';
@@ -246,6 +269,7 @@ const filters = ref([]);
 const pins = ref([]);
 const blogPages = ref([]);
 const pinToAdd = ref('');
+const guestLimitInput = ref('');
 const articlePickByFilter = ref({});
 const sortByOptions = ref(['new', 'views', 'likes', 'comments', 'popular']);
 
@@ -407,6 +431,11 @@ async function loadData() {
       if (Array.isArray(settings.sort_by_options) && settings.sort_by_options.length) {
         sortByOptions.value = settings.sort_by_options;
       }
+      if (settings.guest_limit != null && settings.guest_limit !== '') {
+        guestLimitInput.value = String(settings.guest_limit);
+      } else {
+        guestLimitInput.value = '';
+      }
     }
   } catch (error) {
     console.error('[BlogFeedSettingsView] load:', error);
@@ -446,6 +475,7 @@ async function handleSave() {
         page_id: p.page_id,
         position: i,
       })),
+      guest_limit: guestLimitInput.value === '' ? null : guestLimitInput.value,
     };
     const settings = await blogFeedService.saveFeedSettings(payload);
     filters.value = (settings.filters || []).map((f, i) => createFilter(f, i));
@@ -454,6 +484,11 @@ async function handleSave() {
       title: p.title,
       is_pinned_badge: true,
     }));
+    if (settings.guest_limit != null && settings.guest_limit !== '') {
+      guestLimitInput.value = String(settings.guest_limit);
+    } else {
+      guestLimitInput.value = '';
+    }
     saveSuccess.value = t('blog.feedSettings.saveSuccess');
   } catch (error) {
     console.error('[BlogFeedSettingsView] save:', error);
@@ -491,6 +526,12 @@ onMounted(loadData);
   margin: 0 0 8px;
   color: var(--theme-text, #262626);
   font-size: 1.4rem;
+}
+
+.feed-settings__intro {
+  margin: 0 0 20px;
+  color: var(--color-grey-dark);
+  font-size: var(--font-size-sm);
 }
 
 .feed-settings__hint {
@@ -560,6 +601,10 @@ onMounted(loadData);
 
 .feed-settings__field--inline {
   margin-bottom: 12px;
+}
+
+.feed-settings__field--narrow {
+  max-width: 220px;
 }
 
 .feed-settings__field input,

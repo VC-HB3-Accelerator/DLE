@@ -136,14 +136,13 @@ async function resolveUserForTelegram({ telegramId, pending, sessionData }) {
 
 async function buildAccessLevel(userId) {
   const address = await getLinkedWallet(userId);
+  const accessResolver = require('./accessResolverService');
+  const access = await accessResolver.recompute(userId);
   if (!address) {
-    await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
-    return { level: ROLES.USER, tokenCount: 0, hasAccess: false, address: null };
+    return { level: access.role, tokenCount: 0, hasAccess: false, address: null };
   }
   const level = await authService.getUserAccessLevel(address);
-  const role = level?.level || ROLES.USER;
-  await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
-  return { ...level, address };
+  return { ...level, level: access.role, address };
 }
 
 async function completeFromStart(token, telegramId) {

@@ -9,8 +9,13 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permissions');
+const {
+  requirePermission,
+  requireEditContactsScoped,
+  loadViewerAccess,
+} = require('../middleware/permissions');
 const { PERMISSIONS, ROLES } = require('../shared/permissions');
+const accessResolver = require('../services/accessResolverService');
 const conferenceService = require('../services/conferenceService');
 const conferenceAiAgentService = require('../services/conferenceAiAgentService');
 const conferenceMagicLinkService = require('../services/conferenceMagicLinkService');
@@ -18,15 +23,6 @@ const conferenceRealtimeService = require('../services/conferenceRealtimeService
 const conferenceLivekitService = require('../services/conferenceLivekitService');
 const sessionService = require('../services/session-service');
 const db = require('../db');
-
-function ensureEditorAccess(req, res) {
-  const role = req.userRole || ROLES.USER;
-  if (role !== ROLES.EDITOR) {
-    res.status(403).json({ success: false, error: 'Только редакторы могут управлять конференциями' });
-    return false;
-  }
-  return true;
-}
 
 function actorId(req) {
   return req.user?.id || req.session?.userId || null;
@@ -38,23 +34,129 @@ function isSelfContactParam(req, contactId) {
   return Number.isInteger(me) && me > 0 && me === id;
 }
 
-function requireEditorContactsOrSelf(req, res, next) {
+/** Platform editor: глобальные настройки ИИ / multi-хаб */
+function ensurePlatformEditor(req, res) {
+  const access = req.viewerAccess;
+  if (access?.dataScope === 'global' && (access.role === ROLES.EDITOR || access.tokenRole === ROLES.EDITOR)) {
+    return true;
+  }
+  res.status(403).json({ success: false, error: 'Только platform editor' });
+  return false;
+}
+
+async function loadConferenceEditor(req, res) {
+  const userId = actorId(req);
+  if (!userId) {
+    res.status(401).json({ success: false, error: 'Требуется аутентификация' });
+    return null;
+  }
+  const access = req.viewerAccess || await loadViewerAccess(req);
+  if (!accessResolver.canEditContacts(access)) {
+    res.status(403).json({ success: false, error: 'Недостаточно прав для конференций' });
+    return null;
+  }
+  req.viewerAccess = access;
+  req.userRole = access.role;
+  return { access, userId };
+}
+
+async function assertContactInScope(req, res, contactUserId) {
+  if (isSelfContactParam(req, contactUserId)) {
+    const userId = actorId(req);
+    return { access: req.viewerAccess || null, userId };
+  }
+  const ctx = await loadConferenceEditor(req, res);
+  if (!ctx) return null;
+  const cid = Number(contactUserId);
+  const ok = await accessResolver.canViewContact(ctx.access, cid, ctx.userId);
+  if (!ok) {
+    res.status(403).json({ success: false, error: 'Контакт вне вашего скоупа' });
+    return null;
+  }
+  return ctx;
+}
+
+async function assertContactEditable(req, res, contactUserId) {
+  const ctx = await assertContactInScope(req, res, contactUserId);
+  if (!ctx) return null;
+  if (isSelfContactParam(req, contactUserId)) return ctx;
+  const ok = await accessResolver.canEditContact(ctx.access, Number(contactUserId), ctx.userId);
+  if (!ok) {
+    res.status(403).json({ success: false, error: 'Недостаточно прав для редактирования контакта' });
+    return null;
+  }
+  return ctx;
+}
+
+async function assertSessionInScope(req, res, conferenceId) {
+  const ctx = await loadConferenceEditor(req, res);
+  if (!ctx) return null;
+  const session = await conferenceService.fetchSessionById(conferenceId);
+  if (!session) {
+    res.status(404).json({ success: false, error: 'Конференция не найдена' });
+    return null;
+  }
+  if (ctx.access.dataScope === 'global') {
+    return { ...ctx, session };
+  }
+  if (Number(session.created_by) === Number(ctx.userId)) {
+    return { ...ctx, session };
+  }
+  const contactOk = await accessResolver.canViewContact(
+    ctx.access,
+    session.contact_user_id,
+    ctx.userId
+  );
+  if (!contactOk) {
+    res.status(403).json({ success: false, error: 'Конференция вне вашего скоупа' });
+    return null;
+  }
+  return { ...ctx, session };
+}
+
+function requireConferenceContactRead(req, res, next) {
   if (isSelfContactParam(req, req.params.contactId)) {
     req.conferenceSelfAccess = true;
     return next();
   }
-  return requirePermission(PERMISSIONS.EDIT_CONTACTS)(req, res, () => {
-    if (!ensureEditorAccess(req, res)) return;
+  return requireEditContactsScoped()(req, res, async () => {
+    const ok = await accessResolver.canViewContact(
+      req.viewerAccess,
+      req.params.contactId,
+      actorId(req)
+    );
+    if (!ok) {
+      return res.status(403).json({ success: false, error: 'Контакт вне вашего скоупа' });
+    }
     next();
   });
+}
+
+function requirePlatformEditor(req, res, next) {
+  return requireEditContactsScoped()(req, res, () => {
+    if (!ensurePlatformEditor(req, res)) return;
+    next();
+  });
+}
+
+function requireConferenceSession(req, res, next) {
+  return requireEditContactsScoped()(req, res, async () => {
+    const ctx = await assertSessionInScope(req, res, req.params.id);
+    if (!ctx) return;
+    req.conferenceSession = ctx.session;
+    next();
+  });
+}
+
+function requireEditorContactsOrSelf(req, res, next) {
+  return requireConferenceContactRead(req, res, next);
 }
 
 router.get(
   '/ai-agent/settings',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requirePlatformEditor,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const settings = await conferenceAiAgentService.getSettings();
       const defaults = conferenceAiAgentService.getDefaults();
@@ -71,9 +173,8 @@ router.get(
 router.put(
   '/ai-agent/settings',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requirePlatformEditor,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const settings = await conferenceAiAgentService.saveSettings(req.body || {}, actorId(req));
       const defaults = conferenceAiAgentService.getDefaults();
@@ -90,9 +191,8 @@ router.put(
 router.get(
   '/ai-agent/models',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requirePlatformEditor,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const provider = req.query.provider || null;
       const models = await conferenceAiAgentService.listAvailableModels(provider);
@@ -110,9 +210,8 @@ router.get(
 router.get(
   '/ai-agent/rag-tables',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requirePlatformEditor,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const encryptionUtils = require('../utils/encryptionUtils');
       const encryptionKey = encryptionUtils.getEncryptionKey();
@@ -154,9 +253,10 @@ router.get(
 router.put(
   '/contact/:contactId',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireEditContactsScoped(),
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
+    const ctx = await assertContactEditable(req, res, req.params.contactId);
+    if (!ctx) return;
     try {
       const result = await conferenceService.upsertSessionForContact(
         req.params.contactId,
@@ -175,13 +275,34 @@ router.put(
   }
 );
 
+/** Конференции, где текущий пользователь — host (в т.ч. бронь /book-call) */
+router.get(
+  '/hosted',
+  requireAuth,
+  requireEditContactsScoped(),
+  async (req, res) => {
+    try {
+      const sessions = await conferenceService.listHostedSessions(actorId(req), {
+        limit: req.query.limit
+      });
+      res.json({ success: true, sessions });
+    } catch (error) {
+      logger.error('[conference] list hosted:', error);
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.message,
+        code: error.code || null
+      });
+    }
+  }
+);
+
 /** Multi-хаб: список конференций редактора (is_multi) */
 router.get(
   '/multi',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireEditContactsScoped(),
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const sessions = await conferenceService.listMultiSessionsForEditor(actorId(req), {
         limit: req.query.limit
@@ -202,11 +323,21 @@ router.get(
 router.post(
   '/multi',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireEditContactsScoped(),
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
-      const userIds = req.body?.userIds || req.body?.ids || [];
+      const rawIds = req.body?.userIds || req.body?.ids || [];
+      const userIds = await accessResolver.filterContactIdsToScope(
+        req.viewerAccess,
+        rawIds.map((id) => Number(id)),
+        actorId(req)
+      );
+      if (userIds.length < 2) {
+        return res.status(403).json({
+          success: false,
+          error: 'Недостаточно участников в вашем скоупе для multi-конференции',
+        });
+      }
       const data = await conferenceService.createMultiSession(
         userIds,
         req.body || {},
@@ -242,9 +373,8 @@ router.get('/invites/mine', requireAuth, async (req, res) => {
 router.post(
   '/:id/notify',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceMagicLinkService.notifyMultiParticipants(req.params.id);
       res.json({ success: true, ...data });
@@ -262,9 +392,8 @@ router.post(
 router.put(
   '/:id/settings',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.updateSessionById(
         req.params.id,
@@ -353,9 +482,8 @@ router.post('/magic/consume', async (req, res) => {
 router.post(
   '/:id/start',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.startSession(req.params.id, actorId(req));
       res.json({ success: true, ...data });
@@ -394,12 +522,31 @@ router.post('/:id/join', requireAuth, async (req, res) => {
   }
 });
 
+/** Смена языка перевода (прослушивания) — в т.ч. во время live */
+router.patch('/:id/languages', requireAuth, async (req, res) => {
+  try {
+    await conferenceRealtimeService.assertConferenceMember(req.params.id, actorId(req));
+    const session = await conferenceService.updateSessionLanguages(
+      req.params.id,
+      actorId(req),
+      req.body || {}
+    );
+    res.json({ success: true, session });
+  } catch (error) {
+    logger.error('[conference] languages:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
 router.post(
   '/:id/end',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.endSession(req.params.id, actorId(req));
       res.json({ success: true, ...data });
@@ -417,9 +564,8 @@ router.post(
 router.post(
   '/:id/magic-link',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const send = req.body?.send !== false;
       const userId = req.body?.userId || req.body?.user_id || null;
@@ -461,9 +607,8 @@ router.post(
 router.get(
   '/:id/participants',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.listParticipants(req.params.id);
       res.json({ success: true, ...data });
@@ -481,12 +626,19 @@ router.get(
 router.post(
   '/:id/participants',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
-      const userId = req.body?.userId || req.body?.user_id;
-      const data = await conferenceService.addParticipant(req.params.id, userId, actorId(req));
+      const rawId = req.body?.userId || req.body?.user_id;
+      const scoped = await accessResolver.filterContactIdsToScope(
+        req.viewerAccess,
+        [Number(rawId)],
+        actorId(req)
+      );
+      if (!scoped.length) {
+        return res.status(403).json({ success: false, error: 'Участник вне вашего скоупа' });
+      }
+      const data = await conferenceService.addParticipant(req.params.id, scoped[0], actorId(req));
       res.json({ success: true, ...data });
     } catch (error) {
       logger.error('[conference] add participant:', error);
@@ -502,9 +654,8 @@ router.post(
 router.delete(
   '/:id/participants/:userId',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.removeParticipant(req.params.id, req.params.userId);
       res.json({ success: true, ...data });
@@ -522,9 +673,8 @@ router.delete(
 router.get(
   '/:id/summary',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const sessionData = await conferenceService.getSession(req.params.id);
       const analytics =
@@ -568,13 +718,35 @@ router.get('/:id/live', requireAuth, async (req, res) => {
 
 router.post('/:id/realtime/session', requireAuth, async (req, res) => {
   try {
+    const sessionData = await conferenceService.getSession(req.params.id);
     const data = await conferenceRealtimeService.createRealtimeClientSecret(
+      req.params.id,
+      actorId(req)
+    );
+    res.json({
+      success: true,
+      ...data,
+      interpretation_enabled: Boolean(sessionData.session?.interpretation_enabled)
+    });
+  } catch (error) {
+    logger.error('[conference] realtime session:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+router.post('/:id/interpretation/session', requireAuth, async (req, res) => {
+  try {
+    const data = await conferenceRealtimeService.createInterpretationHostSession(
       req.params.id,
       actorId(req)
     );
     res.json({ success: true, ...data });
   } catch (error) {
-    logger.error('[conference] realtime session:', error);
+    logger.error('[conference] interpretation session:', error);
     res.status(error.status || 500).json({
       success: false,
       error: error.message,
@@ -586,9 +758,8 @@ router.post('/:id/realtime/session', requireAuth, async (req, res) => {
 router.post(
   '/:id/agent/start',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const live = await conferenceRealtimeService.startAgent(req.params.id, actorId(req));
       res.json({ success: true, ...live });
@@ -606,9 +777,8 @@ router.post(
 router.post(
   '/:id/agent/mute',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const muted = req.body?.muted !== undefined ? Boolean(req.body.muted) : true;
       const live = await conferenceRealtimeService.setAgentMuted(
@@ -631,9 +801,8 @@ router.post(
 router.post(
   '/:id/coach',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const rule = await conferenceRealtimeService.addCoachRule(
         req.params.id,
@@ -732,9 +901,8 @@ router.post('/:id/transcript', requireAuth, async (req, res) => {
 router.get(
   '/:id',
   requireAuth,
-  requirePermission(PERMISSIONS.EDIT_CONTACTS),
+  requireConferenceSession,
   async (req, res) => {
-    if (!ensureEditorAccess(req, res)) return;
     try {
       const data = await conferenceService.getSession(req.params.id);
       res.json({ success: true, ...data });

@@ -92,6 +92,14 @@
                 </label>
               </div>
             </div>
+            <div class="form-group" v-if="form.visibility === 'public' && form.showInBlog">
+              <span class="form-label-text">{{ t('content.editor.catalogFilters') }}</span>
+              <p class="form-hint">{{ t('content.editor.catalogFiltersHint') }}</p>
+              <CatalogEntityAttrsEditor
+                v-model:section-id="catalogSectionId"
+                v-model:attrs="catalogAttrs"
+              />
+            </div>
             <p class="form-hint">
               {{ t('content.editor.variablesHint') }}
             </p>
@@ -307,9 +315,14 @@ import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import ContentMediaPickerModal from '../components/content/ContentMediaPickerModal.vue';
 import pagesService from '../services/pagesService';
 import blogFeedService from '../services/blogFeedService';
+import CatalogEntityAttrsEditor from '../components/catalog/CatalogEntityAttrsEditor.vue';
+import {
+  catalogEntityPayloadFromEditor,
+  catalogSelectionFromQuery,
+  editorStateFromCatalog,
+} from '../services/catalogFiltersService';
 import { uploadContentMedia } from '../composables/useChunkedMediaUpload';
 import { PERMISSIONS } from './permissions.js';
-import { useAuthContext } from '../composables/useAuth';
 import { usePermissions } from '../composables/usePermissions';
 import UiGlyph from '../components/UiGlyph.vue';
 import DOMPurify from 'dompurify';
@@ -343,9 +356,13 @@ const { t } = useI18n();
 const PERMISSIONS_REF = PERMISSIONS; // для шаблона
 
 // Проверка прав доступа
-const { address } = useAuthContext();
 const { hasPermission } = usePermissions();
-const canManageLegalDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
+const canEditContent = computed(() =>
+  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS)
+  || hasPermission(PERMISSIONS.CREATE_OWN_ARTICLES)
+  || hasPermission(PERMISSIONS.VIEW_DOMAIN_ARTICLES)
+  || hasPermission(PERMISSIONS.APPROVE_DOMAIN_PUBLICATIONS)
+);
 
 // Режим редактирования
 const isEditMode = computed(() => !!route.query.edit);
@@ -374,6 +391,8 @@ const form = ref({
   feedFilterIds: []
 });
 
+const catalogSectionId = ref('');
+const catalogAttrs = ref([]);
 const feedFilterOptions = ref([]);
 const feedFilterOptionsError = ref('');
 
@@ -631,6 +650,9 @@ async function loadPageForEdit() {
       form.value.feedFilterIds = Array.isArray(page.feed_filter_ids)
         ? page.feed_filter_ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id))
         : [];
+      const cat = editorStateFromCatalog(page);
+      catalogSectionId.value = cat.sectionId || '';
+      catalogAttrs.value = cat.attrs || [];
     }
   } catch (error) {
     console.error('Ошибка загрузки страницы для редактирования:', error);
@@ -668,6 +690,12 @@ async function handleSubmit() {
     const feedFilterIdsPayload = (form.value.visibility === 'public' && form.value.showInBlog)
       ? (form.value.feedFilterIds || []).map((id) => Number(id)).filter((id) => !Number.isNaN(id))
       : [];
+    const catalogPayload = (form.value.visibility === 'public' && form.value.showInBlog)
+      ? catalogEntityPayloadFromEditor({
+          sectionId: catalogSectionId.value,
+          attrs: catalogAttrs.value,
+        })
+      : { catalog_section_id: null, catalog_attrs: [] };
     
     let page;
     if (isEditMode.value) {
@@ -691,7 +719,9 @@ async function handleSubmit() {
           storage_type: 'embedded',
           category: form.value.category || null,
           show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false,
-          feed_filter_ids: feedFilterIdsPayload
+          feed_filter_ids: feedFilterIdsPayload,
+          catalog_section_id: catalogPayload.catalog_section_id,
+          catalog_attrs: catalogPayload.catalog_attrs,
         };
         page = await pagesService.updatePage(editId.value, pageData);
       } else {
@@ -720,6 +750,8 @@ async function handleSubmit() {
         }
         fd.append('category', form.value.category || '');
         fd.append('feed_filter_ids', JSON.stringify(feedFilterIdsPayload));
+        fd.append('catalog_section_id', catalogPayload.catalog_section_id || '');
+        fd.append('catalog_attrs', JSON.stringify(catalogPayload.catalog_attrs || []));
         if (fileBlob.value) {
           fd.append('file', fileBlob.value);
         }
@@ -746,7 +778,9 @@ async function handleSubmit() {
           storage_type: 'embedded',
           category: form.value.category || null,
           show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false,
-          feed_filter_ids: feedFilterIdsPayload
+          feed_filter_ids: feedFilterIdsPayload,
+          catalog_section_id: catalogPayload.catalog_section_id,
+          catalog_attrs: catalogPayload.catalog_attrs,
         };
         page = await pagesService.createPage(pageData);
       } else {
@@ -775,6 +809,8 @@ async function handleSubmit() {
         }
         fd.append('category', form.value.category || '');
         fd.append('feed_filter_ids', JSON.stringify(feedFilterIdsPayload));
+        fd.append('catalog_section_id', catalogPayload.catalog_section_id || '');
+        fd.append('catalog_attrs', JSON.stringify(catalogPayload.catalog_attrs || []));
         fd.append('file', fileBlob.value);
         page = await pagesService.createPage(fd, true);
       }
@@ -839,8 +875,7 @@ watch(() => form.value.showInBlog, (on) => {
 
 // Загрузка данных при монтировании
 onMounted(async () => {
-  // Проверяем права доступа
-  if (!canManageLegalDocs.value || !address.value) {
+  if (!props.isAuthenticated || !canEditContent.value) {
     router.push({ name: 'content-list' });
     return;
   }
@@ -854,6 +889,12 @@ onMounted(async () => {
     const vis = route.query.visibility;
     if (vis === 'internal' || vis === 'public') {
       form.value.visibility = vis;
+    }
+    const fromQuery = catalogSelectionFromQuery(route.query);
+    if (fromQuery.section) {
+      // preselect by slug — resolve id after sections load inside editor; store slug in attrs hint via sectionId empty
+      form.value.showInBlog = true;
+      form.value.visibility = 'public';
     }
   }
 });

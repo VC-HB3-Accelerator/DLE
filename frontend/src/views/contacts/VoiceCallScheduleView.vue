@@ -9,6 +9,32 @@
     <p v-if="!form.editor_user_id" class="hint">{{ t('contacts.conference.schedule.noEditor') }}</p>
     <p v-if="errorText" class="error">{{ errorText }}</p>
 
+    <section class="panel hosted" v-if="hostedSessions.length">
+      <h3>{{ t('contacts.conference.schedule.hostedTitle') }}</h3>
+      <p class="hint">{{ t('contacts.conference.schedule.hostedHint') }}</p>
+      <ul class="hosted-list">
+        <li v-for="item in hostedSessions" :key="item.id" class="hosted-row">
+          <div class="hosted-main">
+            <strong>{{ item.title || t('contacts.conference.live.untitled') }}</strong>
+            <span class="hosted-meta">
+              #{{ item.id }}
+              · {{ t(`contacts.conference.status.${item.status}`) }}
+              <template v-if="item.scheduled_at"> · {{ formatDate(item.scheduled_at) }}</template>
+            </span>
+            <span v-if="guestLabel(item)" class="hosted-guest">{{ guestLabel(item) }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="connectingId === item.id"
+            @click="connectHosted(item)"
+          >
+            {{ t('contacts.conference.actions.connect') }}
+          </button>
+        </li>
+      </ul>
+    </section>
+
     <form class="panel form" @submit.prevent="save">
       <label class="form-label">{{ t('contacts.conference.schedule.timeZone') }}</label>
       <select v-model="form.booking_hours.timeZone" class="form-control">
@@ -54,9 +80,23 @@
       />
       <p v-if="dayBookings.length" class="booked-title">{{ t('contacts.conference.schedule.bookedDay') }}</p>
       <ul v-if="dayBookings.length" class="booked-list">
-        <li v-for="item in dayBookings" :key="item.id">
-          {{ formatSlotTime(item.starts_at, form.booking_hours.timeZone) }}
-          · {{ item.minutes }} {{ t('chat.voiceCall.min') }}
+        <li v-for="item in dayBookings" :key="item.id" class="booked-row">
+          <div class="booked-main">
+            <span>
+              {{ formatSlotTime(item.starts_at, form.booking_hours.timeZone) }}
+              · {{ item.minutes }} {{ t('chat.voiceCall.min') }}
+            </span>
+            <span v-if="bookingGuestLabel(item)" class="hosted-guest">{{ bookingGuestLabel(item) }}</span>
+          </div>
+          <button
+            v-if="item.conference_id && item.guest_user_id"
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="connectingId === item.conference_id"
+            @click="connectBooking(item)"
+          >
+            {{ t('contacts.conference.actions.connect') }}
+          </button>
         </li>
       </ul>
     </section>
@@ -66,12 +106,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import api from '@/api/axios';
+import conferenceService from '@/services/conferenceService';
 import VoiceCallCalendar from '@/components/chat/VoiceCallCalendar.vue';
 import { dayKey, formatSlotTime, monthBoundsIso } from '@/utils/voiceCallCalendar';
 
 const { t, locale } = useI18n();
+const router = useRouter();
 const loading = ref(false);
 const saving = ref(false);
 const errorText = ref('');
@@ -79,6 +122,8 @@ const previewSlot = ref('');
 const selectedDay = ref('');
 const freeSlots = ref([]);
 const bookings = ref([]);
+const hostedSessions = ref([]);
+const connectingId = ref(null);
 const timeZones = ref(['Europe/Moscow', 'UTC']);
 const form = ref({
   editor_user_id: null,
@@ -109,6 +154,58 @@ const dayBookings = computed(() => {
   return bookings.value.filter((b) => dayKey(b.starts_at, form.value.booking_hours.timeZone) === key);
 });
 
+function formatDate(value) {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat(locale.value || 'ru', {
+      dateStyle: 'short',
+      timeStyle: 'short'
+    }).format(new Date(value));
+  } catch {
+    return String(value);
+  }
+}
+
+function guestLabel(item) {
+  const c = item.contact;
+  if (!c) return item.contact_user_id ? `#${item.contact_user_id}` : '';
+  return c.name || c.email || (c.id ? `#${c.id}` : '');
+}
+
+function bookingGuestLabel(item) {
+  return item.guest_name || item.guest_email || (item.guest_user_id ? `#${item.guest_user_id}` : '');
+}
+
+async function goLive(sessionId, contactUserId) {
+  connectingId.value = sessionId;
+  try {
+    const data = await conferenceService.startSession(sessionId);
+    const liveId = data.session?.id || sessionId;
+    ElMessage.success(t('contacts.conference.actions.connected'));
+    router.push({
+      name: 'contact-conference-live',
+      params: {
+        id: String(contactUserId),
+        sessionId: String(liveId)
+      }
+    });
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.conference.actions.connectError'));
+  } finally {
+    connectingId.value = null;
+  }
+}
+
+function connectHosted(item) {
+  if (!item?.id || !item.contact_user_id) return;
+  return goLive(item.id, item.contact_user_id);
+}
+
+function connectBooking(item) {
+  if (!item?.conference_id || !item.guest_user_id) return;
+  return goLive(item.conference_id, item.guest_user_id);
+}
+
 async function loadPreview() {
   try {
     const { from, to } = monthBoundsIso(year.value, month.value);
@@ -116,6 +213,15 @@ async function loadPreview() {
     freeSlots.value = data.data?.slots || [];
   } catch (_) {
     freeSlots.value = [];
+  }
+}
+
+async function loadHosted() {
+  try {
+    const data = await conferenceService.listHostedSessions();
+    hostedSessions.value = data.sessions || [];
+  } catch (_) {
+    hostedSessions.value = [];
   }
 }
 
@@ -138,7 +244,7 @@ async function load() {
       timeZones.value = [form.value.booking_hours.timeZone, ...timeZones.value];
     }
     bookings.value = pack.bookings || [];
-    await loadPreview();
+    await Promise.all([loadPreview(), loadHosted()]);
   } catch (error) {
     errorText.value = error.response?.data?.error || t('contacts.conference.schedule.loadFailed');
   } finally {
@@ -188,7 +294,8 @@ onMounted(load);
   color: var(--color-danger, #b42318);
 }
 .form,
-.preview {
+.preview,
+.hosted {
   margin-top: 16px;
   padding: 16px;
   border: 1px solid var(--color-border);
@@ -220,13 +327,45 @@ onMounted(load);
   margin: 16px 0 8px;
   font-weight: 600;
 }
-.booked-list {
+.booked-list,
+.hosted-list {
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
+}
+.booked-row,
+.hosted-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.booked-row:last-child,
+.hosted-row:last-child {
+  border-bottom: none;
+}
+.hosted-main,
+.booked-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.hosted-meta,
+.hosted-guest {
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
 }
 @media (max-width: 768px) {
   .hours-row {
     grid-template-columns: 1fr;
+  }
+  .booked-row,
+  .hosted-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

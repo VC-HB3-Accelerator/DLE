@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
@@ -159,9 +159,50 @@ async function handleSendMessage({ message, attachments = [] }) {
   }
 }
 
+let inviteWs = null;
+
+function connectInviteWebSocket() {
+  try {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    inviteWs = new WebSocket(`${protocol}://${window.location.host}/ws`);
+    inviteWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (
+          data.type === 'messages-updated' ||
+          data.type === 'conference-invites-updated'
+        ) {
+          loadInviteForHost();
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    inviteWs.onclose = () => {
+      setTimeout(() => {
+        if (inviteWs?.readyState === WebSocket.CLOSED) connectInviteWebSocket();
+      }, 3000);
+    };
+  } catch {
+    /* ignore */
+  }
+}
+
+function disconnectInviteWebSocket() {
+  if (inviteWs) {
+    inviteWs.close();
+    inviteWs = null;
+  }
+}
+
 onMounted(async () => {
   await loadInviteForHost();
   loadMessages();
+  connectInviteWebSocket();
+});
+
+onUnmounted(() => {
+  disconnectInviteWebSocket();
 });
 </script>
 

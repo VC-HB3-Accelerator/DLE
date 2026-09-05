@@ -68,13 +68,8 @@ export default {
     return Array.isArray(res.data) ? res.data : [];
   },
   async getBlogPages(params = {}) {
-    const queryParams = new URLSearchParams();
-    if (params.category) queryParams.append('category', params.category);
-    if (params.search) queryParams.append('search', params.search);
-    if (params.filter) queryParams.append('filter', params.filter);
-    
-    const url = `/pages/blog/all${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-    const res = await api.get(url);
+    // category / search / filter + фасеты каталога (section и динамические ключи)
+    const res = await api.get('/pages/blog/all', { params: { ...params } });
     if (!Array.isArray(res.data)) {
       const errMsg = res.data?.error || 'Invalid blog pages response';
       const err = new Error(errMsg);

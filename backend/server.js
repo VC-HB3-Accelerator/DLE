@@ -144,6 +144,23 @@ async function startServer() {
         console.error('[Server] ❌ Ошибка инициализации очереди импорта контактов:', error.message);
         logger.error('[App] Ошибка очереди импорта контактов:', error);
       }
+
+      try {
+        const accessResolverService = require('./services/accessResolverService');
+        accessResolverService.initialize();
+        console.log('[Server] ✅ Access resolver (roles + CRM scope) инициализирован');
+      } catch (error) {
+        console.error('[Server] ❌ Ошибка инициализации access resolver:', error.message);
+        logger.error('[App] Ошибка access resolver:', error);
+      }
+
+      try {
+        const contactProvenanceService = require('./services/contactProvenanceService');
+        contactProvenanceService.initialize();
+        console.log('[Server] ✅ Contact provenance backfill запущен');
+      } catch (error) {
+        console.warn('[Server] contactProvenance initialize:', error.message);
+      }
     })
     .then(() => {
       // Запускаем AI Queue Worker после инициализации ботов

@@ -205,6 +205,18 @@ async function runMigrations() {
       console.error('[run-migrations] assistant rules table failed:', mirrorErr);
       throw mirrorErr;
     }
+
+    try {
+      const catalogFilters = require('../services/catalogFiltersService');
+      const stats = await catalogFilters.seedCatalogTerms();
+      console.log(
+        `[run-migrations] catalog terms seed OK: skipped=${Boolean(stats.skipped)} ` +
+          `inserted=${stats.inserted || 0} counts=${JSON.stringify(stats.counts || {})}`
+      );
+    } catch (catalogErr) {
+      console.error('[run-migrations] catalog terms seed failed:', catalogErr);
+      throw catalogErr;
+    }
   } catch (error) {
     console.error('Ошибка при выполнении миграций:', error);
     try {

@@ -20,28 +20,17 @@ const roleActionCapabilitiesService = require('../services/roleActionCapabilitie
  */
 async function getUserRole(req) {
   const userId = req.session?.userId;
-  const address = req.session?.address;
-  
-  // Неавторизованный пользователь
   if (!userId) {
     return 'guest';
   }
-  
-  // Авторизован, но нет кошелька или адреса
-  if (!address) {
-    return 'user';
-  }
-  
-  // Используем существующую логику из auth-service для получения роли
+
   try {
-    const authService = require('../services/auth-service');
-    const accessLevel = await authService.getUserAccessLevel(address);
-    
-    // accessLevel.level может быть: 'user', 'readonly', 'editor'
-    return accessLevel?.level || 'user';
+    const accessResolver = require('../services/accessResolverService');
+    const access = await accessResolver.resolveAccess(userId);
+    return access.role || 'user';
   } catch (error) {
     logger.error('[Permissions] Error getting user role:', error);
-    return 'user'; // Безопасное значение по умолчанию
+    return 'user';
   }
 }
 
@@ -127,9 +116,101 @@ function attachPermissionChecker(req, res, next) {
   });
 }
 
+async function loadViewerAccess(req) {
+  const userId = req.session?.userId || req.user?.id;
+  if (!userId) return null;
+  const accessResolver = require('../services/accessResolverService');
+  return accessResolver.resolveAccess(userId);
+}
+
+function requireViewerAccess() {
+  return async (req, res, next) => {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: 'Требуется аутентификация' });
+      }
+      const access = await loadViewerAccess(req);
+      req.viewerAccess = access;
+      req.userRole = access?.role || await getUserRole(req);
+      next();
+    } catch (error) {
+      logger.error('[Permissions] requireViewerAccess:', error);
+      res.status(500).json({ error: 'Ошибка проверки прав доступа' });
+    }
+  };
+}
+
+function requireImportContacts() {
+  return async (req, res, next) => {
+    try {
+      const access = await loadViewerAccess(req);
+      if (!access) {
+        return res.status(401).json({ error: 'Требуется аутентификация' });
+      }
+      const accessResolver = require('../services/accessResolverService');
+      if (!accessResolver.canImportContacts(access)) {
+        return res.status(403).json({ error: 'Доступ запрещен', required: 'import_own_contacts|edit_contacts' });
+      }
+      req.viewerAccess = access;
+      req.userRole = access.role;
+      next();
+    } catch (error) {
+      logger.error('[Permissions] requireImportContacts:', error);
+      res.status(500).json({ error: 'Ошибка проверки прав доступа' });
+    }
+  };
+}
+
+function requireEditContactsScoped() {
+  return async (req, res, next) => {
+    try {
+      const access = await loadViewerAccess(req);
+      if (!access) {
+        return res.status(401).json({ error: 'Требуется аутентификация' });
+      }
+      const accessResolver = require('../services/accessResolverService');
+      if (!accessResolver.canEditContacts(access)) {
+        return res.status(403).json({ error: 'Доступ запрещен', required: 'edit_contacts|manage_own_contacts|edit_domain_contacts' });
+      }
+      req.viewerAccess = access;
+      req.userRole = access.role;
+      next();
+    } catch (error) {
+      logger.error('[Permissions] requireEditContactsScoped:', error);
+      res.status(500).json({ error: 'Ошибка проверки прав доступа' });
+    }
+  };
+}
+
+function requireBroadcastScoped() {
+  return async (req, res, next) => {
+    try {
+      const access = await loadViewerAccess(req);
+      if (!access) {
+        return res.status(401).json({ error: 'Требуется аутентификация' });
+      }
+      const accessResolver = require('../services/accessResolverService');
+      if (!accessResolver.canBroadcast(access)) {
+        return res.status(403).json({ error: 'Доступ запрещен', required: 'broadcast|broadcast_own_contacts' });
+      }
+      req.viewerAccess = access;
+      req.userRole = access.role;
+      next();
+    } catch (error) {
+      logger.error('[Permissions] requireBroadcastScoped:', error);
+      res.status(500).json({ error: 'Ошибка проверки прав доступа' });
+    }
+  };
+}
+
 module.exports = {
   getUserRole,
   requirePermission,
   requireAnyPermission,
-  attachPermissionChecker
+  attachPermissionChecker,
+  requireViewerAccess,
+  requireImportContacts,
+  requireEditContactsScoped,
+  requireBroadcastScoped,
+  loadViewerAccess,
 };

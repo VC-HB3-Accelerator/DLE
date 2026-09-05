@@ -18,7 +18,7 @@ const multer = require('multer');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
-const { requirePermission, getUserRole } = require('../middleware/permissions');
+const { requirePermission, getUserRole, requireImportContacts, requireEditContactsScoped, loadViewerAccess } = require('../middleware/permissions');
 const { PERMISSIONS, ROLES, hasPermission } = require('../shared/permissions');
 
 function requireViewContactsOrSelf(req, res, next) {
@@ -35,10 +35,6 @@ function requireViewContactsOrSelf(req, res, next) {
   return requirePermission(PERMISSIONS.VIEW_CONTACTS)(req, res, next);
 }
 
-/** user / readonly в CRM: только свой профиль + editors */
-function isCrmLimitedRole(role) {
-  return role === ROLES.USER || role === ROLES.READONLY || role === 'user' || role === 'readonly';
-}
 const { deleteUserById, deleteUsersByIds, listConsentsForUser, buildConsentsPayload, revokeIdentityConsent } = require('../services/userDeleteService');
 const { getPrivacyDocsUrlPath } = (() => {
   // зеркало frontend getPrivacyDocsUrl (без Vue)
@@ -149,7 +145,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       : (allowedLimits.includes(parsedLimit) ? parsedLimit : 1000);
     const offset = unlimited ? 0 : Math.max(parseInt(offsetParam, 10) || 0, 0);
     const adminId = req.user && req.user.id;
-    const userRole = await getUserRole(req);
+
+    const accessResolver = require('../services/accessResolverService');
+    const viewerAccess = await accessResolver.resolveAccess(adminId);
 
     // Получаем ключ шифрования
     const fs = require('fs');
@@ -163,11 +161,8 @@ router.get('/', requireAuth, async (req, res, next) => {
     const params = [];
     let idx = 1;
 
-    // user / readonly: только editor (админ) и свой профиль — не весь CRM
-    if (isCrmLimitedRole(userRole)) {
-      where.push(`(u.role = $${idx++} OR u.id = $${idx++})`);
-      params.push(ROLES.EDITOR, req.user.id);
-    }
+    // CRM dataScope: global / domain / own (TZ §6)
+    idx = accessResolver.appendContactsScopeWhere(viewerAccess, adminId, where, params, idx);
 
     // Фильтр по дате создания контакта
     if (createdDateFrom) {
@@ -332,10 +327,20 @@ router.get('/', requireAuth, async (req, res, next) => {
         ) AS tag_ids,
         (SELECT MAX(m.created_at)
          FROM messages m
-         WHERE m.user_id = u.id AND m.direction = 'outgoing') AS last_message_at
+         WHERE m.user_id = u.id AND m.direction = 'outgoing') AS last_message_at,
+        (SELECT cp.owner_domain FROM contact_provenance cp WHERE cp.contact_user_id = u.id LIMIT 1) AS owner_domain,
+        (SELECT cp.imported_by FROM contact_provenance cp WHERE cp.contact_user_id = u.id LIMIT 1) AS imported_by_user_id,
+        (SELECT iu.role FROM contact_provenance cp JOIN users iu ON iu.id = cp.imported_by WHERE cp.contact_user_id = u.id LIMIT 1) AS imported_by_role,
+        (SELECT decrypt_text(ui.provider_id_encrypted, $${idx++})
+         FROM contact_provenance cp
+         JOIN user_identities ui ON ui.user_id = cp.imported_by
+           AND ui.provider_encrypted = encrypt_text('email', $${idx++})
+           AND ui.is_primary = true
+         WHERE cp.contact_user_id = u.id
+         LIMIT 1) AS imported_by_email
       FROM users u
     `;
-    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
+    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
 
     if (where.length > 0) {
       sql += ` WHERE ${where.join(' AND ')} `;
@@ -366,7 +371,11 @@ router.get('/', requireAuth, async (req, res, next) => {
       contact_type: u.contact_type || 'user',
       role: u.role || 'user',
       tag_ids: Array.isArray(u.tag_ids) ? u.tag_ids : [],
-      last_message_at: u.last_message_at || null
+      last_message_at: u.last_message_at || null,
+      owner_domain: u.owner_domain || null,
+      imported_by_user_id: u.imported_by_user_id || null,
+      imported_by_email: u.imported_by_email || null,
+      imported_by_role: u.imported_by_role || null,
     }));
 
     const contactExtrasMap = await userContactFilesService.getContactExtrasMapForUserIds(
@@ -384,7 +393,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     // --- Гостевые контакты (на первой странице) + их количество в total на всех страницах ---
     let guestContacts = [];
     let guestCount = 0;
-    const canIncludeGuests = !isCrmLimitedRole(userRole)
+    const canIncludeGuests = viewerAccess.dataScope === 'global'
       && tagIdArr.length === 0
       && !search
       && !createdDateFrom
@@ -666,9 +675,21 @@ router.patch('/:id/unblock', requireAuth, requirePermission(PERMISSIONS.BLOCK_US
 
 // Обновить пользователя (в том числе is_blocked)
 // Обновление данных пользователя
-router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) => {
   try {
     const userId = req.params.id;
+    const viewerId = req.user?.id || req.session?.userId;
+    const accessResolver = require('../services/accessResolverService');
+
+    if (!String(userId).startsWith('guest_')) {
+      const allowed = await accessResolver.canEditContact(req.viewerAccess, userId, viewerId);
+      if (!allowed) {
+        return res.status(403).json({ success: false, error: 'Доступ к этому контакту запрещен' });
+      }
+    } else if (req.viewerAccess?.dataScope !== 'global') {
+      return res.status(403).json({ success: false, error: 'Доступ к гостевым контактам запрещен' });
+    }
+
     const { first_name, last_name, name, preferred_language, language, is_blocked, email, phone, telegram, wallet, comment, link } = req.body;
     
     // Получаем ключ шифрования один раз
@@ -1401,12 +1422,13 @@ router.get('/:id', requireAuth, requireViewContactsOrSelf, async (req, res, next
 
   try {
     const query = db.getQuery();
-    const viewerRole = req.userRole || await getUserRole(req);
     const viewerId = req.user?.id || req.session?.userId;
+    const accessResolver = require('../services/accessResolverService');
+    const viewerAccess = await accessResolver.resolveAccess(viewerId);
 
     // Проверяем, это гостевой идентификатор (формат: guest_123)
     if (userId.startsWith('guest_')) {
-      if (isCrmLimitedRole(viewerRole)) {
+      if (viewerAccess.dataScope !== 'global') {
         return res.status(403).json({ error: 'Доступ к гостевым контактам запрещен' });
       }
       const guestId = parseInt(userId.replace('guest_', ''));
@@ -1505,12 +1527,9 @@ router.get('/:id', requireAuth, requireViewContactsOrSelf, async (req, res, next
     }
     const user = userResult.rows[0];
 
-    if (isCrmLimitedRole(viewerRole)) {
-      const isSelf = Number(user.id) === Number(viewerId);
-      const isEditor = user.role === ROLES.EDITOR || user.role === 'editor';
-      if (!isSelf && !isEditor) {
-        return res.status(403).json({ error: 'Доступ к этому контакту запрещен' });
-      }
+    const allowed = await accessResolver.canViewContact(viewerAccess, user.id, viewerId);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Доступ к этому контакту запрещен' });
     }
 
     // Получаем идентификаторы (primary + списки email/phone)
@@ -1603,7 +1622,7 @@ router.post('/', async (req, res) => {
 });
 
 // Фоновый импорт контактов (job + прогресс)
-router.post('/import-jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+router.post('/import-jobs', requireAuth, requireImportContacts(), async (req, res) => {
   try {
     const contactImportJobService = require('../services/contactImportJobService');
     const contacts = Array.isArray(req.body) ? req.body : req.body?.contacts;
@@ -1619,11 +1638,17 @@ router.post('/import-jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONT
   }
 });
 
-router.get('/import-jobs/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+router.get('/import-jobs/:id', requireAuth, requireImportContacts(), async (req, res) => {
   try {
     const contactImportJobService = require('../services/contactImportJobService');
     const job = await contactImportJobService.getJob(req.params.id);
     if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    const accessResolver = require('../services/accessResolverService');
+    const viewerId = req.user?.id || req.session?.userId;
+    const access = req.viewerAccess || await accessResolver.resolveAccess(viewerId);
+    if (!accessResolver.canViewImportJob(access, job, viewerId)) {
+      return res.status(403).json({ success: false, error: 'Доступ к задаче импорта запрещен' });
+    }
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, job });
   } catch (e) {
@@ -1632,9 +1657,17 @@ router.get('/import-jobs/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_C
   }
 });
 
-router.post('/import-jobs/:id/cancel', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+router.post('/import-jobs/:id/cancel', requireAuth, requireImportContacts(), async (req, res) => {
   try {
     const contactImportJobService = require('../services/contactImportJobService');
+    const existing = await contactImportJobService.getJob(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Job not found' });
+    const accessResolver = require('../services/accessResolverService');
+    const viewerId = req.user?.id || req.session?.userId;
+    const access = req.viewerAccess || await accessResolver.resolveAccess(viewerId);
+    if (!accessResolver.canViewImportJob(access, existing, viewerId)) {
+      return res.status(403).json({ success: false, error: 'Доступ к задаче импорта запрещен' });
+    }
     const job = await contactImportJobService.cancelJob(req.params.id);
     res.json({ success: true, job });
   } catch (e) {
@@ -1645,7 +1678,7 @@ router.post('/import-jobs/:id/cancel', requireAuth, requirePermission(PERMISSION
 });
 
 // Совместимость: старый POST /import → тот же фоновый job (202)
-router.post('/import', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+router.post('/import', requireAuth, requireImportContacts(), async (req, res) => {
   try {
     const contactImportJobService = require('../services/contactImportJobService');
     const contacts = Array.isArray(req.body) ? req.body : req.body?.contacts;

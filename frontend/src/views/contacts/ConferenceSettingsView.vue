@@ -23,13 +23,20 @@
     <template v-else>
       <div class="top-actions">
             <el-button
-              v-if="canManageConference"
+              v-if="canManageConference && connectTargetId"
               type="primary"
-              :disabled="!connectTargetId"
-              :loading="connecting"
+              :loading="connecting && !joining"
               @click="connect(connectTargetId)"
             >
           {{ t('contacts.conference.actions.connect') }}
+        </el-button>
+        <el-button
+          v-else-if="isOwnContactCard && connectTargetId"
+          type="primary"
+          :loading="joining"
+          @click="joinAsParticipant(connectTargetId)"
+        >
+          {{ t('contacts.conference.participant.start') }}
         </el-button>
         <el-button
           v-if="canManageConference"
@@ -71,10 +78,19 @@
               v-if="canManageConference"
               type="primary"
               size="small"
-              :loading="connecting && connectingId === item.id"
+              :loading="connecting && connectingId === item.id && !joining"
               @click.stop="connect(item.id)"
             >
               {{ t('contacts.conference.actions.connect') }}
+            </el-button>
+            <el-button
+              v-else-if="isOwnContactCard"
+              type="primary"
+              size="small"
+              :loading="joining && connectingId === item.id"
+              @click.stop="joinAsParticipant(item.id)"
+            >
+              {{ t('contacts.conference.participant.start') }}
             </el-button>
           </div>
         </div>
@@ -129,7 +145,7 @@
 
           <div class="settings-grid">
             <el-form-item :label="t('contacts.conference.settings.guestLanguage')" required>
-              <el-select v-model="form.guest_language" style="width: 100%">
+              <el-select v-model="form.guest_language" filterable style="width: 100%">
                 <el-option
                   v-for="lang in languageOptions"
                   :key="`guest-${lang.value}`"
@@ -137,10 +153,11 @@
                   :value="lang.value"
                 />
               </el-select>
+              <p class="field-hint">{{ t('contacts.conference.settings.guestLanguageHint') }}</p>
             </el-form-item>
 
             <el-form-item :label="t('contacts.conference.settings.hostLanguage')" required>
-              <el-select v-model="form.host_language" style="width: 100%">
+              <el-select v-model="form.host_language" filterable style="width: 100%">
                 <el-option
                   v-for="lang in languageOptions"
                   :key="`host-${lang.value}`"
@@ -148,8 +165,16 @@
                   :value="lang.value"
                 />
               </el-select>
+              <p class="field-hint">{{ t('contacts.conference.settings.hostLanguageHint') }}</p>
             </el-form-item>
           </div>
+
+          <el-form-item>
+            <el-checkbox v-model="form.interpretation_enabled">
+              {{ t('contacts.conference.settings.interpretationEnabled') }}
+            </el-checkbox>
+            <p class="field-hint">{{ t('contacts.conference.settings.interpretationHint') }}</p>
+          </el-form-item>
 
           <el-form-item :label="t('contacts.conference.settings.agentVoice')">
             <el-input
@@ -294,16 +319,20 @@ import { ElMessage } from 'element-plus';
 import conferenceService from '@/services/conferenceService';
 import contactsService from '@/services/contactsService';
 import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
+import { CONFERENCE_SPEECH_LANGUAGES } from '@/shared/conferenceSpeechLanguages';
 
 const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { isEditor } = usePermissions();
+const { userId: sessionUserId } = useAuthContext();
 const canManageConference = computed(() => isEditor.value);
 
 const loading = ref(false);
 const saving = ref(false);
 const connecting = ref(false);
+const joining = ref(false);
 const connectingId = ref(null);
 const sendingLink = ref(false);
 const lastMagicLinkUrl = ref('');
@@ -335,21 +364,19 @@ const form = reactive({
   notify_telegram: false,
   guest_language: 'en',
   host_language: 'ru',
+  interpretation_enabled: true,
   agent_voice: '',
   presentation_outline: '',
   notes: ''
 });
 
-const languageOptions = [
-  { value: 'ru', label: 'Русский (ru)' },
-  { value: 'en', label: 'English (en)' },
-  { value: 'de', label: 'Deutsch (de)' },
-  { value: 'fr', label: 'Français (fr)' },
-  { value: 'es', label: 'Español (es)' },
-  { value: 'zh', label: '中文 (zh)' },
-];
+const languageOptions = CONFERENCE_SPEECH_LANGUAGES;
 
 const contactId = computed(() => route.params.id);
+
+const isOwnContactCard = computed(
+  () => sessionUserId.value != null && String(sessionUserId.value) === String(contactId.value)
+);
 
 const statusLabel = computed(() =>
   t(`contacts.conference.status.${sessionStatus.value}`, sessionStatus.value)
@@ -406,6 +433,7 @@ function applySession(session) {
   form.notify_telegram = Boolean(session.notify_telegram);
   form.guest_language = session.guest_language || 'en';
   form.host_language = session.host_language || 'ru';
+  form.interpretation_enabled = session.interpretation_enabled !== false;
   form.agent_voice = session.agent_voice || '';
   form.presentation_outline = session.presentation_outline || '';
   form.notes = session.notes || '';
@@ -665,6 +693,7 @@ async function save(schedule) {
       notify_telegram: form.notify_telegram,
       guest_language: form.guest_language,
       host_language: form.host_language,
+      interpretation_enabled: form.interpretation_enabled,
       agent_voice: form.agent_voice || null,
       presentation_outline: form.presentation_outline,
       notes: form.notes,
@@ -723,6 +752,29 @@ async function connect(sessionId) {
     ElMessage.error(e?.response?.data?.error || t('contacts.conference.actions.connectError'));
   } finally {
     connecting.value = false;
+    connectingId.value = null;
+  }
+}
+
+async function joinAsParticipant(sessionId) {
+  if (!sessionId) {
+    ElMessage.warning(t('contacts.conference.actions.noSession'));
+    return;
+  }
+  joining.value = true;
+  connectingId.value = sessionId;
+  try {
+    const data = await conferenceService.joinSession(sessionId);
+    const liveId = data.session?.id || sessionId;
+    ElMessage.success(t('contacts.conference.actions.connected'));
+    router.push({
+      name: 'conference-participant-live',
+      params: { sessionId: String(liveId) }
+    });
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.conference.participant.startError'));
+  } finally {
+    joining.value = false;
     connectingId.value = null;
   }
 }

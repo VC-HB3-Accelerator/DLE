@@ -28,7 +28,7 @@
     },
     "sidebar": {
       "title": "Sidebar",
-      "description": "Sidebar text, languages, navigation buttons, and regional servers"
+      "description": "Domain description, sidebar text, languages, navigation buttons, and regional servers"
     },
     "updates": {
       "title": "Updates",
@@ -149,7 +149,7 @@
   },
   "sidebarNotice": {
     "pageTitle": "Sidebar text",
-    "intro": "This text appears in the right sidebar right after the navigation buttons. The Privacy Policy link is always appended and cannot be removed.",
+    "intro": "This text appears in the right sidebar right after the navigation buttons. The Privacy Policy link is always appended and cannot be removed. Tab title and meta description come only from the Domain description field.",
     "textLabel": "Editor text",
     "textPlaceholder": "Short message for visitors…",
     "textHint": "Plain text only, up to 4000 characters.",
@@ -159,7 +159,10 @@
     "saved": "Sidebar text saved",
     "saveError": "Could not save sidebar text",
     "loadError": "Could not load sidebar text",
-    "adminOnly": "Only administrators can edit the sidebar text."
+    "adminOnly": "Only administrators can edit the sidebar text.",
+    "domainDescriptionLabel": "Domain description",
+    "domainDescriptionPlaceholder": "",
+    "domainDescriptionHint": "The only source for the browser tab title, meta description, and social previews. Saved via API and applied without rebuilding the frontend. An empty field clears the meta tags."
   },
   "regions": {
     "pageTitle": "Regional servers",
@@ -881,7 +884,9 @@
         "view": "View",
         "chat": "Messaging and replies",
         "edit": "Edit and delete",
-        "ops": "Management and operations"
+        "ops": "Management and operations",
+        "own": "Own data (own scope)",
+        "domain": "Corporate domain (domain scope)"
       },
       "actions": {
         "view_home": "Open home",
@@ -904,7 +909,16 @@
         "view_basic_docs": "View basic documents",
         "view_legal_docs": "View internal documents",
         "manage_legal_docs": "Manage documents",
-        "governance_proposal": "Create proposals and vote"
+        "governance_proposal": "Create proposals and vote",
+        "create_own_articles": "Create own listings",
+        "manage_own_contacts": "Edit own contacts",
+        "import_own_contacts": "Import contacts (own)",
+        "broadcast_own_contacts": "Broadcast to own contacts",
+        "view_domain_contacts": "View domain CRM",
+        "edit_domain_contacts": "Edit domain CRM",
+        "view_domain_articles": "View domain feed",
+        "approve_domain_publications": "Moderate domain publications",
+        "manage_domain_auth": "Manage domain auth rules"
       },
       "chatSection": "Chat: message types",
       "screensSection": "Pages and blocks: visibility",
@@ -1033,7 +1047,8 @@
         "/store/s/:slug": "Store section",
         "/store/:id": "Product card",
         "/blog/:slug": "Feed article",
-        "/connect-wallet": "Connect wallet"
+        "/connect-wallet": "Connect wallet",
+        "/settings/security/database": "Database"
       }
     }
   },
@@ -1158,5 +1173,26 @@
     "invalidEmail": "Enter a valid email",
     "invalidSshKey": "SSH key must be in OpenSSH format",
     "error": "Error: {message}"
+  },
+  "authDomains": {
+    "title": "Corporate domains and email",
+    "hint": "Role by domain or email (user / readonly). Editor is token-only. Boss{'@'} activates with a linked wallet and balance ≥ readonly.",
+    "kind": "Type",
+    "kindDomain": "Domain",
+    "kindEmail": "Email",
+    "value": "Value",
+    "role": "Role",
+    "roleUser": "User",
+    "roleReadonly": "Read-only",
+    "domainAdmin": "Boss{'@'}",
+    "domainAdminBoss": "Domain-admin (boss{'@'})",
+    "domainAdminHelp": "Email with role=readonly only. Boss{'@'} does not activate without wallet and tokens.",
+    "empty": "No corporate domain rules configured.",
+    "addTitle": "Add rule",
+    "addButton": "Add rule",
+    "valueRequired": "Enter a domain or email",
+    "saveError": "Save error: {error}",
+    "confirmDelete": "Delete rule \"{value}\"?",
+    "deleteError": "Delete error: {error}"
   }
 }

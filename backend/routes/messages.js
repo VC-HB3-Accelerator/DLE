@@ -478,28 +478,33 @@ router.get('/read-status', async (req, res) => {
 
 // УДАЛЕНО: Дублирующиеся endpoint'ы перенесены ниже
 
-function ensureBroadcastEditorAccess(req, res) {
-  const adminLogicService = require('../services/adminLogicService');
-  const editorRole = req.userRole || ROLES.USER;
-  const canBroadcast = adminLogicService.canPerformAdminAction({
-    role: editorRole,
-    action: 'broadcast_message'
-  });
+async function ensureBroadcastEditorAccess(req, res) {
+  const accessResolver = require('../services/accessResolverService');
+  const userId = req.session?.userId || req.user?.id;
+  if (!userId) {
+    return {
+      allowed: false,
+      response: res.status(401).json({ error: 'Требуется аутентификация' })
+    };
+  }
+  const access = await accessResolver.resolveAccess(userId);
+  req.viewerAccess = access;
+  req.userRole = access.role;
 
-  if (!canBroadcast) {
+  if (!accessResolver.canBroadcast(access)) {
     return {
       allowed: false,
       response: res.status(403).json({
-        error: 'Только редакторы (editor) могут делать массовую рассылку'
+        error: 'Недостаточно прав для массовой рассылки'
       })
     };
   }
 
-  return { allowed: true };
+  return { allowed: true, access };
 }
 
 router.get('/broadcast/recipients-summary', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -515,7 +520,14 @@ router.get('/broadcast/recipients-summary', requireAuth, requirePermission(PERMI
   }
 
   try {
-    const summary = await broadcastService.getRecipientsSummary(recipientIds);
+    const accessResolver = require('../services/accessResolverService');
+    const viewerId = req.session?.userId || req.user?.id;
+    const scopedIds = await accessResolver.filterContactIdsToScope(
+      req.viewerAccess,
+      recipientIds,
+      viewerId
+    );
+    const summary = await broadcastService.getRecipientsSummary(scopedIds);
     res.json({ success: true, summary });
   } catch (error) {
     logger.error('[Messages] Broadcast recipients summary error:', error);
@@ -524,7 +536,7 @@ router.get('/broadcast/recipients-summary', requireAuth, requirePermission(PERMI
 });
 
 router.get('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -540,7 +552,7 @@ router.get('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMIS
 });
 
 router.get('/broadcast/ai-agent/history', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -557,7 +569,7 @@ router.get('/broadcast/ai-agent/history', requireAuth, requirePermission(PERMISS
 });
 
 router.put('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -574,7 +586,7 @@ router.put('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMIS
 });
 
 router.get('/broadcast/ai-agent/models', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -593,7 +605,7 @@ router.get('/broadcast/ai-agent/models', requireAuth, requirePermission(PERMISSI
 });
 
 router.post('/broadcast/ai-agent/preview', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -630,7 +642,7 @@ router.post('/broadcast/ai-agent/preview', requireAuth, requirePermission(PERMIS
 });
 
 router.get('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -645,7 +657,7 @@ router.get('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BR
 });
 
 router.post('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -684,7 +696,7 @@ router.post('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.B
 });
 
 router.put('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -726,7 +738,7 @@ router.put('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSION
 });
 
 router.delete('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -750,7 +762,7 @@ router.delete('/broadcast/templates/:id', requireAuth, requirePermission(PERMISS
 });
 
 router.get('/broadcast/history', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -769,7 +781,7 @@ router.get('/broadcast/history', requireAuth, requirePermission(PERMISSIONS.BROA
 });
 
 router.delete('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -794,7 +806,7 @@ router.delete('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS
 });
 
 router.get('/broadcast/analytics', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -809,7 +821,7 @@ router.get('/broadcast/analytics', requireAuth, requirePermission(PERMISSIONS.BR
 });
 
 router.get('/broadcast/campaigns/:id', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -833,7 +845,7 @@ router.get('/broadcast/campaigns/:id', requireAuth, requirePermission(PERMISSION
 });
 
 router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), broadcastUpload.array('attachments'), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -946,7 +958,7 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
 });
 
 router.post('/broadcast/campaigns/:id/prepare', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1006,7 +1018,7 @@ router.post('/broadcast/campaigns/:id/prepare', requireAuth, requirePermission(P
 });
 
 router.get('/broadcast/campaigns/:id/drafts', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1027,7 +1039,7 @@ router.get('/broadcast/campaigns/:id/drafts', requireAuth, requirePermission(PER
 });
 
 router.get('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1052,7 +1064,7 @@ router.get('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermis
 });
 
 router.put('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1078,7 +1090,7 @@ router.put('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermis
 });
 
 router.get('/broadcast/campaigns/:id/status', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1108,7 +1120,7 @@ router.get('/broadcast/campaigns/:id/status', requireAuth, requirePermission(PER
 });
 
 router.post('/broadcast/campaigns/:id/start', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1131,7 +1143,7 @@ router.post('/broadcast/campaigns/:id/start', requireAuth, requirePermission(PER
 });
 
 router.post('/broadcast/campaigns/:id/pause', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1158,7 +1170,7 @@ router.post('/broadcast/campaigns/:id/pause', requireAuth, requirePermission(PER
 });
 
 router.post('/broadcast/campaigns/:id/resume', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1181,7 +1193,7 @@ router.post('/broadcast/campaigns/:id/resume', requireAuth, requirePermission(PE
 });
 
 router.post('/broadcast/campaigns/:id/interrupt', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1208,7 +1220,7 @@ router.post('/broadcast/campaigns/:id/interrupt', requireAuth, requirePermission
 });
 
 router.get('/broadcast/campaigns/:id/events', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1235,7 +1247,7 @@ router.get('/broadcast/campaigns/:id/events', requireAuth, requirePermission(PER
 });
 
 router.post('/broadcast/campaigns/:id/complete', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }
@@ -1264,7 +1276,7 @@ router.post('/broadcast/campaigns/:id/complete', requireAuth, requirePermission(
 });
 
 router.post('/broadcast/campaigns/:id/deliveries', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
-  const access = ensureBroadcastEditorAccess(req, res);
+  const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
   }

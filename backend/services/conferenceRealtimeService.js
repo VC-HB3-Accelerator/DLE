@@ -12,6 +12,12 @@ const conferenceAiAgentService = require('./conferenceAiAgentService');
 const aiProviderSettingsService = require('./aiProviderSettingsService');
 const multiSourceSearchService = require('./multiSourceSearchService');
 const openaiProxy = require('./openaiProxy');
+const conferenceKnowledgeService = require('./conferenceKnowledgeService');
+const conferenceRealtimeTicketService = require('./conferenceRealtimeTicketService');
+const {
+  isVoiceCallRealtimeModel,
+  QWEN_AUDIO_REALTIME_MODEL
+} = require('./qwenRealtimeService');
 
 /** runtime state: conferenceId → { agentRunning, agentMuted, pendingCommands[] } */
 const liveState = new Map();
@@ -196,34 +202,7 @@ async function appendTranscript(conferenceId, role, text, { translatedText = nul
 }
 
 async function buildAgentInstructions(conf) {
-  const settings = await conferenceAiAgentService.getSettings();
-  const coachRules = await listCoachRules(conf.id);
-  const coachBlock = coachRules.length
-    ? `\n\nHOST COACH RULES (приоритет, не озвучивать клиенту):\n${coachRules.map((r, i) => `${i + 1}. ${r.body}`).join('\n')}`
-    : '';
-
-  const outline = conf.presentation_outline
-    ? `\n\nPresentation outline:\n${conf.presentation_outline}`
-    : '';
-
-  const ragPolicy = settings.generate_if_no_rag
-    ? 'Если RAG пуст — можно ответить общими словами осторожно.'
-    : 'Если RAG пуст — скажите, что в базе нет данных, и предложите уточнить у менеджера. Ничего не выдумывайте.';
-
-  const ragFirst = settings.search_rag_first !== false
-    ? 'Для фактов о компании СНАЧАЛА вызывайте tool search_company_docs, затем отвечайте по результатам.'
-    : 'Tool search_company_docs доступен по необходимости; не обязан искать в RAG на каждый реплику, если вопрос не про базу знаний.';
-
-  return [
-    settings.system_prompt || conferenceAiAgentService.DEFAULTS.system_prompt,
-    `guest_language=${conf.guest_language || 'en'}`,
-    `host_language=${conf.host_language || 'ru'}`,
-    `Говорите клиенту на языке: ${conf.guest_language || 'en'}.`,
-    ragPolicy,
-    ragFirst,
-    outline,
-    coachBlock
-  ].filter(Boolean).join('\n');
+  return conferenceKnowledgeService.buildAgentInstructions(conf);
 }
 
 function buildSearchToolSchema() {
@@ -245,42 +224,58 @@ function buildSearchToolSchema() {
   };
 }
 
-async function createRealtimeClientSecret(conferenceId, actorId) {
-  const { session: conf, isHost } = await assertConferenceMember(conferenceId, actorId);
-  if (!['draft', 'scheduled', 'live'].includes(conf.status)) {
-    const err = new Error('Конференция не активна');
-    err.status = 400;
-    throw err;
+/**
+ * Выбор провайдера Realtime из настроек агента конференции.
+ * @returns {{ mode: 'qwen_ws'|'openai_webrtc', providerName: string, provider: object, model?: string }}
+ */
+async function resolveRealtimeProvider(settings) {
+  const preferred = String(settings?.provider || 'qwencloud').trim().toLowerCase();
+  const configuredModel = settings?.model ? String(settings.model).trim() : null;
+
+  const tryQwen = async () => {
+    const provider = await aiProviderSettingsService.getProviderSettings('qwencloud');
+    if (!provider?.api_key) return null;
+    const model = configuredModel || provider.selected_model || QWEN_AUDIO_REALTIME_MODEL;
+    if (configuredModel && !isVoiceCallRealtimeModel(configuredModel)) return null;
+    return {
+      mode: 'qwen_ws',
+      providerName: 'qwencloud',
+      provider,
+      model
+    };
+  };
+
+  const tryOpenai = async () => {
+    const provider = await aiProviderSettingsService.getProviderSettings('openai');
+    if (!provider?.api_key) return null;
+    const model = configuredModel || provider.selected_model || 'gpt-realtime';
+    return {
+      mode: 'openai_webrtc',
+      providerName: 'openai',
+      provider,
+      model
+    };
+  };
+
+  if (preferred === 'openai') {
+    const openai = await tryOpenai();
+    if (openai) return openai;
+    const qwen = await tryQwen();
+    if (qwen) return qwen;
+  } else {
+    const qwen = await tryQwen();
+    if (qwen) return qwen;
+    const openai = await tryOpenai();
+    if (openai) return openai;
   }
 
-  // Владелец Realtime: primary participant (contact) или host (соло-тест)
-  const uid = Number(actorId);
-  const isPrimary = conf.contact_user_id === uid;
-  if (!isHost && !isPrimary) {
-    const err = new Error(
-      'Realtime доступен основному участнику (контакту). Остальные — видео/чат комнаты.'
-    );
-    err.status = 403;
-    err.code = 'REALTIME_PRIMARY_ONLY';
-    throw err;
-  }
+  const err = new Error('Нет ключа для голосового агента (qwencloud или openai)');
+  err.status = 400;
+  err.code = 'REALTIME_KEY_MISSING';
+  throw err;
+}
 
-  const settings = await conferenceAiAgentService.getSettings();
-  if (!settings.enabled) {
-    const err = new Error('ИИ-агент конференции выключен в настройках');
-    err.status = 400;
-    err.code = 'AGENT_DISABLED';
-    throw err;
-  }
-
-  const provider = await aiProviderSettingsService.getProviderSettings('openai');
-  if (!provider?.api_key) {
-    const err = new Error('Ключ OpenAI не настроен');
-    err.status = 400;
-    err.code = 'OPENAI_KEY_MISSING';
-    throw err;
-  }
-
+async function createOpenAiRealtimeSession(conf, settings, provider) {
   const model = settings.model || provider.selected_model || 'gpt-realtime';
   const instructions = await buildAgentInstructions(conf);
   const voice = conf.agent_voice || 'alloy';
@@ -350,7 +345,6 @@ async function createRealtimeClientSecret(conferenceId, actorId) {
     throw err;
   }
 
-  // Форматы ответа: { value } | { client_secret: { value } } | { client_secret: "ek_..." }
   let ephemeral =
     payload.value ||
     (typeof payload.client_secret === 'string' ? payload.client_secret : null) ||
@@ -364,17 +358,97 @@ async function createRealtimeClientSecret(conferenceId, actorId) {
     throw err;
   }
 
-  // Не логируем ephemeral / api key
-  logger.info(`[conferenceRealtime] ephemeral created conference=${conferenceId} model=${model}`);
+  logger.info(`[conferenceRealtime] openai ephemeral conference=${conf.id} model=${model}`);
 
   return {
+    mode: 'openai_webrtc',
     client_secret: ephemeral,
     expires_at: payload.expires_at || payload.client_secret?.expires_at || null,
     model,
     voice,
+    provider: 'openai',
     guest_language: conf.guest_language,
+    host_language: conf.host_language,
     conference_id: conf.id
   };
+}
+
+async function createQwenRealtimeSession(conf, resolved) {
+  const ticket = conferenceRealtimeTicketService.issueTicket(conf.id, conf._actorId);
+  logger.info(`[conferenceRealtime] qwen ws ticket conference=${conf.id} model=${resolved.model}`);
+  return {
+    mode: 'qwen_ws',
+    ws_path: `/ws?conference_ticket=${encodeURIComponent(ticket)}`,
+    model: resolved.model,
+    provider: resolved.providerName,
+    guest_language: conf.guest_language,
+    host_language: conf.host_language,
+    conference_id: conf.id
+  };
+}
+
+async function createRealtimeSession(conferenceId, actorId) {
+  const { session: conf, isHost } = await assertConferenceMember(conferenceId, actorId);
+  if (!['draft', 'scheduled', 'live'].includes(conf.status)) {
+    const err = new Error('Конференция не активна');
+    err.status = 400;
+    throw err;
+  }
+
+  const uid = Number(actorId);
+  const isPrimary = conf.contact_user_id === uid;
+  if (!isHost && !isPrimary) {
+    const err = new Error(
+      'Realtime доступен основному участнику (контакту). Остальные — видео/чат комнаты.'
+    );
+    err.status = 403;
+    err.code = 'REALTIME_PRIMARY_ONLY';
+    throw err;
+  }
+
+  const settings = await conferenceAiAgentService.getSettings();
+  if (!settings.enabled) {
+    const err = new Error('ИИ-агент конференции выключен в настройках');
+    err.status = 400;
+    err.code = 'AGENT_DISABLED';
+    throw err;
+  }
+
+  const resolved = await resolveRealtimeProvider(settings);
+  const confWithActor = { ...conf, _actorId: uid };
+
+  if (resolved.mode === 'qwen_ws') {
+    return createQwenRealtimeSession(confWithActor, resolved);
+  }
+  return createOpenAiRealtimeSession(conf, settings, resolved.provider);
+}
+
+async function createInterpretationHostSession(conferenceId, actorId) {
+  const { session: conf, isHost } = await assertConferenceMember(conferenceId, actorId);
+  if (!isHost) {
+    const err = new Error('Синхрон доступен только редактору');
+    err.status = 403;
+    throw err;
+  }
+  if (!conf.interpretation_enabled) {
+    const err = new Error('Режим лайв-синхрона выключен в настройках конференции');
+    err.status = 400;
+    err.code = 'INTERPRETATION_DISABLED';
+    throw err;
+  }
+  const ticket = conferenceRealtimeTicketService.issueTicket(conferenceId, actorId, 'host');
+  return {
+    mode: 'interpret_host_ws',
+    ws_path: `/ws?conference_interpret_ticket=${encodeURIComponent(ticket)}`,
+    guest_language: conf.guest_language,
+    host_language: conf.host_language,
+    conference_id: conf.id
+  };
+}
+
+/** @deprecated используйте createRealtimeSession */
+async function createRealtimeClientSecret(conferenceId, actorId) {
+  return createRealtimeSession(conferenceId, actorId);
 }
 
 async function startAgent(conferenceId, actorId) {
@@ -534,6 +608,10 @@ module.exports = {
   addCoachRule,
   listTranscript,
   appendTranscript,
+  buildAgentInstructions,
+  resolveRealtimeProvider,
+  createRealtimeSession,
+  createInterpretationHostSession,
   createRealtimeClientSecret,
   startAgent,
   setAgentMuted,

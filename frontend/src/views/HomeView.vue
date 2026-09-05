@@ -85,6 +85,15 @@
   const router = useRouter();
   const route = useRoute();
 
+  /** После входа главная `/` сразу уходит на `/contacts/{userId}`. */
+  function redirectAuthedHomeToOwnContact() {
+    if (!auth.isAuthenticated.value) return;
+    if (route.name !== 'home') return;
+    const id = Number(auth.userId.value);
+    if (!Number.isInteger(id) || id <= 0) return;
+    router.replace({ name: 'contact-details', params: { id: String(id) } });
+  }
+
   // =====================================================================
   // 2. СОСТОЯНИЯ КОМПОНЕНТА
   // =====================================================================
@@ -132,6 +141,12 @@
     ogUrl.setAttribute('content', canonicalUrl);
   }
 
+  // watch на верхнем уровне setup — сработает и после позднего checkAuth
+  watch(
+    [() => auth.isAuthenticated.value, () => auth.userId.value],
+    () => redirectAuthedHomeToOwnContact()
+  );
+
   onMounted(() => {
     updateHomeSeo();
 
@@ -146,6 +161,8 @@
     if (route.query.ask || route.query.pageId) {
       router.replace({ path: '/', query: {} });
     }
+
+    redirectAuthedHomeToOwnContact();
 
     // Подписка на события авторизации
     unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
@@ -179,6 +196,7 @@
   const handleAuthEvent = async (eventData) => {
     const loggedIn = eventData?.isAuthenticated ?? eventData?.authenticated;
     if (loggedIn) {
+      redirectAuthedHomeToOwnContact();
       // Гостевой CMS-welcome не переносим в авторизованный чат (ТЗ: не дублировать после входа).
       messages.value = messages.value.filter((m) => !m.cmsEphemeral);
       await linkGuestMessagesAfterAuth();

@@ -131,7 +131,7 @@
         {{ page.title }}
       </h2>
       <p class="blog-feed-card__summary">
-        <template v-if="truncatedSummary">{{ truncatedSummary }} </template>
+        <span v-if="truncatedSummary" class="blog-feed-card__summary-text">{{ truncatedSummary }}</span>
         <button type="button" class="blog-feed-card__read-more" @click.stop="openArticle">
           {{ t('blog.feed.readFull') }}
         </button>
@@ -402,10 +402,10 @@ async function submitFeedComment() {
   border: 1px solid color-mix(in srgb, var(--theme-text) 8%, transparent);
   border-radius: 14px;
   overflow: hidden;
-  max-width: 560px;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
-  margin: 0 auto 28px;
+  margin: 0 0 28px;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-text) 4%, transparent);
   box-sizing: border-box;
 }
@@ -664,6 +664,11 @@ async function submitFeedComment() {
   cursor: pointer;
   padding: 0;
   margin: 0;
+}
+
+/* после margin: 0 — иначе отступ перетрётся при смене порядка правил */
+.blog-feed-card__summary-text + .blog-feed-card__read-more {
+  margin-left: 0.4em;
 }
 
 .blog-feed-card__read-more:hover {

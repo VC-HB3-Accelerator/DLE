@@ -12,7 +12,7 @@
 
 import { computed } from 'vue';
 import { useAuthContext } from './useAuth';
-import { PERMISSIONS, ROLES, getRoleDescription } from './permissions.js';
+import { PERMISSIONS, ROLES, getRoleDescription } from '@/shared/permissions.js';
 import { hasActionAccess } from './useActionAccess.js';
 
 /**
@@ -66,7 +66,16 @@ export function usePermissions() {
   
   // Редактирование и удаление
   const canEditData = computed(() => hasPermission(PERMISSIONS.EDIT_USER_DATA));
-  const canEditContacts = computed(() => hasPermission(PERMISSIONS.EDIT_CONTACTS));
+  const canEditContacts = computed(() =>
+    hasPermission(PERMISSIONS.EDIT_CONTACTS)
+    || hasPermission(PERMISSIONS.MANAGE_OWN_CONTACTS)
+    || hasPermission(PERMISSIONS.EDIT_DOMAIN_CONTACTS)
+  );
+  const canImportContacts = computed(() =>
+    hasPermission(PERMISSIONS.EDIT_CONTACTS)
+    || hasPermission(PERMISSIONS.IMPORT_OWN_CONTACTS)
+    || hasPermission(PERMISSIONS.EDIT_DOMAIN_CONTACTS)
+  );
   const canDeleteData = computed(() => hasPermission(PERMISSIONS.DELETE_USER_DATA));
   const canDeleteMessages = computed(() => hasPermission(PERMISSIONS.DELETE_MESSAGES));
   
@@ -74,7 +83,10 @@ export function usePermissions() {
   const canSendToUsers = computed(() => hasPermission(PERMISSIONS.SEND_TO_USERS));
   const canChatWithAdmins = computed(() => hasPermission(PERMISSIONS.CHAT_WITH_ADMINS));
   const canGenerateAI = computed(() => hasPermission(PERMISSIONS.GENERATE_AI_REPLIES));
-  const canBroadcast = computed(() => hasPermission(PERMISSIONS.BROADCAST));
+  const canBroadcast = computed(() =>
+    hasPermission(PERMISSIONS.BROADCAST)
+    || hasPermission(PERMISSIONS.BROADCAST_OWN_CONTACTS)
+  );
   
   // Управление
   const canManageTags = computed(() => hasPermission(PERMISSIONS.MANAGE_TAGS));
@@ -135,6 +147,7 @@ export function usePermissions() {
     // Редактирование
     canEditData,
     canEditContacts,
+    canImportContacts,
     canDeleteData,
     canDeleteMessages,
     

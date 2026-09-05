@@ -207,6 +207,17 @@ async function sendMagicLinkNotifications(conferenceId, { ttlHours, channels, us
   }
 
   const delivered = emailed || telegramSent;
+
+  if (delivered) {
+    try {
+      const { broadcastConferenceInvitesUpdate, broadcastMessagesUpdate } = require('../wsHub');
+      broadcastConferenceInvitesUpdate();
+      broadcastMessagesUpdate();
+    } catch {
+      /* optional */
+    }
+  }
+
   return {
     success: true,
     emailed,
@@ -493,6 +504,8 @@ async function notifyMultiParticipants(conferenceId) {
   }
 
   try {
+    const { broadcastConferenceInvitesUpdate, broadcastMessagesUpdate } = require('../wsHub');
+    broadcastConferenceInvitesUpdate();
     broadcastMessagesUpdate?.();
   } catch {
     /* ignore */

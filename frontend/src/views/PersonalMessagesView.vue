@@ -177,10 +177,12 @@ function connectWebSocket() {
         const data = JSON.parse(event.data);
         if (data.type === 'contacts-updated' || 
             data.type === 'messages-updated' ||
+            data.type === 'conference-invites-updated' ||
             data.type === 'contact-updated' ||
             data.type === 'admin-status-changed') {
           console.log('[PersonalMessagesView] Получено обновление через WebSocket:', data.type);
           fetchPersonalMessages();
+          loadConferenceInvites();
         }
       } catch (error) {
         console.error('[PersonalMessagesView] Ошибка парсинга WebSocket сообщения:', error);

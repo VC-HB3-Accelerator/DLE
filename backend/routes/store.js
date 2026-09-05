@@ -94,10 +94,18 @@ router.post('/resolve-token', requireAuth, requirePermission(PERMISSIONS.MANAGE_
 
 router.get('/catalog', async (req, res) => {
   try {
+    const reserved = new Set(['section_id', 'section', 'slug', 'catalog_section']);
+    const facets = {};
+    if (req.query.catalog_section) facets.section = req.query.catalog_section;
+    for (const [k, v] of Object.entries(req.query || {})) {
+      if (reserved.has(k)) continue;
+      if (typeof v === 'string' && v.trim()) facets[k] = v.trim();
+    }
     const products = await store.listProducts({
       publishedOnly: true,
       sectionId: req.query.section_id || null,
       sectionSlug: req.query.section || req.query.slug || null,
+      facets,
     });
     res.json({ products });
   } catch (error) {
@@ -108,6 +116,13 @@ router.get('/catalog', async (req, res) => {
 router.get('/catalog/:id', async (req, res) => {
   try {
     const product = await store.getProduct(req.params.id, { publishedOnly: true });
+    try {
+      const { viewsCount } = await store.recordProductView(req.params.id);
+      product.views_count = viewsCount;
+    } catch (viewErr) {
+      // страница товара всё равно отдаётся
+      console.warn('[store] recordProductView:', viewErr.message);
+    }
     res.json({ product });
   } catch (error) {
     sendError(res, error);

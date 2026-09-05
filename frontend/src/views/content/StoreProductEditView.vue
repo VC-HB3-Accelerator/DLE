@@ -251,6 +251,15 @@
             <router-link :to="{ name: 'content-store-section-new' }">{{ t('store.editor.sectionCreate') }}</router-link>
           </p>
 
+          <section class="store-product-edit__block">
+            <h2>{{ t('catalogFilters.section') }}</h2>
+            <p class="store-product-edit__hint">{{ t('store.editor.catalogFiltersHint') }}</p>
+            <CatalogEntityAttrsEditor
+              v-model:section-id="catalogSectionId"
+              v-model:attrs="catalogAttrs"
+            />
+          </section>
+
           <div class="store-product-edit__media">
             <span>{{ t('store.editor.media') }}</span>
             <div class="store-product-edit__media-actions">
@@ -320,6 +329,11 @@ import {
   resolveStoreToken,
   updateStoreProduct,
 } from '../../services/storeService';
+import CatalogEntityAttrsEditor from '@/components/catalog/CatalogEntityAttrsEditor.vue';
+import {
+  catalogEntityPayloadFromEditor,
+  editorStateFromCatalog,
+} from '@/services/catalogFiltersService';
 
 defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -381,6 +395,9 @@ const form = reactive({
   max_payments_per_wallet: 1,
   section_ids: [],
 });
+
+const catalogSectionId = ref('');
+const catalogAttrs = ref([]);
 
 const pageTitle = computed(() => (
   editingId.value ? t('store.editor.editTitle') : t('store.editor.createTitle')
@@ -563,6 +580,8 @@ function resetForm() {
   form.max_qty = 1;
   form.max_payments_per_wallet = 1;
   form.section_ids = [];
+  catalogSectionId.value = '';
+  catalogAttrs.value = [];
   selectedMedia.value = [];
   payPaste.value = '';
   licensePaste.value = '';
@@ -600,6 +619,9 @@ function fillForm(p) {
   form.max_qty = Number(p.max_qty || 1);
   form.max_payments_per_wallet = Number(p.max_payments_per_wallet || 1);
   form.section_ids = Array.isArray(p.section_ids) ? [...p.section_ids] : [];
+  const cat = editorStateFromCatalog(p);
+  catalogSectionId.value = cat.sectionId || '';
+  catalogAttrs.value = cat.attrs || [];
   selectedMedia.value = Array.isArray(p.media)
     ? p.media.map((m) => ({
       id: m.id || m.content_media_id,
@@ -689,6 +711,7 @@ function buildPayload() {
     max_payments_per_wallet: Number(form.max_payments_per_wallet),
     section_ids: Array.isArray(form.section_ids) ? form.section_ids : [],
     media_ids: selectedMedia.value.map((m) => Number(m.id)).filter((n) => Number.isFinite(n) && n > 0),
+    ...catalogEntityPayloadFromEditor({ sectionId: catalogSectionId.value, attrs: catalogAttrs.value }),
   };
   if (payload.receipt_enabled) {
     payload.receipt_standard = form.receipt_standard || 'erc20';
@@ -744,6 +767,8 @@ async function loadPage() {
     if (editingId.value) {
       const p = await fetchStoreProduct(editingId.value);
       fillForm(p);
+    } else {
+      // раздел/атрибуты задаются вручную; query только подсветка витрины
     }
   } catch (e) {
     loadError.value = e?.response?.data?.error || e?.message || t('store.common.loadError');

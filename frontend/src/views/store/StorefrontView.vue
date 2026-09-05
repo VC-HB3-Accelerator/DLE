@@ -13,7 +13,15 @@
     <div class="storefront page-with-close">
       <PageCloseButton fallback="/" />
       <header class="storefront__header">
-        <h1>{{ sectionTitle || t('store.storefront.title') }}</h1>
+        <CatalogLinkedFilters
+          v-model="catalogFacets"
+          class="storefront__header-filters"
+          scope="store"
+          hide-labels
+          :only-used="!canCreateCard"
+          :require-cascade="!canCreateCard"
+          @change="onCatalogFacetsChange"
+        />
         <div class="storefront__header-actions">
           <router-link
             v-if="canCreateCard"
@@ -68,6 +76,16 @@
           </div>
         </div>
       </header>
+
+      <div
+        v-if="canCreateCard && catalogHasSelection && !products.length && !loading"
+        class="storefront__facet-empty"
+      >
+        <p>{{ t('catalogFilters.emptyEditorStore') }}</p>
+        <router-link class="btn btn-primary" :to="createProductTo">
+          {{ t('store.editor.createCard') }}
+        </router-link>
+      </div>
 
       <nav v-if="sections.length" class="storefront__sections" aria-label="sections">
         <router-link
@@ -145,40 +163,51 @@
               }) }}
             </p>
             <div class="storefront__cta">
-              <button type="button" class="btn btn-secondary" @click="openDescription(p.id)">
-                {{ t('store.storefront.openDescription') }}
-              </button>
-              <button type="button" class="btn btn-secondary" @click="addCart(p)">
-                {{ t('store.storefront.addToCart') }}
-              </button>
-              <button type="button" class="btn btn-primary" :disabled="buyingId === p.id" @click="buyNow(p)">
-                {{ buyingId === p.id ? t('store.common.saving') : t('store.storefront.buy') }}
-              </button>
-              <router-link
-                v-if="canEditCard"
-                class="storefront__gear"
-                :to="{ name: 'content-store-product-edit', params: { id: p.id } }"
-                :title="t('store.editor.editCard')"
-                :aria-label="t('store.editor.editCard')"
-              >
-                <el-icon :size="18"><Setting /></el-icon>
-              </router-link>
-              <button
-                type="button"
-                class="btn btn-secondary storefront__reviews"
-                :title="ratingTitle(p)"
-                @click="openReviews(p.id)"
-              >
-                <StoreRating
-                  stars-only
-                  :rating-avg="p.rating_avg"
-                  :review-count="p.review_count"
-                />
-                <span>{{ t('store.storefront.reviews') }}</span>
-                <span v-if="Number(p.review_count) > 0" class="storefront__reviews-n">
-                  {{ p.review_count }}
+              <div class="storefront__cta-actions">
+                <button type="button" class="btn btn-secondary" @click="openDescription(p.id)">
+                  {{ t('store.storefront.openDescription') }}
+                </button>
+                <button type="button" class="btn btn-secondary" @click="addCart(p)">
+                  {{ t('store.storefront.addToCart') }}
+                </button>
+                <button type="button" class="btn btn-primary" :disabled="buyingId === p.id" @click="buyNow(p)">
+                  {{ buyingId === p.id ? t('store.common.saving') : t('store.storefront.buy') }}
+                </button>
+              </div>
+              <div class="storefront__cta-meta">
+                <router-link
+                  v-if="canEditCard"
+                  class="storefront__gear"
+                  :to="{ name: 'content-store-product-edit', params: { id: p.id } }"
+                  :title="t('store.editor.editCard')"
+                  :aria-label="t('store.editor.editCard')"
+                >
+                  <el-icon :size="18"><Setting /></el-icon>
+                </router-link>
+                <span
+                  class="storefront__views"
+                  :title="t('blog.views.label')"
+                >
+                  <BlogGlyph name="views" />
+                  <span>{{ Number(p.views_count) || 0 }}</span>
                 </span>
-              </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary storefront__reviews"
+                  :title="ratingTitle(p)"
+                  @click="openReviews(p.id)"
+                >
+                  <StoreRating
+                    stars-only
+                    :rating-avg="p.rating_avg"
+                    :review-count="p.review_count"
+                  />
+                  <span>{{ t('store.storefront.reviews') }}</span>
+                  <span v-if="Number(p.review_count) > 0" class="storefront__reviews-n">
+                    {{ p.review_count }}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </li>
@@ -195,6 +224,7 @@ import { ethers } from 'ethers';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import StoreRating from '@/components/store/StoreRating.vue';
+import BlogGlyph from '@/components/blog/BlogGlyph.vue';
 import { Grid, List, Plus, Setting, ShoppingCart, User } from '@element-plus/icons-vue';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
@@ -210,6 +240,13 @@ import {
   storeCartRoute,
   storeOrdersRoute,
 } from '../../services/storeService';
+import CatalogLinkedFilters from '@/components/catalog/CatalogLinkedFilters.vue';
+import {
+  catalogSelectionFromQuery,
+  catalogSelectionToQuery,
+  catalogTermsPayloadFromSelection,
+  emptyCatalogSelection,
+} from '@/services/catalogFiltersService';
 
 defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -251,7 +288,24 @@ const error = ref('');
 const buyingId = ref(null);
 const cartCount = ref(storeCartCount());
 const viewMode = ref(readViewMode());
+const catalogFacets = ref(catalogSelectionFromQuery(route.query, { sectionParam: 'catalog_section' }));
 let offCart = null;
+
+const catalogHasSelection = computed(() =>
+  Object.values(catalogFacets.value || {}).some(Boolean)
+);
+
+const createProductTo = computed(() => ({
+  name: 'content-store-product-new',
+  query: catalogTermsPayloadFromSelection(catalogFacets.value),
+}));
+
+function onCatalogFacetsChange(next) {
+  catalogFacets.value = { ...emptyCatalogSelection(), ...next };
+  const query = catalogSelectionToQuery(catalogFacets.value, { ...route.query }, { sectionParam: 'catalog_section' });
+  router.replace({ name: route.name, params: route.params, query }).catch(() => {});
+  loadCatalog();
+}
 
 function setViewMode(mode) {
   viewMode.value = mode === 'list' ? 'list' : 'tiles';
@@ -348,8 +402,18 @@ async function loadCatalog() {
   error.value = '';
   try {
     const slug = route.params.slug || null;
+    const facets = catalogTermsPayloadFromSelection(catalogFacets.value);
+    const catalogQuery = {};
+    if (facets.section) catalogQuery.catalog_section = facets.section;
+    for (const [k, v] of Object.entries(facets)) {
+      if (k === 'section' || !v) continue;
+      catalogQuery[k] = v;
+    }
     const [list, secs] = await Promise.all([
-      fetchStoreCatalog(slug ? { section: slug } : {}),
+      fetchStoreCatalog({
+        ...(slug ? { section: slug } : {}),
+        ...catalogQuery,
+      }),
       fetchStoreSections({ active: '1' }).catch(() => []),
     ]);
     products.value = Array.isArray(list) ? list : [];
@@ -407,8 +471,23 @@ async function buyNow(p) {
 }
 
 watch(() => route.params.slug, loadCatalog);
+watch(
+  () => route.query,
+  () => {
+    const next = catalogSelectionFromQuery(route.query, { sectionParam: 'catalog_section' });
+    const cur = catalogFacets.value || {};
+    const keys = new Set([...Object.keys(cur), ...Object.keys(next)]);
+    const same = [...keys].every((k) => (cur[k] || '') === (next[k] || ''));
+    if (!same) {
+      catalogFacets.value = next;
+      loadCatalog();
+    }
+  },
+  { deep: true }
+);
 onMounted(async () => {
   await ensureScreenAccessLoaded();
+  catalogFacets.value = catalogSelectionFromQuery(route.query, { sectionParam: 'catalog_section' });
   loadCatalog();
   offCart = onStoreCartChange(() => {
     cartCount.value = storeCartCount();
@@ -430,7 +509,22 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
-  gap: 1rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.storefront__header-filters {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.storefront__facet-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--color-border, #ddd);
+  border-radius: var(--radius-sm, 6px);
 }
 .storefront__header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .storefront__icon-btn {
@@ -491,10 +585,6 @@ onUnmounted(() => {
   border-radius: 999px;
   padding: 0.05rem 0.45rem;
   font-size: 0.8rem;
-}
-.storefront__header h1 {
-  margin: 0;
-  font-size: 1.4rem;
 }
 .storefront__sections {
   display: flex;
@@ -615,11 +705,33 @@ onUnmounted(() => {
 }
 .storefront__cta {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
-  flex-wrap: wrap;
   margin-top: auto;
   padding-top: 0.5rem;
+}
+.storefront__cta-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+}
+.storefront__cta-actions .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0 0.5rem;
+  font-size: 0.875rem;
+}
+.storefront__cta-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
 }
 .storefront__gear {
   display: inline-flex;
@@ -633,11 +745,32 @@ onUnmounted(() => {
   border-radius: 8px;
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
+.storefront__views {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 2.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-light, #8a8a8a);
+  line-height: 1;
+}
+.storefront__views :deep(svg) {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+}
 .storefront__reviews {
   gap: 0.4rem;
   padding-left: 0.65rem;
   padding-right: 0.75rem;
-  flex: 1 1 12rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.25rem;
+  height: auto;
+  overflow: hidden;
 }
 .storefront__reviews-n {
   font-weight: 650;

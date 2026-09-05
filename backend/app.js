@@ -380,6 +380,7 @@ app.use('/api/auth', authRoutes); // Rate limiting временно отключ
 app.use('/api/users', usersRoutes);
 app.use('/api/contact-site-parser', contactSiteParserRoutes);
 app.use('/api/conference', conferenceRoutes);
+app.use('/api/catalog', require('./routes/catalog'));
 app.use('/api/chat', chatRoutes);
 app.use('/api/ai-calls', require('./routes/aiCalls'));
 app.use('/api/store', require('./routes/store'));

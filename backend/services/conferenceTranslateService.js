@@ -2,7 +2,7 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * Перевод чата ИИ-конференции через OpenAI (ai_providers_settings).
+ * Перевод чата и речи ИИ-конференции (openai → fallback qwencloud).
  */
 
 const logger = require('../utils/logger');
@@ -13,6 +13,17 @@ function normalizeLang(value, fallback = 'en') {
   const lang = String(value || '').trim().toLowerCase();
   if (/^[a-z]{2}(-[a-z]{2})?$/.test(lang)) return lang.slice(0, 2);
   return fallback;
+}
+
+/**
+ * @returns {Promise<{ name: string, settings: object }|null>}
+ */
+async function pickTranslationProvider() {
+  const openai = await aiProviderSettingsService.getProviderSettings('openai');
+  if (openai?.api_key) return { name: 'openai', settings: openai };
+  const qwen = await aiProviderSettingsService.getProviderSettings('qwencloud');
+  if (qwen?.api_key) return { name: 'qwencloud', settings: qwen };
+  return null;
 }
 
 /**
@@ -27,19 +38,20 @@ async function translateChatText(text, sourceLang, targetLang) {
   const to = normalizeLang(targetLang, 'en');
   if (from === to) return null;
 
-  const providerSettings = await aiProviderSettingsService.getProviderSettings('openai');
-  if (!providerSettings?.api_key) {
-    logger.warn('[conferenceTranslate] OpenAI key missing — skip translation');
+  const picked = await pickTranslationProvider();
+  if (!picked) {
+    logger.warn('[conferenceTranslate] no translation provider key — skip');
     return null;
   }
 
+  const { settings } = picked;
   const model =
-    providerSettings.selected_model ||
-    providerSettings.model ||
-    'gpt-4o-mini';
+    settings.selected_model ||
+    settings.model ||
+    (picked.name === 'qwencloud' ? 'qwen-plus' : 'gpt-4o-mini');
 
   try {
-    const client = openaiProxy.createOpenAIClient(providerSettings, { timeout: 20000 });
+    const client = openaiProxy.createOpenAIClient(settings, { timeout: 20000 });
     const response = await client.chat.completions.create({
       model,
       temperature: 0.2,
@@ -82,5 +94,6 @@ async function translateForConferenceRoles(text, role, session) {
 module.exports = {
   translateChatText,
   translateForConferenceRoles,
+  pickTranslationProvider,
   normalizeLang
 };

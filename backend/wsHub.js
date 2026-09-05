@@ -62,6 +62,28 @@ function initWSS(server) {
         });
         return;
       }
+
+      const conferenceTicket = new URL(req.url || '', 'http://localhost').searchParams.get('conference_ticket');
+      if (conferenceTicket) {
+        const { handleConferenceSocket } = require('./services/conferenceMediaProxy');
+        logger.info(`[WebSocket] conference ticket=${String(conferenceTicket).slice(0, 8)}`);
+        handleConferenceSocket(ws, conferenceTicket).catch((error) => {
+          logger.warn('[WebSocket] conference:', error.message);
+          try { ws.close(); } catch (_) { /* ignore */ }
+        });
+        return;
+      }
+
+      const interpretTicket = new URL(req.url || '', 'http://localhost').searchParams.get('conference_interpret_ticket');
+      if (interpretTicket) {
+        const { handleInterpretationHostSocket } = require('./services/conferenceInterpretationMediaProxy');
+        logger.info(`[WebSocket] interpret ticket=${String(interpretTicket).slice(0, 8)}`);
+        handleInterpretationHostSocket(ws, interpretTicket).catch((error) => {
+          logger.warn('[WebSocket] interpret host:', error.message);
+          try { ws.close(); } catch (_) { /* ignore */ }
+        });
+        return;
+      }
     } catch (error) {
       logger.warn('[WebSocket] ticket parse:', error.message);
     }
@@ -192,6 +214,15 @@ function broadcastMessagesUpdate() {
       }
     }
   }
+}
+
+/** Участникам конференции: обновить карточки invites без F5. */
+function broadcastConferenceInvitesUpdate() {
+  const message = JSON.stringify({
+    type: 'conference-invites-updated',
+    timestamp: Date.now()
+  });
+  broadcastToAllClients(message);
 }
 
 function broadcastChatMessage(message, targetUserId = null) {
@@ -565,7 +596,8 @@ function broadcastCampaignUpdate(payload = {}) {
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
-  broadcastMessagesUpdate, 
+  broadcastMessagesUpdate,
+  broadcastConferenceInvitesUpdate,
   broadcastChatMessage,
   broadcastConversationUpdate,
   broadcastTableUpdate,

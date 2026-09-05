@@ -81,6 +81,49 @@ async function tableExists(tableName) {
   return Boolean(rows[0]?.exists);
 }
 
+async function ensureBlogFeedMetaTable() {
+  await db.getQuery()(`
+    CREATE TABLE IF NOT EXISTS blog_feed_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      guest_limit INTEGER,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await db.getQuery()(
+    `INSERT INTO blog_feed_meta (id, guest_limit) VALUES (1, NULL)
+     ON CONFLICT (id) DO NOTHING`
+  );
+}
+
+async function getGuestLimit() {
+  if (!(await tableExists('blog_feed_meta'))) {
+    await ensureBlogFeedMetaTable();
+  }
+  const { rows } = await db.getQuery()(
+    `SELECT guest_limit FROM blog_feed_meta WHERE id = 1 LIMIT 1`
+  );
+  const val = rows[0]?.guest_limit;
+  if (val == null) return null;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function setGuestLimit(guestLimit) {
+  await ensureBlogFeedMetaTable();
+  let normalized = null;
+  if (guestLimit != null && guestLimit !== '') {
+    const n = parseInt(guestLimit, 10);
+    if (!Number.isNaN(n) && n >= 0) normalized = n;
+  }
+  await db.getQuery()(
+    `INSERT INTO blog_feed_meta (id, guest_limit, updated_at)
+     VALUES (1, $1, NOW())
+     ON CONFLICT (id) DO UPDATE SET guest_limit = EXCLUDED.guest_limit, updated_at = NOW()`,
+    [normalized]
+  );
+  return normalized;
+}
+
 function normalizeFilter(row, index = 0) {
   const sortBy = SORT_BY_OPTIONS.includes(row.sort_by) ? row.sort_by : 'new';
   let slug = slugify(row.slug || row.label_en || row.label_ru || `filter-${index + 1}`);
@@ -367,10 +410,10 @@ async function getFeedSettings() {
     }));
   }
 
-  return { filters, pins, sort_by_options: SORT_BY_OPTIONS };
+  return { filters, pins, sort_by_options: SORT_BY_OPTIONS, guest_limit: await getGuestLimit() };
 }
 
-async function saveFeedSettings({ filters = [], pins = [] } = {}) {
+async function saveFeedSettings({ filters = [], pins = [], guest_limit: guestLimit } = {}) {
   if (!(await tableExists('blog_feed_filters')) || !(await tableExists('blog_pinned_pages'))) {
     const err = new Error('Таблицы настроек ленты ещё не созданы. Выполните миграции.');
     err.status = 503;
@@ -499,6 +542,10 @@ async function saveFeedSettings({ filters = [], pins = [] } = {}) {
     client.release();
   }
 
+  if (guestLimit !== undefined) {
+    await setGuestLimit(guestLimit);
+  }
+
   return getFeedSettings();
 }
 
@@ -527,4 +574,7 @@ module.exports = {
   applyFilterPageRestriction,
   ensurePrivacyBlogFilter,
   detachPrivacyFromBlog,
+  getGuestLimit,
+  setGuestLimit,
+  ensureBlogFeedMetaTable,
 };

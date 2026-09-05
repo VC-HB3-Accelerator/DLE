@@ -331,6 +331,20 @@ async function processOneContact(c, encryptionKey, ctx = {}) {
   }
 
   const warning = [...prepared.warnings, ...siteWarnings, ...identityErrors].filter(Boolean);
+
+  if (userId && ctx.importedBy) {
+    try {
+      const contactProvenanceService = require('./contactProvenanceService');
+      await contactProvenanceService.recordImportProvenance({
+        contactUserId: userId,
+        importedBy: ctx.importedBy,
+        jobId: ctx.jobId || null,
+      });
+    } catch (provErr) {
+      logger.warn('[ContactImportJob] provenance:', provErr.message);
+    }
+  }
+
   return {
     added,
     updated,
@@ -397,7 +411,12 @@ async function runJob(jobId) {
   const errors = [];
   let lastBroadcastAt = 0;
   let lastProgressAt = 0;
-  const rowCtx = { parasiteHosts, liveness };
+  const rowCtx = {
+    parasiteHosts,
+    liveness,
+    importedBy: job.requested_by,
+    jobId: job.id,
+  };
 
   for (let i = 0; i < contacts.length; i += 1) {
     if (await isCancelRequested(jobId)) {

@@ -102,10 +102,11 @@
         <!-- Навигационные кнопки -->
         <div class="navigation-buttons">
           <router-link
-            v-if="canAccessPath('/')"
-            to="/"
+            v-if="showChatNav"
+            :to="chatNavTo"
             class="btn btn-ghost btn-block nav-link-btn"
             active-class="active"
+            @click="closeSidebar"
           >
             <span>{{ t('nav.chat') }}</span>
           </router-link>
@@ -306,7 +307,7 @@ const emit = defineEmits([
 ]);
 
 const { t } = useI18n();
-const { deleteIdentity, updateIdentities } = useAuthContext();
+const { deleteIdentity, updateIdentities, userId } = useAuthContext();
 const sidebarNoticeText = ref('');
 const showRepositories = ref(false);
 const showStore = ref(false);
@@ -316,6 +317,25 @@ const authMethods = computed(() => authMethodsCache.methods);
 const selectedAuthType = ref('wallet');
 const authPickerOpen = ref(false);
 const authPickerRoot = ref(null);
+
+/** Гость → `/`; после входа → своя карточка `/contacts/{userId}`; после выхода снова `/`. */
+const ownContactId = computed(() => {
+  if (!props.isAuthenticated) return null;
+  const raw = userId.value;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+});
+const chatNavTo = computed(() => {
+  if (ownContactId.value) {
+    return { name: 'contact-details', params: { id: String(ownContactId.value) } };
+  }
+  return '/';
+});
+const showChatNav = computed(() => {
+  if (ownContactId.value) return true;
+  return canAccessPath('/');
+});
 
 const enabledAuthOptions = computed(() => {
   const all = [

@@ -9,12 +9,6 @@
   <div class="admin-hub-cards">
     <HubGrid>
       <HubCard
-        v-if="myProfileId"
-        :title="t('crm.myProfile')"
-        :description="t('crm.myProfileDesc')"
-        :to="{ name: 'contact-profile', params: { id: String(myProfileId) } }"
-      />
-      <HubCard
         v-if="canAccessPath('/contacts-list')"
         :title="t('crm.contacts')"
         :description="t('crm.contactsDesc')"
@@ -80,7 +74,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { usePermissions } from '@/composables/usePermissions';
@@ -93,13 +87,7 @@ import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreen
 const { t } = useI18n();
 const router = useRouter();
 const { canManageSettings } = usePermissions();
-const { checkAuth, checkUserAccessLevel, address, isAuthenticated, userId } = useAuthContext();
-const myProfileId = computed(() => {
-  const raw = userId.value;
-  if (raw == null || raw === '') return null;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-});
+const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 const showNoAccessModal = ref(false);
 const noAccessMessage = ref('');
 

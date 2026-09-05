@@ -603,7 +603,9 @@
       "fileRequired": "Please upload the document file!",
       "notUpdated": "Page was not updated",
       "notCreated": "Page was not created",
-      "createError": "Error creating page: "
+      "createError": "Error creating page: ",
+      "catalogFilters": "Section and filter fields",
+      "catalogFiltersHint": "Pick a catalog section and add “name → value” fields. In section settings mark which names become filters."
     }
   },
   "tables": {
@@ -769,9 +771,9 @@
     "feedSettings": {
       "open": "Feed settings",
       "title": "Feed settings",
-      "intro": "Filters are article curated lists (or the full feed when empty) plus pinned articles.",
+      "intro": "First configure per-section filters (Cars, Special equipment, etc.). Below — curated article lists and pins.",
       "noPermission": "Insufficient permissions. Editors only.",
-      "filtersTitle": "Filters",
+      "filtersTitle": "Curated article lists",
       "addFilter": "Add filter",
       "filterN": "Filter {n}",
       "labelRu": "Label (RU)",
@@ -800,7 +802,36 @@
         "likes": "By likes",
         "comments": "By comments",
         "popular": "Popular (sum)"
-      }
+      },
+      "taxonomyTitle": "Filters by section",
+      "taxonomyIntro": "Each section has its own filter system: types, condition and geo. Changes appear immediately on /blog.",
+      "facetsTitle": "Filter steps:",
+      "facetGeo": "Geography",
+      "categoriesTitle": "Types (section categories)",
+      "addCategory": "Add type",
+      "noCategories": "No types yet — add some if this section needs a second filter step.",
+      "saveGroupFilters": "Save section filters",
+      "conditionsTitle": "Conditions (shared)",
+      "conditionsHint": "Condition list is shared across all sections that enable the Condition step.",
+      "addCondition": "Add condition",
+      "saveConditions": "Save conditions",
+      "taxonomyLoadError": "Failed to load section filters",
+      "taxonomySaveError": "Failed to save section filters",
+      "taxonomySaveSuccess": "Section filters saved",
+      "guestLimitTitle": "Guest limit",
+      "guestLimitHint": "Maximum articles in /blog feed for unauthenticated visitors. Leave empty for no limit.",
+      "guestLimitLabel": "Article count",
+      "guestLimitPlaceholder": "No limit",
+      "sectionsTitle": "Catalog sections",
+      "sectionsIntro": "Create sections and mark field names that become filters on the feed and store. Field values are set on pages and product cards.",
+      "addSection": "Add section",
+      "noSections": "No sections yet — create the first one.",
+      "filterKeysTitle": "Filter keys",
+      "filterKeysHint": "Keys come from page/product fields in this section. You can also add a key name manually.",
+      "noKnownKeys": "No fields in this section yet — add them on pages/products, or type a key below.",
+      "filterKeyPlaceholder": "Field name (e.g. City)",
+      "addFilterKey": "Add to filters",
+      "confirmDeleteSection": "Deactivate section “{name}”?"
     }
   },
   "messages": {
@@ -1474,7 +1505,8 @@
       "onChainHint": "from the network",
       "createCard": "Create card",
       "editCard": "Edit",
-      "openSettings": "Store settings"
+      "openSettings": "Store settings",
+      "catalogFiltersHint": "Catalog section and dynamic fields for storefront filters (not the storefront chips above)."
     },
     "crm": {
       "title": "Store orders",
@@ -2226,6 +2258,8 @@
         "weekdays": "Working days",
         "preview": "Slot calendar",
         "bookedDay": "Already booked this day",
+        "hostedTitle": "My conferences (as staff)",
+        "hostedHint": "Sessions where you are the host — including client bookings from /book-call. Connect opens the room.",
         "loadFailed": "Could not load the scheduler.",
         "saveFailed": "Could not save the schedule.",
         "saved": "Schedule saved"
@@ -2278,7 +2312,7 @@
       },
       "list": {
         "title": "Scheduled conferences",
-        "hint": "Drafts, scheduled and live sessions. Click Connect to enter the room.",
+        "hint": "Drafts, scheduled and live sessions. Staff use Connect; on your own card as a participant use Start.",
         "empty": "No scheduled conferences yet"
       },
       "form": {
@@ -2293,12 +2327,16 @@
         "soloHint": "Solo mode (?solo=1): Realtime in the editor browser for testing without a participant.",
         "untitled": "Untitled",
         "back": "← Back to conference list",
-        "leave": "Leave",
-        "end": "End",
+        "leave": "Leave room",
+        "end": "End for everyone",
         "ended": "Conference ended",
         "endedWithStats": "Ended: ~{min} min, {messages} messages, coach {coach}",
         "endError": "Failed to end the conference",
         "loadError": "Failed to load session",
+        "listenLanguage": "My translation language",
+        "listenLanguageHint": "Incoming speech is spoken and shown in this language",
+        "listenLanguageSaved": "Translation language saved",
+        "listenLanguageError": "Could not save translation language",
         "videoTitle": "Video",
         "videoStub": "Press “Join room” to connect video.",
         "videoStubLocal": "Your video will appear here",
@@ -2346,20 +2384,24 @@
         "coachLocalSaved": "Rule saved locally (coach API is next)",
         "coachSaved": "Coach rule saved",
         "coachError": "Failed to save coach rule",
-        "startAgent": "Start AI agent",
-        "muteAgent": "Mute AI",
-        "unmuteAgent": "Unmute AI",
-        "agentStub": "Realtime audio comes in the next step",
+        "startAgent": "Start agent presentation",
+        "muteAgent": "Mute agent voice",
+        "unmuteAgent": "Unmute agent voice",
+        "openAgentSettings": "Agent settings",
+        "agentStatusOff": "Agent: off",
+        "agentStatusOn": "Agent: speaking",
+        "agentStatusMuted": "Agent: muted",
+        "agentStub": "Realtime audio comes next",
         "agentStubStarted": "Agent: presentation (stub)…",
-        "agentStarted": "AI agent started",
-        "agentStartError": "Failed to start AI agent (check OpenAI key and enabled flag)",
-        "muteError": "Failed to toggle Mute",
+        "agentStarted": "Agent presentation started",
+        "agentStartError": "Could not start the agent (check provider key and agent enabled)",
+        "muteError": "Could not toggle agent voice",
+        "muted": "Agent voice muted",
+        "unmuted": "Agent voice unmuted",
         "realtimeConnected": "Realtime connected (ephemeral key). Video via LiveKit.",
         "realtimeConnecting": "Connecting to OpenAI Realtime…",
         "realtimeError": "Realtime connection error",
-        "realtimeReadyHint": "Mic/Realtime not connected yet — allow access or check OpenAI key / agent settings",
-        "muted": "Agent muted",
-        "unmuted": "Agent unmuted",
+        "realtimeReadyHint": "Mic/Realtime not connected yet — allow access or check provider key / agent settings",
         "roleHost": "Editor",
         "roleAgent": "AI agent",
         "roleCoach": "Coach",
@@ -2379,8 +2421,12 @@
         "scheduledAt": "Date and time",
         "scheduledAtPlaceholder": "Optional — you can start later",
         "status": "Status",
-        "guestLanguage": "Client language (presentation)",
-        "hostLanguage": "Editor language (coach)",
+        "guestLanguage": "Client language (listen / presentation)",
+        "guestLanguageHint": "Speech from the editor is translated into this language; the agent presents in it. List = Qwen Omni speech languages.",
+        "hostLanguage": "Editor language (listen / coach)",
+        "hostLanguageHint": "Speech from the client is translated into this language. List = Qwen Omni speech languages.",
+        "interpretationEnabled": "Live sync: two-way speech translation",
+        "interpretationHint": "Editor speaks — client hears agent translation and sees text in client language. Client speaks — editor hears translation and sees text in editor language.",
         "agentVoice": "Agent voice",
         "agentVoicePlaceholder": "e.g. alloy, verse (OpenAI Realtime)",
         "presentationOutline": "Presentation outline",
@@ -2551,63 +2597,180 @@
           "title": "Treasury",
           "description": "DLE treasury — ERC-20 tokens and native coins, transfers, and batch operations",
           "ops": {
-            "addToken": { "title": "Add token", "description": "Add a new ERC-20 token to the treasury" },
-            "removeToken": { "title": "Remove token", "description": "Remove a token from the treasury" },
-            "setTokenStatus": { "title": "Change token status", "description": "Activate or deactivate a token" },
-            "transferFunds": { "title": "Transfer funds", "description": "Transfer tokens from the treasury" },
-            "transferERC721": { "title": "Transfer NFT", "description": "Transfer an ERC-721 from the treasury" },
-            "transferERC1155": { "title": "Transfer multi-token", "description": "Transfer ERC-1155 units from the treasury" },
-            "batchTransfer": { "title": "Batch transfer", "description": "Run several transfers in one operation" },
-            "setPaymaster": { "title": "Set Paymaster", "description": "Set the contract that pays gas in tokens" },
-            "setHierarchicalVotingModule": { "title": "Set hierarchical voting module", "description": "Wire HierarchicalVotingModule so the treasury can cast the external vote" },
-            "setFundsBridge": { "title": "Replace treasury bridge", "description": "Swap TreasuryBridge via governance" },
-            "addGasPaymentToken": { "title": "Add gas-payment token", "description": "Allow gas to be paid with a given token" },
-            "emergencyPause": { "title": "Emergency pause", "description": "Pause all treasury operations" }
+            "addToken": {
+              "title": "Add token",
+              "description": "Add a new ERC-20 token to the treasury"
+            },
+            "removeToken": {
+              "title": "Remove token",
+              "description": "Remove a token from the treasury"
+            },
+            "setTokenStatus": {
+              "title": "Change token status",
+              "description": "Activate or deactivate a token"
+            },
+            "transferFunds": {
+              "title": "Transfer funds",
+              "description": "Transfer tokens from the treasury"
+            },
+            "transferERC721": {
+              "title": "Transfer NFT",
+              "description": "Transfer an ERC-721 from the treasury"
+            },
+            "transferERC1155": {
+              "title": "Transfer multi-token",
+              "description": "Transfer ERC-1155 units from the treasury"
+            },
+            "batchTransfer": {
+              "title": "Batch transfer",
+              "description": "Run several transfers in one operation"
+            },
+            "setPaymaster": {
+              "title": "Set Paymaster",
+              "description": "Set the contract that pays gas in tokens"
+            },
+            "setHierarchicalVotingModule": {
+              "title": "Set hierarchical voting module",
+              "description": "Wire HierarchicalVotingModule so the treasury can cast the external vote"
+            },
+            "setFundsBridge": {
+              "title": "Replace treasury bridge",
+              "description": "Swap TreasuryBridge via governance"
+            },
+            "addGasPaymentToken": {
+              "title": "Add gas-payment token",
+              "description": "Allow gas to be paid with a given token"
+            },
+            "emergencyPause": {
+              "title": "Emergency pause",
+              "description": "Pause all treasury operations"
+            }
           }
         },
         "timelock": {
           "title": "Timelock",
           "description": "Execution delays — required waits for critical operations",
           "ops": {
-            "queueOperation": { "title": "Queue operation", "description": "Add an operation to the delay queue" },
-            "executeOperation": { "title": "Execute operation", "description": "Execute after the delay has elapsed" },
-            "cancelOperation": { "title": "Cancel operation", "description": "Cancel a queued operation" },
-            "emergencyExecute": { "title": "Emergency execute", "description": "Execute immediately (emergency only)" },
-            "updateOperationDelay": { "title": "Update operation delay", "description": "Change the delay for an operation type" },
-            "updateDefaultDelay": { "title": "Update default delay", "description": "Change the default delay for operations" }
+            "queueOperation": {
+              "title": "Queue operation",
+              "description": "Add an operation to the delay queue"
+            },
+            "executeOperation": {
+              "title": "Execute operation",
+              "description": "Execute after the delay has elapsed"
+            },
+            "cancelOperation": {
+              "title": "Cancel operation",
+              "description": "Cancel a queued operation"
+            },
+            "emergencyExecute": {
+              "title": "Emergency execute",
+              "description": "Execute immediately (emergency only)"
+            },
+            "updateOperationDelay": {
+              "title": "Update operation delay",
+              "description": "Change the delay for an operation type"
+            },
+            "updateDefaultDelay": {
+              "title": "Update default delay",
+              "description": "Change the default delay for operations"
+            }
           }
         },
         "reader": {
           "title": "Reader",
           "description": "Read DLE data — contract, proposals, and stats",
           "ops": {
-            "getProposalSummary": { "title": "Get proposal summary", "description": "Full information about a proposal" },
-            "getGovernanceParams": { "title": "Get governance parameters", "description": "Core DLE governance parameters" },
-            "listSupportedChains": { "title": "Supported networks", "description": "List of all supported blockchain networks" },
-            "listProposals": { "title": "Proposal list", "description": "List proposals with pagination" },
-            "getVotingPowerAt": { "title": "Voting power at a timepoint", "description": "A user’s voting power at a given moment" },
-            "getQuorumAt": { "title": "Quorum at a timepoint", "description": "Quorum size at a given moment" },
-            "getProposalVotes": { "title": "Vote details", "description": "Detailed votes on a proposal" },
-            "getAddressStats": { "title": "Address stats", "description": "Statistics for a specific address" },
-            "getModulesInfo": { "title": "Module info", "description": "Information about DLE modules" },
-            "getDLEStatus": { "title": "DLE status", "description": "Overall DLE contract status" },
-            "getProposalStates": { "title": "Proposal states", "description": "States of several proposals at once" }
+            "getProposalSummary": {
+              "title": "Get proposal summary",
+              "description": "Full information about a proposal"
+            },
+            "getGovernanceParams": {
+              "title": "Get governance parameters",
+              "description": "Core DLE governance parameters"
+            },
+            "listSupportedChains": {
+              "title": "Supported networks",
+              "description": "List of all supported blockchain networks"
+            },
+            "listProposals": {
+              "title": "Proposal list",
+              "description": "List proposals with pagination"
+            },
+            "getVotingPowerAt": {
+              "title": "Voting power at a timepoint",
+              "description": "A user’s voting power at a given moment"
+            },
+            "getQuorumAt": {
+              "title": "Quorum at a timepoint",
+              "description": "Quorum size at a given moment"
+            },
+            "getProposalVotes": {
+              "title": "Vote details",
+              "description": "Detailed votes on a proposal"
+            },
+            "getAddressStats": {
+              "title": "Address stats",
+              "description": "Statistics for a specific address"
+            },
+            "getModulesInfo": {
+              "title": "Module info",
+              "description": "Information about DLE modules"
+            },
+            "getDLEStatus": {
+              "title": "DLE status",
+              "description": "Overall DLE contract status"
+            },
+            "getProposalStates": {
+              "title": "Proposal states",
+              "description": "States of several proposals at once"
+            }
           }
         },
         "hierarchicalVoting": {
           "title": "Hierarchical voting",
           "description": "Hierarchical voting module — vote in other DLEs based on token holdings",
           "ops": {
-            "setTreasuryModule": { "title": "Set treasury module", "description": "Set the treasury module address" },
-            "setModuleBridge": { "title": "Attach HV bridge", "description": "First time: initializer wallet call. Replacing an attached bridge: governance proposal." },
-            "addExternalDLE": { "title": "Add external DLE", "description": "Add an external DLE for voting" },
-            "removeExternalDLE": { "title": "Remove external DLE", "description": "Remove an external DLE from the list" },
-            "createExternalVoteOp": { "title": "Create vote operation on B", "description": "Vote on a child DLE via treasury A (holder A)" },
-            "approveOperation": { "title": "Support A→B operation", "description": "Holder A votes for the operation (power from snapshot)" },
-            "rejectOperation": { "title": "Reject A→B operation", "description": "Holder A votes against the operation" },
-            "executeExternalVote": { "title": "Execute treasury vote on B", "description": "Executor only, after quorum A and for > against" },
-            "updateExternalDLEBalance": { "title": "Update DLE balance", "description": "Update the token balance of an external DLE" },
-            "updateAllExternalDLEBalances": { "title": "Update all balances", "description": "Update balances of all external DLEs" }
+            "setTreasuryModule": {
+              "title": "Set treasury module",
+              "description": "Set the treasury module address"
+            },
+            "setModuleBridge": {
+              "title": "Attach HV bridge",
+              "description": "First time: initializer wallet call. Replacing an attached bridge: governance proposal."
+            },
+            "addExternalDLE": {
+              "title": "Add external DLE",
+              "description": "Add an external DLE for voting"
+            },
+            "removeExternalDLE": {
+              "title": "Remove external DLE",
+              "description": "Remove an external DLE from the list"
+            },
+            "createExternalVoteOp": {
+              "title": "Create vote operation on B",
+              "description": "Vote on a child DLE via treasury A (holder A)"
+            },
+            "approveOperation": {
+              "title": "Support A→B operation",
+              "description": "Holder A votes for the operation (power from snapshot)"
+            },
+            "rejectOperation": {
+              "title": "Reject A→B operation",
+              "description": "Holder A votes against the operation"
+            },
+            "executeExternalVote": {
+              "title": "Execute treasury vote on B",
+              "description": "Executor only, after quorum A and for > against"
+            },
+            "updateExternalDLEBalance": {
+              "title": "Update DLE balance",
+              "description": "Update the token balance of an external DLE"
+            },
+            "updateAllExternalDLEBalances": {
+              "title": "Update all balances",
+              "description": "Update balances of all external DLEs"
+            }
           }
         }
       },
@@ -3772,5 +3935,26 @@
       "signatureRejected": "You rejected the signature in MetaMask",
       "connectFailedRetry": "Failed to connect wallet. Please try again."
     }
+  },
+  "catalogFilters": {
+    "category": "Type",
+    "condition": "Condition",
+    "country": "Country",
+    "region": "Region",
+    "city": "City",
+    "group": "Section",
+    "pickGroup": "Cars / Special equipment / Equipment / Real estate",
+    "allGroups": "All sections",
+    "any": "Any",
+    "reset": "Reset",
+    "removeChip": "Remove filter “{label}”",
+    "emptyEditorStore": "No product cards for this filter combo yet. You can create one.",
+    "emptyEditorBlog": "No pages for this filter combo yet. You can create one.",
+    "section": "Section",
+    "allSections": "All sections",
+    "attrsHint": "Add “name → value” fields. Those values can be enabled as filters in section settings.",
+    "attrKey": "Field name",
+    "attrValue": "Value",
+    "addAttr": "Add field"
   }
 }

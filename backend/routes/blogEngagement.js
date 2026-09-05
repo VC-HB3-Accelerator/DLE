@@ -217,6 +217,7 @@ router.put('/feed-settings', requireAuth, async (req, res) => {
     const settings = await blogFeedService.saveFeedSettings({
       filters: req.body?.filters,
       pins: req.body?.pins,
+      guest_limit: req.body?.guest_limit,
     });
     res.json(settings);
   } catch (error) {

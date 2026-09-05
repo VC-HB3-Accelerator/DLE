@@ -134,6 +134,7 @@ function mapProduct(row, mediaRows = [], sectionIds = null) {
     created_by: row.created_by || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    views_count: Number(row.views_count || 0),
   };
 }
 
@@ -165,6 +166,7 @@ function mapProductPublic(row, mediaRows = [], sectionIds = null) {
     media: full.media,
     rating_avg: full.rating_avg ?? null,
     review_count: full.review_count ?? 0,
+    views_count: full.views_count ?? 0,
   };
 }
 
@@ -360,7 +362,12 @@ async function assertReceiptTokenOk(data) {
   return inspected;
 }
 
-async function listProducts({ publishedOnly = false, sectionId = null, sectionSlug = null } = {}) {
+async function listProducts({
+  publishedOnly = false,
+  sectionId = null,
+  sectionSlug = null,
+  facets = null,
+} = {}) {
   let sectionFilterId = sectionId;
   if (!sectionFilterId && sectionSlug) {
     try {
@@ -373,6 +380,17 @@ async function listProducts({ publishedOnly = false, sectionId = null, sectionSl
     } catch (e) {
       if (/store_sections|does not exist/i.test(String(e.message || ''))) return [];
       throw e;
+    }
+  }
+
+  let allowedIds = null;
+  if (facets && Object.values(facets).some(Boolean)) {
+    try {
+      const catalogFilters = require('./catalogFiltersService');
+      allowedIds = await catalogFilters.filterProductIdsByFacets(facets);
+    } catch (e) {
+      if (!/catalog_sections|store_product_attrs|does not exist/i.test(String(e.message || ''))) throw e;
+      allowedIds = null;
     }
   }
 
@@ -394,15 +412,26 @@ async function listProducts({ publishedOnly = false, sectionId = null, sectionSl
       : `SELECT * FROM store_products ORDER BY sort_order ASC, created_at DESC`;
   }
 
-  const { rows } = await db.getQuery()(sql, params);
+  let { rows } = await db.getQuery()(sql, params);
+  if (allowedIds) {
+    rows = rows.filter((r) => allowedIds.has(r.id));
+  }
   const ratingMap = await storeReviews.loadRatingMap(rows.map((r) => r.id));
   const out = [];
   for (const row of rows) {
     const media = await loadProductMedia(row.id);
     const section_ids = await loadProductSectionIds(row.id);
+    let catalogMeta = { catalog_section_id: null, catalog_attrs: [], catalog_section: null };
+    try {
+      const catalogFilters = require('./catalogFiltersService');
+      catalogMeta = await catalogFilters.getProductCatalog(row.id);
+    } catch (_) { /* ignore */ }
     const mapped = publishedOnly
       ? mapProductPublic(row, media, section_ids)
       : mapProduct(row, media, section_ids);
+    mapped.catalog_section_id = catalogMeta.catalog_section_id;
+    mapped.catalog_section = catalogMeta.catalog_section;
+    mapped.catalog_attrs = catalogMeta.catalog_attrs || [];
     out.push(storeReviews.attachRatings(mapped, ratingMap));
   }
   return out;
@@ -419,11 +448,37 @@ async function getProduct(id, { publishedOnly = false } = {}) {
   }
   const media = await loadProductMedia(row.id);
   const section_ids = await loadProductSectionIds(row.id);
+  let catalogMeta = { catalog_section_id: null, catalog_attrs: [], catalog_section: null };
+  try {
+    const catalogFilters = require('./catalogFiltersService');
+    catalogMeta = await catalogFilters.getProductCatalog(row.id);
+  } catch (_) { /* ignore */ }
   const mapped = publishedOnly
     ? mapProductPublic(row, media, section_ids)
     : mapProduct(row, media, section_ids);
+  mapped.catalog_section_id = catalogMeta.catalog_section_id;
+  mapped.catalog_section = catalogMeta.catalog_section;
+  mapped.catalog_attrs = catalogMeta.catalog_attrs || [];
   const ratingMap = await storeReviews.loadRatingMap([row.id]);
   return storeReviews.attachRatings(mapped, ratingMap);
+}
+
+/** +1 просмотр (как у статей ленты; updated_at не трогаем) */
+async function recordProductView(productId) {
+  const { rows } = await db.getQuery()(
+    `UPDATE store_products
+     SET views_count = COALESCE(views_count, 0) + 1
+     WHERE id = $1::uuid
+     RETURNING views_count::int AS views`,
+    [productId]
+  );
+  if (!rows[0]) {
+    const err = new Error('Товар не найден');
+    err.status = 404;
+    err.code = 'PRODUCT_NOT_FOUND';
+    throw err;
+  }
+  return { viewsCount: rows[0].views || 0 };
 }
 
 function validateProductPayload(payload) {
@@ -526,6 +581,9 @@ function validateProductPayload(payload) {
     ? payload.section_ids.map((id) => String(id)).filter(Boolean)
     : [];
 
+  const catalogFilters = require('./catalogFiltersService');
+  const catalogNorm = catalogFilters.normalizeTermsPayload(payload);
+
   return {
     title,
     summary: String(payload.summary || '').slice(0, 500),
@@ -550,6 +608,8 @@ function validateProductPayload(payload) {
     max_qty,
     max_payments_per_wallet,
     section_ids,
+    catalog_section_id: catalogNorm.catalog_section_id,
+    catalog_attrs: catalogNorm.catalog_attrs,
     media_ids: payload.media_ids,
   };
 }
@@ -586,6 +646,15 @@ async function createProduct(payload, createdBy) {
   );
   await setProductMedia(rows[0].id, data.media_ids);
   await setProductSections(rows[0].id, data.section_ids);
+  try {
+    const catalogFilters = require('./catalogFiltersService');
+    await catalogFilters.applyEntityCatalogPayload('product', rows[0].id, {
+      catalog_section_id: data.catalog_section_id,
+      catalog_attrs: data.catalog_attrs,
+    });
+  } catch (e) {
+    if (!/catalog_sections|store_product_attrs|does not exist/i.test(String(e.message || ''))) throw e;
+  }
   return getProduct(rows[0].id);
 }
 
@@ -623,6 +692,15 @@ async function updateProduct(id, payload) {
   }
   await setProductMedia(id, data.media_ids);
   await setProductSections(id, data.section_ids);
+  try {
+    const catalogFilters = require('./catalogFiltersService');
+    await catalogFilters.applyEntityCatalogPayload('product', id, {
+      catalog_section_id: data.catalog_section_id,
+      catalog_attrs: data.catalog_attrs,
+    });
+  } catch (e) {
+    if (!/catalog_sections|store_product_attrs|does not exist/i.test(String(e.message || ''))) throw e;
+  }
   return getProduct(id);
 }
 
@@ -1863,6 +1941,7 @@ module.exports = {
   saveSettings,
   listProducts,
   getProduct,
+  recordProductView,
   createProduct,
   updateProduct,
   setProductMedia,

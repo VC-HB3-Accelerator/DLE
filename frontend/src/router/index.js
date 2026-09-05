@@ -777,6 +777,13 @@ function isOwnContactScreen(to, meOverride) {
     || to.name === 'contact-conference-live';
 }
 
+/** Главная `/` — только для гостя; вошедший → своя карточка. */
+function ownContactDetailsRoute(rawId) {
+  const id = Number(rawId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return { name: 'contact-details', params: { id: String(id) } };
+}
+
 // console.log('router/index.js: Router created');
 
 // Защита маршрутов — meta.permission / meta.requiresAuth + матрица экранов по роли
@@ -790,6 +797,12 @@ router.beforeEach(async (to, from, next) => {
   const editorOnly = to.matched.some((r) => r.meta?.editorOnly);
 
   try {
+    // Вошедший на `/` → личный чат/карточка (сайдбар «Чат» ведёт туда же)
+    if (to.name === 'home') {
+      const dest = ownContactDetailsRoute(sessionUserId?.value);
+      if (dest) return next(dest);
+    }
+
     await ensureScreenAccessLoaded();
     await ensureActionAccessLoaded();
     if (!canAccessPath(to.path)) {

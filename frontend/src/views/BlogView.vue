@@ -27,10 +27,12 @@
 
       <!-- Иначе показываем список статей -->
       <template v-else>
-        <BlogFeedToolbar
-          v-model="activeFilter"
-          :filters="feedFilters"
+        <BlogCatalogFilters
+          v-model="catalogFacets"
+          scope="blog"
+          :only-used="!canCreatePage"
           :can-manage="canManageFeed"
+          @change="onCatalogFacetsChange"
           @open-settings="openFeedSettings"
         >
           <button
@@ -41,10 +43,20 @@
           >
             {{ t('blog.newPost') }}
           </button>
-        </BlogFeedToolbar>
+        </BlogCatalogFilters>
 
-        <!-- Загрузка -->
-        <div v-if="isLoading" class="loading-state">
+        <div
+          v-if="canCreatePage && catalogHasSelection && !filteredPages.length && !isLoading && !loadError"
+          class="blog-facet-empty"
+        >
+          <p>{{ t('catalogFilters.emptyEditorBlog') }}</p>
+          <button type="button" class="empty-create" @click="goToCreate">
+            {{ t('blog.newPost') }}
+          </button>
+        </div>
+
+        <!-- Загрузка первой порции -->
+        <div v-if="isLoading && !pages.length" class="loading-state">
           <div class="loading-spinner"></div>
           <p>{{ t('blog.loading') }}</p>
         </div>
@@ -60,7 +72,7 @@
         </div>
 
         <!-- Пустое состояние -->
-        <div v-else-if="filteredPages.length === 0" class="empty-state">
+        <div v-else-if="!isLoading && filteredPages.length === 0" class="empty-state">
           <div class="empty-icon"><BlogGlyph name="book" /></div>
           <h3>{{ t('blog.emptyTitle') }}</h3>
           <p>{{ t('blog.emptyDescription') }}</p>
@@ -74,10 +86,10 @@
           </button>
         </div>
 
-        <!-- Лента статей (feed) -->
+        <!-- Лента статей (feed) + infinite scroll -->
         <div v-else class="blog-feed">
           <BlogFeedCard
-            v-for="page in filteredPages"
+            v-for="page in visiblePages"
             :key="page.id"
             :page="page"
             :is-authenticated="isAuthenticated"
@@ -85,6 +97,8 @@
             @open-article="openArticleForEngagement"
             @open-comments="(p) => openArticleForEngagement(p, 'comments')"
           />
+          <div ref="scrollSentinel" class="blog-feed__sentinel" aria-hidden="true" />
+          <p v-if="isLoadingMore" class="blog-feed__more">{{ t('blog.loading') }}</p>
         </div>
       </template>
     </div>
@@ -92,17 +106,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import DocsContent from '../components/docs/DocsContent.vue';
 import BlogFeedCard from '../components/blog/BlogFeedCard.vue';
-import BlogFeedToolbar from '../components/blog/BlogFeedToolbar.vue';
+import BlogCatalogFilters from '../components/blog/BlogCatalogFilters.vue';
 import BlogGlyph from '../components/blog/BlogGlyph.vue';
 import UiGlyph from '../components/UiGlyph.vue';
 import pagesService from '../services/pagesService';
-import blogFeedService from '../services/blogFeedService';
+import {
+  catalogSelectionFromQuery,
+  catalogSelectionToQuery,
+  catalogTermsPayloadFromSelection,
+  emptyCatalogSelection,
+} from '../services/catalogFiltersService';
 import { usePermissions } from '../composables/usePermissions';
 import { PERMISSIONS } from '../composables/permissions.js';
 import { canAccessPath, ensureScreenAccessLoaded } from '../composables/useScreenAccess.js';
@@ -121,14 +140,21 @@ const route = useRoute();
 const { t } = useI18n();
 const { hasPermission } = usePermissions();
 
+const PAGE_CHUNK = 12;
 const pages = ref([]);
+const visibleCount = ref(PAGE_CHUNK);
 const isLoading = ref(false);
+const isLoadingMore = ref(false);
 const loadError = ref('');
-const feedFilters = ref([]);
-const activeFilter = ref('');
 const loadPagesRequestId = ref(0);
+const catalogFacets = ref(catalogSelectionFromQuery(route.query));
+const scrollSentinel = ref(null);
+let scrollObserver = null;
 const canManageFeed = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 const canCreatePage = computed(() => canAccessPath('/content/create'));
+const catalogHasSelection = computed(() =>
+  Object.values(catalogFacets.value || {}).some(Boolean)
+);
 
 const currentSlug = computed(() => {
   return route.params.slug || null;
@@ -151,16 +177,30 @@ const currentPageId = computed(() => {
   return null;
 });
 
-const filteredPages = computed(() => {
-  return pages.value;
-});
+const filteredPages = computed(() => pages.value);
+const visiblePages = computed(() => pages.value.slice(0, visibleCount.value));
 
 function openFeedSettings() {
   router.push({ name: 'blog-feed-settings' });
 }
 
 function goToCreate() {
-  router.push({ name: 'content-create', query: { visibility: 'public' } });
+  router.push({
+    name: 'content-create',
+    query: {
+      visibility: 'public',
+      ...catalogTermsPayloadFromSelection(catalogFacets.value),
+    },
+  });
+}
+
+function onCatalogFacetsChange(next) {
+  catalogFacets.value = { ...emptyCatalogSelection(), ...next };
+  const query = catalogSelectionToQuery(catalogFacets.value, { ...route.query });
+  delete query.filter;
+  delete query.subscribed;
+  router.replace({ name: 'blog', query }).catch(() => {});
+  loadPages();
 }
 
 function getArticleUrl(page) {
@@ -197,39 +237,7 @@ function goToIndex() {
 
 
 function readFilterFromRoute() {
-  const q = route.query.filter;
-  return typeof q === 'string' && q.trim() ? q.trim() : '';
-}
-
-function syncFilterQuery(slug) {
-  if (currentPageId.value || currentSlug.value) return;
-  const current = typeof route.query.filter === 'string' ? route.query.filter : '';
-  if (current === slug) return;
-  const query = { ...route.query };
-  delete query.subscribed;
-  if (slug) query.filter = slug;
-  else delete query.filter;
-  router.replace({ name: 'blog', query }).catch(() => {});
-}
-
-async function loadFeedFilters() {
-  try {
-    const filters = await blogFeedService.getFeedFilters();
-    feedFilters.value = Array.isArray(filters) ? filters : [];
-    if (!activeFilter.value) {
-      const defaultFilter = feedFilters.value.find((f) => f.is_default) || feedFilters.value[0];
-      activeFilter.value = defaultFilter?.slug || 'new';
-    } else if (!feedFilters.value.some((f) => f.slug === activeFilter.value)) {
-      const defaultFilter = feedFilters.value.find((f) => f.is_default) || feedFilters.value[0];
-      activeFilter.value = defaultFilter?.slug || 'new';
-    }
-  } catch (e) {
-    console.error('[BlogView] Ошибка загрузки фильтров:', e);
-    feedFilters.value = [];
-    if (!activeFilter.value) {
-      activeFilter.value = 'new';
-    }
-  }
+  return '';
 }
 
 async function loadPages() {
@@ -237,13 +245,16 @@ async function loadPages() {
   try {
     isLoading.value = true;
     loadError.value = '';
+    visibleCount.value = PAGE_CHUNK;
     const loadedPages = await pagesService.getBlogPages({
-      filter: activeFilter.value || undefined,
+      ...catalogTermsPayloadFromSelection(catalogFacets.value),
     });
 
     if (requestId !== loadPagesRequestId.value) return;
-    
+
     pages.value = loadedPages;
+    await nextTick();
+    setupScrollObserver();
   } catch (e) {
     if (requestId !== loadPagesRequestId.value) return;
     console.error('[BlogView] Ошибка загрузки страниц:', e);
@@ -254,6 +265,25 @@ async function loadPages() {
       isLoading.value = false;
     }
   }
+}
+
+function revealMore() {
+  if (visibleCount.value >= pages.value.length) return;
+  isLoadingMore.value = true;
+  visibleCount.value = Math.min(visibleCount.value + PAGE_CHUNK, pages.value.length);
+  isLoadingMore.value = false;
+}
+
+function setupScrollObserver() {
+  if (scrollObserver) {
+    scrollObserver.disconnect();
+    scrollObserver = null;
+  }
+  if (!scrollSentinel.value) return;
+  scrollObserver = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) revealMore();
+  }, { rootMargin: '240px' });
+  scrollObserver.observe(scrollSentinel.value);
 }
 
 // Установка мета-тегов для страницы блога
@@ -354,68 +384,81 @@ watch(() => pages.value, () => {
   }
 }, { immediate: true });
 
-watch(activeFilter, async (slug, prev) => {
-  if (!slug) return;
-  if (prev) {
-    syncFilterQuery(slug);
-  }
-  if (!prev || slug === prev) return;
-  if (currentPageId.value || currentSlug.value) return;
-  await loadPages();
-});
-
 watch(
-  () => route.query.filter,
-  async (filterQuery) => {
+  () => route.query,
+  () => {
     if (currentPageId.value || currentSlug.value) return;
-    const next = typeof filterQuery === 'string' && filterQuery.trim()
-      ? filterQuery.trim()
-      : '';
-    if (!next || next === activeFilter.value) return;
-    if (feedFilters.value.length && !feedFilters.value.some((f) => f.slug === next)) return;
-    activeFilter.value = next;
-  }
+    const next = catalogSelectionFromQuery(route.query);
+    const cur = catalogFacets.value || {};
+    const keys = new Set([...Object.keys(cur), ...Object.keys(next)]);
+    const same = [...keys].every((k) => (cur[k] || '') === (next[k] || ''));
+    if (!same) {
+      catalogFacets.value = next;
+      loadPages();
+    }
+  },
+  { deep: true }
 );
 
 onMounted(async () => {
   await ensureScreenAccessLoaded();
-  const fromUrl = readFilterFromRoute();
-  if (fromUrl) {
-    activeFilter.value = fromUrl;
-  }
-
-  await loadFeedFilters();
+  catalogFacets.value = catalogSelectionFromQuery(route.query);
   await loadPages();
 
   if (route.query.subscribed === '1') {
-    const query = {};
-    if (activeFilter.value) query.filter = activeFilter.value;
+    const query = catalogSelectionToQuery(catalogFacets.value, {});
     router.replace({ name: 'blog', query });
   }
 
-  // Устанавливаем мета-теги только если не открыта отдельная статья
   if (!currentPageId.value && !currentSlug.value) {
     updateBlogMetaTags();
     addBlogJsonLd();
   }
+});
+
+onBeforeUnmount(() => {
+  if (scrollObserver) scrollObserver.disconnect();
 });
 </script>
 
 <style scoped>
 .blog-page {
   width: 100%;
-  max-width: 640px;
+  max-width: 560px;
   min-width: 0;
   margin: 0 auto;
-  padding: var(--block-padding) var(--spacing-lg) 48px;
+  padding: var(--block-padding) 0 48px;
   min-height: calc(100vh - 200px);
   box-sizing: border-box;
   overflow-x: hidden;
 }
 
+.blog-feed__sentinel {
+  height: 1px;
+  width: 100%;
+}
+.blog-feed__more {
+  text-align: center;
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-md) 0;
+}
+.blog-facet-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  margin: 0 0 var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px dashed var(--color-border, #ddd);
+  border-radius: var(--radius-sm, 6px);
+}
+
 .blog-page--article {
   max-width: 920px;
   padding-top: var(--spacing-xl);
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
 }
 
 .loading-state,

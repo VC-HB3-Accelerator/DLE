@@ -109,7 +109,9 @@ async function ensureAdminPagesTable(fields) {
       'parent_id INTEGER', // ID родительской страницы
       'order_index INTEGER DEFAULT 0', // Порядок сортировки
       'nav_path TEXT', // Путь навигации
-      'is_index_page BOOLEAN DEFAULT FALSE' // Является ли индексной страницей
+      'is_index_page BOOLEAN DEFAULT FALSE', // Является ли индексной страницей
+      'owner_user_id INTEGER', // Владелец объявления (dataScope own)
+      'owner_domain TEXT' // Домен владельца (dataScope domain)
     ];
     for (const field of fields) {
       columns.push(`"${field}_encrypted" TEXT`);
@@ -187,6 +189,18 @@ async function ensureAdminPagesTable(fields) {
         `ALTER TABLE ${tableName} ADD COLUMN is_index_page BOOLEAN DEFAULT FALSE`
       );
     }
+
+    if (!existingCols.includes('owner_user_id')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN owner_user_id INTEGER`
+      );
+    }
+
+    if (!existingCols.includes('owner_domain')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN owner_domain TEXT`
+      );
+    }
     
     for (const field of fields) {
       const encryptedField = `${field}_encrypted`;
@@ -198,6 +212,36 @@ async function ensureAdminPagesTable(fields) {
     }
   }
   return { tableName, encryptionKey };
+}
+
+/**
+ * Проверка прав на создание/редактирование страницы (blog + legal scope).
+ * @returns {Promise<{ access, pageRow }|null>}
+ */
+async function assertPageWriteAccess(req, res, { pageRow = null, pageId = null } = {}) {
+  if (!req.session?.authenticated || !req.session?.userId) {
+    res.status(401).json({ error: 'Требуется аутентификация' });
+    return null;
+  }
+
+  const blogContentAccess = require('../services/blogContentAccessService');
+  const access = await blogContentAccess.resolveViewerAccess(req);
+  let row = pageRow;
+
+  if (!row && pageId != null) {
+    row = await blogContentAccess.loadPageRow(pageId);
+    if (!row) {
+      res.status(404).json({ error: 'Page not found' });
+      return null;
+    }
+  }
+
+  if (!blogContentAccess.canWritePage(access, row, req.session.userId)) {
+    res.status(403).json({ error: 'Недостаточно прав для этой страницы' });
+    return null;
+  }
+
+  return { access, pageRow: row };
 }
 
 // Конфигурация загрузки файлов для юридических документов
@@ -592,37 +636,18 @@ router.post('/', conditionalUpload, async (req, res) => {
   console.log('[pages] POST /: req.file:', req.file ? { name: req.file.originalname, size: req.file.size } : 'нет файла');
   
   try {
-    if (!req.session || !req.session.authenticated) {
-      console.log('[pages] POST /: Ошибка аутентификации - сессия не найдена');
-      return res.status(401).json({ error: 'Требуется аутентификация' });
-    }
-    if (!req.session.address) {
-      console.log('[pages] POST /: Ошибка - адрес кошелька не найден');
-      return res.status(403).json({ error: 'Требуется подключение кошелька' });
-    }
-    
-    console.log('[pages] POST /: Проверка прав доступа для адреса:', req.session.address);
-    // Проверяем роль админа через токены в кошельке
-    const authService = require('../services/auth-service');
-    let userAccessLevel;
-    try {
-      userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    } catch (authError) {
-      console.error('[pages] POST /: Ошибка при проверке прав доступа:', authError);
-      if (authError.message && authError.message.includes('timeout exceeded')) {
-        return res.status(503).json({ error: 'Ошибка подключения к базе данных. Попробуйте позже.' });
-      }
-      throw authError;
+    const writeCtx = await assertPageWriteAccess(req, res);
+    if (!writeCtx) return;
+    const { access } = writeCtx;
+
+    const blogContentAccess = require('../services/blogContentAccessService');
+    const authorAddress = await blogContentAccess.resolveAuthorAddress(req);
+    if (!authorAddress) {
+      return res.status(403).json({ error: 'Не удалось определить автора страницы' });
     }
     
-    if (!userAccessLevel.hasAccess) {
-      console.log('[pages] POST /: Доступ запрещен - недостаточно прав');
-      return res.status(403).json({ error: 'Only admin can create pages' });
-    }
+    console.log('[pages] POST /: Права доступа подтверждены, dataScope:', access.dataScope);
     
-    console.log('[pages] POST /: Права доступа подтверждены, уровень:', userAccessLevel.level);
-    
-    const authorAddress = req.session.address;
     const tableName = `admin_pages_simple`;
 
     // Собираем данные страницы
@@ -702,7 +727,9 @@ router.post('/', conditionalUpload, async (req, res) => {
         : 0,
       nav_path: bodyRaw.nav_path || null,
       is_index_page: bodyRaw.is_index_page === true || bodyRaw.is_index_page === 'true',
-      show_in_blog: bodyRaw.show_in_blog === true || bodyRaw.show_in_blog === 'true' || bodyRaw.show_in_blog === true
+      show_in_blog: bodyRaw.show_in_blog === true || bodyRaw.show_in_blog === 'true' || bodyRaw.show_in_blog === true,
+      owner_user_id: req.session.userId,
+      owner_domain: access.domain || null,
     };
 
     console.log('[pages] POST /: Создание страницы, данные:', {
@@ -800,9 +827,43 @@ router.post('/', conditionalUpload, async (req, res) => {
       }
     }
 
-    const createResponse = { ...created, seoHtml: seo, feed_filter_ids };
+    let catalogMeta = { catalog_section_id: null, catalog_attrs: [] };
+    let catalog_terms_error;
+    if (
+      Object.prototype.hasOwnProperty.call(bodyRaw, 'catalog_section_id')
+      || Object.prototype.hasOwnProperty.call(bodyRaw, 'catalog_attrs')
+      || Object.prototype.hasOwnProperty.call(bodyRaw, 'catalog_terms')
+      || Object.prototype.hasOwnProperty.call(bodyRaw, 'catalog_term_ids')
+    ) {
+      try {
+        const catalogFilters = require('../services/catalogFiltersService');
+        let attrs = bodyRaw.catalog_attrs;
+        if (typeof attrs === 'string') {
+          try { attrs = JSON.parse(attrs); } catch { attrs = []; }
+        }
+        catalogMeta = await catalogFilters.applyEntityCatalogPayload('page', created.id, {
+          catalog_section_id: bodyRaw.catalog_section_id || null,
+          catalog_attrs: attrs || [],
+        });
+      } catch (termErr) {
+        console.warn('[pages] POST: sync catalog attrs:', termErr.message);
+        catalog_terms_error = termErr.message;
+      }
+    }
+
+    const createResponse = {
+      ...created,
+      seoHtml: seo,
+      feed_filter_ids,
+      catalog_section_id: catalogMeta.catalog_section_id,
+      catalog_section: catalogMeta.catalog_section || null,
+      catalog_attrs: catalogMeta.catalog_attrs || [],
+    };
     if (feed_filter_error) {
       createResponse.feed_filter_error = feed_filter_error;
+    }
+    if (catalog_terms_error) {
+      createResponse.catalog_terms_error = catalog_terms_error;
     }
     res.json(createResponse);
   } catch (error) {
@@ -847,58 +908,62 @@ router.post('/', conditionalUpload, async (req, res) => {
 
 // Получить все страницы админов
 router.get('/', async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
+  if (!req.session?.authenticated || !req.session?.userId) {
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  // Проверяем роль админа через токены в кошельке
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
+
+  const blogContentAccess = require('../services/blogContentAccessService');
+  const access = await blogContentAccess.resolveViewerAccess(req);
+  if (!blogContentAccess.canListPages(access)) {
     return res.status(403).json({ error: 'Only admin can view pages' });
   }
   
   const tableName = `admin_pages_simple`;
   
-  // Получаем ключ шифрования
-  // Получаем ключ шифрования через унифицированную утилиту
-  const encryptionUtils = require('../utils/encryptionUtils');
-  const encryptionKey = encryptionUtils.getEncryptionKey();
-  
-  // Проверяем, есть ли таблица
   const existsRes = await db.getQuery()(
     `SELECT to_regclass($1) as exists`, [tableName]
   );
   if (!existsRes.rows[0].exists) return res.json([]);
   
-  // Получаем все страницы всех админов
+  const where = [];
+  const params = [];
+  let idx = 1;
+  if (!blogContentAccess.canManageLegalGlobal(access)) {
+    idx = blogContentAccess.appendPagesScopeWhere(access, req.session.userId, where, params, idx);
+  }
+  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
   const { rows } = await db.getQuery()(`
-    SELECT * FROM ${tableName} 
+    SELECT * FROM ${tableName}
+    ${whereClause}
     ORDER BY created_at DESC
-  `);
+  `, params);
   
   res.json(rows);
 });
+
+// Создать категорию (global legal docs — platform editor)
+async function assertLegalGlobalAccess(req, res) {
+  if (!req.session?.authenticated || !req.session?.userId) {
+    res.status(401).json({ error: 'Требуется аутентификация' });
+    return null;
+  }
+  const blogContentAccess = require('../services/blogContentAccessService');
+  const access = await blogContentAccess.resolveViewerAccess(req);
+  if (!blogContentAccess.canManageLegalGlobal(access)) {
+    res.status(403).json({ error: 'Only admin can manage categories' });
+    return null;
+  }
+  const authorAddress = await blogContentAccess.resolveAuthorAddress(req);
+  return { access, authorAddress };
+}
 
 // ========== РОУТЫ ДЛЯ КАТЕГОРИЙ (должны быть ПЕРЕД параметрическими роутами типа /:id) ==========
 
 // Создать категорию
 router.post('/categories', async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can create categories' });
-  }
+  const legalCtx = await assertLegalGlobalAccess(req, res);
+  if (!legalCtx) return;
   
   try {
     const { name, display_name, description, order_index } = req.body;
@@ -925,7 +990,7 @@ router.post('/categories', async (req, res) => {
       `INSERT INTO document_categories (name, display_name, description, order_index, author_address)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [normalizedName, displayName, description || null, order_index || 0, req.session.address]
+      [normalizedName, displayName, description || null, order_index || 0, legalCtx.authorAddress]
     );
     
     console.log(`[pages] POST /categories: создана категория "${normalizedName}"`);
@@ -944,18 +1009,8 @@ router.post('/categories', async (req, res) => {
 
 // Удалить категорию
 router.delete('/categories/:name', async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can delete categories' });
-  }
+  const legalCtx = await assertLegalGlobalAccess(req, res);
+  if (!legalCtx) return;
   
   try {
     const categoryName = decodeURIComponent(req.params.name).toLowerCase();
@@ -1127,6 +1182,18 @@ router.get('/:id', async (req, res) => {
     } catch (e) {
       page.feed_filter_ids = [];
     }
+
+    try {
+      const catalogFilters = require('../services/catalogFiltersService');
+      const cat = await catalogFilters.getPageCatalog(page.id);
+      page.catalog_section_id = cat.catalog_section_id;
+      page.catalog_section = cat.catalog_section;
+      page.catalog_attrs = cat.catalog_attrs;
+    } catch (e) {
+      page.catalog_section_id = null;
+      page.catalog_section = null;
+      page.catalog_attrs = [];
+    }
     
     // Проверяем доступ к странице в зависимости от её видимости
     // authService уже объявлен выше при автоматической авторизации, используем его
@@ -1215,19 +1282,8 @@ router.get('/:id', async (req, res) => {
 
 // Ручная переиндексация документа в pgvector (только для админа)
 router.post('/:id/reindex', async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-
-  // Проверяем роль админа через токены в кошельке
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can reindex pages' });
-  }
+  const writeCtx = await assertPageWriteAccess(req, res, { pageId: req.params.id });
+  if (!writeCtx) return;
 
   const tableName = `admin_pages_simple`;
   const existsRes = await db.getQuery()( `SELECT to_regclass($1) as exists`, [tableName] );
@@ -1330,35 +1386,8 @@ router.post('/:id/reindex', async (req, res) => {
 router.patch('/:id', upload.single('file'), async (req, res) => {
   console.log('[pages] PATCH /:id: Начало обработки запроса на обновление страницы ID:', req.params.id);
   try {
-    if (!req.session || !req.session.authenticated) {
-      console.log('[pages] PATCH /:id: Ошибка аутентификации - сессия не найдена');
-      return res.status(401).json({ error: 'Требуется аутентификация' });
-    }
-    if (!req.session.address) {
-      console.log('[pages] PATCH /:id: Ошибка - адрес кошелька не найден');
-      return res.status(403).json({ error: 'Требуется подключение кошелька' });
-    }
-    
-    console.log('[pages] PATCH /:id: Проверка прав доступа для адреса:', req.session.address);
-    // Проверяем роль админа через токены в кошельке
-    const authService = require('../services/auth-service');
-    let userAccessLevel;
-    try {
-      userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    } catch (authError) {
-      console.error('[pages] PATCH /:id: Ошибка при проверке прав доступа:', authError);
-      if (authError.message && authError.message.includes('timeout exceeded')) {
-        return res.status(503).json({ error: 'Ошибка подключения к базе данных. Попробуйте позже.' });
-      }
-      throw authError;
-    }
-    
-    if (!userAccessLevel.hasAccess) {
-      console.log('[pages] PATCH /:id: Доступ запрещен - недостаточно прав');
-      return res.status(403).json({ error: 'Only admin can edit pages' });
-    }
-    
-    console.log('[pages] PATCH /:id: Права доступа подтверждены, уровень:', userAccessLevel.level);
+    const writeCtx = await assertPageWriteAccess(req, res, { pageId: req.params.id });
+    if (!writeCtx) return;
   
   const tableName = `admin_pages_simple`;
   const existsRes = await db.getQuery()(
@@ -1390,7 +1419,10 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   for (const [k, v] of Object.entries(incoming)) {
     if (FIELDS_TO_EXCLUDE.includes(k)) continue;
     if (k === 'required_permission') continue; // Уже обработано выше
-    if (k === 'feed_filter_ids' || k === 'seoHtml') continue; // не колонки admin_pages_simple
+    if (k === 'feed_filter_ids' || k === 'seoHtml' || k === 'catalog_terms' || k === 'catalog_term_ids'
+      || k === 'catalog_section_id' || k === 'catalog_attrs' || k === 'catalog_section'
+      || k === 'catalog_category' || k === 'catalog_condition' || k === 'catalog_country'
+      || k === 'catalog_region' || k === 'catalog_city') continue; // не колонки admin_pages_simple
     
     // Обрабатываем show_in_blog как boolean
     if (k === 'show_in_blog') {
@@ -1630,9 +1662,51 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
     }
   }
 
-  const updateResponse = { ...updated, seoHtml: seo, feed_filter_ids };
+  let catalogMeta = { catalog_section_id: null, catalog_attrs: [] };
+  let catalog_terms_error;
+  const body = req.body || {};
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'catalog_section_id')
+    || Object.prototype.hasOwnProperty.call(body, 'catalog_attrs')
+    || Object.prototype.hasOwnProperty.call(body, 'catalog_terms')
+    || Object.prototype.hasOwnProperty.call(body, 'catalog_term_ids')
+  ) {
+    try {
+      const catalogFilters = require('../services/catalogFiltersService');
+      let attrs = body.catalog_attrs;
+      if (typeof attrs === 'string') {
+        try { attrs = JSON.parse(attrs); } catch { attrs = []; }
+      }
+      catalogMeta = await catalogFilters.applyEntityCatalogPayload('page', updated.id, {
+        catalog_section_id: body.catalog_section_id || null,
+        catalog_attrs: attrs || [],
+      });
+    } catch (termErr) {
+      console.warn('[pages] PATCH: sync catalog attrs:', termErr.message);
+      catalog_terms_error = termErr.message;
+    }
+  } else {
+    try {
+      const catalogFilters = require('../services/catalogFiltersService');
+      catalogMeta = await catalogFilters.getPageCatalog(updated.id);
+    } catch {
+      catalogMeta = { catalog_section_id: null, catalog_attrs: [] };
+    }
+  }
+
+  const updateResponse = {
+    ...updated,
+    seoHtml: seo,
+    feed_filter_ids,
+    catalog_section_id: catalogMeta.catalog_section_id,
+    catalog_section: catalogMeta.catalog_section || null,
+    catalog_attrs: catalogMeta.catalog_attrs || [],
+  };
   if (feed_filter_error) {
     updateResponse.feed_filter_error = feed_filter_error;
+  }
+  if (catalog_terms_error) {
+    updateResponse.catalog_terms_error = catalog_terms_error;
   }
   res.json(updateResponse);
   } catch (error) {
@@ -1671,19 +1745,8 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
 
 // Удалить страницу по id
 router.delete('/:id', async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  // Проверяем роль админа через токены в кошельке
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can delete pages' });
-  }
+  const writeCtx = await assertPageWriteAccess(req, res, { pageId: req.params.id });
+  if (!writeCtx) return;
   
   const tableName = `admin_pages_simple`;
   const pageId = parseInt(req.params.id);
@@ -1844,17 +1907,34 @@ router.get('/blog/all', async (req, res) => {
       return res.json([]);
     }
     
-    // Поддержка фильтрации по категории, поиску и режиму сортировки ленты.
+    // Поддержка фильтрации по CMS-категории документа, поиску, sort-фильтру ленты и связанным фасетам каталога.
     // for_seo=1 — полный список для prerender/sitemap, без подборки default-фильтра.
-    const { category, search, filter: filterSlug, for_seo: forSeoRaw } = req.query;
+    const {
+      category: cmsCategory,
+      search,
+      filter: filterSlug,
+      for_seo: forSeoRaw,
+    } = req.query;
     const forSeo = forSeoRaw === '1' || forSeoRaw === 'true';
     let whereClause = `WHERE visibility = 'public' AND status = 'published' AND show_in_blog = TRUE`;
     const params = [];
     let paramIndex = 1;
-    
-    if (category) {
+
+    const catalogSection = req.query.section || req.query.group || null;
+    const reservedFacetKeys = new Set([
+      'category', 'search', 'filter', 'for_seo', 'section', 'group',
+      'page', 'q', 'sort', 'only_used', 'scope', 'catalog_category',
+      'condition', 'country', 'region', 'city',
+    ]);
+    const catalogAttrFacets = {};
+    for (const [k, v] of Object.entries(req.query || {})) {
+      if (reservedFacetKeys.has(k)) continue;
+      if (typeof v === 'string' && v.trim()) catalogAttrFacets[k] = v.trim();
+    }
+    const hasTaxonomy = Boolean(catalogSection || Object.keys(catalogAttrFacets).length);
+    if (cmsCategory && !hasTaxonomy) {
       whereClause += ` AND category = $${paramIndex}`;
-      params.push(category);
+      params.push(cmsCategory);
       paramIndex++;
     }
     
@@ -1915,12 +1995,29 @@ router.get('/blog/all', async (req, res) => {
     const withCounts = await attachEngagementCounts(processedRows);
     const withPreviews = await attachPreviewComments(withCounts);
 
-    let sorted = withPreviews;
+    let facetFiltered = withPreviews;
+    try {
+      const catalogFilters = require('../services/catalogFiltersService');
+      const catalogFacets = {
+        section: catalogSection,
+        ...catalogAttrFacets,
+      };
+      if (Object.values(catalogFacets).some(Boolean)) {
+        const allowed = await catalogFilters.filterPageIdsByFacets(catalogFacets);
+        if (allowed) {
+          facetFiltered = withPreviews.filter((p) => allowed.has(p.id));
+        }
+      }
+    } catch (facetErr) {
+      console.warn('[pages] GET /blog/all: catalog facet fallback:', facetErr.message);
+    }
+
+    let sorted = facetFiltered;
     try {
       const blogFeedService = require('../services/blogFeedService');
       const pinnedMap = await blogFeedService.getPinnedMap();
       if (forSeo) {
-        sorted = blogFeedService.sortFeedPages(withPreviews, {
+        sorted = blogFeedService.sortFeedPages(facetFiltered, {
           sortBy: 'new',
           pinnedMap,
         }).map((page) => ({
@@ -1935,7 +2032,8 @@ router.get('/blog/all', async (req, res) => {
         const curatedIds = activeFilter?.id
           ? await blogFeedService.getFilterPageIds(activeFilter.id)
           : null;
-        const restricted = blogFeedService.applyFilterPageRestriction(withPreviews, curatedIds);
+        // Важно: ограничение curated-фильтра идёт поверх уже отфильтрованных фасетов каталога
+        const restricted = blogFeedService.applyFilterPageRestriction(facetFiltered, curatedIds);
         sorted = blogFeedService.sortFeedPages(restricted, {
           sortBy: activeFilter?.sort_by || 'new',
           pinnedMap,
@@ -1947,6 +2045,20 @@ router.get('/blog/all', async (req, res) => {
       }
     } catch (sortErr) {
       console.warn('[pages] GET /blog/all: feed sort fallback:', sortErr.message);
+      sorted = facetFiltered;
+    }
+
+    const isGuest = !req.session?.authenticated;
+    if (isGuest && !forSeo) {
+      try {
+        const blogFeedService = require('../services/blogFeedService');
+        const guestLimit = await blogFeedService.getGuestLimit();
+        if (guestLimit != null && guestLimit >= 0) {
+          sorted = sorted.slice(0, guestLimit);
+        }
+      } catch (limitErr) {
+        console.warn('[pages] GET /blog/all: guest_limit fallback:', limitErr.message);
+      }
     }
 
     res.json(sorted);
@@ -2752,17 +2864,8 @@ function escapeXml(unsafe) {
 // Endpoint для ручного запуска pre-rendering блога
 router.post('/blog/prerender', async (req, res) => {
   try {
-    // Проверка прав доступа (только админ)
-    if (!req.session || !req.session.authenticated || !req.session.address) {
-      return res.status(401).json({ error: 'Требуется аутентификация' });
-    }
-    
-    const authService = require('../services/auth-service');
-    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    
-    if (!userAccessLevel.hasAccess) {
-      return res.status(403).json({ error: 'Недостаточно прав' });
-    }
+    const legalCtx = await assertLegalGlobalAccess(req, res);
+    if (!legalCtx) return;
     
     // Парсим параметры
     let { renderList = true, renderArticles = true, specificSlug = null } = req.body;

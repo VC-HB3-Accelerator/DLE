@@ -13,6 +13,7 @@ export function createConferenceLivekitController(options = {}) {
 
   let room = null;
   let connected = false;
+  const remoteAudioElements = new Set();
 
   function setStatus(status) {
     onStatus?.(status);
@@ -108,8 +109,14 @@ export function createConferenceLivekitController(options = {}) {
 
   function handleTrackSubscribed(track, publication) {
     if (track.kind === Track.Kind.Audio) {
-      const container = remoteContainerEl?.() || null;
-      attachTrack(track, container);
+      const element = track.attach();
+      element.autoplay = true;
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      remoteAudioElements.add(element);
+      if (typeof element.play === 'function') {
+        element.play().catch(() => {});
+      }
       return;
     }
     if (track.kind === Track.Kind.Video) {
@@ -118,7 +125,10 @@ export function createConferenceLivekitController(options = {}) {
   }
 
   function handleTrackUnsubscribed(track) {
-    track.detach().forEach((el) => el.remove());
+    track.detach().forEach((el) => {
+      remoteAudioElements.delete(el);
+      el.remove();
+    });
     if (track.kind === Track.Kind.Video) {
       refreshRemoteVideo();
     }
@@ -231,6 +241,14 @@ export function createConferenceLivekitController(options = {}) {
     }
     room = null;
     connected = false;
+    remoteAudioElements.forEach((el) => {
+      try {
+        el.remove();
+      } catch {
+        /* ignore */
+      }
+    });
+    remoteAudioElements.clear();
     clearContainer(remoteContainerEl?.());
     clearContainer(localContainerEl?.());
     setRemoteVideoPresent(false);

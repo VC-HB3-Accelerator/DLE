@@ -494,38 +494,21 @@ router.post('/telegram/verify', async (req, res) => {
       });
     }
 
-    // ---> ШАГ 4 И 5: ПОИСК ПРИВЯЗАННОГО КОШЕЛЬКА И ПРОВЕРКА БАЛАНСА <---
+    // ---> ШАГ 4: РОЛЬ ЧЕРЕЗ ACCESS RESOLVER <---
     let linkedWalletAddress = null;
-    let finalIsAdmin = false; // Роль по умолчанию
+    let resolvedAccess = null;
 
     try {
+        const accessResolver = require('../services/accessResolverService');
+        resolvedAccess = await accessResolver.recompute(verificationResult.userId);
+        logger.info(`[telegram/verify] Role recomputed for user ${verificationResult.userId}: ${resolvedAccess.role}`);
+
         const walletIdentity = await identityService.findIdentity(verificationResult.userId, 'wallet');
         if (walletIdentity) {
             linkedWalletAddress = walletIdentity.provider_id;
-            logger.info(`[telegram/verify] Found linked wallet ${linkedWalletAddress} for user ${verificationResult.userId}`);
-
-            // Проверяем баланс токенов для определения роли
-            const userAccessLevel = await authService.getUserAccessLevel(linkedWalletAddress);
-            // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
-            const newRole = userAccessLevel.level;
-            
-            logger.info(`[telegram/verify] Role determined for ${linkedWalletAddress}: ${newRole} (tokens: ${userAccessLevel.tokenCount})`);
-
-            // Обновляем роль в БД, если она отличается от текущей
-            if (verificationResult.role !== newRole) {
-                await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, verificationResult.userId]);
-                logger.info(`[telegram/verify] User role updated in DB for user ${verificationResult.userId} to ${newRole}`);
-            }
-            finalIsAdmin = (newRole === ROLES.EDITOR || newRole === ROLES.READONLY);
-        } else {
-            logger.info(`[telegram/verify] No linked wallet found for user ${verificationResult.userId}. Role remains '${verificationResult.role}'`);
-            // Если кошелек не найден, используем роль из verificationResult (скорее всего 'user')
-            finalIsAdmin = (verificationResult.role === ROLES.EDITOR || verificationResult.role === ROLES.READONLY);
         }
     } catch (error) {
-        logger.error(`[telegram/verify] Error finding linked wallet or checking tokens for user ${verificationResult.userId}:`, error);
-        // В случае ошибки, используем роль из verificationResult
-        finalIsAdmin = (verificationResult.role === 'editor' || verificationResult.role === 'readonly');
+        logger.error(`[telegram/verify] Error recomputing role for user ${verificationResult.userId}:`, error);
     }
     // ---> КОНЕЦ ШАГОВ 4 И 5 <---
 
@@ -544,7 +527,16 @@ router.post('/telegram/verify', async (req, res) => {
       req.session.telegramId = telegramId;
       req.session.authType = 'telegram';
       req.session.authenticated = true;
-      req.session.userAccessLevel = finalIsAdmin ? { level: ROLES.EDITOR, tokenCount: 0, hasAccess: true } : { level: ROLES.USER, tokenCount: 0, hasAccess: false }; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
+      let walletLevel = null;
+      if (linkedWalletAddress) {
+        try {
+          walletLevel = await authService.getUserAccessLevel(linkedWalletAddress);
+        } catch (walletErr) {
+          logger.warn(`[telegram/verify] getUserAccessLevel: ${walletErr.message}`);
+        }
+      }
+      const userAccessLevel = authService.userAccessLevelFromAccess(resolvedAccess, walletLevel);
+      req.session.userAccessLevel = userAccessLevel;
 
       // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ (ЕСЛИ НАЙДЕН) <---
       if (linkedWalletAddress) {
@@ -565,16 +557,10 @@ router.post('/telegram/verify', async (req, res) => {
         await sessionService.linkGuestMessages(req.session, verificationResult.userId);
       }
 
-      // Получаем уровень доступа для пользователя
-      let userAccessLevel = { level: ROLES.USER, tokenCount: 0, hasAccess: false };
-      if (linkedWalletAddress) {
-        userAccessLevel = await authService.getUserAccessLevel(linkedWalletAddress);
-      }
-
       return res.json({
         success: true,
         userId: verificationResult.userId,
-        userAccessLevel: userAccessLevel, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНЫЙ УРОВЕНЬ ДОСТУПА
+        userAccessLevel,
         telegramId,
         isNewUser: verificationResult.isNewUser,
         address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
@@ -696,40 +682,32 @@ router.post('/email/verify-code', async (req, res) => {
     }
     // ---> КОНЕЦ ДОБАВЛЕНИЯ <---
 
-    // ---> ОПРЕДЕЛЯЕМ РОЛЬ НА ОСНОВЕ БАЛАНСА ПРИВЯЗАННОГО КОШЕЛЬКА <---
-    let finalIsAdmin = false; // Роль по умолчанию
-    if (linkedWalletAddress) {
-        try {
-            const userAccessLevel = await authService.getUserAccessLevel(linkedWalletAddress);
-            // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
-            const newRole = userAccessLevel.level;
-            
-            logger.info(`[email/verify-code] Role determined for ${linkedWalletAddress}: ${newRole} (tokens: ${userAccessLevel.tokenCount})`);
-
-            // Обновляем роль в БД, если она отличается от текущей
-            if (authResult.role !== newRole) {
-                await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, authResult.userId]);
-                logger.info(`[email/verify-code] User role updated in DB for user ${authResult.userId} to ${newRole}`);
-            }
-            finalIsAdmin = (newRole === ROLES.EDITOR || newRole === ROLES.READONLY);
-        } catch (tokenCheckError) {
-            logger.error(`[email/verify-code] Error checking tokens for ${linkedWalletAddress}:`, tokenCheckError);
-            // В случае ошибки проверки токенов, используем роль из authResult
-            finalIsAdmin = (authResult.role === 'editor' || authResult.role === 'readonly');
-        }
-    } else {
-        // Если кошелек не привязан, используем роль из authResult (вероятно, 'user')
-        finalIsAdmin = (authResult.role === 'editor' || authResult.role === 'readonly');
-        logger.info(`[email/verify-code] No linked wallet found for user ${authResult.userId}. Using role from authResult: ${authResult.role}`);
+    // ---> РОЛЬ ЧЕРЕЗ ACCESS RESOLVER <---
+    let resolvedAccess = null;
+    try {
+        const accessResolver = require('../services/accessResolverService');
+        resolvedAccess = await accessResolver.recompute(authResult.userId);
+        logger.info(`[email/verify-code] Role recomputed for user ${authResult.userId}: ${resolvedAccess.role}`);
+    } catch (roleError) {
+        logger.error(`[email/verify-code] Error recomputing role for user ${authResult.userId}:`, roleError);
     }
-    // ---> КОНЕЦ ОПРЕДЕЛЕНИЯ РОЛИ <---
+
+    let walletLevel = null;
+    if (linkedWalletAddress) {
+      try {
+        walletLevel = await authService.getUserAccessLevel(linkedWalletAddress);
+      } catch (walletErr) {
+        logger.warn(`[email/verify-code] getUserAccessLevel: ${walletErr.message}`);
+      }
+    }
+    const userAccessLevel = authService.userAccessLevelFromAccess(resolvedAccess, walletLevel);
 
     // 3. Устанавливаем сессию на основе результата
     req.session.userId = authResult.userId;
     req.session.authenticated = true;
     req.session.authType = 'email';
     req.session.email = authResult.email;
-    req.session.userAccessLevel = finalIsAdmin ? { level: 'editor', tokenCount: 0, hasAccess: true } : { level: 'user', tokenCount: 0, hasAccess: false }; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
+    req.session.userAccessLevel = userAccessLevel;
     // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ <---
     if (linkedWalletAddress) {
       req.session.address = linkedWalletAddress;
@@ -772,20 +750,14 @@ router.post('/email/verify-code', async (req, res) => {
     }
 
     // 4. Отправляем ответ
-    // Получаем уровень доступа для пользователя
-    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
-    if (linkedWalletAddress) {
-      userAccessLevel = await authService.getUserAccessLevel(linkedWalletAddress);
-    }
-
     return res.json({
       success: true,
       userId: authResult.userId,
       email: authResult.email,
-      userAccessLevel: userAccessLevel, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНЫЙ УРОВЕНЬ ДОСТУПА
+      userAccessLevel,
       authenticated: true,
       isNewAuth: authResult.isNewUser,
-      address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
+      address: linkedWalletAddress || null
     });
 
   } catch (error) {
@@ -1108,14 +1080,6 @@ router.post('/wallet', async (req, res) => {
     // Получаем или создаем пользователя
     const { userId } = await authService.findOrCreateUser(address);
 
-    // Проверяем наличие админских токенов
-    const userAccessLevel = await authService.getUserAccessLevel(address);
-
-    // Обновляем роль пользователя в базе данных, если нужно
-    if (userAccessLevel.hasAccess) {
-      await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['editor', userId]);
-    }
-
     // Сохраняем идентификаторы
     await identityService.saveIdentity(userId, 'wallet', address.toLowerCase(), true);
 
@@ -1126,6 +1090,11 @@ router.post('/wallet', async (req, res) => {
     if (previousGuestId && previousGuestId !== guestId) {
       await identityService.saveIdentity(userId, 'guest', previousGuestId, true);
     }
+
+    // Роль через access resolver (токены + corp email/domain)
+    const accessResolver = require('../services/accessResolverService');
+    await accessResolver.recompute(userId);
+    const userAccessLevel = await authService.getUserAccessLevel(address);
 
     // Устанавливаем сессию
     req.session.userId = userId;

@@ -30,6 +30,10 @@ export default {
     const { data } = await api.get('/conference/multi', { withCredentials: true });
     return data;
   },
+  async listHostedSessions() {
+    const { data } = await api.get('/conference/hosted', { withCredentials: true });
+    return data;
+  },
   async updateSessionSettings(id, payload) {
     const { data } = await api.put(`/conference/${id}/settings`, payload, { withCredentials: true });
     return data;
@@ -59,6 +63,12 @@ export default {
   },
   async joinSession(id) {
     const { data } = await api.post(`/conference/${id}/join`, {}, { withCredentials: true });
+    return data;
+  },
+  async updateLanguages(id, payload) {
+    const { data } = await api.patch(`/conference/${id}/languages`, payload, {
+      withCredentials: true
+    });
     return data;
   },
   async endSession(id) {
@@ -108,6 +118,10 @@ export default {
   },
   async createRealtimeSession(id) {
     const { data } = await api.post(`/conference/${id}/realtime/session`, {}, { withCredentials: true });
+    return data;
+  },
+  async createInterpretationSession(id) {
+    const { data } = await api.post(`/conference/${id}/interpretation/session`, {}, { withCredentials: true });
     return data;
   },
   async startAgent(id) {

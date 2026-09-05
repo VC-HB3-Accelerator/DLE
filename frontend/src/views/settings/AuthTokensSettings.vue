@@ -143,6 +143,12 @@
         {{ $t('settings.authTokens.addButton') }}
       </button>
     </div>
+
+    <AuthDomainRulesSettings
+      :domain-rules="domainRules"
+      :can-manage="canManageSettings"
+      @update="$emit('update-domain-rules')"
+    />
   </div>
 </template>
 
@@ -155,12 +161,14 @@ import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import eventBus from '@/utils/eventBus';
 import UiGlyph from '@/components/UiGlyph.vue';
+import AuthDomainRulesSettings from './AuthDomainRulesSettings.vue';
 
 const { t } = useI18n();
 const props = defineProps({
-  authTokens: { type: Array, required: true }
+  authTokens: { type: Array, required: true },
+  domainRules: { type: Array, default: () => [] },
 });
-const emit = defineEmits(['update']);
+const emit = defineEmits(['update', 'update-domain-rules']);
 const newToken = reactive({
   name: '',
   address: '',

@@ -8,20 +8,39 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
-const { PERMISSIONS, ROLES } = require('../shared/permissions');
+const { PERMISSIONS } = require('../shared/permissions');
 const contactSiteParserService = require('../services/contactSiteParserService');
 
-function ensureEditorAccess(req, res) {
-  const role = req.userRole || ROLES.USER;
-  if (role !== ROLES.EDITOR) {
-    res.status(403).json({ error: 'Только редакторы могут управлять парсером сайтов' });
+async function ensureParserAccess(req, res, { settingsOnly = false } = {}) {
+  const accessResolver = require('../services/accessResolverService');
+  const userId = req.user?.id || req.session?.userId;
+  if (!userId) {
+    res.status(401).json({ error: 'Требуется аутентификация' });
     return { allowed: false };
   }
-  return { allowed: true };
+  const access = await accessResolver.resolveAccess(userId);
+  req.viewerAccess = access;
+  req.userRole = access.role;
+
+  if (settingsOnly) {
+    const globalEditor = access.dataScope === 'global'
+      && accessResolver.hasActionPermission(access, PERMISSIONS.EDIT_CONTACTS);
+    if (!globalEditor) {
+      res.status(403).json({ error: 'Только platform editor может управлять настройками парсера' });
+      return { allowed: false };
+    }
+    return { allowed: true, access };
+  }
+
+  if (!accessResolver.canEditContacts(access)) {
+    res.status(403).json({ error: 'Недостаточно прав для парсера контактов' });
+    return { allowed: false };
+  }
+  return { allowed: true, access };
 }
 
 router.get('/settings', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
+  if (!(await ensureParserAccess(req, res, { settingsOnly: true })).allowed) return;
   try {
     const settings = await contactSiteParserService.getSettings();
     const defaults = contactSiteParserService.getDefaults();
@@ -33,7 +52,7 @@ router.get('/settings', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS
 });
 
 router.put('/settings', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
+  if (!(await ensureParserAccess(req, res, { settingsOnly: true })).allowed) return;
   try {
     const actorId = req.user?.id || req.session?.userId || null;
     const settings = await contactSiteParserService.saveSettings(req.body || {}, actorId);
@@ -46,7 +65,7 @@ router.put('/settings', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS
 });
 
 router.get('/models', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
+  if (!(await ensureParserAccess(req, res, { settingsOnly: true })).allowed) return;
   try {
     const models = await contactSiteParserService.listAvailableModels();
     const provider = String(req.query?.provider || '').trim().toLowerCase();
@@ -61,7 +80,7 @@ router.get('/models', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS),
 });
 
 router.post('/jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
+  if (!(await ensureParserAccess(req, res)).allowed) return;
 
   const rawIds = Array.isArray(req.body?.userIds)
     ? req.body.userIds
@@ -76,63 +95,59 @@ router.post('/jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
 
   try {
     const actorId = req.user?.id || req.session?.userId || null;
+    const accessResolver = require('../services/accessResolverService');
+    const scopedIds = await accessResolver.filterContactIdsToScope(
+      req.viewerAccess,
+      userIds,
+      actorId
+    );
+    if (!scopedIds.length) {
+      return res.status(403).json({ error: 'Нет контактов в вашем скоупе для парсинга' });
+    }
     const force = req.body?.force !== false;
-    const job = await contactSiteParserService.startJobForUserIds(userIds, {
-      requestedBy: actorId,
-      trigger: 'manual',
-      force
+    const job = await contactSiteParserService.startJobForUserIds(scopedIds, {
+      actorId,
+      force,
     });
-    res.json({ success: true, job });
+    res.status(202).json({ success: true, job });
   } catch (error) {
     logger.error('[ContactSiteParser] start job error:', error);
-    res.status(400).json({ error: error.message || 'Не удалось запустить парсинг' });
+    res.status(error.status || 500).json({ error: error.message || 'Ошибка запуска парсера' });
   }
 });
 
 router.get('/jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
+  if (!(await ensureParserAccess(req, res)).allowed) return;
   try {
-    const limit = parseInt(req.query.limit, 10) || 20;
-    const jobs = await contactSiteParserService.listJobs({ limit });
-    res.set('Cache-Control', 'no-store');
+    const jobs = await contactSiteParserService.listJobs({ limit: parseInt(req.query.limit, 10) || 50 });
     res.json({ success: true, jobs });
   } catch (error) {
-    logger.error('[ContactSiteParser] list jobs error:', error);
-    res.status(500).json({ error: 'Ошибка получения заданий', details: error.message });
+    logger.error('[ContactSiteParser] jobs list error:', error);
+    res.status(500).json({ error: 'Ошибка списка задач парсера', details: error.message });
   }
 });
 
 router.get('/jobs/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
-  const jobId = parseInt(req.params.id, 10);
-  if (!jobId || Number.isNaN(jobId)) {
-    return res.status(400).json({ error: 'Некорректный ID задания' });
-  }
+  if (!(await ensureParserAccess(req, res)).allowed) return;
   try {
-    const job = await contactSiteParserService.getJob(jobId);
-    if (!job) {
-      return res.status(404).json({ error: 'Задание не найдено' });
-    }
+    const job = await contactSiteParserService.getJob(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, job });
   } catch (error) {
-    logger.error('[ContactSiteParser] get job error:', error);
-    res.status(500).json({ error: 'Ошибка получения задания', details: error.message });
+    logger.error('[ContactSiteParser] job get error:', error);
+    res.status(500).json({ error: 'Ошибка получения задачи парсера', details: error.message });
   }
 });
 
 router.post('/jobs/:id/cancel', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
-  if (!ensureEditorAccess(req, res).allowed) return;
-  const jobId = parseInt(req.params.id, 10);
-  if (!jobId || Number.isNaN(jobId)) {
-    return res.status(400).json({ error: 'Некорректный ID задания' });
-  }
+  if (!(await ensureParserAccess(req, res)).allowed) return;
   try {
-    const job = await contactSiteParserService.cancelJob(jobId);
+    const job = await contactSiteParserService.cancelJob(req.params.id);
     res.json({ success: true, job });
   } catch (error) {
-    logger.error('[ContactSiteParser] cancel job error:', error);
-    res.status(400).json({ error: error.message || 'Не удалось остановить задание' });
+    logger.error('[ContactSiteParser] job cancel error:', error);
+    res.status(error.message === 'Job not found' ? 404 : 500).json({ error: error.message });
   }
 });
 

@@ -68,10 +68,24 @@ const PERMISSIONS = {
   // Управление настройками
   MANAGE_SETTINGS: 'manage_settings',
 
+  // Own scope (user / readonly с dataScope=own)
+  CREATE_OWN_ARTICLES: 'create_own_articles',
+  MANAGE_OWN_CONTACTS: 'manage_own_contacts',
+  IMPORT_OWN_CONTACTS: 'import_own_contacts',
+  BROADCAST_OWN_CONTACTS: 'broadcast_own_contacts',
+
+  // Domain scope (domain-admin, dataScope=domain)
+  VIEW_DOMAIN_CONTACTS: 'view_domain_contacts',
+  EDIT_DOMAIN_CONTACTS: 'edit_domain_contacts',
+  VIEW_DOMAIN_ARTICLES: 'view_domain_articles',
+  APPROVE_DOMAIN_PUBLICATIONS: 'approve_domain_publications',
+  MANAGE_DOMAIN_AUTH: 'manage_domain_auth',
+
   // Контент: юридические документы
   VIEW_BASIC_DOCS: 'view_basic_docs',      // Базовые документы для пользователей
   VIEW_LEGAL_DOCS: 'view_legal_docs',     // Юридические документы для читателей
-  MANAGE_LEGAL_DOCS: 'manage_legal_docs'  // Управление документами для редакторов
+  MANAGE_LEGAL_DOCS: 'manage_legal_docs',  // Управление документами для редакторов
+  GOVERNANCE_PROPOSAL: 'governance_proposal'  // Создать предложение и голосовать (держатель токенов)
 };
 
 // Матрица: какая роль имеет какие права
@@ -85,10 +99,14 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_HOME,
     PERMISSIONS.CHAT_AI,
     PERMISSIONS.RECEIVE_MESSAGES,
-    PERMISSIONS.VIEW_CONTACTS, // Пользователи могут видеть контакты для выбора
-    PERMISSIONS.SEND_TO_USERS, // Пользователи могут отправлять сообщения
-    PERMISSIONS.CHAT_WITH_ADMINS, // Авторизованные пользователи могут видеть личные сообщения
-    PERMISSIONS.VIEW_BASIC_DOCS // Базовые документы для пользователей
+    PERMISSIONS.VIEW_CONTACTS,
+    PERMISSIONS.SEND_TO_USERS,
+    PERMISSIONS.CHAT_WITH_ADMINS,
+    PERMISSIONS.VIEW_BASIC_DOCS,
+    PERMISSIONS.CREATE_OWN_ARTICLES,
+    PERMISSIONS.MANAGE_OWN_CONTACTS,
+    PERMISSIONS.IMPORT_OWN_CONTACTS,
+    PERMISSIONS.BROADCAST_OWN_CONTACTS
   ],
   
   [ROLES.READONLY]: [
@@ -103,7 +121,17 @@ const PERMISSIONS_MAP = {
     // Базовые документы для пользователей
     PERMISSIONS.VIEW_BASIC_DOCS,
     // Чтение внутренних юридических документов
-    PERMISSIONS.VIEW_LEGAL_DOCS
+    PERMISSIONS.VIEW_LEGAL_DOCS,
+    PERMISSIONS.GOVERNANCE_PROPOSAL,
+    PERMISSIONS.CREATE_OWN_ARTICLES,
+    PERMISSIONS.MANAGE_OWN_CONTACTS,
+    PERMISSIONS.IMPORT_OWN_CONTACTS,
+    PERMISSIONS.BROADCAST_OWN_CONTACTS,
+    PERMISSIONS.VIEW_DOMAIN_CONTACTS,
+    PERMISSIONS.EDIT_DOMAIN_CONTACTS,
+    PERMISSIONS.VIEW_DOMAIN_ARTICLES,
+    PERMISSIONS.APPROVE_DOMAIN_PUBLICATIONS,
+    PERMISSIONS.MANAGE_DOMAIN_AUTH
   ],
   
   [ROLES.EDITOR]: [
@@ -128,7 +156,17 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_BASIC_DOCS,
     // Полный доступ к юридическим документам
     PERMISSIONS.VIEW_LEGAL_DOCS,
-    PERMISSIONS.MANAGE_LEGAL_DOCS
+    PERMISSIONS.MANAGE_LEGAL_DOCS,
+    PERMISSIONS.GOVERNANCE_PROPOSAL,
+    PERMISSIONS.CREATE_OWN_ARTICLES,
+    PERMISSIONS.MANAGE_OWN_CONTACTS,
+    PERMISSIONS.IMPORT_OWN_CONTACTS,
+    PERMISSIONS.BROADCAST_OWN_CONTACTS,
+    PERMISSIONS.VIEW_DOMAIN_CONTACTS,
+    PERMISSIONS.EDIT_DOMAIN_CONTACTS,
+    PERMISSIONS.VIEW_DOMAIN_ARTICLES,
+    PERMISSIONS.APPROVE_DOMAIN_PUBLICATIONS,
+    PERMISSIONS.MANAGE_DOMAIN_AUTH
   ]
 };
 

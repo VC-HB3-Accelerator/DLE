@@ -6,9 +6,29 @@
  */
 
 const db = require('../db');
+const path = require('path');
+
+function loadSpeechLanguages() {
+  const candidates = [
+    path.join(__dirname, '../../shared/conferenceSpeechLanguages.js'),
+    path.join(__dirname, '../shared/conferenceSpeechLanguages.js')
+  ];
+  for (const file of candidates) {
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      return require(file);
+    } catch (_) {
+      /* next */
+    }
+  }
+  throw new Error('conferenceSpeechLanguages module not found');
+}
+
+const {
+  normalizeConferenceSpeechLanguage
+} = loadSpeechLanguages();
 
 const STATUSES = new Set(['draft', 'scheduled', 'live', 'ended', 'cancelled']);
-const LANG_RE = /^[a-z]{2}(-[A-Za-z]{2})?$/;
 
 function getEncryptionKey() {
   const encryptionUtils = require('../utils/encryptionUtils');
@@ -27,9 +47,7 @@ function parseContactUserId(raw) {
 }
 
 function normalizeLanguage(value, fallback = 'ru') {
-  const lang = String(value || '').trim();
-  if (LANG_RE.test(lang)) return lang;
-  return fallback;
+  return normalizeConferenceSpeechLanguage(value, fallback);
 }
 
 function mapSessionRow(row) {
@@ -47,6 +65,7 @@ function mapSessionRow(row) {
     guest_language: row.guest_language || 'ru',
     host_language: row.host_language || 'ru',
     agent_voice: row.agent_voice || null,
+    interpretation_enabled: row.interpretation_enabled !== false,
     status: row.status,
     room_id: row.room_id || null,
     started_at: row.started_at || null,
@@ -194,18 +213,29 @@ async function getEditableSessionForContact(contactUserId) {
 }
 
 async function ensureParticipants(conferenceId, hostUserId, participantUserId) {
-  await db.getQuery()(
-    `INSERT INTO conference_participants (conference_id, user_id, role)
-     VALUES ($1, $2, 'host')
-     ON CONFLICT (conference_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
-    [conferenceId, hostUserId]
-  );
-  await db.getQuery()(
-    `INSERT INTO conference_participants (conference_id, user_id, role)
-     VALUES ($1, $2, 'participant')
-     ON CONFLICT (conference_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
-    [conferenceId, participantUserId]
-  );
+  const hostId = Number(hostUserId);
+  const participantId = Number(participantUserId);
+  if (Number.isInteger(hostId) && hostId > 0) {
+    await db.getQuery()(
+      `INSERT INTO conference_participants (conference_id, user_id, role)
+       VALUES ($1, $2, 'host')
+       ON CONFLICT (conference_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+      [conferenceId, hostId]
+    );
+  }
+  // Один и тот же человек не может быть и host, и participant — не затираем host.
+  if (
+    Number.isInteger(participantId)
+    && participantId > 0
+    && participantId !== hostId
+  ) {
+    await db.getQuery()(
+      `INSERT INTO conference_participants (conference_id, user_id, role)
+       VALUES ($1, $2, 'participant')
+       ON CONFLICT (conference_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+      [conferenceId, participantId]
+    );
+  }
 }
 
 async function countParticipants(conferenceId) {
@@ -446,6 +476,9 @@ async function upsertSessionForContact(contactUserId, payload = {}, actorId = nu
   const agentVoice = payload.agent_voice !== undefined
     ? (payload.agent_voice ? String(payload.agent_voice).trim().slice(0, 64) : null)
     : (current.agent_voice || null);
+  const interpretationEnabled = payload.interpretation_enabled !== undefined
+    ? Boolean(payload.interpretation_enabled)
+    : (current.interpretation_enabled !== false);
 
   let scheduledAt = current.scheduled_at || null;
   if (payload.scheduled_at !== undefined) {
@@ -486,8 +519,8 @@ async function upsertSessionForContact(contactUserId, payload = {}, actorId = nu
     await db.getQuery()(
       `UPDATE conference_sessions SET
          title = $2,
-         notes_encrypted = CASE WHEN $3::text IS NULL THEN NULL ELSE encrypt_text($3, $12) END,
-         presentation_outline_encrypted = CASE WHEN $4::text IS NULL THEN NULL ELSE encrypt_text($4, $12) END,
+         notes_encrypted = CASE WHEN $3::text IS NULL THEN NULL ELSE encrypt_text($3, $13) END,
+         presentation_outline_encrypted = CASE WHEN $4::text IS NULL THEN NULL ELSE encrypt_text($4, $13) END,
          scheduled_at = $5,
          notify_telegram = $6,
          notify_email = $7,
@@ -495,6 +528,7 @@ async function upsertSessionForContact(contactUserId, payload = {}, actorId = nu
          host_language = $9,
          agent_voice = $10,
          status = $11,
+         interpretation_enabled = $12,
          updated_at = NOW()
        WHERE id = $1`,
       [
@@ -509,6 +543,7 @@ async function upsertSessionForContact(contactUserId, payload = {}, actorId = nu
         hostLanguage,
         agentVoice,
         status,
+        interpretationEnabled,
         encryptionKey
       ]
     );
@@ -519,12 +554,13 @@ async function upsertSessionForContact(contactUserId, payload = {}, actorId = nu
          contact_user_id, created_by, title,
          notes_encrypted, presentation_outline_encrypted,
          scheduled_at, notify_telegram, notify_email,
-         guest_language, host_language, agent_voice, status
+         guest_language, host_language, agent_voice,
+         interpretation_enabled, status
        ) VALUES (
          $1, $2, $3,
-         CASE WHEN $4::text IS NULL THEN NULL ELSE encrypt_text($4, $12) END,
-         CASE WHEN $5::text IS NULL THEN NULL ELSE encrypt_text($5, $12) END,
-         $6, $7, $8, $9, $10, $11, $13
+         CASE WHEN $4::text IS NULL THEN NULL ELSE encrypt_text($4, $13) END,
+         CASE WHEN $5::text IS NULL THEN NULL ELSE encrypt_text($5, $13) END,
+         $6, $7, $8, $9, $10, $11, $12, $14
        )
        RETURNING id`,
       [
@@ -539,6 +575,7 @@ async function upsertSessionForContact(contactUserId, payload = {}, actorId = nu
         guestLanguage,
         hostLanguage,
         agentVoice,
+        interpretationEnabled,
         encryptionKey,
         status
       ]
@@ -722,21 +759,34 @@ async function createMultiSession(userIdsRaw, payload = {}, actorId = null) {
   const hostLanguage = normalizeLanguage(payload.host_language, 'ru');
   const notifyEmail = payload.notify_email !== undefined ? Boolean(payload.notify_email) : true;
   const notifyTelegram = payload.notify_telegram !== undefined ? Boolean(payload.notify_telegram) : false;
+  const interpretationEnabled = payload.interpretation_enabled !== undefined
+    ? Boolean(payload.interpretation_enabled)
+    : true;
 
   const { rows } = await db.getQuery()(
     `INSERT INTO conference_sessions (
        contact_user_id, created_by, title,
        notes_encrypted, presentation_outline_encrypted,
        scheduled_at, notify_telegram, notify_email,
-       guest_language, host_language, agent_voice, status, is_multi
+       guest_language, host_language, agent_voice,
+       interpretation_enabled, status, is_multi
      ) VALUES (
        $1, $2, $3,
        NULL, NULL,
        NULL, $6, $7,
-       $4, $5, NULL, 'draft', true
+       $4, $5, NULL, $8, 'draft', true
      )
      RETURNING id`,
-    [primaryId, actorId || null, title, guestLanguage, hostLanguage, notifyTelegram, notifyEmail]
+    [
+      primaryId,
+      actorId || null,
+      title,
+      guestLanguage,
+      hostLanguage,
+      notifyTelegram,
+      notifyEmail,
+      interpretationEnabled
+    ]
   );
 
   const conferenceId = rows[0].id;
@@ -811,6 +861,57 @@ async function listMultiSessionsForEditor(actorId, { limit = 30 } = {}) {
   }));
 }
 
+/**
+ * Конференции, где текущий пользователь — host (created_by), включая бронь с /book-call.
+ */
+async function listHostedSessions(actorId, { limit = 40 } = {}) {
+  const hostId = Number(actorId);
+  if (!Number.isInteger(hostId) || hostId <= 0) {
+    const err = new Error('Нужна авторизация');
+    err.status = 401;
+    throw err;
+  }
+  const safeLimit = Math.min(Math.max(Number(limit) || 40, 1), 100);
+  const encryptionKey = getEncryptionKey();
+  const { rows } = await db.getQuery()(
+    `SELECT
+       s.*,
+       CASE WHEN s.notes_encrypted IS NULL OR s.notes_encrypted = '' THEN NULL
+            ELSE decrypt_text(s.notes_encrypted, $2) END AS notes,
+       CASE WHEN s.presentation_outline_encrypted IS NULL OR s.presentation_outline_encrypted = '' THEN NULL
+            ELSE decrypt_text(s.presentation_outline_encrypted, $2) END AS presentation_outline
+     FROM conference_sessions s
+     WHERE s.created_by = $1
+       AND s.status IN ('draft', 'scheduled', 'live')
+     ORDER BY COALESCE(s.scheduled_at, s.updated_at) ASC
+     LIMIT $3`,
+    [hostId, encryptionKey, safeLimit]
+  );
+
+  const sessions = [];
+  for (const row of rows) {
+    const mapped = mapSessionRow(row);
+    let contact = null;
+    try {
+      contact = await getContactIdentities(mapped.contact_user_id);
+    } catch (_) {
+      contact = null;
+    }
+    sessions.push({
+      ...mapped,
+      contact: contact
+        ? {
+            id: mapped.contact_user_id,
+            name: contact.name,
+            email: contact.email,
+            telegram: contact.telegram
+          }
+        : undefined
+    });
+  }
+  return sessions;
+}
+
 async function updateSessionById(conferenceId, payload = {}, actorId = null) {
   const id = Number(conferenceId);
   const current = await fetchSessionById(id);
@@ -862,6 +963,73 @@ async function listInvitesForUser(userId) {
   }));
 }
 
+async function updateSessionLanguages(conferenceId, actorId, payload = {}) {
+  const id = Number(conferenceId);
+  const uid = Number(actorId);
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(uid) || uid <= 0) {
+    const err = new Error('Некорректный запрос');
+    err.status = 400;
+    throw err;
+  }
+
+  const session = await fetchSessionById(id);
+  if (!session) {
+    const err = new Error('Конференция не найдена');
+    err.status = 404;
+    throw err;
+  }
+  if (!['draft', 'scheduled', 'live'].includes(session.status)) {
+    const err = new Error('Язык можно менять только в активной или запланированной конференции');
+    err.status = 400;
+    throw err;
+  }
+
+  const { rows: partRows } = await db.getQuery()(
+    `SELECT role FROM conference_participants WHERE conference_id = $1 AND user_id = $2`,
+    [id, uid]
+  );
+  const isHost =
+    Number(session.created_by) === uid || partRows[0]?.role === 'host';
+  const isPrimary = Number(session.contact_user_id) === uid;
+
+  let guestLanguage = session.guest_language;
+  let hostLanguage = session.host_language;
+
+  if (payload.guest_language !== undefined) {
+    if (!isPrimary && !isHost) {
+      const err = new Error('Язык клиента может менять только основной участник или host');
+      err.status = 403;
+      throw err;
+    }
+    guestLanguage = normalizeLanguage(payload.guest_language, session.guest_language || 'en');
+  }
+  if (payload.host_language !== undefined) {
+    if (!isHost) {
+      const err = new Error('Язык редактора может менять только host');
+      err.status = 403;
+      throw err;
+    }
+    hostLanguage = normalizeLanguage(payload.host_language, session.host_language || 'ru');
+  }
+
+  if (payload.guest_language === undefined && payload.host_language === undefined) {
+    const err = new Error('Укажите guest_language и/или host_language');
+    err.status = 400;
+    throw err;
+  }
+
+  await db.getQuery()(
+    `UPDATE conference_sessions
+     SET guest_language = $2,
+         host_language = $3,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [id, guestLanguage, hostLanguage]
+  );
+
+  return fetchSessionById(id);
+}
+
 async function getSession(conferenceId) {
   const id = Number(conferenceId);
   if (!Number.isInteger(id) || id <= 0) {
@@ -876,12 +1044,16 @@ async function getSession(conferenceId) {
     throw err;
   }
   const contact = await getContactIdentities(session.contact_user_id);
-  return { session, contact };
+  return {
+    session,
+    contact
+  };
 }
 
 module.exports = {
   parseContactUserId,
   assertRegisteredUser,
+  fetchSessionById,
   getContactIdentities,
   listSessionsForContact,
   getEditableSessionForContact,
@@ -895,7 +1067,9 @@ module.exports = {
   buildSessionAnalytics,
   createMultiSession,
   listMultiSessionsForEditor,
+  listHostedSessions,
   updateSessionById,
+  updateSessionLanguages,
   listInvitesForUser,
   MAX_PARTICIPANTS,
   STATUSES
