@@ -1,28 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>VC HB3 Accelerator — venture fund and software provider</title>
-    <meta name="description" content="VC HB3 Accelerator — a venture fund and software provider. EVM and AI software suite for B2B, B2C and B2G. Support: training, implementation and customization, legal support, access to fund investment by selection. DLE — download the operating system, create a digital legal entity profile to automate the business. Local OS on your own server — an owned asset with growing capitalization." />
-    <meta name="keywords" content="VC HB3 Accelerator, venture fund, software provider, EVM, AI, DLE, Digital Legal Entity, B2B, B2C, B2G, local OS, accelerator" />
+    <title></title>
+    <meta name="description" content="">
+    <meta name="keywords" content="" />
     <meta name="robots" content="index, follow" />
     <!-- Relative URLs resolve to the current host (multitenant / IDN) -->
     <link rel="canonical" href="/" />
     <meta property="og:url" content="/" />
-    <!-- Open Graph — VC HB3 Accelerator -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="VC HB3 Accelerator — venture fund and software provider" />
-    <meta property="og:description" content="VC HB3 Accelerator — a venture fund and software provider. EVM and AI software suite for B2B, B2C and B2G. Support: training, implementation and customization, legal support, access to fund investment by selection. DLE — download the operating system, create a digital legal entity profile to automate the business. Local OS on your own server — an owned asset with growing capitalization." />
+    <meta property="og:title" content="" />
+    <meta property="og:description" content="">
     <meta property="og:image" content="/og-default.png" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:locale:alternate" content="ru_RU" />
-    <meta property="og:site_name" content="VC HB3 Accelerator" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:site_name" content="">
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="VC HB3 Accelerator — venture fund and software provider" />
-    <meta name="twitter:description" content="VC HB3 Accelerator — a venture fund and software provider. EVM and AI software suite for B2B, B2C and B2G. DLE — local OS of a digital legal entity: an owned asset with growing capitalization." />
+    <meta name="twitter:title" content="">
+    <meta name="twitter:description" content="">
     <style>
       body {
         margin: 0;
@@ -36,15 +35,75 @@
     <script>
       (function () {
         var host = (location.hostname || '').replace(/^www\./i, '').toLowerCase();
-        var isRu = host === 'ru' || host.indexOf('ru.') === 0;
-        document.documentElement.lang = isRu ? 'ru' : 'en';
+        var isEn = host === 'en' || host.indexOf('en.') === 0;
+        document.documentElement.lang = isEn ? 'en' : 'ru';
         var og = document.querySelector('meta[property="og:locale"]');
         if (og) {
-          og.setAttribute('content', isRu ? 'ru_RU' : 'en_US');
+          og.setAttribute('content', isEn ? 'en_US' : 'ru_RU');
         }
-        if (isRu) {
-          document.title = 'VC HB3 Accelerator — венчурный фонд и поставщик ПО';
+        function setMeta(attr, name, content) {
+          var el = document.querySelector('meta[' + attr + '="' + name + '"]');
+          if (el) el.setAttribute('content', content);
         }
+        function removeMeta(attr, name) {
+          var el = document.querySelector('meta[' + attr + '="' + name + '"]');
+          if (el) el.parentNode.removeChild(el);
+        }
+        function setFavicon(href) {
+          var url = String(href || '').trim() || '/favicon.ico';
+          var links = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
+          var i;
+          if (links.length) {
+            for (i = 0; i < links.length; i++) {
+              links[i].setAttribute('href', url);
+              if (url.indexOf('.png') !== -1 || url.indexOf('/uploads/') !== -1) {
+                links[i].setAttribute('type', 'image/png');
+              } else if (url.indexOf('.ico') !== -1) {
+                links[i].setAttribute('type', 'image/x-icon');
+              }
+            }
+            return;
+          }
+          var link = document.createElement('link');
+          link.setAttribute('rel', 'icon');
+          link.setAttribute('href', url);
+          document.head.appendChild(link);
+        }
+        function applyCustom(data) {
+          var desc = String((data && data.domainDescription) || '').trim();
+          var title = desc.slice(0, 120);
+          var siteName = (desc.split(/\s+[—–-]\s+/)[0] || desc).slice(0, 80);
+          document.title = title;
+          setMeta('name', 'description', desc);
+          setMeta('property', 'og:description', desc);
+          setMeta('name', 'twitter:description', desc);
+          setMeta('property', 'og:title', title);
+          setMeta('name', 'twitter:title', title);
+          setMeta('property', 'og:site_name', siteName);
+          if (data && data.hideOgImage) {
+            removeMeta('property', 'og:image');
+            removeMeta('name', 'twitter:image');
+            setMeta('name', 'twitter:card', 'summary');
+            setFavicon('/favicon.ico');
+          } else {
+            var img = String((data && data.ogImageUrl) || '').trim() || '/og-default.png';
+            setMeta('property', 'og:image', img);
+            setMeta('name', 'twitter:image', img);
+            setMeta(
+              'name',
+              'twitter:card',
+              img !== '/og-default.png' ? 'summary_large_image' : 'summary'
+            );
+            setFavicon(img);
+          }
+        }
+        fetch('/api/settings/sidebar-notice')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (json) {
+            if (!json || !json.data) return;
+            applyCustom(json.data);
+          })
+          .catch(function () {});
       })();
     </script>
   </head>

@@ -60,12 +60,6 @@
         @open="goTo('/settings/ai/email')"
       />
       <HubCard
-        v-if="canAccessPath('/settings/ai/database')"
-        :title="t('settings.ai.database.title')"
-        :description="t('settings.ai.database.description')"
-        @open="goTo('/settings/ai/database')"
-      />
-      <HubCard
         v-if="canAccessPath('/settings/ai/rag')"
         :title="t('settings.ai.rag.title')"
         :description="t('settings.ai.rag.description')"

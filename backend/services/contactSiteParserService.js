@@ -18,12 +18,7 @@ const { PRIORITY } = require('./ai-queue');
 const { crawlSite } = require('./siteCrawlerService');
 const identityService = require('./identity-service');
 
-const PUBLIC_EMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com', 'yahoo.com', 'yandex.ru', 'yandex.com',
-  'mail.ru', 'bk.ru', 'list.ru', 'inbox.ru', 'icloud.com', 'me.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'proton.me', 'protonmail.com',
-  'rambler.ru', 'ya.ru'
-]);
+const { isBlockedPublicEmailDomain } = require('../utils/publicEmailDomainSet');
 
 const DEFAULTS = {
   enabled: false,
@@ -364,7 +359,7 @@ function emailToCandidateSite(email) {
   const at = value.lastIndexOf('@');
   if (at < 1) return null;
   const domain = value.slice(at + 1).trim();
-  if (!domain || !domain.includes('.') || PUBLIC_EMAIL_DOMAINS.has(domain)) {
+  if (!domain || !domain.includes('.') || isBlockedPublicEmailDomain(domain)) {
     return null;
   }
   return `https://${domain}/`;

@@ -5,9 +5,26 @@ const path = require('path');
 const log = require('./logger');
 
 const sshDir = path.join(os.homedir(), '.ssh');
-const privateKeyPath = path.join(sshDir, 'id_rsa');
+const privateKeyPath = path.join(sshDir, 'auto_lends_vds');
 const publicKeyPath = `${privateKeyPath}.pub`;
 const sshConfigPath = path.join(sshDir, 'config');
+
+const COMMON_SSH_OPTS = [
+  '-o', 'StrictHostKeyChecking=no',
+  '-o', 'UserKnownHostsFile=/dev/null',
+  '-o', 'LogLevel=ERROR',
+  '-o', 'ConnectTimeout=20',
+  '-o', 'NumberOfPasswordPrompts=1',
+].join(' ');
+
+function isTransientSshFailure(stderr, code) {
+  const text = `${stderr || ''} ${code || ''}`;
+  return /Connection closed by remote host|kex_exchange_identification|Connection reset|Connection timed out|Connection refused/i.test(text);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const ensureSshPermissions = async () => {
   try {
@@ -21,65 +38,93 @@ const ensureSshPermissions = async () => {
   }
 };
 
+function posixSingleQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function runExec(command, extraEnv = {}) {
+  return new Promise((resolve) => {
+    exec(command, { env: { ...process.env, ...extraEnv } }, (error, stdout, stderr) => {
+      resolve({
+        code: error ? error.code : 0,
+        stdout: stdout || '',
+        stderr: stderr || '',
+      });
+    });
+  });
+}
+
+function buildPasswordSsh(user, host, port, remoteCommand) {
+  return `sshpass -e ssh ${COMMON_SSH_OPTS} -o PreferredAuthentications=password -o PubkeyAuthentication=no -p ${port} ${user}@${host} ${posixSingleQuote(remoteCommand)}`;
+}
+
+function buildKeySsh(user, host, port, remoteCommand) {
+  return `ssh -i ${posixSingleQuote(privateKeyPath)} ${COMMON_SSH_OPTS} -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -p ${port} ${user}@${host} ${posixSingleQuote(remoteCommand)}`;
+}
+
+function buildPasswordScp(user, host, port, sourcePath, targetPath) {
+  return `sshpass -e scp ${COMMON_SSH_OPTS} -o PreferredAuthentications=password -o PubkeyAuthentication=no -P ${port} ${posixSingleQuote(sourcePath)} ${user}@${host}:${posixSingleQuote(targetPath)}`;
+}
+
+function buildKeyScp(user, host, port, sourcePath, targetPath) {
+  return `scp -i ${posixSingleQuote(privateKeyPath)} ${COMMON_SSH_OPTS} -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -P ${port} ${posixSingleQuote(sourcePath)} ${user}@${host}:${posixSingleQuote(targetPath)}`;
+}
+
 const execSshCommand = async (command, options = {}) => {
   const {
     sshHost,
     sshPort = 22,
     sshConnectUser,
     sshConnectPassword,
-    vdsIp
+    vdsIp,
   } = options;
 
   await ensureSshPermissions();
 
-  const privateKeyExists = await fs.pathExists(privateKeyPath);
-  const escapedCommand = command.replace(/"/g, '\\"');
-
-  // Удаляем пробелы и проверяем, что значения не пустые
   const user = String(sshConnectUser || 'root').trim();
   const host = String((sshHost || vdsIp || '')).trim();
-  
+  const password = sshConnectPassword ? String(sshConnectPassword).trim() : '';
+  const privateKeyExists = await fs.pathExists(privateKeyPath);
+
   if (!host) {
     throw new Error('Не указан хост для SSH подключения (sshHost или vdsIp)');
   }
-  
   if (!user) {
     throw new Error('Не указан пользователь для SSH подключения (sshConnectUser)');
   }
 
-  let sshCommand = `ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${user}@${host} "${escapedCommand}"`;
-
+  const attempts = [];
+  if (password) {
+    attempts.push({ kind: 'password', cmd: buildPasswordSsh(user, host, sshPort, command), env: { SSHPASS: password } });
+  }
   if (privateKeyExists) {
-    sshCommand = `ssh -i "${privateKeyPath}" -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${user}@${host} "${escapedCommand}"`;
+    attempts.push({ kind: 'key', cmd: buildKeySsh(user, host, sshPort, command), env: {} });
+  }
+  if (!attempts.length) {
+    throw new Error('Нет SSH пароля и нет ключа для подключения');
   }
 
-  log.info(`🔍 Выполняем SSH команду: ${sshCommand}`);
+  const maxRounds = 5;
+  let last = { code: 255, stdout: '', stderr: 'SSH не выполнен' };
 
-  return new Promise((resolve) => {
-    exec(sshCommand, (error, stdout, stderr) => {
-      log.info(`📤 SSH результат - код: ${error ? error.code : 0}, stdout: "${stdout}", stderr: "${stderr}"`);
-
-      if (error && error.code === 255 && sshConnectPassword) {
-        log.info('SSH ключи не сработали, пробуем с паролем...');
-        const passwordCommand = `sshpass -p "${String(sshConnectPassword || '').trim()}" ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${user}@${host} "${escapedCommand}"`;
-
-        exec(passwordCommand, (passwordError, passwordStdout, passwordStderr) => {
-          log.info(`📤 SSH с паролем результат - код: ${passwordError ? passwordError.code : 0}, stdout: "${passwordStdout}", stderr: "${passwordStderr}"`);
-          resolve({
-            code: passwordError ? passwordError.code : 0,
-            stdout: passwordStdout || '',
-            stderr: passwordStderr || ''
-          });
-        });
-      } else {
-        resolve({
-          code: error ? error.code : 0,
-          stdout: stdout || '',
-          stderr: stderr || ''
-        });
+  for (let round = 1; round <= maxRounds; round += 1) {
+    for (const attempt of attempts) {
+      log.info(`🔍 SSH (${attempt.kind}) ${user}@${host}: ${command.slice(0, 180)}`);
+      last = await runExec(attempt.cmd, attempt.env);
+      log.info(`📤 SSH (${attempt.kind}) код=${last.code} stderr="${String(last.stderr).trim().slice(0, 240)}"`);
+      if (last.code === 0) {
+        return last;
       }
-    });
-  });
+    }
+    if (!isTransientSshFailure(last.stderr, last.code) || round === maxRounds) {
+      return last;
+    }
+    const waitMs = 8000 * round;
+    log.warn(`SSH оборван удалённым хостом (часто fail2ban). Ждём ${waitMs / 1000}с, попытка ${round + 1}/${maxRounds}…`);
+    await sleep(waitMs);
+  }
+
+  return last;
 };
 
 const execScpCommand = async (sourcePath, targetPath, options = {}) => {
@@ -88,76 +133,55 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
     sshPort = 22,
     sshConnectUser,
     sshConnectPassword,
-    vdsIp
+    vdsIp,
   } = options;
 
   await ensureSshPermissions();
 
-  const privateKeyExists = await fs.pathExists(privateKeyPath);
-
-  // Удаляем пробелы и проверяем, что значения не пустые
   const user = String(sshConnectUser || 'root').trim();
   const host = String((sshHost || vdsIp || '')).trim();
-  
+  const password = sshConnectPassword ? String(sshConnectPassword).trim() : '';
+  const privateKeyExists = await fs.pathExists(privateKeyPath);
+
   if (!host) {
     throw new Error('Не указан хост для SCP подключения (sshHost или vdsIp)');
   }
-  
   if (!user) {
     throw new Error('Не указан пользователь для SCP подключения (sshConnectUser)');
   }
 
-  let scpCommand = `scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
-
+  const attempts = [];
+  if (password) {
+    attempts.push({
+      kind: 'password',
+      cmd: buildPasswordScp(user, host, sshPort, sourcePath, targetPath),
+      env: { SSHPASS: password },
+    });
+  }
   if (privateKeyExists) {
-    scpCommand = `scp -i "${privateKeyPath}" -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
+    attempts.push({
+      kind: 'key',
+      cmd: buildKeyScp(user, host, sshPort, sourcePath, targetPath),
+      env: {},
+    });
   }
 
-  log.info(`🔍 Выполняем SCP команду: scp ${sourcePath} -> ${user}@${host}:${targetPath}`);
-  
-  return new Promise((resolve) => {
-    exec(scpCommand, (error, stdout, stderr) => {
-      if (error && error.code === 255 && sshConnectPassword) {
-        log.info('SCP с ключами не сработал, пробуем с паролем...');
-        const passwordScpCommand = `sshpass -p "${String(sshConnectPassword || '').trim()}" scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
-
-        exec(passwordScpCommand, (passwordError, passwordStdout, passwordStderr) => {
-          if (passwordError) {
-            log.error(`❌ Ошибка SCP с паролем (код: ${passwordError.code}): ${passwordError.message}`);
-            log.error(`📋 stderr: ${passwordStderr}`);
-            log.error(`📋 stdout: ${passwordStdout}`);
-          } else {
-            log.success('✅ SCP успешно выполнен с паролем');
-          }
-          resolve({
-            code: passwordError ? passwordError.code : 0,
-            stdout: passwordStdout || '',
-            stderr: passwordStderr || ''
-          });
-        });
-      } else {
-        if (error) {
-          log.error(`❌ Ошибка SCP (код: ${error.code}): ${error.message}`);
-          log.error(`📋 stderr: ${stderr}`);
-          log.error(`📋 stdout: ${stdout}`);
-        } else {
-          log.success('✅ SCP успешно выполнен');
-          if (stdout) {
-            log.info(`📋 SCP stdout: ${stdout}`);
-          }
-        }
-        resolve({
-          code: error ? error.code : 0,
-          stdout: stdout || '',
-          stderr: stderr || ''
-        });
-      }
-    });
-  });
+  log.info(`🔍 SCP ${sourcePath} -> ${user}@${host}:${targetPath}`);
+  let last = { code: 255, stdout: '', stderr: 'SCP не выполнен' };
+  for (const attempt of attempts) {
+    last = await runExec(attempt.cmd, attempt.env);
+    if (last.code === 0) {
+      log.success('✅ SCP успешно выполнен');
+      return last;
+    }
+    log.warn(`SCP (${attempt.kind}) код=${last.code}: ${String(last.stderr).trim().slice(0, 240)}`);
+  }
+  log.error(`❌ Ошибка SCP (код: ${last.code}): ${last.stderr}`);
+  return last;
 };
 
 module.exports = {
   execSshCommand,
   execScpCommand,
-  fixSshPermissions: ensureSshPermissions
+  fixSshPermissions: ensureSshPermissions,
 };

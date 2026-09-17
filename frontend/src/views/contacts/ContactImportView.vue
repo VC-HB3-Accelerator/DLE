@@ -71,6 +71,13 @@
           </el-table-column>
         </el-table>
         <div class="import-actions">
+          <label v-if="isEditor" class="import-auth-opt">
+            <input v-model="addCorpAuthDomains" type="checkbox" :disabled="loading">
+            <span>
+              <strong>{{ t('contacts.importModal.addCorpDomains') }}</strong>
+              <small>{{ t('contacts.importModal.addCorpDomainsHint') }}</small>
+            </span>
+          </label>
           <el-button @click="step = 1">{{ t('contacts.importModal.back') }}</el-button>
           <el-button type="primary" :loading="loading" @click="submitImport">
             {{ t('contacts.importModal.importBtn') }}
@@ -115,12 +122,20 @@
         <div v-if="result.success" class="import-result import-result--ok">
           {{ t('contacts.importModal.importSuccess', { added: result.added, updated: result.updated }) }}
         </div>
+        <div v-if="result.authDomains" class="import-result import-result--auth">
+          {{ t('contacts.importModal.authDomainsResult', {
+            added: result.authDomains.added || 0,
+            skipped: result.authDomains.skipped || 0
+          }) }}
+          <span v-if="authDomainPreview" class="import-auth-preview">{{ authDomainPreview }}</span>
+        </div>
         <div v-else-if="result.cancelled" class="import-result import-result--warn">
           {{ t('contacts.importModal.importCancelled', {
             added: result.added,
             updated: result.updated,
             processed: result.processed
           }) }}
+          <div v-if="result.error_summary" class="import-result-reason">{{ result.error_summary }}</div>
         </div>
         <div v-else-if="result.failed" class="import-result import-result--err">
           {{ t('contacts.importModal.importFailed', { error: result.error_summary || '' }) }}
@@ -160,12 +175,14 @@ import { Upload, Delete } from '@element-plus/icons-vue';
 import BaseLayout from '@/components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import contactsService from '@/services/contactsService';
+import { usePermissions } from '@/composables/usePermissions';
 
 const JOB_QUERY_KEY = 'job';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const { isEditor } = usePermissions();
 
 const step = ref(1);
 const file = ref(null);
@@ -178,14 +195,22 @@ const cancelLoading = ref(false);
 const result = ref({});
 const jobState = ref({});
 const jobId = ref(null);
+const addCorpAuthDomains = ref(false);
 let pollTimer = null;
 
 const hardErrors = computed(() =>
   (result.value.errors || []).filter((e) => e && e.error && !e.partial)
 );
 const softWarnings = computed(() =>
-  (result.value.errors || []).filter((e) => e && e.partial && e.warning)
+  (result.value.errors || []).filter((e) => e && e.partial && e.warning && e.kind !== 'auth_domains')
 );
+
+const authDomainPreview = computed(() => {
+  const list = result.value.authDomains?.domains;
+  if (!Array.isArray(list) || !list.length) return '';
+  const shown = list.slice(0, 8).join(', ');
+  return list.length > 8 ? `${shown}…` : shown;
+});
 
 const jobRunning = computed(() => {
   const s = String(jobState.value.status || '');
@@ -249,7 +274,8 @@ function applyFinishedJob(job) {
     processed: job?.processed || 0,
     errors: job?.errors || [],
     errorsTotal: job?.errorsTotal || 0,
-    error_summary: job?.error_summary || null
+    error_summary: job?.error_summary || null,
+    authDomains: job?.authDomains || null
   };
   step.value = 3;
   if ((job?.errorsTotal || 0) > (job?.errors?.length || 0)) {
@@ -396,7 +422,9 @@ async function submitImport() {
     return obj;
   });
   try {
-    const data = await contactsService.createImportJob(contacts);
+    const data = await contactsService.createImportJob(contacts, {
+      addCorpAuthDomains: Boolean(isEditor.value && addCorpAuthDomains.value)
+    });
     const job = data?.job;
     if (!job?.id) {
       throw new Error(t('contacts.importModal.importError', { error: 'no job id' }));
@@ -452,6 +480,7 @@ function resetLocalState() {
   Object.keys(mapping).forEach((k) => delete mapping[k]);
   loading.value = false;
   cancelLoading.value = false;
+  addCorpAuthDomains.value = false;
   syncJobQuery(null);
 }
 
@@ -552,6 +581,36 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  align-items: center;
+}
+
+.import-auth-opt {
+  flex: 1 1 100%;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0 0 0.25rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.import-auth-opt input {
+  margin-top: 0.2rem;
+}
+
+.import-auth-opt span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.import-auth-opt small {
+  font-weight: 400;
+  color: #6c757d;
+  line-height: 1.35;
 }
 
 .import-progress__title {
@@ -568,8 +627,25 @@ onUnmounted(() => {
   color: #1b7a3d;
 }
 
+.import-result--auth {
+  color: #1b4f72;
+  line-height: 1.4;
+}
+
+.import-auth-preview {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+}
+
 .import-result--warn {
   color: #a15c00;
+}
+
+.import-result-reason {
+  margin-top: 0.35rem;
+  font-size: 0.9em;
 }
 
 .import-result--err {

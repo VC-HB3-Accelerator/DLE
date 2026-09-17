@@ -5,10 +5,33 @@
 
 <template>
   <div class="auth-domain-rules">
-    <h4>{{ $t('settings.authDomains.title') }}</h4>
     <p class="section-hint">{{ $t('settings.authDomains.hint') }}</p>
 
-    <div v-if="domainRules.length > 0" class="rules-list">
+    <label class="policy-check">
+      <input
+        v-model="localRequireListed"
+        type="checkbox"
+        :disabled="!canManage || policySaving"
+        @change="toggleRequireListed(localRequireListed)"
+      >
+      <span>
+        <strong>{{ $t('settings.authDomains.restrictLabel') }}</strong>
+        <small>{{ $t('settings.authDomains.restrictHint') }}</small>
+      </span>
+    </label>
+    <p v-if="localRequireListed && domainRules.length === 0" class="policy-warning">
+      {{ $t('settings.authDomains.restrictEmptyWarning') }}
+    </p>
+    <p v-if="policyError" class="policy-error">{{ policyError }}</p>
+
+    <input
+      v-model="listSearch"
+      type="search"
+      class="form-control list-search"
+      :placeholder="$t('settings.authDomains.listSearch')"
+    >
+
+    <div v-if="filteredRules.length > 0" class="rules-list">
       <div class="rules-list-head" aria-hidden="true">
         <span>{{ $t('settings.authDomains.kind') }}</span>
         <span>{{ $t('settings.authDomains.value') }}</span>
@@ -17,7 +40,7 @@
         <span></span>
       </div>
       <div
-        v-for="rule in domainRules"
+        v-for="rule in filteredRules"
         :key="rule.id"
         class="rule-entry"
       >
@@ -38,7 +61,9 @@
         </div>
       </div>
     </div>
-    <p v-else class="empty-hint">{{ $t('settings.authDomains.empty') }}</p>
+    <p v-else class="empty-hint">
+      {{ domainRules.length ? $t('settings.authDomains.emptySearch') : $t('settings.authDomains.empty') }}
+    </p>
 
     <div class="add-rule-form">
       <h5>{{ $t('settings.authDomains.addTitle') }}</h5>
@@ -95,7 +120,7 @@
 </template>
 
 <script setup>
-import { reactive, watch } from 'vue';
+import { reactive, watch, ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '@/api/axios';
 import eventBus from '@/utils/eventBus';
@@ -105,9 +130,29 @@ const { t } = useI18n();
 const props = defineProps({
   domainRules: { type: Array, required: true },
   canManage: { type: Boolean, default: false },
+  registrationPolicy: { type: Object, default: () => ({ require_listed_domain: true }) },
 });
 
-const emit = defineEmits(['update']);
+const emit = defineEmits(['update', 'update-policy']);
+
+const policySaving = ref(false);
+const policyError = ref('');
+const listSearch = ref('');
+const localRequireListed = ref(Boolean(props.registrationPolicy?.require_listed_domain));
+
+const filteredRules = computed(() => {
+  const list = Array.isArray(props.domainRules) ? props.domainRules : [];
+  const q = String(listSearch.value || '').trim().toLowerCase();
+  if (!q) return list;
+  return list.filter((rule) => String(rule?.value || '').toLowerCase().includes(q));
+});
+
+watch(
+  () => props.registrationPolicy?.require_listed_domain,
+  (value) => {
+    localRequireListed.value = Boolean(value);
+  }
+);
 
 const newRule = reactive({
   kind: 'domain',
@@ -145,6 +190,27 @@ function resetForm() {
   newRule.value = '';
   newRule.role = 'user';
   newRule.domainAdmin = false;
+}
+
+async function toggleRequireListed(checked) {
+  if (!props.canManage) return;
+  const previous = Boolean(props.registrationPolicy?.require_listed_domain);
+  policySaving.value = true;
+  policyError.value = '';
+  try {
+    await api.put('/settings/auth-email-registration-policy', {
+      require_listed_domain: Boolean(checked),
+    });
+    eventBus.emit('auth-settings-saved');
+    emit('update-policy');
+  } catch (e) {
+    localRequireListed.value = previous;
+    policyError.value = t('settings.authDomains.policySaveError', {
+      error: e.response?.data?.error || e.message,
+    });
+  } finally {
+    policySaving.value = false;
+  }
 }
 
 async function addRule() {
@@ -185,22 +251,62 @@ async function removeRule(rule) {
 
 <style scoped>
 .auth-domain-rules {
-  margin-top: var(--spacing-xl, 32px);
-  padding-top: var(--spacing-lg, 20px);
-  border-top: 1px solid var(--theme-border, #e9ecef);
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: auto;
-}
-
-.auth-domain-rules h4 {
-  margin: 0 0 var(--spacing-sm, 8px);
 }
 
 .section-hint {
   margin: 0 0 var(--spacing-lg, 20px);
   font-size: var(--font-size-sm, 0.875rem);
   color: var(--theme-text-muted, #666);
+}
+
+.policy-check {
+  display: flex;
+  gap: var(--spacing-sm, 8px);
+  align-items: flex-start;
+  margin: 0 0 var(--spacing-md, 12px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  border: 1px solid var(--theme-border, #e9ecef);
+  border-radius: 8px;
+  background: var(--theme-surface, #fff);
+  cursor: pointer;
+}
+
+.policy-check input {
+  margin-top: 0.2rem;
+}
+
+.policy-check span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.policy-check small {
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--theme-text-muted, #666);
+  font-weight: 400;
+}
+
+.policy-warning,
+.policy-error {
+  margin: 0 0 var(--spacing-md, 12px);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.policy-warning {
+  color: #9a6b00;
+}
+
+.policy-error {
+  color: #d32f2f;
+}
+
+.list-search {
+  max-width: 420px;
+  margin: 0 0 var(--spacing-md, 12px);
 }
 
 .rules-list {

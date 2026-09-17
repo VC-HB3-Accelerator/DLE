@@ -14,15 +14,173 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permissions');
+const { requirePermission, requireEditContactsScoped } = require('../middleware/permissions');
 const { PERMISSIONS } = require('../shared/permissions');
 const { broadcastTagsUpdate } = require('../wsHub');
-
-// console.log('[tags.js] ROUTER LOADED');
+const contactViewerTagsService = require('../services/contactViewerTagsService');
 
 router.use((req, res, next) => {
-  // console.log('[tags.js] ROUTER REQUEST:', req.method, req.originalUrl);
   next();
+});
+
+async function requireCanEditContactParam(req, res, contactId) {
+  const viewerId = req.user?.id || req.session?.userId;
+  const accessResolver = require('../services/accessResolverService');
+  const access = req.viewerAccess || await accessResolver.resolveAccess(viewerId);
+  req.viewerAccess = access;
+  if (!accessResolver.canEditContacts(access)) {
+    return res.status(403).json({ error: 'Доступ запрещен' });
+  }
+  const allowed = await accessResolver.canEditContact(access, contactId, viewerId);
+  if (!allowed) {
+    return res.status(403).json({ error: 'Доступ к этому контакту запрещен' });
+  }
+  return null;
+}
+
+// --- Личные теги (TZ_CRM_PERSONAL_TAGS) ---
+
+router.get('/my/dictionary', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const { tableId, tags } = await contactViewerTagsService.listDictionaryTags(viewerId);
+    res.json({ success: true, tableId, tags });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.post('/my/dictionary', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const tag = await contactViewerTagsService.createDictionaryTag(viewerId, {
+      name: req.body?.name,
+      description: req.body?.description,
+    });
+    res.json({ success: true, tag });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.get('/my/contact/:contactId', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const contactIdParam = req.params.contactId;
+    if (String(contactIdParam).startsWith('guest_')) {
+      return res.json({ my_tag_ids: [] });
+    }
+    const contactId = Number(contactIdParam);
+    if (!Number.isInteger(contactId) || contactId <= 0) {
+      return res.status(400).json({ error: 'Invalid contact id' });
+    }
+    const accessResolver = require('../services/accessResolverService');
+    const access = await accessResolver.resolveAccess(viewerId);
+    const allowed = await accessResolver.canViewContact(access, contactId, viewerId);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Доступ к этому контакту запрещен' });
+    }
+    const my_tag_ids = await contactViewerTagsService.getMyTagIdsForContact(viewerId, contactId);
+    res.json({ my_tag_ids });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.patch('/my/contact/:contactId', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const contactIdParam = req.params.contactId;
+    if (String(contactIdParam).startsWith('guest_')) {
+      return res.status(400).json({ error: 'Guests cannot have tags' });
+    }
+    const contactId = Number(contactIdParam);
+    if (!Number.isInteger(contactId) || contactId <= 0) {
+      return res.status(400).json({ error: 'Invalid contact id' });
+    }
+    const denied = await requireCanEditContactParam(req, res, contactId);
+    if (denied) return;
+
+    const { tags, add, remove } = req.body || {};
+    let my_tag_ids;
+    if (Array.isArray(tags)) {
+      my_tag_ids = await contactViewerTagsService.replaceMyTagsOnContact(viewerId, contactId, tags);
+    } else if (Array.isArray(add) || Array.isArray(remove)) {
+      if (Array.isArray(add) && add.length) {
+        await contactViewerTagsService.addMyTagsToContacts(viewerId, [contactId], add);
+      }
+      if (Array.isArray(remove) && remove.length) {
+        await contactViewerTagsService.removeMyTagsFromContacts(viewerId, [contactId], remove);
+      }
+      my_tag_ids = await contactViewerTagsService.getMyTagIdsForContact(viewerId, contactId);
+    } else {
+      return res.status(400).json({ error: 'Укажите tags[] или add[]/remove[]' });
+    }
+
+    broadcastTagsUpdate(null, contactId);
+    res.json({ success: true, my_tag_ids });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.delete('/my/contact/:contactId/tag/:tagId', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const contactId = Number(req.params.contactId);
+    const tagId = Number(req.params.tagId);
+    if (!Number.isInteger(contactId) || !Number.isInteger(tagId)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const denied = await requireCanEditContactParam(req, res, contactId);
+    if (denied) return;
+    await contactViewerTagsService.removeMyTagFromContact(viewerId, contactId, tagId);
+    broadcastTagsUpdate(null, contactId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.post('/my/contacts/bulk-add', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const accessResolver = require('../services/accessResolverService');
+    const access = req.viewerAccess;
+    const { userIds = [], tagIds = [] } = req.body || {};
+    const uniqueUserIds = [...new Set(userIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!uniqueUserIds.length) {
+      return res.status(400).json({ error: 'userIds обязателен' });
+    }
+    const scoped = await accessResolver.filterContactIdsToScope(access, uniqueUserIds, viewerId);
+    if (!scoped.length) {
+      return res.status(403).json({ error: 'Нет доступных контактов в скоупе' });
+    }
+    const result = await contactViewerTagsService.addMyTagsToContacts(viewerId, scoped, tagIds);
+    for (const uid of scoped) broadcastTagsUpdate(null, uid);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.post('/my/contacts/bulk-remove', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.session?.userId;
+    const accessResolver = require('../services/accessResolverService');
+    const access = req.viewerAccess;
+    const { userIds = [], tagIds = [] } = req.body || {};
+    const uniqueUserIds = [...new Set(userIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!uniqueUserIds.length) {
+      return res.status(400).json({ error: 'userIds обязателен' });
+    }
+    const scoped = await accessResolver.filterContactIdsToScope(access, uniqueUserIds, viewerId);
+    const result = await contactViewerTagsService.removeMyTagsFromContacts(viewerId, scoped, tagIds);
+    for (const uid of scoped) broadcastTagsUpdate(null, uid);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
 });
 
 // PATCH /api/tags/user/:userId — установить теги пользователю

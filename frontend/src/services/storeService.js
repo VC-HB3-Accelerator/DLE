@@ -50,6 +50,21 @@ export async function updateStoreProduct(id, payload) {
   return data?.product || data;
 }
 
+export async function listStoreProducts(params = {}) {
+  const { data } = await api.get('/store/products', { params });
+  return data?.products || data || [];
+}
+
+export async function approveStoreProduct(id) {
+  const { data } = await api.post(`/store/products/${id}/approve`);
+  return data?.product || data;
+}
+
+export async function returnStoreProduct(id, note = '') {
+  const { data } = await api.post(`/store/products/${id}/return`, { note });
+  return data?.product || data;
+}
+
 export async function importStoreProducts(rows) {
   const { data } = await api.post('/store/products/import', { rows });
   return data;

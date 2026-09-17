@@ -410,6 +410,9 @@ class AuthService {
         userId = existingUserResult.rows[0].id;
         logger.info(`[checkEmailVerification] Found existing user ${userId} for email ${email}`);
       } else {
+        const authDomainRulesService = require('./authDomainRulesService');
+        await authDomainRulesService.assertNewEmailAllowed(email);
+
         // Создаем нового пользователя с ролью user (даже без кошелька)
         const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
           ROLES.USER,
@@ -444,7 +447,7 @@ class AuthService {
       };
     } catch (error) {
       logger.error('Error checking email verification:', error);
-      return { verified: false };
+      return { verified: false, message: error.message || undefined };
     }
   }
 
@@ -941,14 +944,18 @@ class AuthService {
     let userRole = 'user'; // Роль по умолчанию
 
     try {
+      const existingUser = await identityService.findUserByIdentity('email', normalizedEmail);
+      if (!existingUser) {
+        const authDomainRulesService = require('./authDomainRulesService');
+        await authDomainRulesService.assertNewEmailAllowed(normalizedEmail);
+      }
+
       // 1. Определить пользователя (существующий по email/сессии или новый)
       if (session.authenticated && session.userId) {
         // Используем уже аутентифицированного пользователя
         userId = session.userId;
         logger.info(`[handleEmailVerification] Using authenticated user ${userId}`);
       } else {
-        // Ищем существующего пользователя по email
-        const existingUser = await identityService.findUserByIdentity('email', normalizedEmail);
         if (existingUser) {
           userId = existingUser.id;
           logger.info(`[handleEmailVerification] Found existing user ${userId} by email ${normalizedEmail}`);
@@ -968,7 +975,12 @@ class AuthService {
       }
 
       // 2. Связать email с пользователем (если еще не связан)
-      await identityService.saveIdentity(userId, 'email', normalizedEmail, true);
+      const saveResult = await identityService.saveIdentity(userId, 'email', normalizedEmail, true);
+      if (!saveResult?.success) {
+        const err = new Error(saveResult?.error || 'Не удалось привязать email');
+        err.status = 400;
+        throw err;
+      }
       logger.info(`[handleEmailVerification] Ensured email identity ${normalizedEmail} for user ${userId}`);
 
       // 3. Мигрируем гостевые сообщения web канала, если есть (только для web-гостей, которые писали до авторизации)
@@ -1024,6 +1036,7 @@ class AuthService {
       };
     } catch (error) {
       logger.error('Error in handleEmailVerification:', error);
+      if (error.status) throw error;
       throw new Error('Ошибка обработки верификации Email');
     }
   }
@@ -1118,23 +1131,24 @@ class AuthService {
   }
 
   /**
-   * userAccessLevel для сессии/UI: баланс токенов кошелька приоритетнее, иначе role из resolveAccess.
+   * userAccessLevel для сессии/UI.
+   * level / dataScope — из resolveAccess (finalRole + Boss@ domain);
+   * tokenCount / validTokens — из кошелька, если есть.
    */
   userAccessLevelFromAccess(access, walletAccessLevel = null) {
-    if (walletAccessLevel && walletAccessLevel.level) {
-      return {
-        level: walletAccessLevel.level,
-        tokenCount: walletAccessLevel.tokenCount || 0,
-        hasAccess: Boolean(walletAccessLevel.hasAccess),
-        validTokens: walletAccessLevel.validTokens,
-      };
-    }
     const role = access?.role || ROLES.USER;
     const elevated = role === ROLES.EDITOR || role === ROLES.READONLY;
+    const fromWallet = Boolean(walletAccessLevel && walletAccessLevel.level);
     return {
       level: role,
-      tokenCount: 0,
-      hasAccess: elevated,
+      tokenCount: fromWallet ? (walletAccessLevel.tokenCount || 0) : 0,
+      hasAccess: fromWallet
+        ? Boolean(walletAccessLevel.hasAccess) || elevated
+        : elevated,
+      validTokens: fromWallet ? walletAccessLevel.validTokens : undefined,
+      dataScope: access?.dataScope || 'own',
+      domain: access?.domain ?? null,
+      isDomainAdmin: Boolean(access?.isDomainAdmin),
     };
   }
 }

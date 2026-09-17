@@ -36,6 +36,7 @@
         </button>
         <div class="page-header-actions">
           <button
+            v-if="!isBlogPage"
             type="button"
             class="page-action-btn page-print-btn"
             @click="printAsPdf"
@@ -81,6 +82,9 @@
           <UiGlyph name="calendar" />
           {{ formatDate(page.created_at) }}
         </span>
+        <span v-if="isBlogPage && page.owner_user_id" class="meta-item">
+          {{ $t('content.publicPage.authorPrefix') }}id{{ page.owner_user_id }}
+        </span>
         <span v-if="page.category" class="meta-item">
           <UiGlyph name="folder" />
           {{ page.category }}
@@ -98,7 +102,21 @@
         <img :src="page.file_path" :alt="$t('content.page.documentAlt')" class="image-preview" />
         <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ $t('content.page.downloadImage') }}</a>
       </div>
-      <div v-else-if="page.content" class="content-text" v-html="formatContent"></div>
+      <div v-else-if="page.content || listingMediaForCarousel" class="article-body">
+        <div
+          v-if="listingMediaForCarousel"
+          class="article-media-wrap"
+        >
+          <ListingMediaCarousel
+            class="article-listing-carousel"
+            :media="listingMediaForCarousel"
+            :alt="page.title || ''"
+          />
+          <div id="blog-article-media-rail"></div>
+        </div>
+        <div v-if="isBlogPage" id="blog-article-subscribe"></div>
+        <div v-if="formatContent" class="content-text" v-html="formatContent"></div>
+      </div>
       <div v-else class="empty-content">
         <UiGlyph name="file" :size="48" />
         <p>{{ $t('content.page.noContent') }}</p>
@@ -112,7 +130,9 @@
       :page-id="page.id"
       :page-slug="page.slug"
       :page-title="page.title"
+      :owner-user-id="page.owner_user_id"
       :is-authenticated="isAuthenticated"
+      :media-rail="Boolean(listingMediaForCarousel)"
     />
 
     <!-- Навигация: Предыдущая/Следующая -->
@@ -212,6 +232,7 @@ import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
 import { useAuthContext } from '../../composables/useAuth';
 import BlogEngagementBar from '../blog/BlogEngagementBar.vue';
+import ListingMediaCarousel from '../blog/ListingMediaCarousel.vue';
 import UiGlyph from '../UiGlyph.vue';
 import { PERMISSIONS } from '../../composables/permissions';
 import { isLocalCmsMediaUrl } from '../../utils/cmsMediaUrl';
@@ -242,6 +263,21 @@ const isAuthenticated = computed(() => auth.isAuthenticated.value);
 const canManageDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 
 const page = ref(null);
+
+const listingMediaForCarousel = computed(() => {
+  const p = page.value;
+  if (!p) return null;
+  let settings = p.settings;
+  if (typeof settings === 'string') {
+    try { settings = JSON.parse(settings); } catch { settings = null; }
+  }
+  const lm = settings?.listing_media || p.listing_media;
+  if (!lm || typeof lm !== 'object') return null;
+  const photos = Array.isArray(lm.photos) ? lm.photos.filter(Boolean) : [];
+  const video = lm.video || null;
+  if (!photos.length && !video) return null;
+  return { photos, video };
+});
 const navigation = ref(null);
 const breadcrumbs = ref([]);
 const isLoading = ref(false);
@@ -618,6 +654,11 @@ const formatContent = computed(() => {
   if (!page.value || !page.value.content) return '';
   let content = page.value.content;
   const title = page.value.title || '';
+
+  // Если медиа уже в карусели — не дублировать столбик .listing-media
+  if (listingMediaForCarousel.value) {
+    content = content.replace(/<div[^>]*class=["'][^"']*listing-media[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+  }
   
   // Удаляем первый заголовок из контента, если он совпадает с title страницы
   // Это предотвращает дублирование заголовка
@@ -1158,6 +1199,28 @@ onUnmounted(() => {
   color: #333;
 }
 
+.article-listing-carousel {
+  margin: 0;
+  border-radius: 0;
+}
+
+.article-media-wrap {
+  position: relative;
+  margin: 0 0 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#blog-article-media-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
 .content-text :deep(h1),
 .content-text :deep(h2),
 .content-text :deep(h3),
@@ -1489,7 +1552,17 @@ onUnmounted(() => {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
+    overflow-x: visible;
+  }
+
+  .article-media-wrap {
+    margin-bottom: 1rem;
+    border-radius: 10px;
+  }
+
+  .article-media-wrap :deep(.listing-carousel__viewport) {
+    width: 100%;
+    aspect-ratio: 4 / 3;
   }
 
   .content-text {

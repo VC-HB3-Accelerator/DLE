@@ -370,6 +370,95 @@ router.get('/invites/mine', requireAuth, async (req, res) => {
   }
 });
 
+/** Inbox «Личные звонки» */
+router.get('/mine/upcoming', requireAuth, requirePermission(PERMISSIONS.PERSONAL_CALLS), async (req, res) => {
+  try {
+    const calls = await conferenceService.listMyUpcomingCalls(actorId(req), {
+      limit: req.query.limit
+    });
+    res.json({ success: true, calls });
+  } catch (error) {
+    logger.error('[conference] mine upcoming:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+router.get('/mine/upcoming-count', requireAuth, requirePermission(PERMISSIONS.PERSONAL_CALLS), async (req, res) => {
+  try {
+    const count = await conferenceService.countMyUpcomingCalls(actorId(req));
+    res.json({ success: true, count });
+  } catch (error) {
+    logger.error('[conference] mine upcoming-count:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+/** Календарь слотов для кнопки «Звонок» */
+router.get('/schedule/slots', requireAuth, requirePermission(PERMISSIONS.SCHEDULE_CALLS), requireEditContactsScoped(), async (req, res) => {
+  try {
+    const rawIds = String(req.query.ids || req.query.userIds || '')
+      .split(',')
+      .map((s) => Number(String(s).trim()))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    const scoped = await accessResolver.filterContactIdsToScope(
+      req.viewerAccess,
+      rawIds,
+      actorId(req)
+    );
+    const data = await conferenceService.listCallCalendarSlots(actorId(req), {
+      peerIds: scoped,
+      from: req.query.from,
+      to: req.query.to
+    });
+    res.json({ success: true, ...data });
+  } catch (error) {
+    logger.error('[conference] schedule slots:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+/** Создать звонок/мульти со слотом из календаря */
+router.post('/schedule', requireAuth, requirePermission(PERMISSIONS.SCHEDULE_CALLS), requireEditContactsScoped(), async (req, res) => {
+  try {
+    const rawIds = req.body?.userIds || req.body?.ids || req.body?.peerIds || [];
+    const scoped = await accessResolver.filterContactIdsToScope(
+      req.viewerAccess,
+      (Array.isArray(rawIds) ? rawIds : String(rawIds).split(',')).map((id) => Number(id)),
+      actorId(req)
+    );
+    if (!scoped.length) {
+      return res.status(403).json({
+        success: false,
+        error: 'Нет участников в вашем скоупе'
+      });
+    }
+    const data = await conferenceService.scheduleCallFromContacts(actorId(req), {
+      ...(req.body || {}),
+      userIds: scoped
+    });
+    res.json({ success: true, ...data });
+  } catch (error) {
+    logger.error('[conference] schedule:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
 router.post(
   '/:id/notify',
   requireAuth,

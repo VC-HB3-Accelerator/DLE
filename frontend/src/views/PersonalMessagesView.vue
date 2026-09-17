@@ -67,29 +67,39 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import BaseLayout from '../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
-import adminChatService from '../services/adminChatService.js';
 import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
 import { getPrivateConversations } from '../services/messagesService';
 import conferenceService from '@/services/conferenceService';
+import websocketServiceModule from '@/services/websocketService';
 
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const { canChatWithAdmins } = usePermissions();
+const { userId } = useAuthContext();
+const { websocketService } = websocketServiceModule;
 
 const isLoading = ref(true);
 const personalMessages = ref([]);
 const newMessagesCount = ref(0);
 const conferenceInvites = ref([]);
 const joiningId = ref(null);
+let listReloadTimer = null;
 
-let ws = null;
+function scheduleListReloadFromWs() {
+  if (listReloadTimer) clearTimeout(listReloadTimer);
+  listReloadTimer = setTimeout(() => {
+    fetchPersonalMessages();
+    loadConferenceInvites();
+  }, 150);
+}
 
 async function loadConferenceInvites() {
   try {
@@ -137,16 +147,20 @@ async function fetchPersonalMessages() {
       return;
     }
     
-    // Формируем список бесед
-    personalMessages.value = conversations.map(conv => {
+    // Формируем список бесед: имя = peer (Саша/Ваня), не «Приватный чат 12-13»
+    personalMessages.value = conversations
+      .filter((conv) => Number(conv.message_count) > 0 || Boolean(conv.last_message))
+      .map((conv) => {
+      const peerId = conv.peer_user_id || conv.user_id;
       console.log('[PersonalMessagesView] Обрабатываем conversation:', conv);
       return {
         id: conv.conversation_id,
         conversation_id: conv.conversation_id,
-        user_id: conv.user_id,
-        name: conv.title || t('chat.chatWithUser', { id: conv.user_id }),
-        last_message: t('chat.privateChatPreview'),
-        last_message_at: conv.updated_at,
+        user_id: peerId,
+        peer_user_id: peerId,
+        name: conv.peer_name || t('chat.chatWithUser', { id: peerId }),
+        last_message: conv.last_message || t('chat.noMessages'),
+        last_message_at: conv.last_message_at || conv.updated_at,
         message_count: conv.message_count || 0
       };
     });
@@ -162,70 +176,17 @@ async function fetchPersonalMessages() {
   }
 }
 
-function connectWebSocket() {
-  try {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${protocol}://${window.location.host}/ws`;
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      console.log('[PersonalMessagesView] WebSocket подключен');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'contacts-updated' || 
-            data.type === 'messages-updated' ||
-            data.type === 'conference-invites-updated' ||
-            data.type === 'contact-updated' ||
-            data.type === 'admin-status-changed') {
-          console.log('[PersonalMessagesView] Получено обновление через WebSocket:', data.type);
-          fetchPersonalMessages();
-          loadConferenceInvites();
-        }
-      } catch (error) {
-        console.error('[PersonalMessagesView] Ошибка парсинга WebSocket сообщения:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[PersonalMessagesView] Ошибка WebSocket:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('[PersonalMessagesView] WebSocket отключен, переподключаемся через 3 секунды');
-      setTimeout(() => {
-        if (ws?.readyState === WebSocket.CLOSED) {
-          connectWebSocket();
-        }
-      }, 3000);
-    };
-  } catch (error) {
-    console.error('[PersonalMessagesView] Ошибка подключения WebSocket:', error);
-  }
-}
-
-function disconnectWebSocket() {
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
-}
-
 function openPersonalChat(conversation) {
   console.log('[PersonalMessagesView] Открываем приватный чат:', conversation);
   
-  // Проверяем, что у нас есть user_id
-  if (!conversation.user_id) {
-    console.error('[PersonalMessagesView] Ошибка: user_id не найден в conversation:', conversation);
+  const peerId = Number(conversation.peer_user_id || conversation.user_id);
+  if (!Number.isInteger(peerId) || peerId <= 0) {
+    console.error('[PersonalMessagesView] Ошибка: peer id не найден в conversation:', conversation);
     return;
   }
   
-  // Переходим к чату с ID админа (user_id в conversation)
-  const adminId = parseInt(conversation.user_id);
-  console.log('[PersonalMessagesView] Переходим к чату с adminId:', adminId);
-  router.push({ name: 'admin-chat', params: { adminId: adminId } });
+  console.log('[PersonalMessagesView] Переходим к чату с peerId:', peerId);
+  router.push({ name: 'admin-chat', params: { adminId: peerId } });
 }
 
 const formatDate = (dateString) => {
@@ -244,13 +205,21 @@ watch(() => route.path, async (newPath) => {
 
 onMounted(async () => {
   if (canChatWithAdmins.value) {
+    if (userId.value) {
+      websocketService.connect(userId.value);
+    }
+    websocketService.on('messages-updated', scheduleListReloadFromWs);
+    websocketService.on('contacts-updated', scheduleListReloadFromWs);
+    websocketService.on('conversation-updated', scheduleListReloadFromWs);
     await Promise.all([fetchPersonalMessages(), loadConferenceInvites()]);
-    connectWebSocket();
   }
 });
 
 onUnmounted(() => {
-  disconnectWebSocket();
+  if (listReloadTimer) clearTimeout(listReloadTimer);
+  websocketService.off('messages-updated', scheduleListReloadFromWs);
+  websocketService.off('contacts-updated', scheduleListReloadFromWs);
+  websocketService.off('conversation-updated', scheduleListReloadFromWs);
 });
 </script>
 
@@ -352,6 +321,10 @@ onUnmounted(() => {
   color: #666;
   font-size: 0.9rem;
   margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .message-date {

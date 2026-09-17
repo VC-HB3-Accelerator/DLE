@@ -12,7 +12,7 @@
 
 <template>
   <div class="tables-container">
-    <header class="tables-header">
+    <header v-if="canCreateTable" class="tables-header">
       <button type="button" class="btn btn-primary" @click="createTable">{{ t('tables.common.createTable') }}</button>
     </header>
     <ul class="tables-list-simple">
@@ -27,20 +27,47 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, computed, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import tablesService from '../../services/tablesService';
+import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
+const { isEditor, dataScope } = usePermissions();
+const { userId } = useAuthContext();
 
 const tables = ref([]);
 
+const profileOwnerId = computed(() => {
+  const raw = route.query.owner;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+});
+
+const canCreateTable = computed(() => {
+  if (!profileOwnerId.value) return true;
+  return String(profileOwnerId.value) === String(userId.value);
+});
+
 async function fetchTables() {
-  tables.value = await tablesService.getTables();
+  if (profileOwnerId.value) {
+    tables.value = await tablesService.getTables({ owner: profileOwnerId.value });
+    return;
+  }
+  if (dataScope.value === 'global' || isEditor.value) {
+    tables.value = await tablesService.getTables({ scope: 'all' });
+    return;
+  }
+  tables.value = await tablesService.getTables({ mine: true });
 }
+
 onMounted(fetchTables);
+watch(profileOwnerId, fetchTables);
 
 function selectTable(table) {
   router.push({ name: 'user-table-view', params: { id: table.id } });

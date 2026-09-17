@@ -159,30 +159,31 @@ const cleanupVdsServer = async (options) => {
  */
 const setupRootSshKeys = async (publicKey, options) => {
   log.info('Настройка SSH ключей...');
-  
-  // Создание директории .ssh для root
-  await execSshCommand('mkdir -p /root/.ssh', options);
-  await execSshCommand('chmod 700 /root/.ssh', options);
-  // ВАЖНО: Устанавливаем правильного владельца директории (root:root)
-  // SSH не принимает ключи, если директория принадлежит другому пользователю
-  await execSshCommand('chown root:root /root/.ssh', options);
-  
-  // Добавление публичного ключа в authorized_keys
-  // Используем printf для безопасной обработки специальных символов в ключе
-  // Экранируем обратные слеши и знаки доллара в публичном ключе
-  const escapedPublicKey = publicKey.replace(/\\/g, '\\\\').replace(/\$/g, '\\$');
-  await execSshCommand(`printf '%s\\n' "${escapedPublicKey}" >> /root/.ssh/authorized_keys`, options);
-  await execSshCommand('chmod 600 /root/.ssh/authorized_keys', options);
-  await execSshCommand('chown root:root /root/.ssh/authorized_keys', options);
-  
-  // Проверяем, что ключ действительно добавлен
-  const verifyResult = await execSshCommand(`grep -Fx "${escapedPublicKey}" /root/.ssh/authorized_keys > /dev/null && echo "OK" || echo "FAIL"`, options);
-  if (verifyResult.stdout.trim() === 'OK') {
-    log.success('SSH ключи созданы и публичный ключ добавлен в authorized_keys');
-  } else {
-    log.error('Ошибка: публичный ключ не был добавлен в authorized_keys');
-    throw new Error('Не удалось добавить публичный ключ в authorized_keys');
+  const key = String(publicKey || '').trim();
+  if (!key) {
+    throw new Error('Пустой публичный SSH ключ');
   }
+  const keyB64 = Buffer.from(`${key}\n`, 'utf8').toString('base64');
+  const script = [
+    'set -e',
+    'mkdir -p /root/.ssh',
+    'chmod 700 /root/.ssh',
+    'chown root:root /root/.ssh',
+    `KEY=$(printf '%s' '${keyB64}' | base64 -d | tr -d '\\r')`,
+    'touch /root/.ssh/authorized_keys',
+    'chmod 600 /root/.ssh/authorized_keys',
+    'grep -Fqx "$KEY" /root/.ssh/authorized_keys 2>/dev/null || printf \'%s\\n\' "$KEY" >> /root/.ssh/authorized_keys',
+    'chown root:root /root/.ssh/authorized_keys',
+    'grep -Fqx "$KEY" /root/.ssh/authorized_keys && echo OK || echo FAIL',
+  ].join('\n');
+  const scriptB64 = Buffer.from(script, 'utf8').toString('base64');
+  const verifyResult = await execSshCommand(`echo ${scriptB64} | base64 -d | bash`, options);
+  if (verifyResult.stdout.trim().split('\n').pop() === 'OK') {
+    log.success('SSH ключи созданы и публичный ключ добавлен в authorized_keys');
+    return;
+  }
+  log.error(`Ошибка: публичный ключ не был добавлен в authorized_keys: ${verifyResult.stderr || verifyResult.stdout}`);
+  throw new Error('Не удалось добавить публичный ключ в authorized_keys');
 };
 
 /**
@@ -191,7 +192,9 @@ const setupRootSshKeys = async (publicKey, options) => {
 const disablePasswordAuth = async (options) => {
   log.info('Отключение парольной аутентификации...');
   await execSshCommand('sed -i "s/#PasswordAuthentication yes/PasswordAuthentication no/" /etc/ssh/sshd_config', options);
-  await execSshCommand('sed -i "s/PasswordAuthentication yes/PasswordAuthentication no/" /etc/ssh/sshd_config', options);
+  await execSshCommand('sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" /etc/ssh/sshd_config', options);
+  // cloud-init и другие drop-in'ы перебивают sshd_config
+  await execSshCommand('sh -c \'for f in /etc/ssh/sshd_config.d/*.conf; do [ -f "$f" ] && sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" "$f"; done\'', options);
   await execSshCommand('systemctl restart ssh', options);
   log.success('Парольная аутентификация отключена, доступ только через SSH ключи');
 };
@@ -201,15 +204,14 @@ const disablePasswordAuth = async (options) => {
  */
 const setupFirewall = async (options) => {
   log.info('Настройка firewall...');
-  await execSshCommand('ufw --force enable', options);
-  await execSshCommand('ufw allow ssh', options);
+  await execSshCommand('DEBIAN_FRONTEND=noninteractive apt-get install -y ufw', options);
+  await execSshCommand('ufw allow OpenSSH', options);
   await execSshCommand('ufw allow 80/tcp', options);
   await execSshCommand('ufw allow 443/tcp', options);
-  // LiveKit ICE (см. docker-compose.prod.yml + ТЗ)
   await execSshCommand('ufw allow 7881/tcp', options);
   await execSshCommand('ufw allow 7882/udp', options);
-  // Gitea SSH (опционально, порт хоста 2223)
   await execSshCommand('ufw allow 2223/tcp', options);
+  await execSshCommand('ufw --force enable', options);
   log.success('Firewall настроен (22, 80, 443, 7881/tcp, 7882/udp, 2223/tcp)');
 };
 

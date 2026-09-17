@@ -205,12 +205,20 @@ function broadcastContactsUpdate() {
   }
 }
 
-function broadcastMessagesUpdate() {
-  // console.log('📢 [WebSocket] Отправка обновления сообщений всем клиентам');
-  for (const [userId, clients] of wsClients.entries()) {
+function broadcastMessagesUpdate(arg) {
+  // Совместимость: раньше вызывали broadcastMessagesUpdate(userId)
+  const conversationId = arg && typeof arg === 'object'
+    ? (arg.conversationId || null)
+    : null;
+  const message = JSON.stringify({
+    type: 'messages-updated',
+    conversationId,
+    timestamp: Date.now()
+  });
+  for (const [, clients] of wsClients.entries()) {
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'messages-updated' }));
+        ws.send(message);
       }
     }
   }

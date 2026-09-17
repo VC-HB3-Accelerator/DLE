@@ -138,7 +138,7 @@ services:
       - DLE_APP_ROOT=/host-project
       - DLE_VERSION_PATH=/host-project/DLE_VERSION
       - DLE_COMPOSE_FILE=${DLE_COMPOSE_FILE:-docker-compose.prod.yml}
-      # Клиент: https://hb3-accelerator.com; раздающий HB3: self
+      # Auto-lends — клиент: пакеты только с hub HB3
       - UPDATES_HUB_URL=${UPDATES_HUB_URL:-https://hb3-accelerator.com}
       - UPDATES_HUB_TOKEN=${UPDATES_HUB_TOKEN:-}
       - UPDATES_PUBLIC_BASE_URL=${UPDATES_PUBLIC_BASE_URL:-}
@@ -172,39 +172,6 @@ services:
     # НЕ открываем порт 8000 наружу - только nginx подключается
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
-  frontend:
-    image: digital_legal_entitydle-frontend:latest
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: dapp-frontend
-    restart: unless-stopped
-    networks:
-      - dapp_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
-    depends_on:
-      backend:
-        condition: service_healthy
-    volumes:
-      - ./ssl:/app/ssl:ro
-    environment:
-      - NODE_ENV=production
-      - PORT=5173
-      # 🆕 Исправленный URL для backend
-      - VITE_BACKEND_URL=https://${DOMAIN}/api
-      - VITE_WS_URL=wss://${DOMAIN}/ws
-    # НЕ открываем порт 5173 наружу - только nginx подключается
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5173', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -331,7 +298,6 @@ services:
       - WS_BACKEND_CONTAINER=dapp-backend
     depends_on:
       - backend
-      - frontend
       - gitea
       - livekit
     volumes:

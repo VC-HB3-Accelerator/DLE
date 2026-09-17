@@ -13,6 +13,7 @@
     >
       <div class="panel section-card">
         <p class="section-description">{{ $t('chat.voiceCall.bookPageHint') }}</p>
+        <p v-if="listingHint" class="section-description listing-hint">{{ listingHint }}</p>
         <p v-if="loadError" class="error">{{ loadError }}</p>
         <p v-else-if="!slots.length && !loading" class="section-description">{{ $t('chat.voiceCall.noSlots') }}</p>
         <VoiceCallCalendar
@@ -35,9 +36,9 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import api from '@/api/axios';
 import BaseLayout from '@/components/BaseLayout.vue';
 import AdminPageShell from '@/components/admin/AdminPageShell.vue';
@@ -46,6 +47,7 @@ import { monthBoundsIso } from '@/utils/voiceCallCalendar';
 import { setVoiceCallReturnUrl } from '@/utils/voiceCallReturnUrl';
 
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 const slots = ref([]);
 const selectedSlot = ref('');
@@ -56,6 +58,24 @@ const busy = ref(false);
 const loading = ref(false);
 const year = ref(new Date().getFullYear());
 const month = ref(new Date().getMonth() + 1);
+
+const listingPageId = computed(() => {
+  const raw = route.query.page ?? route.query.page_id;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+});
+
+const listingHint = computed(() => {
+  if (!listingPageId.value) return '';
+  return t('blog.listingContact.bookCallHint', { id: listingPageId.value });
+});
+
+function bookCallPath() {
+  if (listingPageId.value) {
+    return `/book-call?page=${listingPageId.value}`;
+  }
+  return '/book-call';
+}
 
 async function loadSlots() {
   loading.value = true;
@@ -86,12 +106,14 @@ async function book() {
   needLogin.value = false;
   loadError.value = '';
   try {
-    const { data } = await api.post('/ai-calls/booking', { starts_at: selectedSlot.value });
+    const payload = { starts_at: selectedSlot.value };
+    if (listingPageId.value) payload.page_id = listingPageId.value;
+    const { data } = await api.post('/ai-calls/booking', payload);
     const url = data.data?.returnUrl;
     if (url) router.push(url);
   } catch (error) {
     if (error.response?.status === 401) {
-      setVoiceCallReturnUrl('/book-call');
+      setVoiceCallReturnUrl(bookCallPath());
       needLogin.value = true;
       return;
     }
@@ -113,5 +135,8 @@ onMounted(loadSlots);
 }
 .error {
   color: var(--color-danger, #b42318);
+}
+.listing-hint {
+  font-weight: 600;
 }
 </style>

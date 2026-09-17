@@ -10,8 +10,23 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
+const crypto = require('crypto');
 const encryptedDb = require('./encryptedDatabaseService');
 const logger = require('../utils/logger');
+
+function maskProviderId(providerId) {
+  const raw = String(providerId || '');
+  if (!raw) return '(empty)';
+  const at = raw.indexOf('@');
+  if (at > 0) {
+    const local = raw.slice(0, at);
+    const domain = raw.slice(at + 1);
+    const head = local.slice(0, 1);
+    return `${head}***@${domain}`;
+  }
+  if (raw.length <= 4) return '***';
+  return `${raw.slice(0, 2)}***${raw.slice(-2)}`;
+}
 
 class VerificationService {
   constructor() {
@@ -19,24 +34,20 @@ class VerificationService {
     this.expirationMinutes = 15;
   }
 
-  // Генерация кода
+  /** 6 цифр, crypto.randomInt — без Math.random и без лога самого кода */
   generateCode() {
-    const code = Math.random()
-      .toString(36)
-      .substring(2, 2 + this.codeLength)
-      .toUpperCase();
-    logger.info(`Generated verification code: ${code}`);
-    return code;
+    const max = 10 ** this.codeLength;
+    return String(crypto.randomInt(0, max)).padStart(this.codeLength, '0');
   }
 
-  // Создание кода верификации
   async createVerificationCode(provider, providerId, userId) {
     const code = this.generateCode();
     const expiresAt = new Date(Date.now() + this.expirationMinutes * 60 * 1000);
+    const masked = maskProviderId(providerId);
 
     try {
       logger.info(
-        `Creating verification code for ${provider}:${providerId}, userId: ${userId || 'null'}`
+        `Creating verification code for ${provider}:${masked}, userId: ${userId || 'null'}`
       );
 
       const data = {
@@ -47,48 +58,33 @@ class VerificationService {
         used: false
       };
 
-      // Если userId указан, добавляем его
       if (userId !== null && userId !== undefined) {
         data.user_id = userId;
       }
 
       await encryptedDb.saveData('verification_codes', data);
 
-      logger.info(`Verification code created successfully for ${provider}:${providerId}`);
+      logger.info(`Verification code created for ${provider}:${masked}`);
       return code;
     } catch (error) {
       logger.error('Error creating verification code:', {
         error: error.message,
         provider,
-        providerId,
+        providerId: masked,
         userId,
       });
       throw error;
     }
   }
 
-  // Проверка кода
   async verifyCode(code, provider, providerId) {
+    const masked = maskProviderId(providerId);
     try {
-      logger.info(`Verifying code for ${provider}:${providerId}`);
+      logger.info(`Verifying code for ${provider}:${masked}`);
 
-      // Преобразуем код в верхний регистр для сравнения
-      const normalizedCode = code.toUpperCase();
-      logger.info(`Normalized code: ${normalizedCode}`);
-
-      // Проверим, есть ли такой код в базе (для отладки)
-      const checkResult = await encryptedDb.getData('verification_codes', {
-        provider: provider,
-        provider_id: providerId,
-        used: false
-      });
-
-      if (checkResult.length > 0) {
-        logger.info(
-          `Found codes for ${provider}:${providerId}: ${JSON.stringify(checkResult.map((r) => r.code))}`
-        );
-      } else {
-        logger.warn(`No active codes found for ${provider}:${providerId}`);
+      const normalizedCode = String(code || '').trim().toUpperCase();
+      if (!/^[0-9A-Z]{4,12}$/.test(normalizedCode)) {
+        return { valid: false, message: 'Invalid or expired code' };
       }
 
       const result = await encryptedDb.getData('verification_codes', {
@@ -99,26 +95,24 @@ class VerificationService {
       }, 1);
 
       if (result.length === 0) {
-        logger.warn(`No valid verification code found for ${provider}:${providerId}`);
+        logger.warn(`No valid verification code for ${provider}:${masked}`);
         return { valid: false, message: 'Invalid or expired code' };
       }
 
       const verificationCode = result[0];
 
-      // Проверяем срок действия
       if (new Date(verificationCode.expires_at) < new Date()) {
-        logger.warn(`Verification code expired for ${provider}:${providerId}`);
+        logger.warn(`Verification code expired for ${provider}:${masked}`);
         return { valid: false, message: 'Code has expired' };
       }
 
-      // Отмечаем код как использованный
       await encryptedDb.saveData('verification_codes', {
         used: true
       }, {
         id: verificationCode.id
       });
 
-      logger.info(`Verification code verified successfully for ${provider}:${providerId}`);
+      logger.info(`Verification code OK for ${provider}:${masked}`);
       return {
         valid: true,
         userId: verificationCode.user_id,
@@ -127,25 +121,21 @@ class VerificationService {
     } catch (error) {
       logger.error('Error verifying code:', {
         error: error.message,
-        code,
         provider,
-        providerId,
+        providerId: masked,
       });
       throw error;
     }
   }
 
-  // Очистка истекших кодов
   async cleanupExpiredCodes() {
     try {
-      // Удаляем истекшие коды
       const expiredCodes = await encryptedDb.getData('verification_codes', { expires_at: { $lt: new Date() } });
       
       if (expiredCodes.length > 0) {
         for (const expiredCode of expiredCodes) {
           await encryptedDb.deleteData('verification_codes', { id: expiredCode.id });
         }
-        // logger.info(`Cleaned up ${expiredCodes.length} expired verification codes`); // Убрано избыточное логирование
       }
     } catch (error) {
       logger.error('Error cleaning up expired codes:', error);

@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('/app/shared/permissions');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
 
+const manageSettings = [requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)];
+
 // Роли
-router.get('/roles', requireAdmin, async (req, res, next) => {
+router.get('/roles', ...manageSettings, async (req, res, next) => {
   try {
     const roles = await authService.getAllRoles();
     res.json({ success: true, roles });
@@ -16,7 +20,7 @@ router.get('/roles', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.post('/roles', requireAdmin, async (req, res, next) => {
+router.post('/roles', ...manageSettings, async (req, res, next) => {
   try {
     const { name, permissions } = req.body;
     const role = await authService.createRole(name, permissions);
@@ -28,7 +32,7 @@ router.post('/roles', requireAdmin, async (req, res, next) => {
 });
 
 // Админ функции
-router.get('/users', requireAdmin, async (req, res, next) => {
+router.get('/users', ...manageSettings, async (req, res, next) => {
   try {
     const users = await authService.getAllUsers();
     res.json({ success: true, users });
@@ -38,16 +42,11 @@ router.get('/users', requireAdmin, async (req, res, next) => {
   }
 });
 
-// Маршрут для получения статистики (защищен middleware requireAdmin)
-router.get('/stats', requireAdmin, async (req, res, next) => {
+// Маршрут для получения статистики
+router.get('/stats', ...manageSettings, async (req, res, next) => {
   try {
-    // Получаем количество пользователей
     const usersCount = await db.getQuery()('SELECT COUNT(*) FROM users');
-
-    // Получаем количество досок
     const boardsCount = await db.getQuery()('SELECT COUNT(*) FROM kanban_boards');
-
-    // Получаем количество задач
     const tasksCount = await db.getQuery()('SELECT COUNT(*) FROM kanban_tasks');
 
     res.json({
@@ -62,7 +61,7 @@ router.get('/stats', requireAdmin, async (req, res, next) => {
 });
 
 // Маршрут для получения логов
-router.get('/logs', requireAdmin, async (req, res, next) => {
+router.get('/logs', ...manageSettings, async (req, res, next) => {
   try {
     const result = await db.getQuery()('SELECT * FROM logs ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);

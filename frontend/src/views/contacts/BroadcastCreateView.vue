@@ -146,6 +146,27 @@
 
         <el-divider />
 
+        <el-form-item :label="t('contacts.broadcast.channels.label')" required>
+          <el-checkbox-group
+            v-model="selectedChannels"
+            class="channels-group"
+            :disabled="settingsLocked"
+          >
+            <el-checkbox label="web">
+              {{ t('contacts.broadcast.channels.web') }}
+            </el-checkbox>
+            <el-checkbox label="email">
+              {{ t('contacts.broadcast.channels.email') }}
+            </el-checkbox>
+            <el-checkbox label="telegram">
+              {{ t('contacts.broadcast.channels.telegram') }}
+            </el-checkbox>
+          </el-checkbox-group>
+          <div class="field-hint">{{ t('contacts.broadcast.channels.hint') }}</div>
+        </el-form-item>
+
+        <el-divider />
+
         <section class="delivery-settings">
           <div class="section-heading">
             <h2>{{ t('contacts.broadcast.deliverySettings') }}</h2>
@@ -153,7 +174,7 @@
               v-model="warmupMode"
               :active-text="t('contacts.broadcast.warmupMode')"
               :inactive-text="t('contacts.broadcast.normalMode')"
-              :disabled="loading || !!activeCampaignId"
+              :disabled="settingsLocked"
             />
           </div>
 
@@ -161,7 +182,7 @@
             <el-switch
               v-model="aiPersonalize"
               :active-text="t('contacts.broadcast.aiPersonalize')"
-              :disabled="loading || !!activeCampaignId"
+              :disabled="settingsLocked"
             />
             <router-link
               class="ai-settings-link"
@@ -172,7 +193,7 @@
           </div>
 
           <el-form-item :label="t('contacts.broadcast.schedule.days')">
-            <el-checkbox-group v-model="scheduleDays" :disabled="loading || !!activeCampaignId">
+            <el-checkbox-group v-model="scheduleDays" :disabled="settingsLocked">
               <el-checkbox v-for="day in weekDayOptions" :key="day.value" :label="day.value">
                 {{ day.label }}
               </el-checkbox>
@@ -185,7 +206,7 @@
                 v-model="scheduleHourStart"
                 :min="0"
                 :max="23"
-                :disabled="loading || !!activeCampaignId"
+                :disabled="settingsLocked"
               />
             </el-form-item>
             <el-form-item :label="t('contacts.broadcast.schedule.hourEnd')">
@@ -193,7 +214,7 @@
                 v-model="scheduleHourEnd"
                 :min="0"
                 :max="23"
-                :disabled="loading || !!activeCampaignId"
+                :disabled="settingsLocked"
               />
             </el-form-item>
             <el-form-item :label="t('contacts.broadcast.delayBetween')">
@@ -202,7 +223,7 @@
                 :min="0"
                 :max="600"
                 :step="5"
-                :disabled="loading || !!activeCampaignId"
+                :disabled="settingsLocked"
               />
               <span class="field-hint">{{ t('contacts.broadcast.seconds') }}</span>
             </el-form-item>
@@ -211,7 +232,7 @@
                 v-model="maxRecipients"
                 :min="1"
                 :max="Math.max(eligibleUserIds.length, 1)"
-                :disabled="loading || !!activeCampaignId"
+                :disabled="settingsLocked"
               />
               <span class="field-hint">{{ t('contacts.broadcast.willSend', { send: recipientsToSend.length, total: eligibleUserIds.length }) }}</span>
             </el-form-item>
@@ -377,6 +398,14 @@
             {{ t('contacts.broadcast.stop') }}
           </el-button>
           <el-button
+            v-if="canResetCampaign"
+            plain
+            :disabled="actionLoading"
+            @click="resetCampaignForm"
+          >
+            {{ t('contacts.broadcast.resetCampaign') }}
+          </el-button>
+          <el-button
             type="primary"
             plain
             :disabled="!canPrepare"
@@ -459,6 +488,7 @@ const scheduleDays = ref([1, 2, 3, 4, 5]);
 const scheduleHourStart = ref(10);
 const scheduleHourEnd = ref(18);
 const scheduleTimezone = ref('Europe/Moscow');
+const selectedChannels = ref(['web', 'email', 'telegram']);
 const sentAttempts = ref(0);
 const currentUserId = ref(null);
 const templatesDialogVisible = ref(false);
@@ -490,6 +520,20 @@ function sameIdSet(a = [], b = []) {
   const setB = new Set(b);
   return a.every((id) => setB.has(id));
 }
+
+/** Блокировка настроек только пока готовим/шлём — не на весь срок жизни кампании. */
+const settingsLocked = computed(() => {
+  if (preparing.value) return true;
+  if (starting.value) return true;
+  const st = campaignStatus.value;
+  return st === 'preparing' || st === 'in_progress';
+});
+
+const canResetCampaign = computed(() => {
+  if (!activeCampaignId.value) return false;
+  if (preparing.value || starting.value || actionLoading.value) return false;
+  return !['preparing', 'in_progress'].includes(campaignStatus.value);
+});
 
 const weekDayOptions = computed(() => ([
   { value: 1, label: t('contacts.broadcast.schedule.mon') },
@@ -524,6 +568,7 @@ const canPrepare = computed(() => {
     && subject.value.trim()
     && message.value.trim()
     && scheduleDays.value.length > 0
+    && selectedChannels.value.length > 0
     && !preparing.value
     && !starting.value
     && !activeCampaignId.value
@@ -1010,7 +1055,14 @@ watch(userIds, async (ids) => {
           startCampaignWatch(storedId, { preparingMode: st === 'preparing' });
         }
       } catch {
-        // ignore
+        // Кампания удалена / 404 — не держим форму залоченной на мёртвом id
+        clearCampaignSession();
+        activeCampaignId.value = null;
+        campaignStatus.value = '';
+        pauseReason.value = '';
+        drafts.value = [];
+        plannedRecipientsCount.value = 0;
+        serverDraftsReady.value = 0;
       }
     }
   }
@@ -1035,6 +1087,15 @@ function hydrateFormFromCampaign(campaign) {
   }
   if (campaign.legal_footer != null) {
     legalFooter.value = String(campaign.legal_footer || '');
+  }
+  if (Array.isArray(campaign.channels) && campaign.channels.length) {
+    selectedChannels.value = campaign.channels
+      .map((c) => String(c || '').toLowerCase())
+      .map((c) => (c === 'chat' ? 'web' : c))
+      .filter((c) => ['web', 'email', 'telegram'].includes(c));
+    if (!selectedChannels.value.length) {
+      selectedChannels.value = ['web', 'email', 'telegram'];
+    }
   }
   if (Array.isArray(campaign.schedule_days) && campaign.schedule_days.length) {
     scheduleDays.value = campaign.schedule_days.map((d) => Number(d)).filter((d) => d >= 1 && d <= 7);
@@ -1243,7 +1304,8 @@ async function prepareDrafts() {
       scheduleDays: scheduleDays.value,
       scheduleHourStart: scheduleHourStart.value,
       scheduleHourEnd: scheduleHourEnd.value,
-      scheduleTimezone: scheduleTimezone.value
+      scheduleTimezone: scheduleTimezone.value,
+      channels: selectedChannels.value
     });
 
     const campaignId = campaignResponse?.campaign?.id;
@@ -1286,6 +1348,10 @@ async function prepareDrafts() {
 
 async function startBroadcast() {
   if (!canStart.value) return;
+  if (!selectedChannels.value.length) {
+    ElMessage.warning(t('contacts.broadcast.channels.required'));
+    return;
+  }
 
   starting.value = true;
   loading.value = true;
@@ -1294,7 +1360,9 @@ async function startBroadcast() {
   currentUserId.value = null;
 
   try {
-    await messagesService.startBroadcastCampaign(activeCampaignId.value);
+    await messagesService.startBroadcastCampaign(activeCampaignId.value, {
+      channels: selectedChannels.value
+    });
     campaignStatus.value = 'in_progress';
     startPolling(activeCampaignId.value);
     ElMessage.success(t('contacts.broadcast.startedNotice'));
@@ -1304,6 +1372,22 @@ async function startBroadcast() {
   } finally {
     starting.value = false;
   }
+}
+
+async function resetCampaignForm() {
+  if (!canResetCampaign.value) return;
+  stopCampaignWatch();
+  clearCampaignSession();
+  activeCampaignId.value = null;
+  campaignStatus.value = '';
+  pauseReason.value = '';
+  drafts.value = [];
+  plannedRecipientsCount.value = 0;
+  serverDraftsReady.value = 0;
+  preparing.value = false;
+  loading.value = false;
+  result.value = null;
+  ElMessage.info(t('contacts.broadcast.resetCampaignDone'));
 }
 
 async function sendBroadcast() {
@@ -1384,6 +1468,12 @@ async function sendBroadcast() {
 
 .delivery-settings {
   margin-top: 4px;
+}
+
+.channels-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
 }
 
 .section-heading {

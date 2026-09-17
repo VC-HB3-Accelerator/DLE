@@ -533,7 +533,7 @@ select.form-control {
 
   .management-blocks,
   .operation-blocks,
-  .main-content [class*="grid"],
+  .main-content [class*="grid"]:not(.call-cal__days):not(.call-cal__weekdays),
   .main-content .form-row,
   .main-content .cards-grid {
     grid-template-columns: minmax(0, 1fr) !important;

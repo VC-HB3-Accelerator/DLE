@@ -19,69 +19,26 @@ const adminLogicService = require('./adminLogicService');
 const universalGuestService = require('./UniversalGuestService');
 const identityService = require('./identity-service');
 const { isUserBlocked } = require('../utils/userUtils');
+const {
+  normalizeNumericUserId,
+  determineMessageType,
+  resolveChatMessageType,
+  determineConversationType,
+  shouldGenerateAiReply,
+  shouldGenerateAiForPublicToEditor
+} = require('./chatSystemRules');
 
-/**
- * Определить тип сообщения по контексту
- * @param {number|null} recipientId - ID получателя
- * @param {number} userId - ID отправителя
- * @param {boolean} isAdminSender - Является ли отправитель админом
- * @returns {string} - Тип сообщения: 'user_chat', 'admin_chat', 'public'
- */
-function normalizeNumericUserId(raw) {
-  if (raw == null || raw === '') return null;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function determineMessageType(recipientId, userId, isAdminSender) {
-  const recipientNum = normalizeNumericUserId(recipientId);
-  const senderNum = normalizeNumericUserId(userId);
-
-  // 1. Личный чат с ИИ (recipientId не указан или равен userId)
-  // FormData отдаёт строки: "145" === 145 иначе ложно уходит в public и падает на unique participants
-  if (!recipientNum || (senderNum && recipientNum === senderNum)) {
-    return 'user_chat';
+async function isEditorUserId(rawId) {
+  const id = normalizeNumericUserId(rawId);
+  if (!id) return false;
+  try {
+    const { rows } = await db.getQuery()('SELECT role FROM users WHERE id = $1 LIMIT 1', [id]);
+    const role = rows[0]?.role;
+    return role === 'editor';
+  } catch (e) {
+    logger.warn('[UnifiedMessageProcessor] isEditorUserId:', e?.message);
+    return false;
   }
-  
-  // 2. Приватное сообщение к редактору (recipientId = 1)
-  if (recipientNum === 1) {
-    return 'admin_chat';
-  }
-  
-  // 3. Публичное сообщение между пользователями
-  return 'public';
-}
-
-/**
- * Определить тип беседы
- * @param {string} messageType - Тип сообщения
- * @param {number|null} recipientId - ID получателя
- * @param {number} userId - ID отправителя
- * @returns {string} - Тип беседы: 'user_chat', 'private', 'public'
- */
-function determineConversationType(messageType, recipientId, userId) {
-  switch (messageType) {
-    case 'user_chat':
-      return 'user_chat'; // Личная беседа с ИИ
-    case 'admin_chat':
-      return 'private'; // Приватная беседа с редактором
-    case 'public':
-      return 'public_chat'; // Публичная беседа между пользователями
-    default:
-      return 'user_chat';
-  }
-}
-
-/**
- * Определить, нужно ли генерировать AI ответ
- * @param {string} messageType - Тип сообщения
- * @param {number|null} recipientId - ID получателя
- * @param {number} userId - ID отправителя
- * @returns {boolean}
- */
-function shouldGenerateAiReply(messageType, recipientId, userId) {
-  // ИИ отвечает только в личных чатах
-  return messageType === 'user_chat';
 }
 const { broadcastMessagesUpdate } = require('../wsHub');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
@@ -113,6 +70,7 @@ async function processMessage(messageData) {
       attachments = [],
       conversationId: inputConversationId,
       recipientId,
+      forcePrivate = false,
       metadata = {}
     } = messageData;
 
@@ -200,10 +158,19 @@ async function processMessage(messageData) {
     const isAdmin = userRole === ROLES.EDITOR || userRole === ROLES.READONLY;
 
     // 4. Определяем тип сообщения по контексту
-    const messageType = determineMessageType(recipientId, userId, isAdmin);
+    // Приват только явно (кнопка / «Ответить» → /private/send), не из чата карточки
+    const messageType = resolveChatMessageType({
+      recipientId,
+      userId,
+      forcePrivate
+    });
     
     // 5. Определяем нужно ли генерировать AI ответ
-    let shouldGenerateAi = shouldGenerateAiReply(messageType, recipientId, userId);
+    let shouldGenerateAi = shouldGenerateAiReply(messageType);
+    // TZ_CHAT_SYSTEM §3.4: публичное сообщение редактору — может ответить ИИ-агент редактора
+    if (!shouldGenerateAi && shouldGenerateAiForPublicToEditor(messageType, await isEditorUserId(recipientId))) {
+      shouldGenerateAi = true;
+    }
 
     // Заблокированный контакт: сообщение сохраняем (видно в карточке), автоответ ИИ не генерируем
     if (shouldGenerateAi && await isUserBlocked(userId)) {
@@ -215,18 +182,41 @@ async function processMessage(messageData) {
 
     // 6. Получаем или создаем беседу с правильным типом
     let conversation;
-    const conversationType = determineConversationType(messageType, recipientId, userId);
+    const conversationType = determineConversationType(messageType);
+
+    function conversationTypeMatches(actual, expected) {
+      if (expected === 'user_chat') {
+        return !actual || actual === 'user_chat';
+      }
+      return actual === expected;
+    }
     
     if (inputConversationId) {
       conversation = await conversationService.getConversationById(inputConversationId);
+      // Не писать user_chat в public_chat и наоборот — иначе на карточке смешиваются ИИ и люди
+      if (conversation && !conversationTypeMatches(conversation.conversation_type, conversationType)) {
+        logger.warn('[UnifiedMessageProcessor] Игнор conversationId: тип беседы не совпал', {
+          inputConversationId,
+          actual: conversation.conversation_type,
+          expected: conversationType,
+          messageType
+        });
+        conversation = null;
+      }
     }
     
     if (!conversation) {
       // Для публичных сообщений создаем беседу между пользователями
       if (messageType === 'public') {
         conversation = await conversationService.getOrCreatePublicConversation(userId, recipientId);
+      } else if (messageType === 'admin_chat') {
+        const peerId = normalizeNumericUserId(recipientId);
+        if (!peerId) {
+          throw new Error('Для приватного сообщения нужен recipientId');
+        }
+        conversation = await conversationService.getOrCreatePrivateConversation(userId, peerId);
       } else {
-        // Для личных и админских чатов используем стандартную логику
+        // Личный чат с ИИ
         conversation = await conversationService.getOrCreateConversation(userId, 'Беседа');
       }
       
@@ -419,7 +409,10 @@ async function processMessage(messageData) {
     let aiResponseDisabled = false;
 
     if (shouldGenerateAi) {
-      // Загружаем последние 20 сообщений (не первые!)
+      // История беседы: для public — вся conversation; для user_chat — по владельцу
+      const historyOwnerId = messageType === 'public'
+        ? (normalizeNumericUserId(recipientId) || userId)
+        : userId;
       const { rows: historyRows } = await db.getQuery()(
         `SELECT role, content, created_at FROM (
            SELECT 
@@ -432,7 +425,7 @@ async function processMessage(messageData) {
            LIMIT 20
          ) recent
          ORDER BY created_at ASC`,
-        [conversationId, encryptionKey, userId, userMessageId]
+        [conversationId, encryptionKey, historyOwnerId, userMessageId]
       );
       
       const conversationHistory = historyRows.map(row => ({
@@ -442,10 +435,14 @@ async function processMessage(messageData) {
 
       logger.info('[UnifiedMessageProcessor] Генерация AI ответа...');
       try {
+        // user_chat: контекст отправителя; public→editor: агент получателя-редактора (TZ §3.4)
+        const aiContextUserId = messageType === 'public'
+          ? (normalizeNumericUserId(recipientId) || userId)
+          : userId;
         aiResponse = await aiAssistant.generateResponse({
           channel,
           messageId: userMessageId,
-          userId: userId,
+          userId: aiContextUserId,
           userQuestion: messageContent,
           conversationHistory,
           conversationId,
@@ -461,7 +458,9 @@ async function processMessage(messageData) {
             channel,
             isAdmin,
             rag_hint: metadata?.rag_hint || null,
-            attachment_kind: attachmentKind
+            attachment_kind: attachmentKind,
+            messageType,
+            askingUserId: userId
           }
         });
       } catch (aiErr) {
@@ -519,7 +518,8 @@ async function processMessage(messageData) {
             'assistant',
             'outgoing',
             messageType,
-            userId,
+            // public к редактору: user_id = карточка получателя (как у входящего public)
+            normalizeNumericUserId(recipientId) || userId,
             'assistant',
             'outgoing',
             encryptionKey,
@@ -556,9 +556,13 @@ async function processMessage(messageData) {
     // 9. Обновляем время беседы
     await conversationService.touchConversation(conversationId);
 
-    // 10. Отправляем уведомление через WebSocket
+    // 10. Отправляем уведомление через WebSocket (inbox + открытые чаты)
     try {
-      broadcastMessagesUpdate(userId);
+      broadcastMessagesUpdate({ conversationId, userId });
+      try {
+        const { broadcastContactsUpdate } = require('../wsHub');
+        broadcastContactsUpdate();
+      } catch (_) { /* ignore */ }
     } catch (wsError) {
       logger.warn('[UnifiedMessageProcessor] Ошибка отправки WebSocket:', wsError.message);
     }

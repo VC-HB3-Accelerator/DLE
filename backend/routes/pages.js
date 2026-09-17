@@ -214,6 +214,25 @@ async function ensureAdminPagesTable(fields) {
   return { tableName, encryptionKey };
 }
 
+/** Гарантирует owner_user_id / owner_domain на admin_pages_simple (лента ?owner=). */
+async function ensurePageOwnerColumns() {
+  const tableName = 'admin_pages_simple';
+  const existsRes = await db.getQuery()(
+    `SELECT to_regclass($1) as exists`,
+    [tableName]
+  );
+  if (!existsRes.rows[0].exists) return;
+
+  await db.getQuery()(`
+    ALTER TABLE ${tableName}
+    ADD COLUMN IF NOT EXISTS owner_user_id INTEGER
+  `);
+  await db.getQuery()(`
+    ALTER TABLE ${tableName}
+    ADD COLUMN IF NOT EXISTS owner_domain TEXT
+  `);
+}
+
 /**
  * Проверка прав на создание/редактирование страницы (blog + legal scope).
  * @returns {Promise<{ access, pageRow }|null>}
@@ -399,7 +418,34 @@ async function decryptPageRow(page) {
 
 function sanitizeBlogListItem(page) {
   const { parsePageSeo } = require('../utils/blogCoverUtils');
+  const { withListingWatermark } = require('../services/mediaWatermarkService');
   const seo = parsePageSeo(page.seo);
+  const ownerId = page.owner_user_id != null ? Number(page.owner_user_id) : null;
+  const tags = Array.isArray(page.catalog_tags)
+    ? page.catalog_tags.map((t) => String(t || '').trim()).filter(Boolean)
+    : [];
+  let listingMedia = null;
+  try {
+    let settings = page.settings;
+    if (typeof settings === 'string') {
+      try { settings = JSON.parse(settings); } catch { settings = null; }
+    }
+    const lm = settings && settings.listing_media;
+    if (lm && typeof lm === 'object') {
+      const photos = Array.isArray(lm.photos)
+        ? lm.photos.filter(Boolean).map((u) => withListingWatermark(String(u)))
+        : [];
+      const video = lm.video ? String(lm.video) : null;
+      if (photos.length || video) listingMedia = { photos, video };
+    }
+  } catch (_) {
+    listingMedia = null;
+  }
+  const coverRaw = page.cover_url || null;
+  const coverUrl = coverRaw && page.cover_type !== 'video'
+    ? withListingWatermark(coverRaw)
+    : coverRaw;
+  const ogRaw = seo.og_image || seo.image || null;
   return {
     id: page.id,
     slug: page.slug,
@@ -408,9 +454,9 @@ function sanitizeBlogListItem(page) {
     category: page.category,
     created_at: page.created_at,
     updated_at: page.updated_at,
-    cover_url: page.cover_url || null,
+    cover_url: coverUrl,
     cover_type: page.cover_type || null,
-    og_image: seo.og_image || seo.image || null,
+    og_image: ogRaw ? withListingWatermark(ogRaw) : null,
     reactions: page.reactions || null,
     likes_count: page.likes_count ?? page.reactions?.heart ?? 0,
     comments_count: page.comments_count ?? 0,
@@ -418,7 +464,53 @@ function sanitizeBlogListItem(page) {
     preview_comments: page.preview_comments || [],
     is_pinned: Boolean(page.is_pinned),
     pin_position: page.pin_position ?? null,
+    // Для UI «Написать/Позвонить»: скрыть кнопки на своём объявлении (не контакт автора)
+    owner_user_id: Number.isInteger(ownerId) && ownerId > 0 ? ownerId : null,
+    catalog_tags: tags,
+    listing_media: listingMedia,
   };
+}
+
+/** На полной странице блога — те же ?wm=1 к фото объявления. */
+function applyListingWatermarksToPage(page) {
+  if (!page || typeof page !== 'object') return page;
+  const { withListingWatermark } = require('../services/mediaWatermarkService');
+  const out = { ...page };
+  let settings = out.settings;
+  if (typeof settings === 'string') {
+    try { settings = JSON.parse(settings); } catch { settings = null; }
+  }
+  if (settings && typeof settings === 'object') {
+    const lm = settings.listing_media;
+    if (lm && typeof lm === 'object') {
+      const photos = Array.isArray(lm.photos)
+        ? lm.photos.filter(Boolean).map((u) => withListingWatermark(String(u)))
+        : [];
+      settings = {
+        ...settings,
+        listing_media: {
+          ...lm,
+          photos,
+          video: lm.video ? String(lm.video) : null,
+        },
+      };
+    }
+    out.settings = settings;
+  }
+  if (out.cover_url && out.cover_type !== 'video') {
+    out.cover_url = withListingWatermark(out.cover_url);
+  }
+  let seo = out.seo;
+  if (typeof seo === 'string') {
+    try { seo = JSON.parse(seo); } catch { seo = null; }
+  }
+  if (seo && typeof seo === 'object') {
+    seo = { ...seo };
+    if (seo.og_image) seo.og_image = withListingWatermark(seo.og_image);
+    if (seo.image) seo.image = withListingWatermark(seo.image);
+    out.seo = seo;
+  }
+  return out;
 }
 
 async function attachPreviewComments(rows) {
@@ -638,6 +730,7 @@ router.post('/', conditionalUpload, async (req, res) => {
   try {
     const writeCtx = await assertPageWriteAccess(req, res);
     if (!writeCtx) return;
+    await ensurePageOwnerColumns();
     const { access } = writeCtx;
 
     const blogContentAccess = require('../services/blogContentAccessService');
@@ -731,6 +824,21 @@ router.post('/', conditionalUpload, async (req, res) => {
       owner_user_id: req.session.userId,
       owner_domain: access.domain || null,
     };
+
+    const submitForReview = bodyRaw.submit_for_review === true
+      || bodyRaw.submit_for_review === 'true'
+      || bodyRaw.submitForReview === true;
+    if (blogContentAccess.canPublishDirectly(access)) {
+      pageData.status = blogContentAccess.normalizePageStatus(bodyRaw.status || 'published', {
+        allowPublished: true,
+      });
+    } else {
+      pageData.status = blogContentAccess.resolveAuthorWriteStatus(bodyRaw.status, { submitForReview });
+      // Own-author public blog posts go through moderation
+      if (pageData.visibility === 'public' && pageData.show_in_blog && submitForReview) {
+        pageData.status = blogContentAccess.PAGE_STATUSES.PENDING;
+      }
+    }
 
     console.log('[pages] POST /: Создание страницы, данные:', {
       title: pageData.title,
@@ -847,6 +955,7 @@ router.post('/', conditionalUpload, async (req, res) => {
         });
       } catch (termErr) {
         console.warn('[pages] POST: sync catalog attrs:', termErr.message);
+        catalogMeta = { catalog_section_id: null, catalog_attrs: [] };
         catalog_terms_error = termErr.message;
       }
     }
@@ -864,6 +973,16 @@ router.post('/', conditionalUpload, async (req, res) => {
     }
     if (catalog_terms_error) {
       createResponse.catalog_terms_error = catalog_terms_error;
+    }
+    if (created.status === 'published' && created.show_in_blog) {
+      try {
+        const blogSubscriptionService = require('../services/blogSubscriptionService');
+        blogSubscriptionService.enqueueNotifyForPage(created.id).catch((e) => {
+          console.warn('[pages] POST subscription notify:', e.message);
+        });
+      } catch (notifyErr) {
+        console.warn('[pages] POST subscription notify:', notifyErr.message);
+      }
     }
     res.json(createResponse);
   } catch (error) {
@@ -928,9 +1047,26 @@ router.get('/', async (req, res) => {
   const where = [];
   const params = [];
   let idx = 1;
-  if (!blogContentAccess.canManageLegalGlobal(access)) {
+
+  const accessResolver = require('../services/accessResolverService');
+  const profileOwnerId = accessResolver.parseProfileOwnerId(req.query.owner);
+  if (profileOwnerId) {
+    const gate = await accessResolver.assertCanAccessProfileOwnedData(req.session.userId, profileOwnerId);
+    if (!gate.ok) {
+      return res.status(gate.status || 403).json({ error: gate.error || 'Forbidden' });
+    }
+    where.push(`owner_user_id = $${idx++}`);
+    params.push(profileOwnerId);
+  } else if (!blogContentAccess.canManageLegalGlobal(access)) {
     idx = blogContentAccess.appendPagesScopeWhere(access, req.session.userId, where, params, idx);
   }
+
+  const statusFilter = String(req.query.status || '').trim().toLowerCase();
+  if (statusFilter && ['draft', 'pending', 'published', 'rejected'].includes(statusFilter)) {
+    where.push(`status = $${idx++}`);
+    params.push(statusFilter);
+  }
+
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const { rows } = await db.getQuery()(`
@@ -1233,6 +1369,23 @@ router.get('/:id', async (req, res) => {
     if (page.visibility === 'public' && page.status === 'published') {
       return res.json(page);
     }
+
+    // Автор / модератор видят свои draft|pending|rejected
+    try {
+      const blogContentAccess = require('../services/blogContentAccessService');
+      const access = await blogContentAccess.resolveViewerAccess(req);
+      if (
+        access
+        && (
+          blogContentAccess.canWritePage(access, page, req.session.userId)
+          || blogContentAccess.canApprovePublications(access)
+        )
+      ) {
+        return res.json(page);
+      }
+    } catch (scopeErr) {
+      console.warn('[pages] GET /:id scope check:', scopeErr.message);
+    }
     
     // Внутренние страницы требуют проверки прав
     if (page.visibility === 'internal') {
@@ -1277,6 +1430,97 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     console.error('[pages] Ошибка получения страницы:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Одобрить пост → published (публичный /blog)
+router.post('/:id/approve', async (req, res) => {
+  try {
+    if (!req.session?.authenticated || !req.session?.userId) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    const blogContentAccess = require('../services/blogContentAccessService');
+    const access = await blogContentAccess.resolveViewerAccess(req);
+    if (!blogContentAccess.canApprovePublications(access)) {
+      return res.status(403).json({ error: 'Недостаточно прав для модерации' });
+    }
+    await ensurePageOwnerColumns();
+    const page = await blogContentAccess.loadPageRow(req.params.id);
+    if (!page) return res.status(404).json({ error: 'Page not found' });
+    if (!blogContentAccess.pageMatchesScope(access, page, req.session.userId)
+      && !blogContentAccess.canManageLegalGlobal(access)) {
+      return res.status(403).json({ error: 'Страница вне вашей зоны модерации' });
+    }
+    if (page.status !== blogContentAccess.PAGE_STATUSES.PENDING) {
+      return res.status(409).json({ error: 'На публикацию можно отправить только материалы со статусом «на проверке»' });
+    }
+
+    const { rows } = await db.getQuery()(
+      `UPDATE admin_pages_simple
+       SET status = $2, updated_at = NOW()
+       WHERE id = $1 AND status = $3
+       RETURNING *`,
+      [page.id, blogContentAccess.PAGE_STATUSES.PUBLISHED, blogContentAccess.PAGE_STATUSES.PENDING]
+    );
+    if (!rows[0]) {
+      return res.status(409).json({ error: 'Статус уже изменился — обновите очередь' });
+    }
+    const updated = rows[0];
+    try {
+      await ensureSeoForPage(updated);
+    } catch (seoErr) {
+      console.warn('[pages] approve SEO:', seoErr.message);
+    }
+    try {
+      const blogSubscriptionService = require('../services/blogSubscriptionService');
+      blogSubscriptionService.enqueueNotifyForPage(updated.id).catch((e) => {
+        console.warn('[pages] approve subscription notify:', e.message);
+      });
+    } catch (notifyErr) {
+      console.warn('[pages] approve subscription notify:', notifyErr.message);
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error('[pages] approve:', error);
+    res.status(500).json({ error: error.message || 'Ошибка модерации' });
+  }
+});
+
+// Вернуть на редактирование
+router.post('/:id/return', async (req, res) => {
+  try {
+    if (!req.session?.authenticated || !req.session?.userId) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    const blogContentAccess = require('../services/blogContentAccessService');
+    const access = await blogContentAccess.resolveViewerAccess(req);
+    if (!blogContentAccess.canApprovePublications(access)) {
+      return res.status(403).json({ error: 'Недостаточно прав для модерации' });
+    }
+    const page = await blogContentAccess.loadPageRow(req.params.id);
+    if (!page) return res.status(404).json({ error: 'Page not found' });
+    if (!blogContentAccess.pageMatchesScope(access, page, req.session.userId)
+      && !blogContentAccess.canManageLegalGlobal(access)) {
+      return res.status(403).json({ error: 'Страница вне вашей зоны модерации' });
+    }
+    if (page.status !== blogContentAccess.PAGE_STATUSES.PENDING) {
+      return res.status(409).json({ error: 'Вернуть можно только материал из очереди проверки' });
+    }
+
+    const { rows } = await db.getQuery()(
+      `UPDATE admin_pages_simple
+       SET status = $2, updated_at = NOW()
+       WHERE id = $1 AND status = $3
+       RETURNING *`,
+      [page.id, blogContentAccess.PAGE_STATUSES.REJECTED, blogContentAccess.PAGE_STATUSES.PENDING]
+    );
+    if (!rows[0]) {
+      return res.status(409).json({ error: 'Статус уже изменился — обновите очередь' });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('[pages] return:', error);
+    res.status(500).json({ error: error.message || 'Ошибка модерации' });
   }
 });
 
@@ -1388,6 +1632,8 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   try {
     const writeCtx = await assertPageWriteAccess(req, res, { pageId: req.params.id });
     if (!writeCtx) return;
+    const { access, pageRow } = writeCtx;
+    const blogContentAccess = require('../services/blogContentAccessService');
   
   const tableName = `admin_pages_simple`;
   const existsRes = await db.getQuery()(
@@ -1397,6 +1643,23 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   
   const incoming = req.body || {};
   const updateData = {};
+
+  // Модерация: автор не может сам выставить / удержать published
+  {
+    const submitForReview = incoming.submit_for_review === true
+      || incoming.submit_for_review === 'true'
+      || incoming.submitForReview === true;
+    if (blogContentAccess.canPublishDirectly(access)) {
+      if ('status' in incoming) {
+        updateData.status = blogContentAccess.normalizePageStatus(incoming.status, { allowPublished: true });
+      }
+    } else if ('status' in incoming || submitForReview) {
+      updateData.status = blogContentAccess.resolveAuthorWriteStatus(incoming.status, { submitForReview });
+    } else if (pageRow?.status === blogContentAccess.PAGE_STATUSES.PUBLISHED) {
+      // Любая правка автором снимает с паблика → снова в очередь
+      updateData.status = blogContentAccess.PAGE_STATUSES.PENDING;
+    }
+  }
   
   console.log(`[pages] PATCH /:id (${req.params.id}): получены данные для обновления:`, JSON.stringify(incoming, null, 2));
   console.log(`[pages] PATCH /:id (${req.params.id}): тип req.body:`, typeof req.body);
@@ -1419,11 +1682,12 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   for (const [k, v] of Object.entries(incoming)) {
     if (FIELDS_TO_EXCLUDE.includes(k)) continue;
     if (k === 'required_permission') continue; // Уже обработано выше
+    if (k === 'status') continue; // модерация выше
+    if (k === 'submit_for_review' || k === 'submitForReview') continue;
     if (k === 'feed_filter_ids' || k === 'seoHtml' || k === 'catalog_terms' || k === 'catalog_term_ids'
-      || k === 'catalog_section_id' || k === 'catalog_attrs' || k === 'catalog_section'
       || k === 'catalog_category' || k === 'catalog_condition' || k === 'catalog_country'
-      || k === 'catalog_region' || k === 'catalog_city') continue; // не колонки admin_pages_simple
-    
+      || k === 'catalog_region' || k === 'catalog_city'
+      || k === 'catalog_section_id' || k === 'catalog_attrs' || k === 'catalog_section') continue;
     // Обрабатываем show_in_blog как boolean
     if (k === 'show_in_blog') {
       updateData[k] = v === true || v === 'true' || v === 1 || v === '1';
@@ -1683,6 +1947,7 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
       });
     } catch (termErr) {
       console.warn('[pages] PATCH: sync catalog attrs:', termErr.message);
+      catalogMeta = { catalog_section_id: null, catalog_attrs: [] };
       catalog_terms_error = termErr.message;
     }
   } else {
@@ -1707,6 +1972,22 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   }
   if (catalog_terms_error) {
     updateResponse.catalog_terms_error = catalog_terms_error;
+  }
+  {
+    const wasPublishedBlog = pageRow?.status === 'published'
+      && (pageRow?.show_in_blog === true || pageRow?.show_in_blog === 'true' || pageRow?.show_in_blog === 1);
+    const nowPublishedBlog = updated.status === 'published'
+      && (updated.show_in_blog === true || updated.show_in_blog === 'true' || updated.show_in_blog === 1);
+    if (nowPublishedBlog && !wasPublishedBlog) {
+      try {
+        const blogSubscriptionService = require('../services/blogSubscriptionService');
+        blogSubscriptionService.enqueueNotifyForPage(updated.id).catch((e) => {
+          console.warn('[pages] PATCH subscription notify:', e.message);
+        });
+      } catch (notifyErr) {
+        console.warn('[pages] PATCH subscription notify:', notifyErr.message);
+      }
+    }
   }
   res.json(updateResponse);
   } catch (error) {
@@ -1897,16 +2178,17 @@ router.get('/public/all', async (req, res) => {
 router.get('/blog/all', async (req, res) => {
   try {
     const tableName = `admin_pages_simple`;
-    
+
     // Проверяем, есть ли таблица
     const existsRes = await db.getQuery()(
       `SELECT to_regclass($1) as exists`, [tableName]
     );
-    
+
     if (!existsRes.rows[0].exists) {
       return res.json([]);
     }
-    
+
+    await ensurePageOwnerColumns();
     // Поддержка фильтрации по CMS-категории документа, поиску, sort-фильтру ленты и связанным фасетам каталога.
     // for_seo=1 — полный список для prerender/sitemap, без подборки default-фильтра.
     const {
@@ -1914,25 +2196,35 @@ router.get('/blog/all', async (req, res) => {
       search,
       filter: filterSlug,
       for_seo: forSeoRaw,
+      owner: ownerRaw,
     } = req.query;
-    const forSeo = forSeoRaw === '1' || forSeoRaw === 'true';
-    let whereClause = `WHERE visibility = 'public' AND status = 'published' AND show_in_blog = TRUE`;
-    const params = [];
-    let paramIndex = 1;
-
     const catalogSection = req.query.section || req.query.group || null;
     const reservedFacetKeys = new Set([
       'category', 'search', 'filter', 'for_seo', 'section', 'group',
       'page', 'q', 'sort', 'only_used', 'scope', 'catalog_category',
-      'condition', 'country', 'region', 'city',
+      'condition', 'country', 'region', 'city', 'owner',
     ]);
     const catalogAttrFacets = {};
     for (const [k, v] of Object.entries(req.query || {})) {
       if (reservedFacetKeys.has(k)) continue;
       if (typeof v === 'string' && v.trim()) catalogAttrFacets[k] = v.trim();
     }
-    const hasTaxonomy = Boolean(catalogSection || Object.keys(catalogAttrFacets).length);
-    if (cmsCategory && !hasTaxonomy) {
+    const forSeo = forSeoRaw === '1' || forSeoRaw === 'true';
+    let whereClause = `WHERE visibility = 'public' AND status = 'published' AND show_in_blog = TRUE`;
+    const params = [];
+    let paramIndex = 1;
+
+    const ownerUserId = Number(ownerRaw);
+    if (Number.isInteger(ownerUserId) && ownerUserId > 0) {
+      whereClause += ` AND owner_user_id = $${paramIndex}`;
+      params.push(ownerUserId);
+      paramIndex++;
+    }
+
+    const hasCatalogFacets = Boolean(
+      catalogSection || Object.keys(catalogAttrFacets).length
+    );
+    if (cmsCategory && !hasCatalogFacets) {
       whereClause += ` AND category = $${paramIndex}`;
       params.push(cmsCategory);
       paramIndex++;
@@ -1995,17 +2287,26 @@ router.get('/blog/all', async (req, res) => {
     const withCounts = await attachEngagementCounts(processedRows);
     const withPreviews = await attachPreviewComments(withCounts);
 
-    let facetFiltered = withPreviews;
+    let withCatalogTags = withPreviews;
     try {
       const catalogFilters = require('../services/catalogFiltersService');
-      const catalogFacets = {
-        section: catalogSection,
-        ...catalogAttrFacets,
-      };
+      const tagsMap = await catalogFilters.getPagesCatalogTagsMap(withPreviews.map((p) => p.id));
+      withCatalogTags = withPreviews.map((p) => ({
+        ...p,
+        catalog_tags: tagsMap.get(Number(p.id)) || [],
+      }));
+    } catch (tagsErr) {
+      console.warn('[pages] GET /blog/all: catalog tags fallback:', tagsErr.message);
+    }
+
+    let facetFiltered = withCatalogTags;
+    try {
+      const catalogFilters = require('../services/catalogFiltersService');
+      const catalogFacets = { section: catalogSection, ...catalogAttrFacets };
       if (Object.values(catalogFacets).some(Boolean)) {
         const allowed = await catalogFilters.filterPageIdsByFacets(catalogFacets);
         if (allowed) {
-          facetFiltered = withPreviews.filter((p) => allowed.has(p.id));
+          facetFiltered = withCatalogTags.filter((p) => allowed.has(p.id));
         }
       }
     } catch (facetErr) {
@@ -2181,7 +2482,9 @@ router.get('/blog/:slug', async (req, res) => {
     
     console.log(`[pages] GET /blog/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
     
-    const decryptedPage = attachCoverToPage(await decryptPageRow(rows[0]));
+    const decryptedPage = applyListingWatermarksToPage(
+      attachCoverToPage(await decryptPageRow(rows[0]))
+    );
     res.json(decryptedPage);
   } catch (error) {
     console.error('Ошибка получения страницы блога по slug:', error);

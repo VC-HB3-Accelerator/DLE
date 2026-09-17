@@ -54,33 +54,56 @@ function fetchAppShellFromUrl(urlString) {
       return;
     }
     const mod = url.protocol === 'https:' ? https : http;
-    const req = mod.request(url, { method: 'GET', timeout: 15000 }, (res) => {
+    let settled = false;
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      fn();
+    };
+    const req = mod.request(url, { method: 'GET' }, (res) => {
       if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode}`));
+        finish(() => reject(new Error(`HTTP ${res.statusCode}`)));
+        res.resume();
         return;
       }
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
-        try {
-          resolve(Buffer.concat(chunks).toString('utf8'));
-        } catch (e) {
-          reject(e);
-        }
+        finish(() => {
+          try {
+            resolve(Buffer.concat(chunks).toString('utf8'));
+          } catch (e) {
+            reject(e);
+          }
+        });
       });
     });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.on('error', (err) => finish(() => reject(err)));
+    // Wall-clock: TLS/hairpin к своему HTTPS с VDS иначе крутит CPU без req timeout.
+    const timer = setTimeout(() => {
+      req.destroy();
+      finish(() => reject(new Error('Timeout')));
+    }, 8000);
+    req.on('close', () => clearTimeout(timer));
     req.end();
   });
 }
 
 /**
- * Возвращает HTML app-shell.
- * На prod сначала URL (живой nginx с актуальными hashed assets), иначе файл:
- * иначе устаревший frontend/dist/index.html на VDS ломает SPA (404 на index-*.js).
+ * App-shell: сначала свежий файл (после выгрузки dist), URL — запасной.
+ * Иначе docker exec ходит на https://домен с этого же VDS и может зависнуть.
  */
 async function getAppShellTemplate() {
+  try {
+    const html = fs.readFileSync(FRONTEND_INDEX_HTML, 'utf8');
+    if (html && html.includes('<div id="app')) {
+      console.log('[pre-render] App-shell взят из файла:', FRONTEND_INDEX_HTML);
+      return html;
+    }
+  } catch (e) {
+    console.warn('[pre-render] Нет файла app-shell:', FRONTEND_INDEX_HTML, e.message);
+  }
+
   const baseUrl = process.env.PRERENDER_BASE_URL || BASE_URL;
   if (baseUrl && (baseUrl.startsWith('http://') || baseUrl.startsWith('https://'))) {
     const shellUrl = baseUrl.replace(/\/$/, '') + '/';
@@ -93,15 +116,6 @@ async function getAppShellTemplate() {
     } catch (err) {
       console.warn('[pre-render] Не удалось загрузить app-shell по URL:', err.message);
     }
-  }
-  try {
-    const html = fs.readFileSync(FRONTEND_INDEX_HTML, 'utf8');
-    if (html && html.includes('<div id="app')) {
-      console.log('[pre-render] App-shell взят из файла:', FRONTEND_INDEX_HTML);
-      return html;
-    }
-  } catch (e) {
-    // файла нет (на VDS часто нет frontend/dist в backend)
   }
   return null;
 }
@@ -1174,6 +1188,9 @@ async function publishSeoForPage(page) {
 if (require.main === module) {
   (async () => {
     try {
+      // docker exec -T: stdout блок-буфер — прогресс не видно, кажется зависанием
+      try { process.stdout.write(''); } catch (_) { /* ignore */ }
+
       // Инициализируем БД
       await initDbPool();
       

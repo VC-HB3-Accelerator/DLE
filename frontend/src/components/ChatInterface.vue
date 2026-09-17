@@ -23,17 +23,29 @@
       @scroll="handleScroll"
     >
       <div class="chat-messages-inner">
-      <div v-for="message in messages" :key="message.id" :class="['message-wrapper', { 'selected-message': selectedMessageIds.includes(message.id) }]">
-        <template v-if="props.canSelectMessages">
-          <input type="checkbox" class="admin-select-checkbox" :checked="selectedMessageIds.includes(message.id)" @change="() => toggleSelectMessage(message.id)" />
-        </template>
-        <Message 
-          :message="message" 
-          :isPrivateChat="isPrivateChat"
-          :currentUserId="currentUserId"
-          @consent-granted="handleConsentGranted"
-          @cms-branch="handleCmsBranch"
-        />
+      <div v-for="message in messages" :key="message.id" :class="['message-wrapper', { 'selected-message': selectedMessageIds.includes(message.id), 'message-wrapper--selectable': props.canSelectMessages }]">
+        <label
+          v-if="props.canSelectMessages"
+          class="admin-select-label"
+          @click.stop
+        >
+          <input
+            type="checkbox"
+            class="admin-select-checkbox"
+            :checked="selectedMessageIds.includes(message.id)"
+            :aria-label="'select-message-' + message.id"
+            @change="() => toggleSelectMessage(message.id)"
+          />
+        </label>
+        <div class="message-wrapper__body">
+          <Message 
+            :message="message" 
+            :isPrivateChat="isPrivateChat"
+            :currentUserId="currentUserId"
+            @consent-granted="handleConsentGranted"
+            @cms-branch="handleCmsBranch"
+          />
+        </div>
       </div>
       </div>
     </div>
@@ -103,15 +115,18 @@
       <div class="chat-compose-row">
         <div class="input-shell" :class="{ 'input-shell--multiline': isMultilineInput }">
           <button
-            v-if="props.canAttach && chatCaps.send_file"
+            v-if="showPlusButton && isComposerMobile"
+            ref="plusButtonRef"
             type="button"
-            class="attach-btn"
-            :title="t('chat.attachFile')"
+            class="plus-button slot-icon-btn"
+            :title="t('chat.composerPlus')"
             :disabled="!props.canSend || isAudioRecording || isVideoRecording"
-            @click="handleFileUpload"
+            :aria-expanded="plusOpen"
+            @click.stop="togglePlus"
           >
             <svg class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 1 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48" />
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
             </svg>
           </button>
           <textarea
@@ -156,70 +171,121 @@
                 :style="plusWidgetStyle"
                 role="menu"
               >
-              <button
-                v-for="mode in widgetModes"
-                :key="mode"
-                type="button"
-                class="plus-widget__btn"
-                :title="slotTitle(mode)"
-                role="menuitem"
-                @click="selectSlotMode(mode)"
-              >
-                <svg v-if="mode === 'send'" class="chat-icon send-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M22 2 11 13" />
-                  <path d="M22 2 15 22 11 13 2 9 22 2z" />
-                </svg>
-                <svg v-else-if="mode === 'audio'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-                </svg>
-                <svg v-else-if="mode === 'video_note'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M10 8.5v7l6-3.5-6-3.5z" fill="currentColor" stroke="none" />
-                </svg>
-                <svg v-else class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z" />
-                </svg>
-              </button>
+              <template v-for="mode in plusMenuModes" :key="mode">
+                <label
+                  v-if="mode === 'file'"
+                  class="plus-widget__btn slot-icon-btn"
+                  for="chat-attach-input"
+                  role="menuitem"
+                  :title="slotTitle('file')"
+                >
+                  <svg class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 1 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </label>
+                <button
+                  v-else
+                  type="button"
+                  class="plus-widget__btn slot-icon-btn"
+                  :class="{ 'plus-widget__btn--active': mode === slotMode }"
+                  :title="slotTitle(mode)"
+                  role="menuitem"
+                  :disabled="mode === 'send' ? false : extraSlotDisabled(mode)"
+                  @click.stop="selectSlotMode(mode)"
+                >
+                  <svg v-if="mode === 'audio'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                  </svg>
+                  <svg v-else-if="mode === 'video_note'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="2.5" y="6.5" width="13" height="11" rx="2" />
+                    <path d="m15.5 10 5.2-2.7c.5-.3 1.1.1 1.1.7v8c0 .6-.6 1-1.1.7L15.5 14" />
+                  </svg>
+                  <svg v-else-if="mode === 'phone'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  <svg v-else class="chat-icon send-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M22 2 11 13" />
+                    <path d="M22 2 15 22 11 13 2 9 22 2z" />
+                  </svg>
+                </button>
+              </template>
               </div>
             </Teleport>
-            <button
-              v-if="showPlusButton"
-              type="button"
-              class="plus-button"
-              :title="t('chat.composerPlus')"
-              :disabled="!props.canSend || isAudioRecording || isVideoRecording"
-              :aria-expanded="plusOpen"
-              @click.stop="togglePlus"
+            <div v-if="!isComposerMobile" class="slot-inline">
+              <template v-for="mode in extraSlotModes" :key="`inline-${mode}`">
+                <label
+                  v-if="mode === 'file'"
+                  class="slot-icon-btn"
+                  for="chat-attach-input"
+                  :title="slotTitle('file')"
+                >
+                  <svg class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 1 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </label>
+                <button
+                  v-else
+                  type="button"
+                  class="slot-icon-btn"
+                  :class="{
+                    recording: (mode === 'audio' && isAudioRecording) || (mode === 'video_note' && isVideoRecording),
+                    'recording--video': mode === 'video_note' && isVideoRecording,
+                  }"
+                  :title="slotTitle(mode)"
+                  :disabled="extraSlotDisabled(mode)"
+                  @mousedown="onSlotPointerDown(mode, $event)"
+                  @touchstart="onSlotPointerDown(mode, $event)"
+                  @contextmenu.prevent
+                >
+                  <svg v-if="mode === 'audio'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                  </svg>
+                  <svg v-else-if="mode === 'video_note'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="2.5" y="6.5" width="13" height="11" rx="2" />
+                    <path d="m15.5 10 5.2-2.7c.5-.3 1.1.1 1.1.7v8c0 .6-.6 1-1.1.7L15.5 14" />
+                  </svg>
+                  <svg v-else-if="mode === 'phone'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                </button>
+              </template>
+            </div>
+            <label
+              v-if="activeSlotMode === 'file'"
+              class="send-button slot-icon-btn send-button--mode"
+              for="chat-attach-input"
+              :title="slotTitle('file')"
             >
               <svg class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 1 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48" />
               </svg>
-            </button>
+            </label>
             <button
+              v-else
               type="button"
-              class="send-button"
+              class="send-button slot-icon-btn"
               :class="{
-                recording: isAudioRecording || isVideoRecording,
-                'recording--video': isVideoRecording,
-                'send-button--mode': slotMode !== 'send',
+                'send-button--mode': activeSlotMode !== 'send',
+                recording: isComposerMobile && (isAudioRecording || isVideoRecording),
+                'recording--video': isComposerMobile && isVideoRecording,
               }"
-              :title="slotTitle(slotMode)"
-              :disabled="slotButtonDisabled"
-              @mousedown.prevent="onSlotPointerDown"
-              @touchstart.prevent="onSlotPointerDown"
+              :title="slotTitle(activeSlotMode)"
+              :disabled="isSlotActionDisabled(activeSlotMode)"
+              @mousedown="onSlotPointerDown(activeSlotMode, $event)"
+              @touchstart="onSlotPointerDown(activeSlotMode, $event)"
               @contextmenu.prevent
             >
-              <svg v-if="slotIconMode === 'audio'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <svg v-if="activeSlotMode === 'audio'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
                 <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
               </svg>
-              <svg v-else-if="slotIconMode === 'video_note'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M10 8.5v7l6-3.5-6-3.5z" fill="currentColor" stroke="none" />
+              <svg v-else-if="activeSlotMode === 'video_note'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="2.5" y="6.5" width="13" height="11" rx="2" />
+                <path d="m15.5 10 5.2-2.7c.5-.3 1.1.1 1.1.7v8c0 .6-.6 1-1.1.7L15.5 14" />
               </svg>
-              <svg v-else-if="slotIconMode === 'phone'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <svg v-else-if="activeSlotMode === 'phone'" class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z" />
               </svg>
               <svg v-else class="chat-icon send-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -227,6 +293,15 @@
                 <path d="M22 2 15 22 11 13 2 9 22 2z" />
               </svg>
             </button>
+            <input
+              id="chat-attach-input"
+              ref="attachInputRef"
+              class="chat-attach-input"
+              type="file"
+              tabindex="-1"
+              accept=".txt,.pdf,.jpg,.jpeg,.png,.gif,.webp,.mp3,.wav,.ogg,.webm,.m4a,.mp4,.avi,.mov,.docx,.xlsx,.pptx,.odt,.ods,.odp,.zip,.rar,.7z,audio/*,video/*,image/*"
+              @change="onAttachInputChange"
+            />
           </div>
         </div>
       </div>
@@ -297,16 +372,20 @@ const messagesContainer = ref(null);
 const messageInputRef = ref(null);
 const chatInputRef = ref(null);
 const slotClusterRef = ref(null);
+const plusButtonRef = ref(null);
 const plusWidgetRef = ref(null);
+const attachInputRef = ref(null);
 const plusWidgetStyle = ref({});
-const SLOT_MODES = ['send', 'audio', 'video_note', 'phone'];
+const SLOT_MODES = ['send', 'file', 'audio', 'video_note', 'phone'];
 const slotMode = ref('send');
 const plusOpen = ref(false);
+const isComposerMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 768);
 const showVoiceCall = ref(false);
 const HOLD_MS = 220;
 const RECORD_MIN_MS = 800;
 let slotHoldTimer = null;
 let slotHoldActive = false;
+let pointerAction = 'send';
 let pendingAutoSend = false;
 let recordingStartPending = false;
 let recordStartedAt = 0;
@@ -611,18 +690,22 @@ const stopVideoRecording = async ({ discard = false } = {}) => {
   }
 };
 
+function onAttachInputChange(event) {
+  plusOpen.value = false;
+  unbindPlusOutside();
+  const files = event.target?.files;
+  if (files && files.length > 0) {
+    addAttachment(files[0]);
+  }
+  slotMode.value = 'send';
+  if (event.target) event.target.value = '';
+}
+
 const handleFileUpload = () => {
   if (!props.canAttach || !props.canSend || !chatCaps.value.send_file) return;
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.multiple = false;
-  fileInput.accept = '.txt,.pdf,.jpg,.jpeg,.png,.gif,.webp,.mp3,.wav,.ogg,.webm,.m4a,.mp4,.avi,.mov,.docx,.xlsx,.pptx,.odt,.ods,.odp,.zip,.rar,.7z,audio/*,video/*,image/*';
-  fileInput.onchange = (event) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      addAttachment(files[0]);
-    }
-  };
+  const fileInput = attachInputRef.value;
+  if (!fileInput) return;
+  fileInput.value = '';
   fileInput.click();
 };
 
@@ -655,6 +738,7 @@ const addAttachment = (file, kindHint = '') => {
   const updatedAttachments = [attachment];
   localAttachments.value = updatedAttachments;
   emit('update:attachments', updatedAttachments);
+  slotMode.value = 'send';
 };
 
 const removeAttachment = (index) => {
@@ -697,29 +781,40 @@ const isSendDisabled = computed(() => {
 function isModeAllowed(mode) {
   if (mode === 'send') return true;
   if (!props.canAttach) return false;
+  if (mode === 'file') return chatCaps.value.send_file;
   if (mode === 'audio') return chatCaps.value.send_audio;
   if (mode === 'video_note') return chatCaps.value.send_video;
   if (mode === 'phone') return chatCaps.value.send_call;
   return false;
 }
 
-const widgetModes = computed(() => SLOT_MODES.filter((mode) => mode !== slotMode.value && isModeAllowed(mode)));
-const showPlusButton = computed(() => widgetModes.value.length > 0);
-const slotIconMode = computed(() => {
-  if (isVideoRecording.value) return 'video_note';
-  if (isAudioRecording.value) return 'audio';
-  return slotMode.value;
+const extraSlotModes = computed(() => SLOT_MODES.filter((mode) => mode !== 'send' && isModeAllowed(mode)));
+const plusMenuModes = computed(() => {
+  const extras = extraSlotModes.value;
+  if (slotMode.value === 'send') return extras;
+  return extras.map((mode) => (mode === slotMode.value ? 'send' : mode));
 });
-const slotButtonDisabled = computed(() => {
+const showPlusButton = computed(() => extraSlotModes.value.length > 0);
+const activeSlotMode = computed(() => (isComposerMobile.value ? slotMode.value : 'send'));
+
+function extraSlotDisabled(mode) {
   if (!props.canSend || props.isLoading) return true;
-  if (slotMode.value === 'send') return isSendDisabled.value;
-  if (slotMode.value === 'audio') return !chatCaps.value.send_audio;
-  if (slotMode.value === 'video_note') return !chatCaps.value.send_video;
-  if (slotMode.value === 'phone') return !chatCaps.value.send_call;
+  if (isAudioRecording.value) return mode !== 'audio';
+  if (isVideoRecording.value) return mode !== 'video_note';
+  if (mode === 'file') return !chatCaps.value.send_file;
+  if (mode === 'audio') return !chatCaps.value.send_audio;
+  if (mode === 'video_note') return !chatCaps.value.send_video;
+  if (mode === 'phone') return !chatCaps.value.send_call;
   return false;
-});
+}
+
+function isSlotActionDisabled(mode) {
+  if (mode === 'send') return isSendDisabled.value;
+  return extraSlotDisabled(mode);
+}
 
 function slotTitle(mode) {
+  if (mode === 'file') return t('chat.attachFile');
   if (mode === 'audio') return t('chat.composerAudio');
   if (mode === 'video_note') return t('chat.composerVideoNote');
   if (mode === 'phone') return t('chat.composerCall');
@@ -727,11 +822,11 @@ function slotTitle(mode) {
 }
 
 function updatePlusWidgetPos() {
-  const el = slotClusterRef.value;
+  const el = plusButtonRef.value;
   if (!el) return;
   const r = el.getBoundingClientRect();
   plusWidgetStyle.value = {
-    right: `${Math.max(8, window.innerWidth - r.right)}px`,
+    left: `${Math.max(8, r.left)}px`,
     bottom: `${Math.max(8, window.innerHeight - r.top + 8)}px`
   };
 }
@@ -754,15 +849,14 @@ function togglePlus() {
 }
 
 function selectSlotMode(mode) {
-  plusOpen.value = false;
-  unbindPlusOutside();
-  if (localAttachments.value.length > 0 && mode !== 'send') {
-    ElMessage.warning(t('chat.removeFileBeforeRecord'));
+  if (mode === 'file') {
+    handleFileUpload();
     return;
   }
-  if (mode === 'phone') {
-    showVoiceCall.value = true;
-    slotMode.value = 'send';
+  plusOpen.value = false;
+  unbindPlusOutside();
+  if (localAttachments.value.length > 0 && (mode === 'audio' || mode === 'video_note')) {
+    ElMessage.warning(t('chat.removeFileBeforeRecord'));
     return;
   }
   slotMode.value = mode;
@@ -770,7 +864,7 @@ function selectSlotMode(mode) {
 
 function closePlusFromOutside(event) {
   if (!plusOpen.value) return;
-  if (slotClusterRef.value?.contains(event.target)) return;
+  if (plusButtonRef.value?.contains(event.target)) return;
   if (plusWidgetRef.value?.contains(event.target)) return;
   plusOpen.value = false;
   unbindPlusOutside();
@@ -826,9 +920,9 @@ async function onSlotPointerUp() {
     slotHoldTimer = null;
   }
   clearSlotHoldListeners();
-  if (slotMode.value === 'send') return;
+  if (pointerAction === 'send') return;
   if (!slotHoldActive) {
-    if (slotMode.value === 'audio' || slotMode.value === 'video_note') {
+    if (pointerAction === 'audio' || pointerAction === 'video_note') {
       ElMessage.info(t('chat.holdToRecord'));
     }
     return;
@@ -845,15 +939,18 @@ async function onSlotPointerUp() {
   else if (isAudioRecording.value) await stopAudioRecording();
 }
 
-function onSlotPointerDown() {
+function onSlotPointerDown(mode = 'send', event) {
+  if (mode === 'file') return;
+  event?.preventDefault();
   if (!props.canSend || props.isLoading) return;
   plusOpen.value = false;
   unbindPlusOutside();
-  if (slotMode.value === 'send') {
+  pointerAction = mode;
+  if (mode === 'send') {
     if (!isSendDisabled.value) sendMessage();
     return;
   }
-  if (slotMode.value === 'phone') {
+  if (mode === 'phone') {
     showVoiceCall.value = true;
     slotMode.value = 'send';
     return;
@@ -866,8 +963,8 @@ function onSlotPointerDown() {
   slotHoldTimer = setTimeout(async () => {
     slotHoldActive = true;
     pendingAutoSend = true;
-    if (slotMode.value === 'audio') await startAudioRecording();
-    else if (slotMode.value === 'video_note') await startVideoRecording();
+    if (mode === 'audio') await startAudioRecording();
+    else if (mode === 'video_note') await startVideoRecording();
   }, HOLD_MS);
   document.addEventListener('mouseup', onSlotPointerUp);
   document.addEventListener('touchend', onSlotPointerUp);
@@ -930,6 +1027,13 @@ const isMobile = ref(false);
 // Функция для проверки мобильного устройства
 const checkMobile = () => {
   isMobile.value = window.innerWidth <= 1024;
+  const composerMobile = window.innerWidth <= 768;
+  if (isComposerMobile.value && !composerMobile) {
+    slotMode.value = 'send';
+    plusOpen.value = false;
+    unbindPlusOutside();
+  }
+  isComposerMobile.value = composerMobile;
   if (props.embedded) {
     messagesWidth.value = 100;
     inputWidth.value = 100;
@@ -1161,6 +1265,12 @@ const formatFileSize = (bytes) => {
 // --- Автоматическое изменение высоты textarea ---
 const INPUT_SINGLE_LINE_HEIGHT = 36;
 const INPUT_MAX_HEIGHT = 280;
+const INPUT_MAX_HEIGHT_MOBILE = 96;
+
+function inputMaxHeight() {
+  if (typeof window !== 'undefined' && isMobileViewport()) return INPUT_MAX_HEIGHT_MOBILE;
+  return INPUT_MAX_HEIGHT;
+}
 
 const isMultilineInput = ref(false);
 
@@ -1169,13 +1279,16 @@ const adjustTextareaHeight = () => {
   if (!textarea) return;
 
   const value = String(textarea.value || props.newMessage || '');
-  // Сначала сбрасываем высоту, чтобы scrollHeight отражал полный текст
   textarea.style.height = 'auto';
+  if (!value.includes('\n') && !value) {
+    isMultilineInput.value = false;
+    textarea.style.height = `${INPUT_SINGLE_LINE_HEIGHT}px`;
+    return;
+  }
   const measured = Math.max(textarea.scrollHeight, INPUT_SINGLE_LINE_HEIGHT);
   const shouldExpand =
     measured > INPUT_SINGLE_LINE_HEIGHT + 2
-    || value.includes('\n')
-    || value.length > 48;
+    || value.includes('\n');
 
   isMultilineInput.value = shouldExpand;
 
@@ -1187,7 +1300,7 @@ const adjustTextareaHeight = () => {
       return;
     }
     el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, INPUT_SINGLE_LINE_HEIGHT), INPUT_MAX_HEIGHT)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, INPUT_SINGLE_LINE_HEIGHT), inputMaxHeight())}px`;
   });
 };
 
@@ -1361,7 +1474,6 @@ async function handleAiReply() {
   box-shadow: 0 0 0 3px rgba(51, 65, 85, 0.08);
 }
 
-.attach-btn,
 .ai-inline-btn,
 .plus-button,
 .send-button {
@@ -1369,15 +1481,14 @@ async function handleAiReply() {
   margin: 0;
 }
 
-.input-shell--multiline .attach-btn,
 .input-shell--multiline .ai-inline-btn,
 .input-shell--multiline .plus-button,
-.input-shell--multiline .send-button {
+.input-shell--multiline .send-button,
+.input-shell--multiline .slot-inline {
   align-self: flex-end;
   margin-bottom: 0;
 }
 
-.attach-btn,
 .ai-inline-btn {
   width: 36px;
   height: 36px;
@@ -1394,13 +1505,11 @@ async function handleAiReply() {
   transition: color 0.18s ease, background-color 0.18s ease;
 }
 
-.attach-btn:hover:not(:disabled),
 .ai-inline-btn:hover:not(:disabled) {
   color: #334155;
   background: rgba(15, 23, 42, 0.05);
 }
 
-.attach-btn:disabled,
 .ai-inline-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -1426,15 +1535,25 @@ async function handleAiReply() {
   overflow-y: hidden;
   box-sizing: border-box;
   vertical-align: middle;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow-x: hidden;
+}
+
+.input-shell textarea::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .input-shell--multiline textarea {
   line-height: 20px;
   padding: 8px 4px;
   overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   scrollbar-width: thin;
   -ms-overflow-style: auto;
 }
@@ -1539,45 +1658,55 @@ async function handleAiReply() {
   stroke-linejoin: round;
 }
 
-.send-button {
+.send-button,
+.send-button.slot-icon-btn {
   width: 36px;
   height: 36px;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: 0;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #fff;
-  background: var(--color-primary);
-  transition: background-color 0.18s ease, transform 0.15s ease;
+  color: var(--color-primary);
+  background: transparent;
+  transition: color 0.18s ease, opacity 0.15s ease;
   touch-action: manipulation;
   user-select: none;
 }
 
 .send-button .chat-icon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
 }
 
-.send-button:hover:not(:disabled) {
-  background: var(--color-primary-dark);
+.send-button:hover:not(:disabled),
+.send-button.slot-icon-btn:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-primary-dark);
 }
 
-.send-button:disabled {
-  background: #c5ccd3;
+.send-button:disabled,
+.send-button.slot-icon-btn:disabled {
+  background: transparent;
+  color: #c5ccd3;
+  opacity: 1;
   cursor: not-allowed;
 }
 
-.send-button.recording {
-  background: #334155;
+.send-button.recording,
+.send-button.slot-icon-btn.recording {
+  background: transparent;
+  color: #334155;
   animation: record-pulse 1.2s ease-in-out infinite;
 }
 
-.send-button.recording--video {
-  background: #1e293b;
+.send-button.recording--video,
+.send-button.slot-icon-btn.recording--video {
+  background: transparent;
+  color: #1e293b;
 }
 
 .send-icon {
@@ -1592,12 +1721,67 @@ async function handleAiReply() {
   flex-shrink: 0;
 }
 
+.chat-attach-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+}
+
+.slot-inline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.slot-icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.slot-icon-btn .chat-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.slot-icon-btn:hover:not(:disabled) {
+  color: #334155;
+  background: transparent;
+}
+
+.slot-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.slot-icon-btn.recording {
+  color: #334155;
+  animation: record-pulse 1.2s ease-in-out infinite;
+}
+
 .plus-button {
   width: 36px;
   height: 36px;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: 0;
   background: transparent;
   color: #64748b;
   display: flex;
@@ -1609,7 +1793,7 @@ async function handleAiReply() {
 
 .plus-button:hover:not(:disabled) {
   color: #334155;
-  background: rgba(15, 23, 42, 0.05);
+  background: transparent;
 }
 
 .plus-button:disabled {
@@ -1635,8 +1819,8 @@ async function handleAiReply() {
   height: 36px;
   padding: 0;
   border: none;
-  border-radius: 50%;
-  background: #f1f5f9;
+  border-radius: 0;
+  background: transparent;
   color: #334155;
   display: flex;
   align-items: center;
@@ -1646,11 +1830,22 @@ async function handleAiReply() {
 }
 
 .plus-widget__btn:hover {
-  background: #e2e8f0;
+  background: transparent;
+  color: #0f172a;
 }
 
-.send-button--mode {
-  background: #334155;
+.plus-widget__btn--active {
+  color: var(--color-primary);
+}
+
+.send-button--mode,
+.send-button.slot-icon-btn.send-button--mode {
+  background: transparent;
+  color: #64748b;
+}
+
+.send-button.slot-icon-btn.send-button--mode:hover:not(:disabled) {
+  color: #334155;
 }
 
 .record-cancel-btn {
@@ -1753,6 +1948,21 @@ async function handleAiReply() {
   padding: 0;
 }
 
+@media (min-width: 769px) {
+  .input-shell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .input-shell textarea {
+    padding-left: 8px;
+  }
+
+  .input-shell--multiline textarea {
+    padding-left: 8px;
+  }
+}
+
 @media (min-width: 1025px) {
   .chat-messages,
   .chat-input {
@@ -1768,13 +1978,6 @@ async function handleAiReply() {
 }
 
 @media (max-width: 768px) {
-  .chat-container--embedded,
-  .chat-container {
-    margin: 0;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-  }
-
   .chat-container .chat-input {
     position: sticky;
     bottom: 0;
@@ -1795,6 +1998,7 @@ async function handleAiReply() {
   /* iOS Safari зумит страницу при focus, если font-size < 16px */
   .input-shell textarea {
     font-size: 16px;
+    max-height: min(96px, 30dvh);
   }
 }
 
@@ -1815,28 +2019,75 @@ async function handleAiReply() {
 
 .selected-message {
   background: var(--color-primary-light);
-}
-.admin-select-checkbox {
-  margin-right: 8px;
+  border-radius: 10px;
 }
 
-/* Стили для приватного чата */
-.message-wrapper {
+.admin-select-label {
   display: flex;
   align-items: flex-start;
+  padding-top: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.admin-select-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid color-mix(in srgb, var(--color-primary) 45%, #94a3b8);
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: grid;
+  place-content: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-select-checkbox::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: transform 0.12s ease;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+  background: #fff;
+}
+
+.admin-select-checkbox:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+.admin-select-checkbox:checked::before {
+  transform: scale(1);
+}
+
+.admin-select-checkbox:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+/* Обёртка на всю ширину — чекбокс слева, пузырь справа */
+.message-wrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
   margin-bottom: 12px;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
 
-/* Для приватного чата выравниваем сообщения по сторонам */
-.chat-messages:has(.private-current-user) .message-wrapper {
-  justify-content: flex-end;
-}
-
-.chat-messages:has(.private-other-user) .message-wrapper {
-  justify-content: flex-start;
+.message-wrapper__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
 }
 
 

@@ -7,10 +7,17 @@
 
 const db = require('../db');
 const logger = require('../utils/logger');
-const { ROLES } = require('/app/shared/permissions');
 const contactProvenanceService = require('./contactProvenanceService');
 const accessResolverService = require('./accessResolverService');
 const roleActionCapabilitiesService = require('./roleActionCapabilitiesService');
+const {
+  isBlockedPublicEmailDomain,
+  listNotablePublicEmailDomains,
+  getBlockedPublicEmailDomainSet,
+} = require('../utils/publicEmailDomainSet');
+
+const CORP_EMAIL_REQUIRED_MESSAGE =
+  'Регистрация доступна только с корпоративной почты (@компания). Публичные адреса вроде gmail, mail.ru, yandex не принимаются.';
 
 const MANAGE_DOMAIN_AUTH = 'manage_domain_auth';
 const ALLOWED_ROLES = new Set(['user', 'readonly']);
@@ -41,10 +48,7 @@ function isValidEmail(email) {
 }
 
 function isPlatformEditor(access) {
-  if (!access) return false;
-  return access.role === ROLES.EDITOR
-    || access.tokenRole === ROLES.EDITOR
-    || access.tokenRole === 'editor';
+  return accessResolverService.isPlatformEditor(access);
 }
 
 async function canManageDomainAuth(access) {
@@ -107,10 +111,20 @@ function normalizeRuleInput(body) {
       err.status = 400;
       throw err;
     }
+    if (isBlockedPublicEmailDomain(value)) {
+      const err = new Error('Это публичная почта (gmail, mail.ru, yandex…). Добавьте корпоративный домен компании');
+      err.status = 400;
+      throw err;
+    }
   } else {
     value = normalizeEmail(body?.value);
     if (!isValidEmail(value)) {
       const err = new Error('Некорректный email');
+      err.status = 400;
+      throw err;
+    }
+    if (isBlockedPublicEmailDomain(domainFromRule('email', value))) {
+      const err = new Error('Это публичная почта (gmail, mail.ru, yandex…). Для правила нужен корпоративный email');
       err.status = 400;
       throw err;
     }
@@ -281,6 +295,126 @@ async function deleteRule(id, viewerAccess, updatedBy = null) {
   return { id: ruleId };
 }
 
+async function ensurePolicyTable() {
+  await accessResolverService.ensureTables();
+  const { pool } = require('../db');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS auth_email_registration_policy (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      require_listed_domain BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+  await pool.query(`
+    INSERT INTO auth_email_registration_policy (id, require_listed_domain)
+    VALUES (1, TRUE)
+    ON CONFLICT (id) DO NOTHING
+  `);
+}
+
+async function getRegistrationPolicy() {
+  await ensurePolicyTable();
+  const { rows } = await db.getQuery()(
+    `SELECT require_listed_domain, updated_at, updated_by
+     FROM auth_email_registration_policy
+     WHERE id = 1`
+  );
+  return {
+    require_listed_domain: rows[0] ? Boolean(rows[0].require_listed_domain) : true,
+    updated_at: rows[0]?.updated_at || null,
+    updated_by: rows[0]?.updated_by || null,
+  };
+}
+
+async function updateRegistrationPolicy(body, viewerAccess, updatedBy = null) {
+  await ensurePolicyTable();
+  if (!isPlatformEditor(viewerAccess)) {
+    const err = new Error('Политику регистрации может менять только platform editor');
+    err.status = 403;
+    throw err;
+  }
+
+  const requireListed = Boolean(
+    body?.require_listed_domain ?? body?.requireListedDomain
+  );
+  const { rows } = await db.getQuery()(
+    `UPDATE auth_email_registration_policy
+     SET require_listed_domain = $1, updated_by = $2, updated_at = NOW()
+     WHERE id = 1
+     RETURNING require_listed_domain, updated_at, updated_by`,
+    [requireListed, updatedBy || null]
+  );
+  if (!rows[0]) {
+    const inserted = await db.getQuery()(
+      `INSERT INTO auth_email_registration_policy (id, require_listed_domain, updated_by)
+       VALUES (1, $1, $2)
+       ON CONFLICT (id) DO UPDATE
+         SET require_listed_domain = EXCLUDED.require_listed_domain,
+             updated_by = EXCLUDED.updated_by,
+             updated_at = NOW()
+       RETURNING require_listed_domain, updated_at, updated_by`,
+      [requireListed, updatedBy || null]
+    );
+    logger.info(
+      `[authDomainRules] registration policy require_listed_domain=${requireListed} by user ${updatedBy || 'unknown'}`
+    );
+    return inserted.rows[0];
+  }
+  logger.info(
+    `[authDomainRules] registration policy require_listed_domain=${requireListed} by user ${updatedBy || 'unknown'}`
+  );
+  return rows[0];
+}
+
+async function isEmailListedForAuth(email) {
+  await accessResolverService.ensureTables();
+  const normalized = normalizeEmail(email);
+  const domain = contactProvenanceService.extractDomain(normalized);
+  if (!normalized || !domain) return false;
+  const { rows } = await db.getQuery()(
+    `SELECT 1 FROM auth_email_domain_rules
+     WHERE (kind = 'email' AND value = $1)
+        OR (kind = 'domain' AND value = $2)
+     LIMIT 1`,
+    [normalized, domain]
+  );
+  return rows.length > 0;
+}
+
+function getPublicEmailBlocklist() {
+  return {
+    notable: listNotablePublicEmailDomains(),
+    total: getBlockedPublicEmailDomainSet().size,
+  };
+}
+
+/**
+ * Gate для новой регистрации / привязки email.
+ * Вход уже существующего identity не проверяется — это делает вызывающий код.
+ * Публичные почты блокируются всегда; allowlist корп. доменов — если включена политика.
+ */
+async function assertNewEmailAllowed(email) {
+  const normalized = normalizeEmail(email);
+  const domain = contactProvenanceService.extractDomain(normalized);
+  if (isBlockedPublicEmailDomain(domain)) {
+    const err = new Error(CORP_EMAIL_REQUIRED_MESSAGE);
+    err.status = 403;
+    err.code = 'CORP_EMAIL_REQUIRED';
+    throw err;
+  }
+
+  const policy = await getRegistrationPolicy();
+  if (!policy.require_listed_domain) return;
+
+  if (!(await isEmailListedForAuth(normalized))) {
+    const err = new Error(CORP_EMAIL_REQUIRED_MESSAGE);
+    err.status = 403;
+    err.code = 'CORP_EMAIL_REQUIRED';
+    throw err;
+  }
+}
+
 async function recheckRolesAfterChange() {
   try {
     const emailResult = await accessResolverService.recomputeAllWithEmailIdentities();
@@ -295,6 +429,46 @@ async function recheckRolesAfterChange() {
   }
 }
 
+async function upsertDomainRulesFromImport(domains, updatedBy = null) {
+  await accessResolverService.ensureTables();
+  const unique = [...new Set(
+    (Array.isArray(domains) ? domains : []).map(normalizeDomain).filter(Boolean)
+  )];
+  const values = [];
+  let skipped = 0;
+
+  for (const value of unique) {
+    if (!isValidDomain(value) || isBlockedPublicEmailDomain(value)) {
+      skipped += 1;
+      continue;
+    }
+    const { rows } = await db.getQuery()(
+      `INSERT INTO auth_email_domain_rules (kind, value, role, domain_admin, updated_by)
+       VALUES ('domain', $1, 'user', FALSE, $2)
+       ON CONFLICT (kind, value) DO NOTHING
+       RETURNING value`,
+      [value, updatedBy || null]
+    );
+    if (rows[0]?.value) {
+      values.push(rows[0].value);
+    } else {
+      skipped += 1;
+    }
+  }
+
+  if (values.length) {
+    logger.info(
+      `[authDomainRules] import upserted ${values.length} domain(s) by user ${updatedBy || 'unknown'}: ${values.slice(0, 12).join(', ')}`
+    );
+  }
+
+  return {
+    added: values.length,
+    skipped,
+    values,
+  };
+}
+
 module.exports = {
   listRules,
   createRule,
@@ -304,4 +478,11 @@ module.exports = {
   normalizeRuleInput,
   isPlatformEditor,
   canManageDomainAuth,
+  getRegistrationPolicy,
+  updateRegistrationPolicy,
+  isEmailListedForAuth,
+  assertNewEmailAllowed,
+  getPublicEmailBlocklist,
+  upsertDomainRulesFromImport,
+  CORP_EMAIL_REQUIRED_MESSAGE,
 };

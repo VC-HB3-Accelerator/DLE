@@ -14,7 +14,7 @@
   <BaseLayout>
     <div class="admin-chat-header page-with-close">
       <PageCloseButton :fallback="{ name: 'personal-messages' }" />
-      <span>{{ t('chat.privateChat') }}</span>
+      <span>{{ chatTitle }}</span>
     </div>
 
     <div v-if="conferenceId" class="conference-invite">
@@ -31,8 +31,9 @@
       <div class="loading">{{ t('chat.loadingMessages') }}</div>
     </div>
     
-    <div v-else class="chat-container" :class="{ 'with-invite': conferenceId }">
+    <div v-else class="chat-panel" :class="{ 'with-invite': conferenceId }">
       <ChatInterface
+        embedded
         :messages="messages"
         :attachments="chatAttachments"
         :newMessage="chatNewMessage"
@@ -52,7 +53,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
@@ -62,25 +63,48 @@ import ChatInterface from '../components/ChatInterface.vue';
 import { getPrivateMessages, sendPrivateMessage, getPrivateConversations, markPrivateMessagesAsRead } from '../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import conferenceService from '@/services/conferenceService';
+import websocketServiceModule from '@/services/websocketService';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { userId } = useAuthContext();
+const { websocketService } = websocketServiceModule;
 
 const adminId = computed(() => route.params.adminId);
 const inviteConferenceId = ref(null);
+const peerName = ref('');
 const conferenceId = computed(() => {
   const n = Number(route.query.conference);
   if (Number.isInteger(n) && n > 0) return n;
   return inviteConferenceId.value;
 });
 const currentUserId = computed(() => userId.value);
+const chatTitle = computed(() => {
+  if (peerName.value) {
+    return t('chat.privateChatWith', { name: peerName.value });
+  }
+  return t('chat.privateChat');
+});
 const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
 const isLoadingMessages = ref(false);
 const joining = ref(false);
+const activeConversationId = ref(null);
+let reloadTimer = null;
+
+function scheduleReloadFromWs(payload) {
+  const cid = payload?.conversationId ?? payload;
+  if (cid != null && activeConversationId.value != null
+    && Number(cid) !== Number(activeConversationId.value)) {
+    return;
+  }
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => {
+    loadMessages({ silent: true });
+  }, 150);
+}
 
 async function loadInviteForHost() {
   if (route.query.conference) return;
@@ -110,17 +134,21 @@ async function startConference() {
   }
 }
 
-async function loadMessages() {
+async function loadMessages({ silent = false } = {}) {
   if (!adminId.value) return;
   
   try {
-    isLoadingMessages.value = true;
+    if (!silent) isLoadingMessages.value = true;
     const conversationsResponse = await getPrivateConversations();
     const conversation = conversationsResponse.conversations?.find(conv => 
-      conv.user_id == adminId.value
+      Number(conv.peer_user_id || conv.user_id) === Number(adminId.value)
     );
     
     if (conversation) {
+      activeConversationId.value = conversation.conversation_id;
+      peerName.value = conversation.peer_name
+        || conversation.title
+        || '';
       const messagesResponse = await getPrivateMessages(conversation.conversation_id);
       messages.value = messagesResponse?.messages || [];
       try {
@@ -129,13 +157,15 @@ async function loadMessages() {
         console.error('[AdminChatView] Ошибка отметки сообщений как прочитанных:', error);
       }
     } else {
+      activeConversationId.value = null;
+      peerName.value = '';
       messages.value = [];
     }
   } catch (error) {
     console.error('[AdminChatView] Ошибка загрузки сообщений:', error);
-    messages.value = [];
+    if (!silent) messages.value = [];
   } finally {
-    isLoadingMessages.value = false;
+    if (!silent) isLoadingMessages.value = false;
   }
 }
 
@@ -145,7 +175,7 @@ async function handleSendMessage({ message, attachments = [] }) {
   
   try {
     await sendPrivateMessage({
-      recipientId: parseInt(adminId.value),
+      recipientId: parseInt(adminId.value, 10),
       content: message,
       attachments: files
     });
@@ -155,54 +185,34 @@ async function handleSendMessage({ message, attachments = [] }) {
   } catch (error) {
     console.error('[AdminChatView] Ошибка отправки сообщения:', error);
     const code = error?.response?.data?.code;
-    ElMessage.error(code === 'CHAT_CAP_DENIED' ? t('chat.capDenied') : t('chat.sendMessageError'));
+    const apiError = error?.response?.data?.error;
+    ElMessage.error(
+      code === 'CHAT_CAP_DENIED'
+        ? t('chat.capDenied')
+        : (apiError || t('chat.sendMessageError'))
+    );
   }
 }
 
-let inviteWs = null;
-
-function connectInviteWebSocket() {
-  try {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    inviteWs = new WebSocket(`${protocol}://${window.location.host}/ws`);
-    inviteWs.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (
-          data.type === 'messages-updated' ||
-          data.type === 'conference-invites-updated'
-        ) {
-          loadInviteForHost();
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-    inviteWs.onclose = () => {
-      setTimeout(() => {
-        if (inviteWs?.readyState === WebSocket.CLOSED) connectInviteWebSocket();
-      }, 3000);
-    };
-  } catch {
-    /* ignore */
-  }
-}
-
-function disconnectInviteWebSocket() {
-  if (inviteWs) {
-    inviteWs.close();
-    inviteWs = null;
-  }
-}
+watch(adminId, async () => {
+  await loadInviteForHost();
+  await loadMessages();
+});
 
 onMounted(async () => {
+  if (currentUserId.value) {
+    websocketService.connect(currentUserId.value);
+  }
+  websocketService.on('messages-updated', scheduleReloadFromWs);
+  websocketService.on('conversation-updated', scheduleReloadFromWs);
   await loadInviteForHost();
-  loadMessages();
-  connectInviteWebSocket();
+  await loadMessages();
 });
 
 onUnmounted(() => {
-  disconnectInviteWebSocket();
+  if (reloadTimer) clearTimeout(reloadTimer);
+  websocketService.off('messages-updated', scheduleReloadFromWs);
+  websocketService.off('conversation-updated', scheduleReloadFromWs);
 });
 </script>
 
@@ -213,9 +223,9 @@ onUnmounted(() => {
   align-items: center;
   padding: 1rem;
   padding-right: calc(var(--spacing-md) + 2rem);
-  background: transparent;
-  border-bottom: 1px solid #ddd;
-  font-size: 1.2rem;
+  background: color-mix(in srgb, var(--color-primary) 10%, white);
+  border-bottom: 2px solid var(--color-primary, #1a1a1a);
+  font-size: 1.15rem;
   font-weight: bold;
 }
 
@@ -249,30 +259,26 @@ onUnmounted(() => {
   text-align: center;
 }
 
-.chat-container {
+.chat-panel {
   height: calc(100dvh - 120px);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-.chat-container.with-invite {
+.chat-panel.with-invite {
   height: calc(100dvh - 190px);
+}
+
+.chat-panel :deep(.chat-container) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .loading {
   color: #888;
   font-size: 1.1rem;
-}
-
-:deep(.chat-messages) {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-}
-
-:deep(.chat-input) {
-  padding: 1rem;
-  background: #f9f9f9;
 }
 
 @media (max-width: 768px) {
@@ -281,11 +287,11 @@ onUnmounted(() => {
     font-size: 1rem;
   }
   
-  .chat-container {
+  .chat-panel {
     height: calc(100dvh - 100px);
   }
 
-  .chat-container.with-invite {
+  .chat-panel.with-invite {
     height: calc(100dvh - 180px);
   }
 }

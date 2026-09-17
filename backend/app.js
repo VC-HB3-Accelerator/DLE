@@ -139,7 +139,7 @@ const systemRoutes = require('./routes/system'); // Добавляем импо�
 const consentRoutes = require('./routes/consent'); // Добавляем импорт маршрутов согласий
 const systemMessagesRoutes = require('./routes/systemMessages');
 const vdsRoutes = require('./routes/vds'); // Добавляем импорт маршрутов VDS управления
-const updatesRoutes = require('./routes/updates'); // Закрытая раздача update-pack
+const updatesRoutes = require('./routes/updates'); // Приём обновлений с hub HB3
 
 const app = express();
 
@@ -380,10 +380,10 @@ app.use('/api/auth', authRoutes); // Rate limiting временно отключ
 app.use('/api/users', usersRoutes);
 app.use('/api/contact-site-parser', contactSiteParserRoutes);
 app.use('/api/conference', conferenceRoutes);
-app.use('/api/catalog', require('./routes/catalog'));
 app.use('/api/chat', chatRoutes);
 app.use('/api/ai-calls', require('./routes/aiCalls'));
 app.use('/api/store', require('./routes/store'));
+app.use('/api/catalog', require('./routes/catalog'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/isic', isicRoutes); // Добавленное использование роута
@@ -424,6 +424,8 @@ app.get('/favicon.ico', (req, res) => {
 
 // Подключаем роутер страниц
 app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы) - ДОЛЖНО БЫТЬ ПЕРЕД статической раздачей
+const mediaAgentRoutes = require('./routes/mediaAgent');
+app.use('/api/media-agent', mediaAgentRoutes);
 app.get('/api/v/:publicId', (req, res) => {
   const contentMediaStore = require('./services/contentMediaStore');
   return contentMediaStore.sendPublicFile(req, res);
@@ -444,7 +446,7 @@ app.use('/api/consent', consentRoutes); // Добавляем маршрут с�
 app.use('/api/system-messages', systemMessagesRoutes);
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
 app.use('/api/vds', vdsRoutes); // Добавляем маршрут VDS управления
-app.use('/api/updates', updatesRoutes); // Закрытая раздача обновлений (ТЗ)
+app.use('/api/updates', updatesRoutes); // Приём обновлений с hub
 app.use('/api/ens', ensRoutes); // ENS utilities
 app.use('/api', sshRoutes); // SSH роуты
 app.use('/api', encryptionRoutes); // Encryption роуты

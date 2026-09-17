@@ -23,138 +23,183 @@
       </div>
     </div>
 
-    <div v-if="authTokens.length > 0" class="tokens-list">
-      <div class="tokens-list-head" aria-hidden="true">
-        <span>{{ $t('settings.authTokens.name') }}</span>
-        <span>{{ $t('settings.authTokens.address') }}</span>
-        <span>{{ $t('settings.authTokens.network') }}</span>
-        <span>{{ $t('settings.authTokens.minBalance') }}</span>
-        <span>{{ $t('settings.authTokens.readOnly') }}</span>
-        <span>{{ $t('settings.authTokens.editor') }}</span>
-        <span></span>
+    <div class="auth-tabs">
+      <div class="auth-tablist" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="auth-tab"
+          :class="{ 'auth-tab--active': authTab === 'tokens' }"
+          :aria-selected="authTab === 'tokens'"
+          @click="authTab = 'tokens'"
+        >
+          {{ $t('settings.authTabs.tokens') }}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="auth-tab"
+          :class="{ 'auth-tab--active': authTab === 'corp' }"
+          :aria-selected="authTab === 'corp'"
+          @click="authTab = 'corp'"
+        >
+          {{ corpTabLabel }}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="auth-tab"
+          :class="{ 'auth-tab--active': authTab === 'public' }"
+          :aria-selected="authTab === 'public'"
+          @click="authTab = 'public'"
+        >
+          {{ $t('settings.authTabs.public') }}
+        </button>
       </div>
-      <div
-        v-for="(token, index) in authTokens"
-        :key="token.address + token.network"
-        class="token-entry"
-      >
-        <span class="token-cell" :title="token.name">{{ token.name }}</span>
-        <span class="token-cell token-cell--mono" :title="token.address">{{ shortAddress(token.address) }}</span>
-        <span class="token-cell" :title="getNetworkLabel(token.network)">{{ getNetworkLabel(token.network) }}</span>
-        <span class="token-cell token-cell--num" :title="String(token.minBalance)">{{ formatMinBalance(token.minBalance) }}</span>
-        <span class="token-cell token-cell--num">{{ token.readonlyThreshold ?? 1 }}</span>
-        <span class="token-cell token-cell--num">{{ token.editorThreshold ?? 1 }}</span>
-        <div class="token-actions">
+
+      <div v-show="authTab === 'tokens'" class="auth-tab-panel" role="tabpanel">
+        <div v-if="authTokens.length > 0" class="tokens-list">
+          <div class="tokens-list-head" aria-hidden="true">
+            <span>{{ $t('settings.authTokens.name') }}</span>
+            <span>{{ $t('settings.authTokens.address') }}</span>
+            <span>{{ $t('settings.authTokens.network') }}</span>
+            <span>{{ $t('settings.authTokens.minBalance') }}</span>
+            <span>{{ $t('settings.authTokens.readOnly') }}</span>
+            <span>{{ $t('settings.authTokens.editor') }}</span>
+            <span></span>
+          </div>
+          <div
+            v-for="(token, index) in authTokens"
+            :key="token.address + token.network"
+            class="token-entry"
+          >
+            <span class="token-cell" :title="token.name">{{ token.name }}</span>
+            <span class="token-cell token-cell--mono" :title="token.address">{{ shortAddress(token.address) }}</span>
+            <span class="token-cell" :title="getNetworkLabel(token.network)">{{ getNetworkLabel(token.network) }}</span>
+            <span class="token-cell token-cell--num" :title="String(token.minBalance)">{{ formatMinBalance(token.minBalance) }}</span>
+            <span class="token-cell token-cell--num">{{ token.readonlyThreshold ?? 1 }}</span>
+            <span class="token-cell token-cell--num">{{ token.editorThreshold ?? 1 }}</span>
+            <div class="token-actions">
+              <button
+                type="button"
+                class="btn btn-sm"
+                :class="canManageSettings ? 'btn-danger' : 'btn-outline'"
+                @click="canManageSettings ? removeToken(index) : null"
+                :disabled="!canManageSettings"
+              >
+                {{ $t('common.delete') }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <p v-else class="empty-hint">{{ $t('settings.authTokens.empty') }}</p>
+
+        <div class="add-token-form">
+          <h5>{{ $t('settings.authTokens.addTitle') }}</h5>
+          <div class="form-group">
+            <label class="form-label">{{ $t('settings.authTokens.name') }}</label>
+            <input
+              type="text"
+              v-model="newToken.name"
+              class="form-control"
+              placeholder="test2"
+              :disabled="!canManageSettings"
+            >
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ $t('settings.authTokens.address') }}</label>
+            <input
+              type="text"
+              v-model="newToken.address"
+              class="form-control"
+              placeholder="0x..."
+              :disabled="!canManageSettings"
+            >
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ $t('settings.authTokens.network') }}</label>
+            <select v-model="newToken.network" class="form-control" :disabled="!canManageSettings">
+              <option value="">{{ $t('settings.authTokens.selectNetwork') }}</option>
+              <option v-for="option in configuredNetworkOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ $t('settings.authTokens.minBalance') }}</label>
+            <input
+              type="number"
+              v-model.number="newToken.minBalance"
+              class="form-control"
+              placeholder="0"
+              min="0"
+              step="0.01"
+              :disabled="!canManageSettings"
+            >
+            <small class="form-text">{{ $t('settings.authTokens.minBalanceHelp') }}</small>
+          </div>
+
+          <div class="access-settings">
+            <h6>{{ $t('settings.authTokens.accessSettings') }}</h6>
+            <div class="thresholds-row">
+              <div class="form-group">
+                <label class="form-label">{{ $t('settings.authTokens.readonlyThreshold') }}</label>
+                <input
+                  type="number"
+                  v-model="newToken.readonlyThreshold"
+                  class="form-control"
+                  placeholder="1"
+                  min="1"
+                  :disabled="!canManageSettings"
+                >
+                <small class="form-text">{{ $t('settings.authTokens.readonlyThresholdHelp') }}</small>
+              </div>
+              <div class="form-group">
+                <label class="form-label">{{ $t('settings.authTokens.editorThreshold') }}</label>
+                <input
+                  type="number"
+                  v-model="newToken.editorThreshold"
+                  class="form-control"
+                  placeholder="1"
+                  min="1"
+                  :disabled="!canManageSettings"
+                >
+                <small class="form-text">{{ $t('settings.authTokens.editorThresholdHelp') }}</small>
+              </div>
+            </div>
+          </div>
           <button
             type="button"
-            class="btn btn-sm"
-            :class="canManageSettings ? 'btn-danger' : 'btn-outline'"
-            @click="canManageSettings ? removeToken(index) : null"
+            class="btn"
+            :class="canManageSettings ? 'btn-primary' : 'btn-outline'"
+            @click="canManageSettings ? addToken() : null"
             :disabled="!canManageSettings"
           >
-            {{ $t('common.delete') }}
+            {{ $t('settings.authTokens.addButton') }}
           </button>
         </div>
       </div>
+
+      <div v-if="authTab === 'corp'" class="auth-tab-panel" role="tabpanel">
+        <AuthDomainRulesSettings
+          :domain-rules="domainRules"
+          :can-manage="canManageSettings"
+          :registration-policy="registrationPolicy"
+          @update="$emit('update-domain-rules')"
+          @update-policy="$emit('update-domain-rules')"
+        />
+      </div>
+
+      <div v-if="authTab === 'public'" class="auth-tab-panel" role="tabpanel">
+        <AuthPublicEmailsSettings :public-emails="publicEmails" />
+      </div>
     </div>
-    <p v-else class="empty-hint">{{ $t('settings.authTokens.empty') }}</p>
-
-    <div class="add-token-form">
-      <h5>{{ $t('settings.authTokens.addTitle') }}</h5>
-      <div class="form-group">
-        <label class="form-label">{{ $t('settings.authTokens.name') }}</label>
-        <input
-          type="text"
-          v-model="newToken.name"
-          class="form-control"
-          placeholder="test2"
-          :disabled="!canManageSettings"
-        >
-      </div>
-      <div class="form-group">
-        <label class="form-label">{{ $t('settings.authTokens.address') }}</label>
-        <input
-          type="text"
-          v-model="newToken.address"
-          class="form-control"
-          placeholder="0x..."
-          :disabled="!canManageSettings"
-        >
-      </div>
-      <div class="form-group">
-        <label class="form-label">{{ $t('settings.authTokens.network') }}</label>
-        <select v-model="newToken.network" class="form-control" :disabled="!canManageSettings">
-          <option value="">{{ $t('settings.authTokens.selectNetwork') }}</option>
-          <option v-for="option in configuredNetworkOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">{{ $t('settings.authTokens.minBalance') }}</label>
-        <input
-          type="number"
-          v-model.number="newToken.minBalance"
-          class="form-control"
-          placeholder="0"
-          min="0"
-          step="0.01"
-          :disabled="!canManageSettings"
-        >
-        <small class="form-text">{{ $t('settings.authTokens.minBalanceHelp') }}</small>
-      </div>
-
-      <div class="access-settings">
-        <h6>{{ $t('settings.authTokens.accessSettings') }}</h6>
-        <div class="thresholds-row">
-          <div class="form-group">
-            <label class="form-label">{{ $t('settings.authTokens.readonlyThreshold') }}</label>
-            <input
-              type="number"
-              v-model="newToken.readonlyThreshold"
-              class="form-control"
-              placeholder="1"
-              min="1"
-              :disabled="!canManageSettings"
-            >
-            <small class="form-text">{{ $t('settings.authTokens.readonlyThresholdHelp') }}</small>
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('settings.authTokens.editorThreshold') }}</label>
-            <input
-              type="number"
-              v-model="newToken.editorThreshold"
-              class="form-control"
-              placeholder="1"
-              min="1"
-              :disabled="!canManageSettings"
-            >
-            <small class="form-text">{{ $t('settings.authTokens.editorThresholdHelp') }}</small>
-          </div>
-        </div>
-      </div>
-      <button
-        type="button"
-        class="btn"
-        :class="canManageSettings ? 'btn-primary' : 'btn-outline'"
-        @click="canManageSettings ? addToken() : null"
-        :disabled="!canManageSettings"
-      >
-        {{ $t('settings.authTokens.addButton') }}
-      </button>
-    </div>
-
-    <AuthDomainRulesSettings
-      :domain-rules="domainRules"
-      :can-manage="canManageSettings"
-      @update="$emit('update-domain-rules')"
-    />
   </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n';
-import { reactive, onMounted, onUnmounted, computed } from 'vue';
+import { reactive, onMounted, onUnmounted, computed, ref } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
@@ -162,13 +207,17 @@ import { usePermissions } from '@/composables/usePermissions';
 import eventBus from '@/utils/eventBus';
 import UiGlyph from '@/components/UiGlyph.vue';
 import AuthDomainRulesSettings from './AuthDomainRulesSettings.vue';
+import AuthPublicEmailsSettings from './AuthPublicEmailsSettings.vue';
 
 const { t } = useI18n();
 const props = defineProps({
   authTokens: { type: Array, required: true },
   domainRules: { type: Array, default: () => [] },
+  registrationPolicy: { type: Object, default: () => ({ require_listed_domain: true }) },
+  publicEmails: { type: Object, default: () => ({ notable: [], total: 0 }) },
 });
 const emit = defineEmits(['update', 'update-domain-rules']);
+const authTab = ref('tokens');
 const newToken = reactive({
   name: '',
   address: '',
@@ -188,6 +237,12 @@ const configuredNetworkOptions = computed(() =>
     label: n.label || n.value,
   }))
 );
+
+const corpTabLabel = computed(() => {
+  const count = Array.isArray(props.domainRules) ? props.domainRules.length : 0;
+  const title = t('settings.authTabs.corp');
+  return count ? `${title} (${count})` : title;
+});
 
 function handleClear() {
   newToken.name = '';
@@ -326,12 +381,46 @@ function getAccessLevelDescription(level) {
 .auth-tokens-settings {
   max-width: 100%;
   box-sizing: border-box;
-  overflow-x: auto;
+}
+
+.auth-tabs {
+  margin-top: 0;
+}
+
+.auth-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: 0 0 var(--spacing-lg, 20px);
+  border-bottom: 1px solid var(--theme-border, #e9ecef);
+}
+
+.auth-tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: var(--theme-text-muted, #666);
+}
+
+.auth-tab--active {
+  color: var(--theme-text, #222);
+  border-bottom-color: var(--theme-primary, #409eff);
+}
+
+.auth-tab-panel {
+  min-height: 8rem;
 }
 
 .tokens-list {
   margin-bottom: var(--spacing-lg, 20px);
   min-width: 720px;
+  overflow-x: auto;
 }
 
 .tokens-list-head,

@@ -20,12 +20,16 @@
     <ul v-else class="blog-comments__list">
       <li v-for="comment in comments" :key="comment.id" class="blog-comments__item">
         <div class="blog-comments__row">
-          <div class="blog-comments__avatar" aria-hidden="true">
-            {{ initials(comment.author_name) }}
-          </div>
+          <BlogAuthorAvatar
+            :user-id="comment.user_id"
+            :name="comment.author_name"
+          />
           <div class="blog-comments__content">
             <div class="blog-comments__bubble">
-              <span class="blog-comments__author">{{ comment.author_name }}</span>
+              <span
+                v-if="!isIdAuthor(comment.author_name)"
+                class="blog-comments__author"
+              >{{ formatBlogAuthorName(comment.author_name) }}</span>
               <span class="blog-comments__body">{{ comment.body }}</span>
             </div>
             <div class="blog-comments__meta">
@@ -41,12 +45,17 @@
 
             <ul v-if="comment.replies?.length" class="blog-comments__replies">
               <li v-for="reply in comment.replies" :key="reply.id" class="blog-comments__row">
-                <div class="blog-comments__avatar blog-comments__avatar--sm" aria-hidden="true">
-                  {{ initials(reply.author_name) }}
-                </div>
+                <BlogAuthorAvatar
+                  size="sm"
+                  :user-id="reply.user_id"
+                  :name="reply.author_name"
+                />
                 <div class="blog-comments__content">
                   <div class="blog-comments__bubble">
-                    <span class="blog-comments__author">{{ reply.author_name }}</span>
+                    <span
+                      v-if="!isIdAuthor(reply.author_name)"
+                      class="blog-comments__author"
+                    >{{ formatBlogAuthorName(reply.author_name) }}</span>
                     <span class="blog-comments__body">{{ reply.body }}</span>
                   </div>
                   <div class="blog-comments__meta">
@@ -63,6 +72,7 @@
                 class="blog-comments__textarea"
                 rows="2"
                 :placeholder="t('blog.comments.replyPlaceholder')"
+          maxlength="500"
               />
               <div class="blog-comments__form-actions">
                 <button
@@ -83,39 +93,13 @@
       </li>
     </ul>
 
-    <div class="blog-comments__composer">
-      <template v-if="isAuthenticated">
-        <textarea
-          id="blog-comment-new"
-          v-model="newComment"
-          class="blog-comments__textarea"
-          rows="3"
-          :placeholder="t('blog.comments.placeholder')"
-          :disabled="isSubmitting"
-        />
-        <div class="blog-comments__form-actions">
-          <button
-            type="button"
-            class="blog-comments__btn blog-comments__btn--primary"
-            :disabled="!newComment.trim() || isSubmitting"
-            @click="submitComment"
-          >
-            {{ isSubmitting ? t('blog.comments.sending') : t('blog.comments.send') }}
-          </button>
-        </div>
-      </template>
-
-      <div v-else class="blog-comments__gate">
-        <p class="blog-comments__gate-text">{{ t('blog.comments.loginHint') }}</p>
-        <button
-          type="button"
-          class="blog-comments__btn blog-comments__btn--primary"
-          @click="requestAuth"
-        >
-          {{ t('blog.comments.loginToComment') }}
-        </button>
-      </div>
-    </div>
+    <BlogCommentComposer
+      v-model="newComment"
+      :disabled="isSubmitting"
+      :placeholder="t('blog.comments.placeholder')"
+      :send-title="t('blog.comments.send')"
+      @submit="submitComment"
+    />
 
     <p v-if="errorMessage" class="blog-comments__error" role="alert">{{ errorMessage }}</p>
   </div>
@@ -126,6 +110,10 @@ import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import eventBus from '../../utils/eventBus';
 import blogEngagementService from '../../services/blogEngagementService';
+import { useNotifications } from '../../composables/useNotifications';
+import { formatBlogAuthorName, blogAuthorIdFromName } from '../../utils/blogAuthorLabel';
+import BlogCommentComposer from './BlogCommentComposer.vue';
+import BlogAuthorAvatar from './BlogAuthorAvatar.vue';
 
 const props = defineProps({
   pageId: { type: Number, required: true },
@@ -138,17 +126,15 @@ const props = defineProps({
 const emit = defineEmits(['refresh']);
 
 const { t } = useI18n();
+const { showErrorMessage } = useNotifications();
 const newComment = ref('');
 const replyText = ref('');
 const replyingTo = ref(null);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 
-function initials(name) {
-  const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
-  return `${parts[0].slice(0, 1)}${parts[1].slice(0, 1)}`.toUpperCase();
+function isIdAuthor(name) {
+  return blogAuthorIdFromName(name) != null;
 }
 
 function formatDate(date) {
@@ -162,6 +148,7 @@ function formatDate(date) {
 }
 
 function requestAuth() {
+  showErrorMessage(t('blog.comments.loginHint'));
   eventBus.emit('open-auth-sidebar');
 }
 
@@ -194,7 +181,7 @@ async function submitComment() {
   isSubmitting.value = true;
   errorMessage.value = '';
   try {
-    await blogEngagementService.addComment(props.pageId, newComment.value.trim());
+    await blogEngagementService.addComment(props.pageId, newComment.value.trim().slice(0, 500));
     newComment.value = '';
     emit('refresh');
   } catch (e) {
@@ -215,7 +202,7 @@ async function submitReply(parentId) {
   isSubmitting.value = true;
   errorMessage.value = '';
   try {
-    await blogEngagementService.addComment(props.pageId, replyText.value.trim(), parentId);
+    await blogEngagementService.addComment(props.pageId, replyText.value.trim().slice(0, 500), parentId);
     cancelReply();
     emit('refresh');
   } catch (e) {
@@ -274,27 +261,6 @@ watch(() => props.isAuthenticated, (val) => {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-}
-
-.blog-comments__avatar {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(145deg, #e8f5e9, #c8e6c9);
-  color: var(--color-primary-dark);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.blog-comments__avatar--sm {
-  width: 28px;
-  height: 28px;
-  font-size: 10px;
 }
 
 .blog-comments__content {
@@ -365,14 +331,6 @@ watch(() => props.isAuthenticated, (val) => {
   margin-top: 10px;
 }
 
-.blog-comments__composer {
-  margin-top: 4px;
-  padding: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 14px;
-  background: #fff;
-}
-
 .blog-comments__textarea {
   box-sizing: border-box;
   width: 100%;
@@ -398,6 +356,12 @@ watch(() => props.isAuthenticated, (val) => {
 .blog-comments__textarea:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .blog-comments__textarea {
+    font-size: 16px;
+  }
 }
 
 .blog-comments__form-actions {
@@ -436,20 +400,6 @@ watch(() => props.isAuthenticated, (val) => {
 .blog-comments__btn--primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.blog-comments__gate {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.blog-comments__gate-text {
-  margin: 0;
-  color: #8e8e8e;
-  font-size: 14px;
-  line-height: 1.45;
 }
 
 .blog-comments__error {

@@ -11,6 +11,10 @@ const MAX_PARALLEL_PARTS = 3;
 const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
+/** Лимиты галереи объявления ленты (TZ_BLOG_COMPOSE_SIMPLE). */
+const LISTING_MAX_PHOTOS = 10;
+const LISTING_MAX_VIDEO_SECONDS = 60;
+const LISTING_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 const MAX_PARTS = Math.ceil(MAX_VIDEO_BYTES / PART_SIZE);
 const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 const PUBLIC_ID_LENGTH = 8;
@@ -48,7 +52,10 @@ function isAllowedCmsMime(mimeType, originalName = '') {
   return null;
 }
 
-function maxBytesForKind(kind) {
+function maxBytesForKind(kind, opts = {}) {
+  if (kind === 'video' && String(opts.purpose || '') === 'listing') {
+    return LISTING_MAX_VIDEO_BYTES;
+  }
   if (kind === 'image') return MAX_IMAGE_BYTES;
   if (kind === 'video') return MAX_VIDEO_BYTES;
   if (kind === 'audio') return MAX_AUDIO_BYTES;
@@ -68,6 +75,9 @@ module.exports = {
   MAX_VIDEO_BYTES,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
+  LISTING_MAX_PHOTOS,
+  LISTING_MAX_VIDEO_SECONDS,
+  LISTING_MAX_VIDEO_BYTES,
   MAX_PARTS,
   UPLOAD_TTL_MS,
   PUBLIC_ID_LENGTH,

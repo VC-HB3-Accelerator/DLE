@@ -53,6 +53,31 @@ function parseRecipientIds(value) {
   return [];
 }
 
+/** Каналы рассылки: web (чат карточки), email, telegram. Хотя бы один. */
+const BROADCAST_CHANNEL_KEYS = Object.freeze(['web', 'email', 'telegram']);
+
+function normalizeBroadcastChannels(raw) {
+  let list = raw;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = String(list).split(',').map((s) => s.trim());
+    }
+  }
+  if (!Array.isArray(list)) {
+    return [...BROADCAST_CHANNEL_KEYS];
+  }
+  const allowed = new Set(BROADCAST_CHANNEL_KEYS);
+  const normalized = [...new Set(
+    list
+      .map((c) => String(c || '').trim().toLowerCase())
+      .map((c) => (c === 'chat' || c === 'site' || c === 'card' ? 'web' : c))
+      .filter((c) => allowed.has(c))
+  )];
+  return normalized.length ? normalized : [...BROADCAST_CHANNEL_KEYS];
+}
+
 function buildMessagePreview(message, maxLength = 500) {
   const normalized = String(message || '').trim();
   if (!normalized) {
@@ -82,7 +107,8 @@ async function createCampaign({
   scheduleDays = [1, 2, 3, 4, 5],
   scheduleHourStart = 10,
   scheduleHourEnd = 18,
-  scheduleTimezone = 'Europe/Moscow'
+  scheduleTimezone = 'Europe/Moscow',
+  channels = null
 }) {
   const broadcastDraftService = require('./broadcastDraftService');
   const {
@@ -113,6 +139,7 @@ async function createCampaign({
   const normalizedGreeting = resolveGreeting(greeting);
   const normalizedSignature = normalizePart(signature);
   const normalizedLegal = normalizePart(legalFooter);
+  const normalizedChannels = normalizeBroadcastChannels(channels);
   const composedPreview = composeEmailBody({
     greeting: normalizedGreeting,
     body: normalizedMessage,
@@ -133,6 +160,7 @@ async function createCampaign({
       greeting,
       signature,
       legal_footer,
+      channels,
       recipient_ids,
       total_recipients,
       planned_recipients,
@@ -147,7 +175,7 @@ async function createCampaign({
       drafts_total,
       drafts_ready_count,
       status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15::int[], $16, $17, $18, $19, 0, 'preparing')
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15, $16::int[], $17, $18, $19, $20, 0, 'preparing')
     RETURNING *`,
     [
       senderId,
@@ -157,6 +185,7 @@ async function createCampaign({
       normalizedGreeting,
       normalizedSignature || null,
       normalizedLegal || null,
+      JSON.stringify(normalizedChannels),
       JSON.stringify(uniqueRecipientIds.slice(0, plannedRecipients)),
       uniqueRecipientIds.length,
       plannedRecipients,
@@ -317,7 +346,7 @@ async function updateCurrentIndex(campaignId, currentIndex) {
   );
 }
 
-async function startCampaign({ campaignId, actorId = null }) {
+async function startCampaign({ campaignId, actorId = null, channels = null }) {
   const campaign = await getCampaignById(campaignId);
   if (!campaign) {
     throw new Error('campaign_not_found');
@@ -351,6 +380,14 @@ async function startCampaign({ campaignId, actorId = null }) {
     if (!draftsTotal || draftsReady < draftsTotal) {
       throw new Error('campaign_drafts_not_ready');
     }
+  }
+
+  if (channels != null) {
+    const normalizedChannels = normalizeBroadcastChannels(channels);
+    await db.getQuery()(
+      `UPDATE broadcast_campaigns SET channels = $2::jsonb WHERE id = $1`,
+      [campaignId, JSON.stringify(normalizedChannels)]
+    );
   }
 
   const eventType = campaign.status === 'paused' ? 'resumed' : 'started';
@@ -721,7 +758,7 @@ async function completeCampaign({ campaignId, skippedCount = 0, actorId = null }
   return rows[0] || null;
 }
 
-async function getHistory({ limit = 20, offset = 0, dateFrom = '', dateTo = '' } = {}) {
+async function getHistory({ limit = 20, offset = 0, dateFrom = '', dateTo = '', senderId = null } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const where = [];
@@ -735,6 +772,10 @@ async function getHistory({ limit = 20, offset = 0, dateFrom = '', dateTo = '' }
   if (dateTo) {
     where.push(`DATE(c.started_at) <= $${idx++}`);
     params.push(dateTo);
+  }
+  if (senderId != null && Number.isInteger(Number(senderId)) && Number(senderId) > 0) {
+    where.push(`c.sender_id = $${idx++}`);
+    params.push(Number(senderId));
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -1272,5 +1313,7 @@ module.exports = {
   getCampaignProgress,
   emitCampaignWsUpdate,
   listActiveCampaignIds,
-  parseRecipientIds
+  parseRecipientIds,
+  normalizeBroadcastChannels,
+  BROADCAST_CHANNEL_KEYS
 };

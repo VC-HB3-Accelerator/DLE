@@ -19,6 +19,8 @@ const fs = require('fs');
 const multer = require('multer');
 const crypto = require('crypto');
 const auth = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('/app/shared/permissions');
 const contentMediaLimits = require('../services/contentMediaLimits');
 const contentMediaStore = require('../services/contentMediaStore');
 const { fixUtf8Filename, fixMulterFile } = require('../utils/utf8Filename');
@@ -26,28 +28,91 @@ const { fixUtf8Filename, fixMulterFile } = require('../utils/utf8Filename');
 const router = express.Router();
 
 async function requireCmsEditor(req, res) {
-  const isAuthenticated = req.session.authenticated
-    || req.session.userId
-    || req.session.address;
-  if (!isAuthenticated) {
+  const access = await resolveMediaAccess(req);
+  if (!access.authenticated) {
     res.status(403).json({ success: false, message: 'Требуется аутентификация' });
     return false;
   }
-  let level = req.session.userAccessLevel && req.session.userAccessLevel.level;
-  if (req.session.address) {
-    const authService = require('../services/auth-service');
-    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    level = userAccessLevel && userAccessLevel.level;
-  } else if (req.session.userId && level !== 'editor') {
-    const db = require('../db');
-    const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [req.session.userId]);
-    if (userResult.rows[0]) level = userResult.rows[0].role;
-  }
-  if (level !== 'editor') {
+  if (!access.isEditor) {
     res.status(403).json({ success: false, message: 'Требуются права редактора' });
     return false;
   }
   return true;
+}
+
+/**
+ * Доступ к медиатеке:
+ * - editor / global — все CMS-файлы (без ?owner) или личные профиля (?owner=);
+ * - domain (Boss@) — свои; чужой ?owner= только через canViewContact (свой домен);
+ * - own — только owner_user_id = me.
+ */
+async function resolveMediaAccess(req) {
+  const authenticated = Boolean(
+    req.session?.authenticated || req.session?.userId || req.session?.address
+  );
+  let level = req.session?.userAccessLevel?.level || null;
+  let userId = req.session?.userId != null ? Number(req.session.userId) : null;
+  if (req.session?.address) {
+    try {
+      const authService = require('../services/auth-service');
+      const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+      level = userAccessLevel?.level || level;
+    } catch (_) { /* ignore */ }
+  }
+  if ((!level || level !== 'editor') && userId) {
+    try {
+      const db = require('../db');
+      const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
+      if (userResult.rows[0]?.role) level = userResult.rows[0].role;
+    } catch (_) { /* ignore */ }
+  }
+  if (!Number.isInteger(userId) || userId <= 0) userId = null;
+
+  let dataScope = req.session?.userAccessLevel?.dataScope || null;
+  let domain = req.session?.userAccessLevel?.domain || null;
+  if (userId) {
+    try {
+      const accessResolver = require('../services/accessResolverService');
+      const viewerAccess = await accessResolver.resolveAccess(userId);
+      if (viewerAccess) {
+        dataScope = viewerAccess.dataScope || dataScope;
+        domain = viewerAccess.domain || domain;
+        if (viewerAccess.role === 'editor' || viewerAccess.tokenRole === 'editor') {
+          level = 'editor';
+        }
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  return {
+    authenticated,
+    isEditor: level === 'editor',
+    userId,
+    level,
+    dataScope: dataScope || 'own',
+    domain,
+  };
+}
+
+/** Запись: editor или любой авторизованный с userId (своя медиатека / объявление). */
+async function requireMediaWrite(req, res) {
+  const access = await resolveMediaAccess(req);
+  if (!access.authenticated) {
+    res.status(403).json({ success: false, message: 'Требуется аутентификация' });
+    return null;
+  }
+  if (access.isEditor || access.userId) return access;
+  res.status(403).json({ success: false, message: 'Нет доступа к медиатеке' });
+  return null;
+}
+
+function parsePurpose(raw) {
+  return String(raw || '').trim() === 'listing' ? 'listing' : null;
+}
+
+function parseOwnerQuery(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 function sendStoreError(res, e, fallbackMessage) {
@@ -88,7 +153,7 @@ const upload = multer({
 });
 
 // POST /api/uploads/logo  (form field: logo)
-router.post('/logo', auth.requireAuth, auth.requireAdmin, upload.single('logo'), async (req, res) => {
+router.post('/logo', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), upload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Файл не получен' });
     const rel = path.posix.join('uploads', 'logos', path.basename(req.file.filename));
@@ -124,14 +189,18 @@ const mediaUpload = multer({
 // POST /api/uploads/media/init — чанковая сессия
 router.post('/media/init', auth.requireAuth, async (req, res) => {
   try {
-    if (!(await requireCmsEditor(req, res))) return;
-    const { fileName, mimeType, size, pageId } = req.body || {};
+    const access = await requireMediaWrite(req, res);
+    if (!access) return;
+    const { fileName, mimeType, size, pageId, purpose } = req.body || {};
+    const listingPurpose = parsePurpose(purpose);
     const data = await contentMediaStore.initChunkedUpload({
       fileName: fixUtf8Filename(fileName),
       mimeType,
       size,
       pageId: pageId ? parseInt(pageId, 10) : null,
       authorAddress: req.session.address,
+      ownerUserId: access.userId,
+      purpose: listingPurpose,
     });
     return res.status(201).json({ success: true, data });
   } catch (e) {
@@ -146,7 +215,7 @@ router.put(
   express.raw({ type: '*/*', limit: contentMediaLimits.PART_SIZE + 1024 }),
   async (req, res) => {
     try {
-      if (!(await requireCmsEditor(req, res))) return;
+      if (!(await requireMediaWrite(req, res))) return;
       const data = await contentMediaStore.putPart({
         uploadId: req.params.uploadId,
         partNumber: req.params.partNumber,
@@ -162,7 +231,7 @@ router.put(
 
 router.get('/media/:uploadId/status', auth.requireAuth, async (req, res) => {
   try {
-    if (!(await requireCmsEditor(req, res))) return;
+    if (!(await requireMediaWrite(req, res))) return;
     const data = await contentMediaStore.getUploadStatus(req.params.uploadId);
     return res.json({ success: true, data });
   } catch (e) {
@@ -172,7 +241,7 @@ router.get('/media/:uploadId/status', auth.requireAuth, async (req, res) => {
 
 router.post('/media/:uploadId/complete', auth.requireAuth, async (req, res) => {
   try {
-    if (!(await requireCmsEditor(req, res))) return;
+    if (!(await requireMediaWrite(req, res))) return;
     const { row, isDuplicate } = await contentMediaStore.completeUpload(
       req.params.uploadId,
       req.body && req.body.parts
@@ -189,7 +258,7 @@ router.post('/media/:uploadId/complete', auth.requireAuth, async (req, res) => {
 
 router.post('/media/:uploadId/abort', auth.requireAuth, async (req, res) => {
   try {
-    if (!(await requireCmsEditor(req, res))) return;
+    if (!(await requireMediaWrite(req, res))) return;
     await contentMediaStore.abortUpload(req.params.uploadId);
     return res.status(204).end();
   } catch (e) {
@@ -199,7 +268,8 @@ router.post('/media/:uploadId/abort', auth.requireAuth, async (req, res) => {
 
 // POST /api/uploads/media — one-shot на диск (картинки / мелкие файлы)
 router.post('/media', auth.requireAuth, async (req, res) => {
-  if (!(await requireCmsEditor(req, res))) return;
+  const access = await requireMediaWrite(req, res);
+  if (!access) return;
 
   mediaUpload.single('media')(req, res, async (err) => {
     if (err) {
@@ -227,6 +297,7 @@ router.post('/media', auth.requireAuth, async (req, res) => {
         const parsedPageId = parseInt(req.body.page_id, 10);
         if (!Number.isNaN(parsedPageId) && parsedPageId > 0) pageId = parsedPageId;
       }
+      const purpose = parsePurpose(req.body && req.body.purpose);
 
       const { row, isDuplicate } = await contentMediaStore.ingestOneShotFromPath({
         tmpPath,
@@ -235,6 +306,8 @@ router.post('/media', auth.requireAuth, async (req, res) => {
         size: req.file.size,
         authorAddress: req.session.address,
         pageId,
+        ownerUserId: access.userId,
+        purpose,
       });
 
       return res.json({
@@ -405,7 +478,7 @@ router.get('/media/:id/file', async (req, res) => {
     let metaResult;
     try {
       metaResult = await client.query(
-      'SELECT file_name, mime_type, file_size, storage, file_path, status FROM content_media WHERE id = $1',
+      'SELECT file_name, mime_type, file_size, storage, file_path, status, public_id, owner_user_id FROM content_media WHERE id = $1',
       [mediaId]
     );
     } catch (queryErr) {
@@ -440,12 +513,39 @@ router.get('/media/:id/file', async (req, res) => {
       }
       return;
     }
+
+    // Sequential id не должен отдавать файл анониму. Публично — только /v/:publicId.
+    const mediaAccess = await resolveMediaAccess(req);
+    const ownerId = media.owner_user_id != null ? Number(media.owner_user_id) : null;
+    const isOwner = mediaAccess.userId
+      && ownerId
+      && Number(mediaAccess.userId) === ownerId;
+    const canReadByAuth = mediaAccess.isEditor || isOwner;
+    if (!canReadByAuth) {
+      const publicId = String(media.public_id || '').trim();
+      releaseClient();
+      cleanup();
+      if (publicId && /^[A-Za-z0-9_-]{6,32}$/.test(publicId)) {
+        const wmQ = require('../services/mediaWatermarkService').wantsWatermark(req) ? '?wm=1' : '';
+        if (!res.headersSent && !res.destroyed) {
+          return res.redirect(302, `/v/${publicId}${wmQ}`);
+        }
+        return;
+      }
+      if (!res.headersSent && !res.destroyed) {
+        return res.status(401).json({ success: false, message: 'Требуется аутентификация' });
+      }
+      return;
+    }
+
     const fileSize = parseInt(media.file_size) || 0;
-    console.log(`[uploads/media/:id/file] Файл найден: ID ${mediaId}, размер: ${fileSize} bytes, тип: ${media.mime_type}`);
 
     if ((media.storage || 'bytea') === 'disk' && media.file_path) {
       releaseClient();
       cleanup();
+      if (await contentMediaStore.maybeWatermarkAndStream(req, res, media)) {
+        return;
+      }
       return contentMediaStore.streamDiskToResponse(req, res, {
         filePath: media.file_path,
         mimeType: media.mime_type,
@@ -705,18 +805,62 @@ router.get('/media/:id/file', async (req, res) => {
 
 // GET /api/uploads/media - список медиатеки (без file_data, относительный url)
 // scope=cms (пикер) | scope=all (очистка: CMS+чат+гости)
+// ?owner=:userId — фильтр личных файлов профиля
 router.get('/media', auth.requireAuth, async (req, res) => {
   try {
-    if (!(await requireCmsEditor(req, res))) return;
-    const { page_id, media_type, q, limit, offset, scope, source } = req.query;
+    const access = await resolveMediaAccess(req);
+    if (!access.authenticated) {
+      return res.status(403).json({ success: false, message: 'Требуется аутентификация' });
+    }
+    const { page_id, media_type, q, limit, offset, scope, source, owner } = req.query;
+    const requestedOwner = parseOwnerQuery(owner);
+    const canListAllCms = access.isEditor || access.dataScope === 'global';
+    let ownerUserId = null;
+    let listScope = scope || 'cms';
+
+    if (requestedOwner) {
+      // Личные файлы профиля :id — editor всегда; иначе assertCanAccessProfileOwnedData
+      if (!access.isEditor) {
+        if (!access.userId) {
+          return res.status(403).json({ success: false, message: 'Нет доступа к медиатеке' });
+        }
+        const accessResolver = require('../services/accessResolverService');
+        const gate = await accessResolver.assertCanAccessProfileOwnedData(
+          access.userId,
+          requestedOwner
+        );
+        if (!gate.ok) {
+          return res.status(gate.status || 403).json({
+            success: false,
+            message: gate.error || 'Нет доступа к медиаресурсам профиля',
+          });
+        }
+      }
+      ownerUserId = requestedOwner;
+      listScope = 'cms';
+    } else if (canListAllCms) {
+      // Editor/global без owner — вся CMS (или scope=all для очистки)
+      ownerUserId = null;
+      if (access.isEditor && String(scope) === 'all') listScope = 'all';
+      else listScope = 'cms';
+    } else {
+      // own / domain без owner — только свои (не весь каталог)
+      if (!access.userId) {
+        return res.status(403).json({ success: false, message: 'Нет доступа к медиатеке' });
+      }
+      ownerUserId = access.userId;
+      listScope = 'cms';
+    }
+
     const result = await contentMediaStore.listMedia({
       mediaType: media_type,
       pageId: page_id,
       q,
       limit,
       offset,
-      scope: scope || 'cms',
-      source,
+      scope: listScope,
+      source: access.isEditor && !ownerUserId ? source : undefined,
+      ownerUserId,
     });
     return res.json({ success: true, ...result });
   } catch (e) {
@@ -820,11 +964,25 @@ router.patch('/media/:id', auth.requireAuth, async (req, res) => {
 // query/body source=cms|chat|guest (по умолчанию cms)
 router.delete('/media/:id', auth.requireAuth, async (req, res) => {
   try {
-    if (!(await requireCmsEditor(req, res))) return;
+    const access = await resolveMediaAccess(req);
+    if (!access.authenticated) {
+      return res.status(403).json({ success: false, message: 'Требуется аутентификация' });
+    }
     const mediaId = parseInt(req.params.id, 10);
     const source = (req.query && req.query.source)
       || (req.body && req.body.source)
       || 'cms';
+
+    if (!access.isEditor) {
+      if (!access.userId || String(source) !== 'cms') {
+        return res.status(403).json({ success: false, message: 'Нет доступа' });
+      }
+      const meta = await contentMediaStore.loadReadyMetaById(mediaId);
+      if (!meta || Number(meta.owner_user_id) !== Number(access.userId)) {
+        return res.status(403).json({ success: false, message: 'Можно удалять только свои файлы' });
+      }
+    }
+
     const result = await contentMediaStore.deleteLibraryItem(mediaId, source);
     if (!result.deleted) {
       return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });

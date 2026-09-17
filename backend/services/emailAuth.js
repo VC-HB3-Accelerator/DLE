@@ -92,25 +92,39 @@ class EmailAuth {
         throw new Error('Некорректный формат email');
       }
 
+      const normalizedEmail = email.toLowerCase();
+
       // Проверяем, существует ли пользователь с таким email
       const existingEmailUsers = await encryptedDb.getData('user_identities', {
         provider: 'email',
-        provider_id: email.toLowerCase()
+        provider_id: normalizedEmail
       }, 1);
+
+      if (existingEmailUsers.length === 0) {
+        const authDomainRulesService = require('./authDomainRulesService');
+        await authDomainRulesService.assertNewEmailAllowed(normalizedEmail);
+      }
 
       // Создаем или получаем ID пользователя
       let userId;
 
       if (session.authenticated && session.userId) {
-        // Если пользователь уже аутентифицирован, используем его ID
         userId = session.userId;
+        if (existingEmailUsers.length > 0) {
+          const ownerId = Number(existingEmailUsers[0].user_id);
+          if (ownerId !== Number(userId)) {
+            const err = new Error('Этот email уже привязан к другому аккаунту');
+            err.status = 400;
+            throw err;
+          }
+        }
         logger.info(
-          `[initEmailAuth] Using existing authenticated user ${userId} for email ${email}`
+          `[initEmailAuth] Using existing authenticated user ${userId} for email ${normalizedEmail}`
         );
       } else if (existingEmailUsers.length > 0) {
         // Если найден пользователь с таким email, используем его ID
         userId = existingEmailUsers[0].user_id;
-        logger.info(`[initEmailAuth] Found existing user ${userId} with email ${email}`);
+        logger.info(`[initEmailAuth] Found existing user ${userId} with email ${normalizedEmail}`);
       } else {
         // Создаем временного пользователя, если нужно будет создать нового
         const { ROLES } = require('/app/shared/permissions');
@@ -119,30 +133,30 @@ class EmailAuth {
         });
         userId = newUser.id;
         session.tempUserId = userId;
-        logger.info(`[initEmailAuth] Created temporary user ${userId} for email ${email}`);
+        logger.info(`[initEmailAuth] Created temporary user ${userId} for email ${normalizedEmail}`);
       }
 
       // Сохраняем email в сессии
-      session.pendingEmail = email.toLowerCase();
+      session.pendingEmail = normalizedEmail;
 
       // Создаем код через сервис верификации
       const verificationCode = await verificationService.createVerificationCode(
         'email',
-        email.toLowerCase(),
+        normalizedEmail,
         userId
       );
 
       // Отправляем код на email
-      await this.sendVerificationCode(email, verificationCode);
+      await this.sendVerificationCode(normalizedEmail, verificationCode);
 
       logger.info(
-        `Generated verification code for Email auth for ${email} and sent to user's email`
+        `Email verification code sent for ${normalizedEmail.replace(/^(.{1}).*(@.*)$/, '$1***$2')}`
       );
 
       // После каждого успешного создания пользователя:
       broadcastContactsUpdate();
 
-      return { success: true, verificationCode };
+      return { success: true };
     } catch (error) {
       logger.error('Error in email auth initialization:', error);
       throw error;
@@ -169,6 +183,15 @@ class EmailAuth {
 
       const email = session.pendingEmail.toLowerCase();
       let finalUserId;
+
+      const existingIdentity = await encryptedDb.getData('user_identities', {
+        provider: 'email',
+        provider_id: email
+      }, 1);
+      if (existingIdentity.length === 0) {
+        const authDomainRulesService = require('./authDomainRulesService');
+        await authDomainRulesService.assertNewEmailAllowed(email);
+      }
 
       // Если пользователь уже авторизован, используем его ID
       if (session.authenticated && session.userId) {
@@ -295,6 +318,9 @@ class EmailAuth {
       };
     } catch (error) {
       logger.error('Error checking email verification:', error);
+      if (error.status) {
+        return { verified: false, message: error.message };
+      }
       return { verified: false, message: 'Ошибка при проверке кода верификации' };
     }
   }

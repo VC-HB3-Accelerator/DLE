@@ -11,7 +11,7 @@ const aiProviderSettingsService = require('./aiProviderSettingsService');
 
 const DEFAULTS = {
   enabled: false,
-  provider: 'qwencloud',
+  provider: 'openai',
   model: null,
   temperature: 0.3,
   max_tokens: 1200,

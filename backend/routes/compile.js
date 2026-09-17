@@ -16,13 +16,15 @@ const { spawn } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('/app/shared/permissions');
 
 /**
  * @route   POST /api/compile-contracts
  * @desc    Компилировать смарт-контракты через Hardhat
- * @access  Private (только для авторизованных пользователей с ролью admin)
+ * @access  Private (MANAGE_SETTINGS)
  */
-router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     console.log('🔨 Запуск компиляции смарт-контрактов...');
     

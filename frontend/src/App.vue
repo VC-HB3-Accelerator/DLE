@@ -20,14 +20,20 @@
     <RouterView v-slot="{ Component }">
       <component 
         :is="Component" 
-        :isAuthenticated="auth.isAuthenticated"
-        :identities="auth.identities"
+        :isAuthenticated="isLoggedIn"
+        :identities="identities"
         :tokenBalances="tokenBalances"
         :isLoadingTokens="isLoadingTokens"
         :formattedLastUpdate="formattedLastUpdate" 
         @auth-action-completed="handleAuthActionCompleted"
       />
     </RouterView>
+
+    <!-- Один личный сайдбар на всё приложение (Teleport внутри компонента) -->
+    <PersonalSidebar
+      v-if="isLoggedIn"
+      v-model="showPersonalSidebar"
+    />
     
     <!-- Отладочная информация -->
     <div v-if="false" style="position: fixed; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid black; z-index: 9999;">
@@ -48,10 +54,13 @@
   import { useAuth, provideAuth } from './composables/useAuth';
   import { provideFooterDle } from './composables/useFooterDle';
   import { useTokenBalancesWebSocket } from './composables/useTokenBalancesWebSocket';
+  import { usePersonalSidebarState } from './composables/usePersonalSidebarState';
+  import PersonalSidebar from './components/PersonalSidebar.vue';
   import eventBus from './utils/eventBus';
   import wsClient from './utils/websocket';
   import { fetchRegionUrls } from './services/regionUrlsService';
   import { consumeVoiceCallReturnUrl } from './utils/voiceCallReturnUrl';
+  import { loadSiteMetaDescription } from './utils/siteMetaDescription';
 
   const { locale } = useI18n();
   const router = useRouter();
@@ -73,6 +82,12 @@
 
   // Использование composable для аутентификации
   const auth = useAuth();
+  const { showPersonalSidebar, setPersonalSidebarOpen } = usePersonalSidebarState();
+  const isLoggedIn = computed(() => Boolean(auth.isAuthenticated.value));
+
+  watch(isLoggedIn, (ok) => {
+    if (!ok) setPersonalSidebarOpen(false);
+  }, { immediate: true });
 
   // --- Логика загрузки баланса токенов через WebSocket --- 
   // Предоставляем auth контекст
@@ -196,6 +211,7 @@
     // Проверяем наличие MetaMask
     checkMetaMaskAvailability();
     fetchRegionUrls().catch(() => {});
+    loadSiteMetaDescription().catch(() => {});
     if (auth.isAuthenticated.value) {
       console.log('[App] onMounted - вызываем refreshTokenBalances');
       refreshTokenBalances();

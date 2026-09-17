@@ -4,145 +4,107 @@
 -->
 
 <template>
-  <article class="blog-feed-card">
-    <!-- Медиа -->
-    <div v-if="page.cover_url" class="blog-feed-card__media" @click.stop="openArticle">
-      <img
-        v-if="!isDirectVideo"
-        :src="page.cover_url"
-        :alt="page.title"
-        loading="lazy"
-      />
-      <div v-else class="blog-feed-card__media-video">
-        <video
+  <article ref="cardEl" class="blog-feed-card">
+    <!-- Медиа + id автора поверх -->
+    <div
+      class="blog-feed-card__media-wrap"
+      :class="{ 'blog-feed-card__media-wrap--subscribe': showSubscribeForm }"
+    >
+      <div
+        v-if="listingMedia && (listingMedia.photos?.length || listingMedia.video)"
+        class="blog-feed-card__media blog-feed-card__media--carousel"
+      >
+        <ListingMediaCarousel :media="listingMedia" :alt="page.title" />
+      </div>
+      <div v-else-if="page.cover_url" class="blog-feed-card__media" @click.stop="openArticle">
+        <img
+          v-if="!isDirectVideo"
           :src="page.cover_url"
-          muted
-          playsinline
-          preload="metadata"
+          :alt="page.title"
+          loading="lazy"
         />
-        <span class="blog-feed-card__play" aria-hidden="true">
-          <BlogGlyph name="play" />
-        </span>
-      </div>
-    </div>
-    <div v-else class="blog-feed-card__media blog-feed-card__media--placeholder" @click.stop="openArticle">
-      <BlogGlyph name="image" aria-hidden="true" />
-    </div>
-
-    <!-- Действия: слева лайк…просмотры, справа подписка -->
-    <div class="blog-feed-card__actions" @click.stop>
-      <div class="blog-feed-card__actions-left">
-        <BlogReactions
-          :counts="reactionCounts"
-          :my-reaction="myReaction"
-          @select="handleReaction"
-        />
-        <button
-          type="button"
-          class="blog-feed-card__action"
-          :title="t('blog.comments.action')"
-          @click="openComments"
-        >
-          <BlogGlyph name="comment" />
-          <span>{{ commentsCount }}</span>
-        </button>
-        <button
-          type="button"
-          class="blog-feed-card__action blog-feed-card__action--share"
-          :class="{ 'blog-feed-card__action--ok': sharedOk }"
-          :title="sharedOk ? t('blog.share.copied') : t('blog.share.action')"
-          @click="sharePost"
-        >
-          <BlogGlyph :name="sharedOk ? 'check' : 'share'" />
-        </button>
-        <span class="blog-feed-card__action blog-feed-card__action--static" :title="t('blog.views.label')">
-          <BlogGlyph name="views" />
-          <span>{{ viewsCount || 0 }}</span>
-        </span>
-      </div>
-      <div class="blog-feed-card__actions-right">
-        <button
-          v-if="!isAuthenticated"
-          type="button"
-          class="btn btn-outline btn-sm blog-feed-card__login"
-          @click.stop="requestLogin"
-        >
-          {{ t('blog.feed.login') }}
-        </button>
-        <button
-          v-if="!showSubscribeForm"
-          type="button"
-          class="btn btn-primary btn-sm blog-feed-card__subscribe-btn"
-          @click.stop="showSubscribeForm = true"
-        >
-          {{ t('blog.subscribe.button') }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Форма подписки под строкой кнопок, над заголовком -->
-    <div v-if="showSubscribeForm || subscribeMessage" class="blog-feed-card__subscribe-panel" @click.stop>
-      <form v-if="showSubscribeForm" class="blog-feed-card__subscribe-inline" @submit.prevent="handleSubscribe">
-        <div class="blog-feed-card__subscribe-row">
-          <input
-            v-model="subscribeEmail"
-            type="email"
-            class="blog-feed-card__subscribe-input"
-            :placeholder="t('blog.subscribe.placeholder')"
-            required
+        <div v-else class="blog-feed-card__media-video">
+          <video
+            :src="page.cover_url"
+            muted
+            playsinline
+            preload="metadata"
           />
-          <button
-            type="submit"
-            class="btn btn-primary btn-sm"
-            :disabled="isSubscribing || !privacyConsent"
-          >
-            OK
-          </button>
-          <button
-            type="button"
-            class="btn btn-outline btn-sm"
-            @click="showSubscribeForm = false"
-          >
-            {{ t('common.cancel') }}
-          </button>
-        </div>
-        <label class="blog-feed-card__consent">
-          <input v-model="privacyConsent" type="checkbox" required />
-          <span>
-            {{ t('blog.subscribe.consentPrefix') }}
-            <a
-              :href="privacyDocsUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              @click.stop
-            >{{ t('blog.subscribe.consentLink') }}</a>
+          <span class="blog-feed-card__play" aria-hidden="true">
+            <BlogGlyph name="play" />
           </span>
-        </label>
-      </form>
-      <p v-if="subscribeMessage" class="blog-feed-card__subscribe-msg">{{ subscribeMessage }}</p>
+        </div>
+      </div>
+      <div v-else class="blog-feed-card__media blog-feed-card__media--placeholder" @click.stop="openArticle">
+        <BlogGlyph name="image" aria-hidden="true" />
+      </div>
+      <BlogMediaRail
+        :compact="!listingMedia"
+        collapse-overflow
+        like-in-more
+        show-subscribe
+        :subscribe-active="showSubscribeForm"
+        :counts="reactionCounts"
+        :my-reaction="myReaction"
+        :comments-count="commentsCount"
+        :views-count="viewsCount"
+        :page-id="page.id"
+        :page-slug="page.slug || ''"
+        :owner-user-id="page.owner_user_id"
+        :is-authenticated="isAuthed"
+        :article-url="articleUrl"
+        :page-title="page.title || ''"
+        @select="handleReaction"
+        @comments="openComments"
+        @subscribe="showSubscribeForm = true"
+      />
     </div>
 
-    <!-- Текст: описание + «Читать полностью» -->
+    <!-- Форма подписки под медиа, над заголовком -->
+    <div v-if="showSubscribeForm" class="blog-feed-card__subscribe-panel" @click.stop>
+      <BlogSubscribeForm
+        :filters="subscribeFilters"
+        :source-page-id="page.id"
+        :is-authenticated="isAuthed"
+        @done="onSubscribeDone"
+        @auth-changed="onSubscribeAuth"
+      />
+      <button
+        type="button"
+        class="btn btn-outline btn-sm blog-feed-card__subscribe-cancel"
+        @click="showSubscribeForm = false"
+      >
+        {{ t('common.cancel') }}
+      </button>
+    </div>
+
+    <!-- Текст: клик по названию открывает объявление -->
     <div class="blog-feed-card__body">
-      <h2 class="blog-feed-card__title" role="button" tabindex="0" @click.stop="openArticle" @keydown.enter.stop="openArticle">
+      <h2 class="blog-feed-card__title">
         <span v-if="page.is_pinned" class="blog-feed-card__pin" :title="t('blog.feedSettings.pinnedBadge')">
           <BlogGlyph name="pin" aria-hidden="true" />
         </span>
-        {{ page.title }}
+        <a
+          class="blog-feed-card__title-link"
+          :href="articleUrl"
+          @click.prevent.stop="openArticle"
+        >{{ page.title }}</a>
       </h2>
-      <p class="blog-feed-card__summary">
-        <span v-if="truncatedSummary" class="blog-feed-card__summary-text">{{ truncatedSummary }}</span>
-        <button type="button" class="blog-feed-card__read-more" @click.stop="openArticle">
-          {{ t('blog.feed.readFull') }}
-        </button>
-      </p>
+      <div v-if="catalogTags.length" class="blog-feed-card__tags" @click.stop>
+        <span v-for="(tag, idx) in catalogTags" :key="`${idx}-${tag}`" class="blog-feed-card__tag">{{ tag }}</span>
+      </div>
+      <p v-if="truncatedSummary" class="blog-feed-card__summary">{{ truncatedSummary }}</p>
       <time v-if="formattedDate" class="blog-feed-card__date">{{ formattedDate }}</time>
     </div>
 
     <!-- Превью комментариев -->
     <div v-if="localPreviewComments.length" class="blog-feed-card__comments" @click.stop="openComments">
       <div v-for="comment in localPreviewComments" :key="comment.id" class="blog-feed-card__comment">
-        <span class="blog-feed-card__comment-author">{{ comment.author_name }}</span>
+        <BlogAuthorAvatar
+          size="sm"
+          :user-id="comment.user_id"
+          :name="comment.author_name"
+        />
         <span class="blog-feed-card__comment-body">{{ truncateComment(comment.body) }}</span>
       </div>
       <button
@@ -162,49 +124,33 @@
     >
       {{ t('blog.feed.viewComments', { count: commentsCount }) }}
     </button>
-
-    <!-- Поле комментария под описанием -->
-    <form class="blog-feed-card__composer" @submit.prevent="submitFeedComment" @click.stop>
-      <input
-        v-model="draftComment"
-        type="text"
-        class="blog-feed-card__composer-input"
-        :placeholder="t('blog.comments.placeholder')"
-        :disabled="isCommenting"
-        maxlength="2000"
-        autocomplete="off"
-        @focus="onComposerFocus"
-      />
-      <button
-        type="submit"
-        class="blog-feed-card__composer-send"
-        :disabled="!draftComment.trim() || isCommenting"
-      >
-        {{ isCommenting ? t('blog.comments.sending') : t('blog.comments.send') }}
-      </button>
-    </form>
-    <p v-if="commentError" class="blog-feed-card__composer-error" @click.stop>{{ commentError }}</p>
   </article>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import eventBus from '../../utils/eventBus';
 import blogEngagementService from '../../services/blogEngagementService';
 import { emptyReactionCounts } from '../../constants/blogReactions';
-import { getPrivacyDocsUrl } from '../../constants/publishedDocs';
-import BlogReactions from './BlogReactions.vue';
+import { isAuthenticated as authIsAuthenticated } from '../../composables/useAuth';
+import { useNotifications } from '../../composables/useNotifications';
 import BlogGlyph from './BlogGlyph.vue';
+import BlogAuthorAvatar from './BlogAuthorAvatar.vue';
+import ListingMediaCarousel from './ListingMediaCarousel.vue';
+import BlogSubscribeForm from './BlogSubscribeForm.vue';
+import BlogMediaRail from './BlogMediaRail.vue';
 
 const props = defineProps({
   page: { type: Object, required: true },
   isAuthenticated: { type: Boolean, default: false },
   articleUrl: { type: String, required: true },
+  subscribeFilters: { type: Object, default: () => ({ section: null, attrs: {} }) },
 });
 
-const emit = defineEmits(['open-article', 'open-comments']);
+const emit = defineEmits(['open-article', 'open-comments', 'auth-changed']);
 const { t } = useI18n();
+const { showErrorMessage } = useNotifications();
 
 const reactionCounts = ref({
   ...emptyReactionCounts(),
@@ -213,19 +159,29 @@ const reactionCounts = ref({
 const myReaction = ref(null);
 const viewsCount = ref(props.page.views_count || 0);
 const commentsCount = ref(props.page.comments_count || 0);
-const sharedOk = ref(false);
 const showSubscribeForm = ref(false);
-const subscribeEmail = ref('');
-const subscribeMessage = ref('');
-const isSubscribing = ref(false);
-const privacyConsent = ref(false);
-const privacyDocsUrl = getPrivacyDocsUrl();
-const draftComment = ref('');
-const isCommenting = ref(false);
-const commentError = ref('');
 const localPreviewComments = ref([...(props.page.preview_comments || [])]);
+const cardEl = ref(null);
+let viewObserver = null;
+
+const isAuthed = computed(() => Boolean(authIsAuthenticated.value));
 
 const isDirectVideo = computed(() => props.page.cover_type === 'video');
+
+const listingMedia = computed(() => {
+  const lm = props.page?.listing_media;
+  if (!lm || typeof lm !== 'object') return null;
+  const photos = Array.isArray(lm.photos) ? lm.photos.filter(Boolean) : [];
+  const video = lm.video || null;
+  if (!photos.length && !video) return null;
+  return { photos, video };
+});
+
+const catalogTags = computed(() => {
+  const tags = props.page?.catalog_tags;
+  if (!Array.isArray(tags)) return [];
+  return tags.map((t) => String(t || '').trim()).filter(Boolean);
+});
 
 const truncatedSummary = computed(() => {
   const text = (props.page.summary || '').trim();
@@ -251,9 +207,40 @@ watch(
   { deep: true }
 );
 
+function applyEngagement(data) {
+  if (!data) return;
+  myReaction.value = data.myReaction || null;
+  if (data.reactions) {
+    reactionCounts.value = { ...emptyReactionCounts(), ...data.reactions };
+  }
+  if (data.viewsCount != null) viewsCount.value = data.viewsCount;
+  if (data.commentsCount != null) commentsCount.value = data.commentsCount;
+}
+
+async function syncEngagement() {
+  const pageId = props.page?.id;
+  if (!pageId) return;
+  try {
+    applyEngagement(await blogEngagementService.getEngagement(pageId));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function recordCardView() {
+  const pageId = props.page?.id;
+  if (!pageId) return;
+  try {
+    const result = await blogEngagementService.recordView(pageId);
+    if (result?.viewsCount != null) viewsCount.value = result.viewsCount;
+  } catch {
+    /* ignore */
+  }
+}
+
 watch(
-  () => [props.page?.id, props.isAuthenticated],
-  async ([pageId, authed]) => {
+  () => [props.page?.id, isAuthed.value],
+  async () => {
     const p = props.page;
     if (!p) return;
     reactionCounts.value = { ...emptyReactionCounts(), ...(p.reactions || {}) };
@@ -264,21 +251,30 @@ watch(
     commentsCount.value = p.comments_count || 0;
     localPreviewComments.value = [...(p.preview_comments || [])];
     myReaction.value = null;
-    commentError.value = '';
-    if (pageId && authed) {
-      try {
-        const data = await blogEngagementService.getEngagement(pageId);
-        myReaction.value = data.myReaction || null;
-        reactionCounts.value = { ...emptyReactionCounts(), ...(data.reactions || {}) };
-        viewsCount.value = data.viewsCount ?? viewsCount.value;
-        commentsCount.value = data.commentsCount;
-      } catch {
-        /* ignore */
-      }
-    }
+    await syncEngagement();
   },
   { immediate: true }
 );
+
+onMounted(() => {
+  const el = cardEl.value;
+  if (!el || typeof IntersectionObserver === 'undefined') {
+    recordCardView();
+    return;
+  }
+  viewObserver = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    recordCardView();
+    viewObserver?.disconnect();
+    viewObserver = null;
+  }, { threshold: 0.45 });
+  viewObserver.observe(el);
+});
+
+onBeforeUnmount(() => {
+  viewObserver?.disconnect();
+  viewObserver = null;
+});
 
 function truncateComment(body) {
   const text = String(body || '').trim();
@@ -287,6 +283,7 @@ function truncateComment(body) {
 }
 
 function requestLogin() {
+  showErrorMessage(t('blog.comments.loginHint'));
   eventBus.emit('open-auth-sidebar');
 }
 
@@ -299,7 +296,7 @@ function openComments() {
 }
 
 async function handleReaction(type) {
-  if (!props.isAuthenticated) {
+  if (!isAuthed.value) {
     requestLogin();
     return;
   }
@@ -312,106 +309,44 @@ async function handleReaction(type) {
   }
 }
 
-async function sharePost() {
-  if (typeof navigator !== 'undefined' && navigator.share) {
-    try {
-      await navigator.share({
-        title: props.page.title || document.title,
-        url: props.articleUrl,
-      });
-      return;
-    } catch (e) {
-      if (e?.name === 'AbortError') return;
-    }
-  }
-  try {
-    await navigator.clipboard.writeText(props.articleUrl);
-    sharedOk.value = true;
-    setTimeout(() => { sharedOk.value = false; }, 1500);
-  } catch (e) {
-    console.warn('[BlogFeedCard] share failed', e);
-  }
+function onSubscribeDone() {
+  setTimeout(() => { showSubscribeForm.value = false; }, 1800);
 }
 
-async function handleSubscribe() {
-  if (!subscribeEmail.value.trim()) return;
-  if (!privacyConsent.value) {
-    subscribeMessage.value = t('blog.subscribe.consentRequired');
-    return;
-  }
-  isSubscribing.value = true;
-  subscribeMessage.value = '';
-  try {
-    const result = await blogEngagementService.subscribe(subscribeEmail.value.trim(), props.page.id, {
-      privacyConsent: true,
-      privacyConsentUrl: privacyDocsUrl,
-    });
-    if (result.alreadyConfirmed) {
-      subscribeMessage.value = t('blog.subscribe.already');
-    } else {
-      subscribeMessage.value = t('blog.subscribe.sent');
-      subscribeEmail.value = '';
-      privacyConsent.value = false;
-      showSubscribeForm.value = false;
-    }
-  } catch (e) {
-    subscribeMessage.value = e?.response?.data?.error || t('blog.subscribe.error');
-  } finally {
-    isSubscribing.value = false;
-  }
-}
-
-function onComposerFocus() {
-  if (!props.isAuthenticated) {
-    requestLogin();
-  }
-}
-
-async function submitFeedComment() {
-  if (!props.isAuthenticated) {
-    requestLogin();
-    return;
-  }
-  const body = draftComment.value.trim();
-  if (!body || isCommenting.value) return;
-
-  isCommenting.value = true;
-  commentError.value = '';
-  try {
-    const created = await blogEngagementService.addComment(props.page.id, body);
-    draftComment.value = '';
-    commentsCount.value += 1;
-    const previewItem = {
-      id: created?.id || Date.now(),
-      author_name: created?.author_name || t('blog.feed.you'),
-      body: created?.body || body,
-    };
-    localPreviewComments.value = [previewItem, ...localPreviewComments.value].slice(0, 2);
-  } catch (e) {
-    console.error('[BlogFeedCard] comment:', e);
-    commentError.value = e?.response?.data?.error || t('blog.comments.submitError');
-  } finally {
-    isCommenting.value = false;
-  }
+function onSubscribeAuth(result) {
+  emit('auth-changed', result);
 }
 </script>
 
 <style scoped>
 .blog-feed-card {
-  background: var(--color-white);
-  border: 1px solid color-mix(in srgb, var(--theme-text) 8%, transparent);
-  border-radius: 14px;
-  overflow: hidden;
+  --feed-text-pad: 0px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  max-width: 560px;
   width: 100%;
-  max-width: 100%;
   min-width: 0;
-  margin: 0 0 28px;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-text) 4%, transparent);
+  margin: 0 auto 28px;
+  box-shadow: none;
   box-sizing: border-box;
 }
 
 .blog-feed-card__subscribe-panel {
-  padding: 0 var(--spacing-md) var(--spacing-sm);
+  margin: 0 0 1.25rem;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: var(--color-light);
+  border: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
+  border-radius: var(--radius-lg);
+  box-sizing: border-box;
+}
+
+.blog-feed-card__subscribe-cancel {
+  align-self: flex-start;
 }
 
 .blog-feed-card__subscribe-inline {
@@ -472,11 +407,39 @@ async function submitFeedComment() {
   color: var(--color-primary-dark);
 }
 
+.blog-feed-card__media-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.blog-feed-card__media-wrap--subscribe {
+  margin-bottom: 1.5rem;
+}
+
 .blog-feed-card__media {
   aspect-ratio: 16 / 9;
   background: var(--color-black);
   cursor: pointer;
   overflow: hidden;
+}
+
+/* Карусель объявления: кадр 4:3 как у ListingMediaCarousel — иначе 16:9 режет SE-водяной знак */
+.blog-feed-card__media--carousel {
+  aspect-ratio: 4 / 3;
+}
+
+.blog-feed-card__media--carousel :deep(.listing-carousel),
+.blog-feed-card__media--carousel :deep(.listing-carousel__viewport) {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.blog-feed-card__media--carousel :deep(.listing-carousel__media) {
+  object-position: center bottom;
 }
 
 .blog-feed-card__media img,
@@ -536,40 +499,13 @@ async function submitFeedComment() {
 }
 
 .blog-feed-card__actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  justify-content: flex-end;
   align-items: center;
-  column-gap: 6px;
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-}
-
-.blog-feed-card__actions-left,
-.blog-feed-card__actions-right {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 2px;
-  min-width: 0;
-}
-
-.blog-feed-card__actions-left {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.blog-feed-card__actions-left::-webkit-scrollbar {
-  display: none;
-}
-
-.blog-feed-card__actions-right {
-  gap: var(--spacing-xs);
-  flex-shrink: 0;
-  justify-self: end;
 }
 
 .blog-feed-card__subscribe-btn {
@@ -577,44 +513,8 @@ async function submitFeedComment() {
   white-space: nowrap;
 }
 
-.blog-feed-card__action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-dark);
-  height: 40px;
-  padding: 0 var(--spacing-sm);
-  border-radius: var(--radius-md);
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.blog-feed-card__action:hover {
-  background: var(--color-light);
-  color: var(--color-primary);
-}
-
-.blog-feed-card__action--static {
-  cursor: default;
-  color: var(--color-text-light);
-  font-weight: 500;
-}
-
-.blog-feed-card__action--static:hover {
-  background: transparent;
-  color: var(--color-text-light);
-}
-
-.blog-feed-card__action--ok {
-  color: var(--color-primary);
-}
-
 .blog-feed-card__body {
-  padding: 4px 16px 8px;
+  padding: 16px var(--feed-text-pad) 8px;
 }
 
 .blog-feed-card__pin {
@@ -633,16 +533,42 @@ async function submitFeedComment() {
   margin: 0 0 6px;
   font-size: 16px;
   font-weight: 700;
-  color: var(--theme-text);
   line-height: 1.35;
-  cursor: pointer;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.blog-feed-card__title:hover {
-  color: var(--color-primary-dark);
+.blog-feed-card__title-link {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.blog-feed-card__title-link:hover {
+  color: var(--color-primary-dark, var(--color-primary));
+}
+
+.blog-feed-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.blog-feed-card__tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  color: var(--theme-text-muted, var(--color-grey));
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .blog-feed-card__summary {
@@ -652,27 +578,6 @@ async function submitFeedComment() {
   color: var(--theme-text);
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.blog-feed-card__read-more {
-  display: inline;
-  border: none;
-  background: none;
-  color: var(--theme-text-muted);
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-}
-
-/* после margin: 0 — иначе отступ перетрётся при смене порядка правил */
-.blog-feed-card__summary-text + .blog-feed-card__read-more {
-  margin-left: 0.4em;
-}
-
-.blog-feed-card__read-more:hover {
-  color: var(--theme-text);
 }
 
 .blog-feed-card__date {
@@ -685,22 +590,24 @@ async function submitFeedComment() {
 }
 
 .blog-feed-card__comments {
-  padding: 2px 16px 8px;
+  padding: 2px var(--feed-text-pad) 8px;
 }
 
 .blog-feed-card__comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   font-size: 13px;
   line-height: 1.4;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   color: var(--theme-text);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.blog-feed-card__comment-author {
-  font-weight: 700;
-  margin-right: 6px;
-  overflow-wrap: anywhere;
+.blog-feed-card__comment-body {
+  min-width: 0;
+  padding-top: 3px;
 }
 
 .blog-feed-card__more-comments {
@@ -716,100 +623,52 @@ async function submitFeedComment() {
 
 .blog-feed-card__more-comments--pad {
   display: block;
-  padding: 0 16px 8px;
+  padding: 0 var(--feed-text-pad) 8px;
 }
 
 .blog-feed-card__more-comments:hover {
   color: var(--theme-text);
 }
 
-.blog-feed-card__composer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
-}
+@media (max-width: 768px) {
+  .blog-feed-card__media,
+  .blog-feed-card__media--carousel {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+  }
 
-.blog-feed-card__composer-input {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  padding: 0 4px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  color: var(--theme-text);
-}
-
-.blog-feed-card__composer-input::placeholder {
-  color: var(--theme-text-muted);
-}
-
-.blog-feed-card__composer-input:focus {
-  outline: none;
-}
-
-.blog-feed-card__composer-input:disabled {
-  opacity: 0.6;
-}
-
-.blog-feed-card__composer-send {
-  flex-shrink: 0;
-  height: 32px;
-  padding: 0 4px;
-  border: none;
-  background: none;
-  color: var(--color-primary);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.blog-feed-card__composer-send:disabled {
-  color: color-mix(in srgb, var(--color-primary) 35%, var(--color-white));
-  cursor: default;
-}
-
-.blog-feed-card__composer-send:not(:disabled):hover {
-  color: var(--color-primary-dark);
-}
-
-.blog-feed-card__composer-error {
-  margin: 0;
-  padding: 0 16px 12px;
-  font-size: 12px;
-  color: var(--color-error);
+  .blog-feed-card__media-wrap--subscribe {
+    margin-bottom: 1rem;
+  }
 }
 
 @media (max-width: 480px) {
   .blog-feed-card {
     margin-bottom: 20px;
-    border-radius: 12px;
+  }
+
+  .blog-feed-card__media-wrap {
+    border-radius: 10px;
+  }
+
+  .blog-feed-card__media,
+  .blog-feed-card__media--carousel {
+    width: 100%;
+    aspect-ratio: 4 / 3;
   }
 
   .blog-feed-card__body,
   .blog-feed-card__comments {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: var(--feed-text-pad);
+    padding-right: var(--feed-text-pad);
   }
 
   .blog-feed-card__actions {
-    padding-left: 4px;
-    padding-right: 8px;
-    column-gap: 4px;
-    /* защитить от TZ .actions { flex-wrap } и широких grid-селекторов */
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
+    padding-left: 12px;
+    padding-right: 12px;
+    display: flex !important;
+    justify-content: flex-end;
     flex-wrap: nowrap;
-  }
-
-  .blog-feed-card__action {
-    height: 34px;
-    padding: 0 3px;
-    gap: 3px;
-    font-size: var(--font-size-xs);
   }
 
   /* «Войти»+«Подписаться» вместе не влезают ~≤390px; вход — через композер/меню */
@@ -817,11 +676,6 @@ async function submitFeedComment() {
     display: none !important;
   }
 
-  .blog-feed-card__actions-right {
-    max-width: none;
-  }
-
-  .blog-feed-card__actions-right :deep(.btn),
   .blog-feed-card__subscribe-btn {
     flex-shrink: 0;
     height: 32px;
@@ -831,8 +685,8 @@ async function submitFeedComment() {
   }
 
   .blog-feed-card__subscribe-panel {
-    padding-left: 12px;
-    padding-right: 12px;
+    margin-bottom: 1.25rem;
+    padding: 16px 18px;
   }
 
   .blog-feed-card__subscribe-input {
@@ -841,13 +695,8 @@ async function submitFeedComment() {
   }
 
   .blog-feed-card__more-comments--pad {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
-  .blog-feed-card__composer {
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: var(--feed-text-pad);
+    padding-right: var(--feed-text-pad);
   }
 }
 
@@ -866,8 +715,8 @@ async function submitFeedComment() {
   }
 
   .blog-feed-card__actions {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
+    display: flex !important;
+    justify-content: flex-end;
   }
 }
 </style>

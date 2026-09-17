@@ -30,11 +30,13 @@ import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const { t } = useI18n();
 const route = useRoute();
 const { isEditor } = usePermissions();
 const { userId: sessionUserId } = useAuthContext();
+ensureScreenAccessLoaded();
 
 const contactId = computed(() => route.params.id);
 
@@ -51,7 +53,11 @@ const isOwnCard = computed(() => (
   sessionUserId.value != null
   && String(sessionUserId.value) === String(contactId.value)
 ));
-const showConference = computed(() => (isEditor.value || isOwnCard.value) && isRegisteredContact.value);
+const showConference = computed(() => (
+  (isEditor.value || isOwnCard.value)
+  && isRegisteredContact.value
+  && canAccessPath(`/contacts/${contactId.value}/conference`)
+));
 
 const navItems = [
   { name: 'contact-details', labelKey: 'contacts.details.nav.chat' },

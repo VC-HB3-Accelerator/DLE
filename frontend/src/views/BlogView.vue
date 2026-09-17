@@ -43,6 +43,14 @@
           >
             {{ t('blog.newPost') }}
           </button>
+          <button
+            v-if="isAuthenticated"
+            type="button"
+            class="blog-my-subs"
+            @click="goToMySubscriptions"
+          >
+            {{ t('blog.mySubscriptions.button') }}
+          </button>
         </BlogCatalogFilters>
 
         <div
@@ -50,9 +58,6 @@
           class="blog-facet-empty"
         >
           <p>{{ t('catalogFilters.emptyEditorBlog') }}</p>
-          <button type="button" class="empty-create" @click="goToCreate">
-            {{ t('blog.newPost') }}
-          </button>
         </div>
 
         <!-- Загрузка первой порции -->
@@ -71,29 +76,22 @@
           </button>
         </div>
 
-        <!-- Пустое состояние -->
-        <div v-else-if="!isLoading && filteredPages.length === 0" class="empty-state">
+        <!-- Пустое состояние без выбранных фильтров -->
+        <div v-else-if="!isLoading && filteredPages.length === 0 && !catalogHasSelection" class="empty-state">
           <div class="empty-icon"><BlogGlyph name="book" /></div>
           <h3>{{ t('blog.emptyTitle') }}</h3>
           <p>{{ t('blog.emptyDescription') }}</p>
-          <button
-            v-if="canCreatePage"
-            type="button"
-            class="empty-create"
-            @click="goToCreate"
-          >
-            {{ t('blog.newPost') }}
-          </button>
         </div>
 
         <!-- Лента статей (feed) + infinite scroll -->
-        <div v-else class="blog-feed">
+        <div v-else-if="filteredPages.length" class="blog-feed">
           <BlogFeedCard
             v-for="page in visiblePages"
             :key="page.id"
             :page="page"
             :is-authenticated="isAuthenticated"
             :article-url="getArticleUrl(page)"
+            :subscribe-filters="subscribeFilters"
             @open-article="openArticleForEngagement"
             @open-comments="(p) => openArticleForEngagement(p, 'comments')"
           />
@@ -121,10 +119,12 @@ import {
   catalogSelectionToQuery,
   catalogTermsPayloadFromSelection,
   emptyCatalogSelection,
+  catalogSelectionToSubscribeFilters,
 } from '../services/catalogFiltersService';
 import { usePermissions } from '../composables/usePermissions';
 import { PERMISSIONS } from '../composables/permissions.js';
-import { canAccessPath, ensureScreenAccessLoaded } from '../composables/useScreenAccess.js';
+import { ensureScreenAccessLoaded } from '../composables/useScreenAccess.js';
+import { ensureActionAccessLoaded } from '../composables/useActionAccess.js';
 
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -151,9 +151,15 @@ const catalogFacets = ref(catalogSelectionFromQuery(route.query));
 const scrollSentinel = ref(null);
 let scrollObserver = null;
 const canManageFeed = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
-const canCreatePage = computed(() => canAccessPath('/content/create'));
+/** Свой пост: право create_own / editor. Экран /content/create режется роутером. */
+const canCreatePage = computed(() =>
+  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS) || hasPermission(PERMISSIONS.CREATE_OWN_ARTICLES)
+);
 const catalogHasSelection = computed(() =>
   Object.values(catalogFacets.value || {}).some(Boolean)
+);
+const subscribeFilters = computed(() =>
+  catalogSelectionToSubscribeFilters(catalogFacets.value)
 );
 
 const currentSlug = computed(() => {
@@ -184,11 +190,16 @@ function openFeedSettings() {
   router.push({ name: 'blog-feed-settings' });
 }
 
+function goToMySubscriptions() {
+  router.push({ name: 'blog-my-subscriptions' });
+}
+
 function goToCreate() {
   router.push({
     name: 'content-create',
     query: {
       visibility: 'public',
+      show_in_blog: '1',
       ...catalogTermsPayloadFromSelection(catalogFacets.value),
     },
   });
@@ -248,6 +259,7 @@ async function loadPages() {
     visibleCount.value = PAGE_CHUNK;
     const loadedPages = await pagesService.getBlogPages({
       ...catalogTermsPayloadFromSelection(catalogFacets.value),
+      ...(route.query.owner ? { owner: String(route.query.owner) } : {}),
     });
 
     if (requestId !== loadPagesRequestId.value) return;
@@ -390,18 +402,21 @@ watch(
     if (currentPageId.value || currentSlug.value) return;
     const next = catalogSelectionFromQuery(route.query);
     const cur = catalogFacets.value || {};
-    const keys = new Set([...Object.keys(cur), ...Object.keys(next)]);
-    const same = [...keys].every((k) => (cur[k] || '') === (next[k] || ''));
+    const keys = new Set([...Object.keys(cur), ...Object.keys(next), 'owner']);
+    const same = [...keys].every((k) => {
+      if (k === 'owner') return true;
+      return (cur[k] || '') === (next[k] || '');
+    });
     if (!same) {
       catalogFacets.value = next;
-      loadPages();
     }
+    loadPages();
   },
   { deep: true }
 );
 
 onMounted(async () => {
-  await ensureScreenAccessLoaded();
+  await Promise.all([ensureScreenAccessLoaded(true), ensureActionAccessLoaded(true)]);
   catalogFacets.value = catalogSelectionFromQuery(route.query);
   await loadPages();
 
@@ -424,10 +439,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .blog-page {
   width: 100%;
-  max-width: 560px;
+  max-width: 640px;
   min-width: 0;
   margin: 0 auto;
-  padding: var(--block-padding) 0 48px;
+  padding: var(--block-padding) var(--spacing-lg) 48px;
   min-height: calc(100vh - 200px);
   box-sizing: border-box;
   overflow-x: hidden;
@@ -457,8 +472,6 @@ onBeforeUnmount(() => {
 .blog-page--article {
   max-width: 920px;
   padding-top: var(--spacing-xl);
-  padding-left: var(--spacing-lg);
-  padding-right: var(--spacing-lg);
 }
 
 .loading-state,
@@ -546,6 +559,7 @@ onBeforeUnmount(() => {
 }
 
 .blog-new-post,
+.blog-my-subs,
 .empty-create {
   flex-shrink: 0;
   height: 42px;
@@ -560,7 +574,14 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.blog-my-subs {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
 .blog-new-post:hover,
+.blog-my-subs:hover,
 .empty-create:hover {
   opacity: 0.92;
 }
@@ -585,18 +606,18 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .blog-page {
-    padding: var(--block-padding-mobile) 0 40px;
+    padding: var(--block-padding-mobile) 8px 40px;
   }
 
   .blog-page--article {
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }
 
 @media (max-width: 480px) {
   .blog-page {
-    padding: var(--spacing-sm) 0 40px;
+    padding: var(--spacing-sm) 8px 40px;
   }
 
   .loading-state,

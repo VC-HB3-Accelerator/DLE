@@ -133,8 +133,16 @@ export async function resolveClientTagsTableId() {
     }
   }
 
-  const tables = await tablesService.getTables();
-  const systemTable = findClientTagsTableInList(tables);
+  const tables = await tablesService.getTables({ mine: true });
+  const known = getKnownSystemTableNames();
+  let systemTable = findClientTagsTableInList(tables);
+  if (!systemTable) {
+    for (const name of known) {
+      const found = await tablesService.lookupTablesByName(name);
+      systemTable = findClientTagsTableInList(found);
+      if (systemTable) break;
+    }
+  }
   return systemTable?.id ?? null;
 }
 

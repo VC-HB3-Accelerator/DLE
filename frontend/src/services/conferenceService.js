@@ -152,6 +152,32 @@ export default {
     const { data } = await api.get('/conference/invites/mine', { withCredentials: true });
     return data;
   },
+  async listMyUpcomingCalls(limit = 50) {
+    const { data } = await api.get('/conference/mine/upcoming', {
+      withCredentials: true,
+      params: { limit }
+    });
+    return data;
+  },
+  async getMyUpcomingCallsCount() {
+    const { data } = await api.get('/conference/mine/upcoming-count', { withCredentials: true });
+    return data;
+  },
+  async getCallCalendarSlots({ ids, from, to }) {
+    const { data } = await api.get('/conference/schedule/slots', {
+      withCredentials: true,
+      params: {
+        ids: Array.isArray(ids) ? ids.join(',') : ids,
+        from,
+        to
+      }
+    });
+    return data;
+  },
+  async scheduleCall(payload) {
+    const { data } = await api.post('/conference/schedule', payload, { withCredentials: true });
+    return data;
+  },
   async notifyMulti(id) {
     const { data } = await api.post(`/conference/${id}/notify`, {}, { withCredentials: true });
     return data;

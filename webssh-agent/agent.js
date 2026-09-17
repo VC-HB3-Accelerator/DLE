@@ -17,7 +17,7 @@ const { cleanupVdsServer, setupRootSshKeys, disablePasswordAuth, setupFirewall }
 const { createSshKeys } = require('./utils/localUtils');
 const { transferAppOverlay } = require('./utils/transferUtils');
 const crypto = require('crypto');
-const PUBLIC_KEY_PATH = path.join(os.homedir(), '.ssh', 'id_rsa.pub');
+const PUBLIC_KEY_PATH = path.join(os.homedir(), '.ssh', 'auto_lends_vds.pub');
 
 const app = express();
 const server = http.createServer(app);

@@ -49,11 +49,12 @@ function isAbortError(err) {
   return false;
 }
 
-async function oneShot(file, pageId, signal) {
+async function oneShot(file, pageId, signal, purpose) {
   throwIfAborted(signal);
   const formData = new FormData();
   formData.append('media', file);
   if (pageId) formData.append('page_id', String(pageId));
+  if (purpose) formData.append('purpose', String(purpose));
   const response = await api.post('/uploads/media', formData, { signal });
   throwIfAborted(signal);
   return response.data && response.data.data;
@@ -94,16 +95,17 @@ async function loadStatus(uploadId) {
 
 /**
  * @param {File} file
- * @param {{ pageId?: number, onProgress?: Function, signal?: AbortSignal }} [opts]
+ * @param {{ pageId?: number, purpose?: string, onProgress?: Function, signal?: AbortSignal }} [opts]
  */
-export async function uploadContentMedia(file, { pageId, onProgress, signal } = {}) {
+export async function uploadContentMedia(file, { pageId, purpose, onProgress, signal } = {}) {
   const kind = kindFromFile(file);
   if (!kind) {
     const err = new Error('unsupported');
     err.code = 'UNSUPPORTED_TYPE';
     throw err;
   }
-  if (file.size > maxBytesForKind(kind)) {
+  const maxBytes = maxBytesForKind(kind, { purpose });
+  if (file.size > maxBytes) {
     const err = new Error('too large');
     err.code = 'MEDIA_TOO_LARGE';
     throw err;
@@ -112,7 +114,7 @@ export async function uploadContentMedia(file, { pageId, onProgress, signal } = 
   try {
     if (!shouldUseChunked(kind, file.size)) {
       if (onProgress) onProgress({ percent: 5, phase: 'oneshot' });
-      const data = await oneShot(file, pageId, signal);
+      const data = await oneShot(file, pageId, signal, purpose);
       if (onProgress) onProgress({ percent: 100, phase: 'done' });
       return data;
     }
@@ -152,6 +154,7 @@ export async function uploadContentMedia(file, { pageId, onProgress, signal } = 
         mimeType: file.type || 'application/octet-stream',
         size: file.size,
         pageId: pageId || undefined,
+        purpose: purpose || undefined,
       }, { signal });
       const init = initRes.data && initRes.data.data;
       uploadId = init.uploadId;

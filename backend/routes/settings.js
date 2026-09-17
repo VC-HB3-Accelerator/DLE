@@ -92,7 +92,7 @@ router.get('/footer-dle', async (req, res) => {
   }
 });
 
-router.post('/footer-dle', requireAdmin, async (req, res) => {
+router.post('/footer-dle', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress, chainId } = req.body || {};
 
@@ -127,7 +127,7 @@ router.post('/footer-dle', requireAdmin, async (req, res) => {
   }
 });
 
-router.delete('/footer-dle', requireAdmin, async (req, res) => {
+router.delete('/footer-dle', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const updatedBy = req.session?.address || req.session?.userId || null;
     const selection = await footerDleService.clearFooterSelection(updatedBy);
@@ -150,9 +150,15 @@ router.get('/sidebar-notice', async (req, res) => {
   }
 });
 
-router.put('/sidebar-notice', requireAdmin, async (req, res) => {
+router.put('/sidebar-notice', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { body, domainDescription } = req.body || {};
+    const {
+      body,
+      domainDescription,
+      headerDescription,
+      ogImageUrl,
+      hideOgImage,
+    } = req.body || {};
     const sessionUserId = req.session?.userId;
     const updatedBy = sessionUserId != null && Number.isFinite(Number(sessionUserId))
       ? Number(sessionUserId)
@@ -160,6 +166,9 @@ router.put('/sidebar-notice', requireAdmin, async (req, res) => {
     const data = await sidebarNoticeService.setNotice({
       body,
       domainDescription,
+      headerDescription,
+      ogImageUrl,
+      hideOgImage,
       updatedBy,
     });
     res.json({ success: true, data });
@@ -182,7 +191,7 @@ router.get('/sidebar-nav', async (req, res) => {
   }
 });
 
-router.put('/sidebar-nav', requireAdmin, async (req, res) => {
+router.put('/sidebar-nav', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { buttons, locales, authMethods } = req.body || {};
     const sessionUserId = req.session?.userId;
@@ -210,7 +219,7 @@ router.get('/region-urls', async (req, res) => {
   }
 });
 
-router.put('/region-urls', requireAdmin, async (req, res) => {
+router.put('/region-urls', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { regions } = req.body || {};
     const data = await regionUrlsService.setRegionUrls({ regions }, req);
@@ -287,7 +296,7 @@ router.get('/rpc', async (req, res, next) => {
 });
 
 // Добавление/обновление одного или нескольких RPC
-router.post('/rpc', requireAdmin, async (req, res, next) => {
+router.post('/rpc', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     // Если пришёл массив rpcConfigs — bulk-режим
     if (Array.isArray(req.body.rpcConfigs)) {
@@ -312,7 +321,7 @@ router.post('/rpc', requireAdmin, async (req, res, next) => {
 });
 
 // Удаление одного RPC
-router.delete('/rpc/:networkId', requireAdmin, async (req, res, next) => {
+router.delete('/rpc/:networkId', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { networkId } = req.params;
     await rpcProviderService.deleteRpcProvider(networkId);
@@ -348,7 +357,7 @@ router.get('/auth-tokens', async (req, res, next) => {
 });
 
 // Сохранение токенов для аутентификации
-router.post('/auth-tokens', requireAdmin, async (req, res, next) => {
+router.post('/auth-tokens', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { authTokens } = req.body;
     if (!Array.isArray(authTokens)) {
@@ -373,7 +382,7 @@ router.post('/auth-tokens', requireAdmin, async (req, res, next) => {
 });
 
 // Добавление/обновление одного токена
-router.post('/auth-token', requireAdmin, async (req, res, next) => {
+router.post('/auth-token', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { name, address, network, minBalance, readonlyThreshold, editorThreshold } = req.body;
     if (!name || !address || !network) {
@@ -425,7 +434,7 @@ router.post('/auth-token', requireAdmin, async (req, res, next) => {
 });
 
 // Удаление одного токена
-router.delete('/auth-token/:address/:network', requireAdmin, async (req, res, next) => {
+router.delete('/auth-token/:address/:network', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { address, network } = req.params;
     await authTokenService.deleteAuthToken(address, network);
@@ -494,17 +503,19 @@ function handleAuthDomainRuleError(res, error, next) {
 }
 
 // Corp-домены и email (TZ §4.2)
-router.get('/auth-domain-rules', requireAdmin, attachViewerAccess, async (req, res, next) => {
+router.get('/auth-domain-rules', requireAuth, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
   try {
     const rules = await authDomainRulesService.listRules(req.viewerAccess);
-    res.json({ success: true, data: rules });
+    const policy = await authDomainRulesService.getRegistrationPolicy();
+    const publicEmails = authDomainRulesService.getPublicEmailBlocklist();
+    res.json({ success: true, data: rules, policy, publicEmails });
   } catch (error) {
     logger.error('Ошибка при получении corp auth rules:', error);
     next(error);
   }
 });
 
-router.post('/auth-domain-rules', requireAdmin, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+router.post('/auth-domain-rules', requireAuth, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
   try {
     const rule = await authDomainRulesService.createRule(req.body, req.viewerAccess, req.session.userId);
     await authDomainRulesService.recheckRolesAfterChange();
@@ -516,7 +527,7 @@ router.post('/auth-domain-rules', requireAdmin, attachViewerAccess, requireAuthD
   }
 });
 
-router.put('/auth-domain-rules/:id', requireAdmin, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+router.put('/auth-domain-rules/:id', requireAuth, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
   try {
     const rule = await authDomainRulesService.updateRule(req.params.id, req.body, req.viewerAccess, req.session.userId);
     await authDomainRulesService.recheckRolesAfterChange();
@@ -528,7 +539,7 @@ router.put('/auth-domain-rules/:id', requireAdmin, attachViewerAccess, requireAu
   }
 });
 
-router.delete('/auth-domain-rules/:id', requireAdmin, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+router.delete('/auth-domain-rules/:id', requireAuth, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
   try {
     const result = await authDomainRulesService.deleteRule(req.params.id, req.viewerAccess, req.session.userId);
     await authDomainRulesService.recheckRolesAfterChange();
@@ -540,13 +551,54 @@ router.delete('/auth-domain-rules/:id', requireAdmin, attachViewerAccess, requir
   }
 });
 
+router.put('/auth-email-registration-policy', requireAuth, attachViewerAccess, requireAuthDomainRulesManager, async (req, res, next) => {
+  try {
+    const policy = await authDomainRulesService.updateRegistrationPolicy(
+      req.body,
+      req.viewerAccess,
+      req.session.userId
+    );
+    res.json({ success: true, data: policy, message: 'Политика регистрации сохранена' });
+  } catch (error) {
+    if (error.status) return handleAuthDomainRuleError(res, error, next);
+    logger.error('Ошибка при сохранении политики регистрации email:', error);
+    next(error);
+  }
+});
+
 // Тестирование RPC соединения
-router.post('/rpc-test', async (req, res, next) => {
+router.post('/rpc-test', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { rpcUrl, networkId, expectedChainId: bodyExpected } = req.body;
     
     if (!rpcUrl || !networkId) {
       return res.status(400).json({ success: false, error: 'Необходимо указать URL и ID сети' });
+    }
+
+    const { isPrivateOrLocalIp, resolveAndAssertPublic } = require('../utils/safeHttpFetch');
+    const { URL } = require('url');
+    const net = require('net');
+    try {
+      const parsed = new URL(String(rpcUrl || '').trim());
+      if (!['http:', 'https:', 'ws:', 'wss:'].includes(parsed.protocol)) {
+        throw new Error('Only http(s)/ws(s) allowed');
+      }
+      if (parsed.username || parsed.password) {
+        throw new Error('URL credentials are not allowed');
+      }
+      const host = parsed.hostname;
+      if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) {
+        throw new Error('Local hostnames are not allowed');
+      }
+      if (net.isIP(host) && isPrivateOrLocalIp(host)) {
+        throw new Error('Private IP targets are not allowed');
+      }
+      await resolveAndAssertPublic(host);
+    } catch (ssrfErr) {
+      return res.status(400).json({
+        success: false,
+        error: `RPC URL отклонён: ${ssrfErr.message || 'небезопасный адрес'}`,
+      });
     }
     
     logger.info(`Тестирование RPC для ${networkId}: ${rpcUrl}`);
@@ -645,7 +697,7 @@ router.get('/ai-settings/:provider', async (req, res, next) => {
 });
 
 // Сохранить/обновить настройки AI-провайдера
-router.put('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
+router.put('/ai-settings/:provider', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { provider } = req.params;
     const { api_key, base_url, selected_model, embedding_model, proxy_url, proxy_enabled, blanc_subscription_url, proxy_openai, proxy_telegram } = req.body;
@@ -681,7 +733,7 @@ router.put('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
 });
 
 // Удалить настройки AI-провайдера
-router.delete('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
+router.delete('/ai-settings/:provider', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { provider } = req.params;
     await aiProviderSettingsService.deleteProviderSettings(provider);
@@ -693,7 +745,7 @@ router.delete('/ai-settings/:provider', requireAdmin, async (req, res, next) => 
 });
 
 // Получить список моделей для провайдера
-router.get('/ai-settings/:provider/models', requireAdmin, async (req, res, next) => {
+router.get('/ai-settings/:provider/models', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { provider } = req.params;
     const settings = await aiProviderSettingsService.getProviderSettings(provider);
@@ -711,7 +763,7 @@ router.get('/ai-settings/:provider/models', requireAdmin, async (req, res, next)
 });
 
 // Проверить валидность ключа (verify)
-router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next) => {
+router.post('/ai-settings/:provider/verify', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { provider } = req.params;
     const { api_key, base_url, selected_model, proxy_url, proxy_enabled, blanc_subscription_url, proxy_openai, proxy_telegram } = req.body;
@@ -870,7 +922,7 @@ router.get('/ai-agent-access', requireAuth, requirePermission(PERMISSIONS.MANAGE
 });
 
 // Получить все наборы правил
-router.get('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
+router.get('/ai-assistant-rules', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const rules = await aiAssistantRulesService.getAllRules();
     res.json({ success: true, rules });
@@ -880,7 +932,7 @@ router.get('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
 });
 
 // Получить набор правил по id
-router.get('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
+router.get('/ai-assistant-rules/:id', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const rule = await aiAssistantRulesService.getRuleById(req.params.id);
     res.json({ success: true, rule });
@@ -890,7 +942,7 @@ router.get('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
 });
 
 // Создать набор правил
-router.post('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
+router.post('/ai-assistant-rules', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const created = await aiAssistantRulesService.createRule(req.body);
     res.json({ success: true, rule: created });
@@ -900,7 +952,7 @@ router.post('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
 });
 
 // Обновить набор правил
-router.put('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
+router.put('/ai-assistant-rules/:id', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const updated = await aiAssistantRulesService.updateRule(req.params.id, req.body);
     res.json({ success: true, rule: updated });
@@ -914,7 +966,7 @@ router.put('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
 // ============================================
 
 // Получить все настройки AI Config
-router.get('/ai-config', requireAdmin, async (req, res, next) => {
+router.get('/ai-config', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const aiConfigService = require('../services/aiConfigService');
     const config = await aiConfigService.getConfig();
@@ -926,7 +978,7 @@ router.get('/ai-config', requireAdmin, async (req, res, next) => {
 });
 
 // Фактический runtime vs config (archive/TZ_AI_RAG_SETTINGS_PAGE)
-router.get('/ai-config/runtime-status', requireAdmin, async (req, res, next) => {
+router.get('/ai-config/runtime-status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const aiConfigService = require('../services/aiConfigService');
     const aiCache = require('../services/ai-cache');
@@ -1040,7 +1092,7 @@ router.get('/ai-config/runtime-status', requireAdmin, async (req, res, next) => 
 });
 
 // Обновить настройки AI Config
-router.put('/ai-config', requireAdmin, async (req, res, next) => {
+router.put('/ai-config', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const aiConfigService = require('../services/aiConfigService');
     const userId = req.session.userId || null;
@@ -1052,7 +1104,7 @@ router.put('/ai-config', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.get('/ai-config/embedding-catalog', requireAdmin, async (req, res, next) => {
+router.get('/ai-config/embedding-catalog', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const embeddingRuntimeService = require('../services/embeddingRuntimeService');
     const catalog = await embeddingRuntimeService.listCatalog();
@@ -1069,7 +1121,7 @@ router.get('/ai-config/embedding-catalog', requireAdmin, async (req, res, next) 
   }
 });
 
-router.post('/ai-config/rebuild-rag', requireAdmin, async (req, res, next) => {
+router.post('/ai-config/rebuild-rag', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const ragPgvectorService = require('../services/ragPgvectorService');
     const result = await ragPgvectorService.rebuildAllRagIndex();
@@ -1081,7 +1133,7 @@ router.post('/ai-config/rebuild-rag', requireAdmin, async (req, res, next) => {
 });
 
 // Удалить набор правил
-router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
+router.delete('/ai-assistant-rules/:id', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     await aiAssistantRulesService.deleteRule(req.params.id);
     res.json({ success: true });
@@ -1091,7 +1143,7 @@ router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) =>
 });
 
 // Получить текущие настройки Email (для страницы Email)
-router.get('/email-settings', requireAdmin, async (req, res) => {
+router.get('/email-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     logger.info('[Settings] Запрос getBotSettings(email)');
     const settings = await botsSettings.getBotSettings('email');
@@ -1104,7 +1156,7 @@ router.get('/email-settings', requireAdmin, async (req, res) => {
 });
 
 // Удалить настройки Email
-router.delete('/email-settings', requireAdmin, async (req, res) => {
+router.delete('/email-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     logger.info('[Settings] Запрос удаления настроек Email');
     await botsSettings.deleteBotSettings('email');
@@ -1117,7 +1169,7 @@ router.delete('/email-settings', requireAdmin, async (req, res) => {
 });
 
 // Обновить настройки Email
-router.put('/email-settings', requireAdmin, async (req, res, next) => {
+router.put('/email-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { 
       imap_host, 
@@ -1177,7 +1229,7 @@ router.put('/email-settings', requireAdmin, async (req, res, next) => {
 });
 
 // Тест email функциональности
-router.post('/email-settings/test', requireAdmin, async (req, res, next) => {
+router.post('/email-settings/test', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { test_email } = req.body;
     
@@ -1203,7 +1255,7 @@ router.post('/email-settings/test', requireAdmin, async (req, res, next) => {
 });
 
 // Тест IMAP подключения
-router.post('/email-settings/test-imap', requireAdmin, async (req, res, next) => {
+router.post('/email-settings/test-imap', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const result = await botsSettings.testEmailIMAP();
     res.json(result);
@@ -1214,7 +1266,7 @@ router.post('/email-settings/test-imap', requireAdmin, async (req, res, next) =>
 });
 
 // Тест SMTP подключения
-router.post('/email-settings/test-smtp', requireAdmin, async (req, res, next) => {
+router.post('/email-settings/test-smtp', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const result = await botsSettings.testEmailSMTP();
     res.json(result);
@@ -1225,7 +1277,7 @@ router.post('/email-settings/test-smtp', requireAdmin, async (req, res, next) =>
 });
 
 // Получить список всех email (для ассистента)
-router.get('/email-settings/list', requireAdmin, async (req, res) => {
+router.get('/email-settings/list', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     logger.info('[Settings] Запрос списка email');
     const emails = await encryptedDb.getData('email_settings', {}, 1000, 'id ASC');
@@ -1239,7 +1291,7 @@ router.get('/email-settings/list', requireAdmin, async (req, res) => {
 });
 
 // Получить текущие настройки Telegram-бота (для страницы Telegram)
-router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
+router.get('/telegram-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     logger.info('[Settings] Запрос getBotSettings(telegram)');
     const settings = await botsSettings.getBotSettings('telegram');
@@ -1252,7 +1304,7 @@ router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
 });
 
 // Удалить настройки Telegram-бота
-router.delete('/telegram-settings', requireAdmin, async (req, res) => {
+router.delete('/telegram-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     logger.info('[Settings] Запрос удаления настроек Telegram');
     await botsSettings.deleteBotSettings('telegram');
@@ -1265,7 +1317,7 @@ router.delete('/telegram-settings', requireAdmin, async (req, res) => {
 });
 
 // Обновить настройки Telegram-бота
-router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
+router.put('/telegram-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { bot_token, bot_username, webhook_url, is_active } = req.body;
     
@@ -1294,7 +1346,7 @@ router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
 });
 
 // Получить список всех Telegram-ботов (для ассистента)
-router.get('/telegram-settings/list', requireAdmin, async (req, res, next) => {
+router.get('/telegram-settings/list', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     logger.info('[Settings] Запрос списка telegram ботов');
     const bots = await encryptedDb.getData('telegram_settings', {}, 1000, 'id ASC');
@@ -1308,7 +1360,7 @@ router.get('/telegram-settings/list', requireAdmin, async (req, res, next) => {
 });
 
 // Получение списка моделей для выбранного AI-провайдера
-router.get('/ai-provider-models', requireAdmin, async (req, res, next) => {
+router.get('/ai-provider-models', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const provider = req.query.provider;
     if (!provider) return res.status(400).json({ error: 'provider is required' });
@@ -1325,7 +1377,7 @@ router.get('/ai-provider-models', requireAdmin, async (req, res, next) => {
 });
 
 // Получить настройки базы данных
-router.get('/db-settings', async (req, res) => {
+router.get('/db-settings', requireAdmin, async (req, res) => {
   try {
     const settings = await dbSettingsService.getSettings();
     res.json({ success: true, settings });
@@ -1366,7 +1418,7 @@ router.post('/db-settings/reconnect', requireAdmin, async (req, res, next) => {
 });
 
 // Получить все LLM-модели
-router.get('/llm-models', requireAdmin, async (req, res) => {
+router.get('/llm-models', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const models = await aiProviderSettingsService.getAllLLMModels();
     res.json({ success: true, models });
@@ -1376,7 +1428,7 @@ router.get('/llm-models', requireAdmin, async (req, res) => {
 });
 
 // Получить все embedding-модели
-router.get('/embedding-models', requireAdmin, async (req, res) => {
+router.get('/embedding-models', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const models = await aiProviderSettingsService.getAllEmbeddingModels();
     res.json({ success: true, models });

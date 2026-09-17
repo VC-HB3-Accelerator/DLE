@@ -71,6 +71,10 @@ export function usePermissions() {
     || hasPermission(PERMISSIONS.MANAGE_OWN_CONTACTS)
     || hasPermission(PERMISSIONS.EDIT_DOMAIN_CONTACTS)
   );
+  /** Имя + комментарий в своём списке (TZ_CRM_PERSONAL_FIELDS). */
+  const canEditPersonalContactFields = computed(() => canEditContacts.value);
+  /** Идентификаторы / теги / файлы / язык / блок — только platform editor. */
+  const canEditSharedContactProfile = computed(() => hasPermission(PERMISSIONS.EDIT_CONTACTS));
   const canImportContacts = computed(() =>
     hasPermission(PERMISSIONS.EDIT_CONTACTS)
     || hasPermission(PERMISSIONS.IMPORT_OWN_CONTACTS)
@@ -82,6 +86,8 @@ export function usePermissions() {
   // Коммуникация
   const canSendToUsers = computed(() => hasPermission(PERMISSIONS.SEND_TO_USERS));
   const canChatWithAdmins = computed(() => hasPermission(PERMISSIONS.CHAT_WITH_ADMINS));
+  const canPersonalCalls = computed(() => hasPermission(PERMISSIONS.PERSONAL_CALLS));
+  const canScheduleCalls = computed(() => hasPermission(PERMISSIONS.SCHEDULE_CALLS));
   const canGenerateAI = computed(() => hasPermission(PERMISSIONS.GENERATE_AI_REPLIES));
   const canBroadcast = computed(() =>
     hasPermission(PERMISSIONS.BROADCAST)
@@ -102,7 +108,19 @@ export function usePermissions() {
   });
 
   const isEditor = computed(() => currentRole.value === ROLES.EDITOR);
-  
+
+  const dataScope = computed(() => {
+    const scope = userAccessLevel.value?.dataScope;
+    if (scope === 'global' || scope === 'domain' || scope === 'own' || scope === 'none') {
+      return scope;
+    }
+    if (!isAuthenticated.value) return 'none';
+    if (isEditor.value) return 'global';
+    return 'own';
+  });
+
+  const isDomainAdmin = computed(() => Boolean(userAccessLevel.value?.isDomainAdmin));
+
   const currentLevel = computed(() => currentRole.value);
   
   /**
@@ -147,6 +165,8 @@ export function usePermissions() {
     // Редактирование
     canEditData,
     canEditContacts,
+    canEditPersonalContactFields,
+    canEditSharedContactProfile,
     canImportContacts,
     canDeleteData,
     canDeleteMessages,
@@ -154,6 +174,8 @@ export function usePermissions() {
     // Коммуникация
     canSendToUsers,
     canChatWithAdmins,
+    canPersonalCalls,
+    canScheduleCalls,
     canGenerateAI,
     canBroadcast,
     
@@ -163,6 +185,8 @@ export function usePermissions() {
     canManageSettings,
     canGovern,
     isEditor,
+    dataScope,
+    isDomainAdmin,
     
     // Утилиты
     getLevelDescription,

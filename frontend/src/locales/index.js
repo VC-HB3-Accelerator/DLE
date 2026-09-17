@@ -21,8 +21,8 @@ const en = mergeLocale(enBase, settingsEn, deployEn);
 
 const STORAGE_KEY = 'dle-ui-locale';
 const STORAGE_EXPLICIT_KEY = 'dle-ui-locale-explicit';
-const SUPPORTED = ['en', 'ru'];
-const DEFAULT_LOCALE = 'en';
+const SUPPORTED = ['ru', 'en'];
+const DEFAULT_LOCALE = 'ru';
 
 function hostnameOf(hostname) {
   return String(hostname || '').replace(/^www\./i, '').toLowerCase();
@@ -38,7 +38,7 @@ function isLocalHost(hostname) {
   return host === 'localhost' || host === '127.0.0.1';
 }
 
-/** ru.example.com → ru; en.example.com и apex (hb3-accelerator.com) → en */
+/** ru.example.com → ru; иначе DEFAULT_LOCALE (на этом сайте — ru). */
 export function localeFromHostname(hostname) {
   if (isLocalHost(hostname)) {
     return localeFromEnv();
@@ -46,7 +46,7 @@ export function localeFromHostname(hostname) {
   if (isRuHost(hostname)) {
     return 'ru';
   }
-  return 'en';
+  return DEFAULT_LOCALE;
 }
 
 function localeFromEnv() {

@@ -23,6 +23,7 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BlogGlyph from './BlogGlyph.vue';
+import { shareOrCopyUrl } from '../../utils/browserBookmark';
 
 const props = defineProps({
   likesCount: { type: Number, default: 0 },
@@ -35,13 +36,14 @@ const { t } = useI18n();
 const copied = ref(false);
 
 async function copyLink() {
-  try {
-    await navigator.clipboard.writeText(props.url);
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 1500);
-  } catch (e) {
-    console.warn('[BlogCardActions] copy failed', e);
+  const result = await shareOrCopyUrl({ url: props.url });
+  if (result === 'aborted') return;
+  if (result === 'failed') {
+    console.warn('[BlogCardActions] copy failed');
+    return;
   }
+  copied.value = true;
+  setTimeout(() => { copied.value = false; }, 1500);
 }
 </script>
 

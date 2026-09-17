@@ -19,11 +19,77 @@ const { requireAuth } = require('../middleware/auth');
 const ragPgvectorService = require('../services/ragPgvectorService');
 const rulesMirror = require('../services/aiAssistantRulesMirrorService');
 const { broadcastTableUpdate, broadcastTableRelationsUpdate } = require('../wsHub');
+const { ROLES } = require('../shared/permissions');
 
 // Вспомогательная функция для получения ключа шифрования
 function getEncryptionKey() {
   const encryptionUtils = require('../utils/encryptionUtils');
   return encryptionUtils.getEncryptionKey();
+}
+
+let createdByColumnReady = false;
+async function ensureCreatedByColumn() {
+  if (createdByColumnReady) return;
+  await db.getQuery()(`
+    ALTER TABLE user_tables
+    ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  `);
+  await db.getQuery()(`
+    CREATE INDEX IF NOT EXISTS idx_user_tables_created_by
+    ON user_tables (created_by)
+    WHERE created_by IS NOT NULL
+  `);
+  createdByColumnReady = true;
+}
+
+function sessionUserId(req) {
+  const raw = req.user?.id ?? req.session?.userId;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function isEditorSession(req) {
+  return req.session?.userAccessLevel?.level === ROLES.EDITOR
+    || req.user?.userAccessLevel?.level === ROLES.EDITOR;
+}
+
+/** Тот же ACL, что GET /:id: владелец / scope / global editor. */
+async function assertCanMutateTable(req, tableId) {
+  await ensureCreatedByColumn();
+  const me = sessionUserId(req);
+  if (!me) {
+    return { ok: false, status: 401, error: 'Требуется аутентификация' };
+  }
+  const id = Number(tableId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, status: 400, error: 'Некорректный ID таблицы' };
+  }
+  const metaRes = await db.getQuery()(
+    'SELECT created_by FROM user_tables WHERE id = $1',
+    [id]
+  );
+  const tableMeta = metaRes.rows[0];
+  if (!tableMeta) {
+    return { ok: false, status: 404, error: 'Table not found' };
+  }
+  const ownerId = tableMeta.created_by != null ? Number(tableMeta.created_by) : null;
+  if (ownerId && Number.isInteger(ownerId) && ownerId > 0) {
+    const accessResolver = require('../services/accessResolverService');
+    return accessResolver.assertCanAccessProfileOwnedData(me, ownerId);
+  }
+  if (!isEditorSession(req)) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+  return { ok: true };
+}
+
+async function denyUnlessTableAccess(req, res, tableId) {
+  const gate = await assertCanMutateTable(req, tableId);
+  if (!gate.ok) {
+    res.status(gate.status || 403).json({ error: gate.error || 'Forbidden' });
+    return false;
+  }
+  return true;
 }
 
 async function maybeRebuildFaqIndex(tableId) {
@@ -36,34 +102,103 @@ router.use((req, res, next) => {
   next();
 });
 
-// Получить список всех таблиц (доступно всем)
+// Список таблиц:
+// ?owner=:id — таблицы профиля (TZ_PROFILE_OWNED_DATA);
+// ?mine=1 — только созданные текущим пользователем;
+// без mine/owner редактор (global) видит все, иначе — свои.
 router.get('/', async (req, res, next) => {
   try {
-    // Получаем ключ шифрования через унифицированную утилиту
+    await ensureCreatedByColumn();
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
-    
-    const result = await db.getQuery()('SELECT id, created_at, updated_at, is_rag_source_id, decrypt_text(name_encrypted, $1) as name, decrypt_text(description_encrypted, $1) as description FROM user_tables ORDER BY id', [encryptionKey]);
+    const me = sessionUserId(req);
+    const accessResolver = require('../services/accessResolverService');
+    const profileOwnerId = accessResolver.parseProfileOwnerId(req.query.owner);
+
+    const params = [encryptionKey];
+    let whereSql = '';
+
+    if (profileOwnerId) {
+      const gate = await accessResolver.assertCanAccessProfileOwnedData(me, profileOwnerId);
+      if (!gate.ok) {
+        return res.status(gate.status || 403).json({ error: gate.error || 'Forbidden' });
+      }
+      whereSql = ' WHERE created_by = $2';
+      params.push(profileOwnerId);
+    } else {
+      const wantMine = String(req.query.mine || '') === '1';
+      const forceAll = String(req.query.scope || '') === 'all' && isEditorSession(req);
+      const listOwnOnly = !forceAll && (wantMine || !isEditorSession(req));
+      if (listOwnOnly) {
+        if (!me) {
+          return res.status(401).json({ error: 'Требуется аутентификация' });
+        }
+        whereSql = ' WHERE created_by = $2';
+        params.push(me);
+      }
+    }
+
+    const result = await db.getQuery()(
+      `SELECT id, created_at, updated_at, is_rag_source_id, created_by,
+              decrypt_text(name_encrypted, $1) as name,
+              decrypt_text(description_encrypted, $1) as description
+       FROM user_tables${whereSql}
+       ORDER BY id`,
+      params
+    );
     res.json(result.rows);
   } catch (err) {
     next(err);
   }
 });
 
-// Создать новую таблицу (доступно всем)
-router.post('/', async (req, res, next) => {
+// Создать новую таблицу (создатель = текущий пользователь)
+router.post('/', requireAuth, async (req, res, next) => {
   try {
+    await ensureCreatedByColumn();
     const { name, description, isRagSourceId } = req.body;
-    
-    // Получаем ключ шифрования через унифицированную утилиту
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
-    
+    const creatorId = sessionUserId(req);
+
     const result = await db.getQuery()(
-      'INSERT INTO user_tables (name_encrypted, description_encrypted, is_rag_source_id) VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3) RETURNING *',
-      [name, description || null, isRagSourceId || 2, encryptionKey]
+      `INSERT INTO user_tables (name_encrypted, description_encrypted, is_rag_source_id, created_by)
+       VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3, $5)
+       RETURNING id, created_at, updated_at, is_rag_source_id, created_by`,
+      [name, description || null, isRagSourceId || 2, encryptionKey, creatorId]
     );
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    res.json({
+      ...row,
+      name,
+      description: description || null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Поиск системной/общей таблицы по имени (без фильтра created_by)
+router.get('/lookup', requireAuth, async (req, res, next) => {
+  try {
+    await ensureCreatedByColumn();
+    const name = String(req.query.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    const result = await db.getQuery()(
+      `SELECT id, created_at, updated_at, is_rag_source_id, created_by,
+              decrypt_text(name_encrypted, $1) as name,
+              decrypt_text(description_encrypted, $1) as description
+       FROM user_tables
+       WHERE decrypt_text(name_encrypted, $1) = $2
+       ORDER BY id
+       LIMIT 5`,
+      [encryptionKey, name]
+    );
+    res.json(result.rows);
   } catch (err) {
     next(err);
   }
@@ -88,35 +223,55 @@ router.get('/rag-sources', async (req, res, next) => {
   }
 });
 
-// Получить структуру и данные таблицы (доступно всем)
+// Получить структуру и данные таблицы (ACL по created_by / dataScope)
 router.get('/:id', async (req, res, next) => {
   try {
+    await ensureCreatedByColumn();
     const tableId = req.params.id;
-    // Получаем ключ шифрования через унифицированную утилиту
+    const me = sessionUserId(req);
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
+    const accessResolver = require('../services/accessResolverService');
 
-    // Выполняем все 4 запроса параллельно для ускорения
-    const [tableMetaResult, columnsResult, rowsResult, cellValuesResult] = await Promise.all([
-      // 1. Метаданные таблицы
-      db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name, decrypt_text(description_encrypted, $2) as description FROM user_tables WHERE id = $1', [tableId, encryptionKey]),
-      
-      // 2. Столбцы
+    const metaRes = await db.getQuery()(
+      `SELECT created_by,
+              decrypt_text(name_encrypted, $2) as name,
+              decrypt_text(description_encrypted, $2) as description
+       FROM user_tables WHERE id = $1`,
+      [tableId, encryptionKey]
+    );
+    const tableMeta = metaRes.rows[0];
+    if (!tableMeta) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    const ownerId = tableMeta.created_by != null ? Number(tableMeta.created_by) : null;
+    if (ownerId && Number.isInteger(ownerId) && ownerId > 0) {
+      const gate = await accessResolver.assertCanAccessProfileOwnedData(me, ownerId);
+      if (!gate.ok) {
+        // global editor без canViewContact на orphan — пускаем только self/global list already gated;
+        // если created_by есть — строго assert
+        return res.status(gate.status || 403).json({ error: gate.error || 'Forbidden' });
+      }
+    } else if (!isEditorSession(req)) {
+      // таблицы без владельца — только global editor
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const [columnsResult, rowsResult, cellValuesResult] = await Promise.all([
       db.getQuery()('SELECT id, table_id, "order", created_at, updated_at, decrypt_text(name_encrypted, $2) as name, decrypt_text(type_encrypted, $2) as type, decrypt_text(placeholder_encrypted, $2) as placeholder_encrypted, options, placeholder FROM user_columns WHERE table_id = $1 ORDER BY "order" ASC, id ASC', [tableId, encryptionKey]),
-      
-      // 3. Строки
       db.getQuery()('SELECT * FROM user_rows WHERE table_id = $1 ORDER BY id', [tableId]),
-      
-      // 4. Значения ячеек
       db.getQuery()('SELECT id, row_id, column_id, created_at, updated_at, decrypt_text(value_encrypted, $2) as value FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId, encryptionKey])
     ]);
 
-    const tableMeta = tableMetaResult.rows[0] || { name: '', description: '' };
-    const columns = columnsResult.rows;
-    const rows = rowsResult.rows;
-    const cellValues = cellValuesResult.rows;
-    
-    res.json({ name: tableMeta.name, description: tableMeta.description, columns, rows, cellValues });
+    res.json({
+      name: tableMeta.name,
+      description: tableMeta.description,
+      created_by: tableMeta.created_by,
+      columns: columnsResult.rows,
+      rows: rowsResult.rows,
+      cellValues: cellValuesResult.rows,
+    });
   } catch (err) {
     next(err);
   }
@@ -161,9 +316,10 @@ function generatePlaceholder(name, existingPlaceholders = []) {
 }
 
 // Добавить столбец (доступно всем)
-router.post('/:id/columns', async (req, res, next) => {
+router.post('/:id/columns', requireAuth, async (req, res, next) => {
   try {
     const tableId = req.params.id;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     const { name, type, options, order, tagIds, purpose } = req.body;
     let finalOptions = options || {};
     if (type === 'tags' && Array.isArray(tagIds)) {
@@ -193,9 +349,10 @@ router.post('/:id/columns', async (req, res, next) => {
 });
 
 // Добавить строку (доступно всем)
-router.post('/:id/rows', async (req, res, next) => {
+router.post('/:id/rows', requireAuth, async (req, res, next) => {
   try {
     const tableId = req.params.id;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     const result = await db.getQuery()(
       'INSERT INTO user_rows (table_id) VALUES ($1) RETURNING *',
       [tableId]
@@ -225,9 +382,10 @@ router.post('/:id/rows', async (req, res, next) => {
 });
 
 // Получить строки таблицы с фильтрацией по продукту, тегам и связям
-router.get('/:id/rows', async (req, res, next) => {
+router.get('/:id/rows', requireAuth, async (req, res, next) => {
   try {
     const tableId = req.params.id;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     const { product, tags, ...relationFilters } = req.query; // tags = "B2B,VIP", relation_{colId}=rowId
     // Получаем ключ шифрования через унифицированную утилиту
     const encryptionUtils = require('../utils/encryptionUtils');
@@ -301,9 +459,14 @@ router.get('/:id/rows', async (req, res, next) => {
 
 
 // Создать/обновить значение ячейки (upsert) (доступно всем)
-router.post('/cell', async (req, res, next) => {
+router.post('/cell', requireAuth, async (req, res, next) => {
   try {
     const { row_id, column_id, value } = req.body;
+    const rowMeta = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [row_id])).rows[0];
+    if (!rowMeta) {
+      return res.status(404).json({ error: 'Row not found' });
+    }
+    if (!(await denyUnlessTableAccess(req, res, rowMeta.table_id))) return;
     // Получаем ключ шифрования через унифицированную утилиту
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
@@ -352,7 +515,7 @@ router.post('/cell', async (req, res, next) => {
 });
 
 // Удалить строку (доступно всем)
-router.delete('/row/:rowId', async (req, res, next) => {
+router.delete('/row/:rowId', requireAuth, async (req, res, next) => {
   try {
     const rowId = req.params.rowId;
     // Получаем table_id
@@ -361,6 +524,7 @@ router.delete('/row/:rowId', async (req, res, next) => {
     if (!table) {
       return res.status(404).json({ error: 'Row not found' });
     }
+    if (!(await denyUnlessTableAccess(req, res, table.table_id))) return;
     
     const tableId = table.table_id;
 
@@ -372,6 +536,13 @@ router.delete('/row/:rowId', async (req, res, next) => {
     
     // Удаляем строку
     await db.getQuery()('DELETE FROM user_rows WHERE id = $1', [rowId]);
+
+    try {
+      const contactViewerTagsService = require('../services/contactViewerTagsService');
+      await contactViewerTagsService.cascadeDeleteTagRow(tableId, rowId);
+    } catch (cascadeErr) {
+      console.warn('[tables] cascade personal tags:', cascadeErr.message);
+    }
     
     // Получаем все строки для rebuild
     // Получаем ключ шифрования через унифицированную утилиту
@@ -401,7 +572,7 @@ router.delete('/row/:rowId', async (req, res, next) => {
 });
 
 // Удалить столбец (доступно всем)
-router.delete('/column/:columnId', async (req, res, next) => {
+router.delete('/column/:columnId', requireAuth, async (req, res, next) => {
   try {
     const columnId = req.params.columnId;
     
@@ -410,8 +581,7 @@ router.delete('/column/:columnId', async (req, res, next) => {
     if (!columnInfo) {
       return res.status(404).json({ error: 'Column not found' });
     }
-    
-    // Удаляем все связанные данные в правильном порядке
+    if (!(await denyUnlessTableAccess(req, res, columnInfo.table_id))) return;
     // 1. Удаляем relations, связанные с этим столбцом
     await db.getQuery()('DELETE FROM user_table_relations WHERE column_id = $1', [columnId]);
     
@@ -432,7 +602,7 @@ router.delete('/column/:columnId', async (req, res, next) => {
 });
 
 // PATCH для обновления столбца (доступно всем)
-router.patch('/column/:columnId', async (req, res, next) => {
+router.patch('/column/:columnId', requireAuth, async (req, res, next) => {
   try {
     const columnId = req.params.columnId;
     const { name, type, options, order, placeholder } = req.body;
@@ -443,6 +613,7 @@ router.patch('/column/:columnId', async (req, res, next) => {
     
     const colInfo = (await db.getQuery()('SELECT table_id, decrypt_text(name_encrypted, $2) as name FROM user_columns WHERE id = $1', [columnId, encryptionKey])).rows[0];
     if (!colInfo) return res.status(404).json({ error: 'Column not found' });
+    if (!(await denyUnlessTableAccess(req, res, colInfo.table_id))) return;
     let newPlaceholder = placeholder;
     if (name !== undefined && !placeholder) {
       // Если имя меняется и плейсхолдер не передан — генерируем новый
@@ -492,9 +663,10 @@ router.patch('/column/:columnId', async (req, res, next) => {
 });
 
 // PATCH: обновить название/описание таблицы (доступно всем)
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', requireAuth, async (req, res, next) => {
   try {
     const tableId = req.params.id;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     const { name, description, isRagSourceId } = req.body;
     const result = await db.getQuery()(
       `UPDATE user_tables SET 
@@ -512,9 +684,10 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 // PATCH: массовое обновление порядка строк (order)
-router.patch('/:id/rows/order', async (req, res, next) => {
+router.patch('/:id/rows/order', requireAuth, async (req, res, next) => {
   try {
     const tableId = req.params.id;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     const { order } = req.body; // order: [{rowId, order}, ...]
     if (!Array.isArray(order)) {
       return res.status(400).json({ error: 'order должен быть массивом' });
@@ -646,9 +819,10 @@ router.get('/:tableId/row/:rowId/relations', async (req, res, next) => {
 });
 
 // Добавить связь (relation/multiselect/lookup)
-router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
+router.post('/:tableId/row/:rowId/relations', requireAuth, async (req, res, next) => {
   try {
     const { tableId, rowId } = req.params;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     const { column_id, to_table_id, to_row_ids } = req.body;
     
     // Если передается массив to_row_ids - это массовое обновление
@@ -712,9 +886,10 @@ router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
 });
 
 // Удалить связь
-router.delete('/:tableId/row/:rowId/relations/:relationId', async (req, res, next) => {
+router.delete('/:tableId/row/:rowId/relations/:relationId', requireAuth, async (req, res, next) => {
   try {
     const { tableId, rowId, relationId } = req.params;
+    if (!(await denyUnlessTableAccess(req, res, tableId))) return;
     await db.getQuery()('DELETE FROM user_table_relations WHERE id = $1', [relationId]);
     try {
       await rulesMirror.syncTableRowToRule(tableId, rowId);

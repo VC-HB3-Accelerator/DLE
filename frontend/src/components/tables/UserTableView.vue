@@ -223,7 +223,7 @@ import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
 let unsubscribeFromTableUpdate = null;
 let unsubscribeFromTagsUpdate = null;
 
-const { canEditData } = usePermissions();
+const { canEditData, isEditor } = usePermissions();
 const { t } = useI18n();
 const rebuilding = ref(false);
 const rebuildStatus = ref(null);
@@ -273,8 +273,9 @@ const relationFilterDefs = ref([]);
 
 watch(newColType, async (val) => {
   if (val === 'relation' || val === 'lookup' || val === 'multiselect-relation') {
-    // Загрузить все таблицы
-    const tables = await tablesService.getTables();
+    const tables = await tablesService.getTables(
+      isEditor.value ? { scope: 'all' } : { mine: true }
+    );
     allTables.value = tables;
     relatedTableId.value = tables[0]?.id || null;
   }
@@ -299,19 +300,21 @@ watch(newColName, async (val) => {
 watch([newColType, selectedTagIds], async ([type, tagIds]) => {
   if ((type === 'relation' || type === 'multiselect') && tagIds.length > 0) {
     const tagsMeta = getClientTagsTableMeta();
-    // Найти или создать таблицу тегов клиентов
-    let tables = await tablesService.getTables();
-    let tagsTable = findClientTagsTableInList(tables);
+    let tagsTable = findClientTagsTableInList(await tablesService.getTables({ mine: true }));
+    if (!tagsTable) {
+      for (const name of [tagsMeta.name].filter(Boolean)) {
+        tagsTable = findClientTagsTableInList(await tablesService.lookupTablesByName(name));
+        if (tagsTable) break;
+      }
+    }
     if (!tagsTable) {
       tagsTable = await tablesService.createTable({
         name: tagsMeta.name,
         description: tagsMeta.description,
         isRagSourceId: 2
       });
-      tables = await tablesService.getTables();
     }
     relatedTableId.value = tagsTable.id;
-    // Получить первый столбец (название тега)
     const tagTable = await tablesService.getTable(tagsTable.id);
     relatedTableColumns.value = tagTable.columns;
     relatedColumnId.value = tagTable.columns[0]?.id || null;

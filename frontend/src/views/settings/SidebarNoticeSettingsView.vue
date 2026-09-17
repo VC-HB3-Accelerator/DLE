@@ -88,7 +88,7 @@ async function handleSave() {
   saveError.value = '';
   saveSuccess.value = '';
   try {
-    const data = await saveSidebarNotice(body.value);
+    const data = await saveSidebarNotice({ body: body.value });
     body.value = data.body || '';
     saveSuccess.value = t('settings.sidebarNotice.saved');
   } catch (error) {

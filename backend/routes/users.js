@@ -35,6 +35,17 @@ function requireViewContactsOrSelf(req, res, next) {
   return requirePermission(PERMISSIONS.VIEW_CONTACTS)(req, res, next);
 }
 
+/** Свой профиль: email/telegram только через OTP / Telegram-бот, не свободный PATCH. */
+function isSelfContact(req, contactUserId) {
+  const me = req.session?.userId || req.user?.id;
+  return Boolean(me) && Number(me) === Number(contactUserId);
+}
+
+const SELF_EMAIL_VERIFY_REQUIRED =
+  'Для своего профиля email добавляется только после подтверждения кода';
+const SELF_TELEGRAM_VERIFY_REQUIRED =
+  'Для своего профиля Telegram привязывается только через бота';
+
 const { deleteUserById, deleteUsersByIds, listConsentsForUser, buildConsentsPayload, revokeIdentityConsent } = require('../services/userDeleteService');
 const { getPrivacyDocsUrlPath } = (() => {
   // зеркало frontend getPrivacyDocsUrl (без Vue)
@@ -44,6 +55,8 @@ const { getPrivacyDocsUrlPath } = (() => {
   };
 })();
 const userContactFilesService = require('../services/userContactFilesService');
+const contactViewerFieldsService = require('../services/contactViewerFieldsService');
+const contactViewerTagsService = require('../services/contactViewerTagsService');
 const { broadcastContactsUpdate } = require('../wsHub');
 const {
   getPreference,
@@ -58,10 +71,12 @@ const contactFilesUpload = multer({
   storage: multer.diskStorage({
     destination(req, file, cb) {
       const uid = Number(req.params.id);
-      if (!Number.isInteger(uid) || uid <= 0) {
+      const viewerId = Number(req.user?.id || req.session?.userId);
+      if (!Number.isInteger(uid) || uid <= 0 || !Number.isInteger(viewerId) || viewerId <= 0) {
         return cb(new Error('Invalid user ID'));
       }
-      const dir = userContactFilesService.userUploadDir(uid);
+      const contactViewerFilesService = require('../services/contactViewerFilesService');
+      const dir = contactViewerFilesService.viewerContactDir(viewerId, uid);
       try {
         fs.mkdirSync(dir, { recursive: true });
       } catch {
@@ -125,6 +140,7 @@ router.get('/', requireAuth, async (req, res, next) => {
   try {
     const {
       tagIds = '',
+      myTagIds = '',
       createdDateFrom = '',
       createdDateTo = '',
       messageDateFrom = '',
@@ -135,7 +151,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       newMessagesDate = '',
       blocked = 'all',
       limit: limitParam = '1000',
-      offset: offsetParam = '0'
+      offset: offsetParam = '0',
+      owner: ownerRaw = '',
+      imported_by: importedByRaw = '',
     } = req.query;
     const allowedLimits = [100, 500, 1000, 0];
     const parsedLimit = parseInt(limitParam, 10);
@@ -144,10 +162,12 @@ router.get('/', requireAuth, async (req, res, next) => {
       ? 0
       : (allowedLimits.includes(parsedLimit) ? parsedLimit : 1000);
     const offset = unlimited ? 0 : Math.max(parseInt(offsetParam, 10) || 0, 0);
-    const adminId = req.user && req.user.id;
+    const adminId = (req.user && req.user.id) || req.session?.userId;
 
     const accessResolver = require('../services/accessResolverService');
     const viewerAccess = await accessResolver.resolveAccess(adminId);
+    const isPlatformEditor = accessResolver.isPlatformEditor(viewerAccess);
+    await contactViewerTagsService.ensureTables();
 
     // Получаем ключ шифрования
     const fs = require('fs');
@@ -161,8 +181,24 @@ router.get('/', requireAuth, async (req, res, next) => {
     const params = [];
     let idx = 1;
 
-    // CRM dataScope: global / domain / own (TZ §6)
-    idx = accessResolver.appendContactsScopeWhere(viewerAccess, adminId, where, params, idx);
+    // TZ_PROFILE_OWNED_DATA: ?owner= / ?imported_by= → импорты профиля, не скоуп зрителя
+    const profileOwnerRaw = ownerRaw || importedByRaw;
+    const profileOwnerId = accessResolver.parseProfileOwnerId(profileOwnerRaw);
+    if (profileOwnerId) {
+      const gate = await accessResolver.assertCanAccessProfileOwnedData(adminId, profileOwnerId);
+      if (!gate.ok) {
+        return res.status(gate.status || 403).json({ success: false, error: gate.error || 'Forbidden' });
+      }
+      where.push(`EXISTS (
+        SELECT 1 FROM contact_provenance cp
+        WHERE cp.contact_user_id = u.id AND cp.imported_by = $${idx}
+      )`);
+      params.push(profileOwnerId);
+      idx += 1;
+    } else {
+      // CRM dataScope: global / domain / own (TZ §6)
+      idx = accessResolver.appendContactsScopeWhere(viewerAccess, adminId, where, params, idx);
+    }
 
     // Фильтр по дате создания контакта
     if (createdDateFrom) {
@@ -250,8 +286,14 @@ router.get('/', requireAuth, async (req, res, next) => {
       where.push(`EXISTS (SELECT 1 FROM messages m WHERE ${unreadConditions.join(' AND ')})`);
     }
 
-    const tagIdArr = tagIds ? tagIds.split(',').map(Number).filter(Boolean) : [];
+    const tagIdArr = tagIds ? String(tagIds).split(',').map(Number).filter(Boolean) : [];
     if (tagIdArr.length > 0) {
+      if (!isPlatformEditor) {
+        return res.status(400).json({
+          success: false,
+          error: 'Фильтр tagIds доступен только редактору; используйте myTagIds'
+        });
+      }
       where.push(`u.id IN (
         SELECT utl_inner.user_id
         FROM user_tag_links utl_inner
@@ -260,6 +302,19 @@ router.get('/', requireAuth, async (req, res, next) => {
         HAVING COUNT(DISTINCT utl_inner.tag_id) = $${idx++}
       )`);
       params.push(tagIdArr, tagIdArr.length);
+    }
+
+    const myTagIdArr = myTagIds ? String(myTagIds).split(',').map(Number).filter(Boolean) : [];
+    if (myTagIdArr.length > 0) {
+      where.push(`u.id IN (
+        SELECT cvtl.contact_user_id
+        FROM contact_viewer_tag_links cvtl
+        WHERE cvtl.viewer_user_id = $${idx++}
+          AND cvtl.tag_id = ANY($${idx++})
+        GROUP BY cvtl.contact_user_id
+        HAVING COUNT(DISTINCT cvtl.tag_id) = $${idx++}
+      )`);
+      params.push(adminId, myTagIdArr, myTagIdArr.length);
     }
 
     // --- COUNT для пагинации ---
@@ -328,19 +383,30 @@ router.get('/', requireAuth, async (req, res, next) => {
         (SELECT MAX(m.created_at)
          FROM messages m
          WHERE m.user_id = u.id AND m.direction = 'outgoing') AS last_message_at,
-        (SELECT cp.owner_domain FROM contact_provenance cp WHERE cp.contact_user_id = u.id LIMIT 1) AS owner_domain,
-        (SELECT cp.imported_by FROM contact_provenance cp WHERE cp.contact_user_id = u.id LIMIT 1) AS imported_by_user_id,
-        (SELECT iu.role FROM contact_provenance cp JOIN users iu ON iu.id = cp.imported_by WHERE cp.contact_user_id = u.id LIMIT 1) AS imported_by_role,
-        (SELECT decrypt_text(ui.provider_id_encrypted, $${idx++})
+        (SELECT cp.owner_domain FROM contact_provenance cp
+         WHERE cp.contact_user_id = u.id AND cp.imported_by = $${idx}
+         LIMIT 1) AS owner_domain,
+        (SELECT cp.imported_by FROM contact_provenance cp
+         WHERE cp.contact_user_id = u.id AND cp.imported_by = $${idx}
+         LIMIT 1) AS imported_by_user_id,
+        (SELECT iu.role FROM contact_provenance cp JOIN users iu ON iu.id = cp.imported_by
+         WHERE cp.contact_user_id = u.id AND cp.imported_by = $${idx} LIMIT 1) AS imported_by_role,
+        (SELECT decrypt_text(ui.provider_id_encrypted, $${idx + 1})
          FROM contact_provenance cp
          JOIN user_identities ui ON ui.user_id = cp.imported_by
-           AND ui.provider_encrypted = encrypt_text('email', $${idx++})
+           AND ui.provider_encrypted = encrypt_text('email', $${idx + 2})
            AND ui.is_primary = true
-         WHERE cp.contact_user_id = u.id
+         WHERE cp.contact_user_id = u.id AND cp.imported_by = $${idx}
          LIMIT 1) AS imported_by_email
       FROM users u
     `;
-    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
+    // 10 placeholders for name+identities decrypt/encrypt; then viewer + 2 keys for provenance email
+    params.push(
+      encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey,
+      encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey,
+      adminId, encryptionKey, encryptionKey
+    );
+    idx += 3;
 
     if (where.length > 0) {
       sql += ` WHERE ${where.join(' AND ')} `;
@@ -387,7 +453,32 @@ router.get('/', requireAuth, async (req, res, next) => {
       const extras = contactExtrasMap[contact.id];
       contact.crm_comment = extras?.comment ?? null;
       contact.crm_link = extras?.link ?? null;
-      contact.crm_files = extras?.files ?? [];
+      contact.crm_files = []; // личные файлы ниже
+    }
+
+    const isEditor = accessResolver.isPlatformEditor(viewerAccess);
+    await contactViewerFieldsService.applyOverlayToContacts(
+      adminId,
+      contacts,
+      encryptionKey,
+      { isPlatformEditor: isEditor }
+    );
+
+    const contactViewerFilesService = require('../services/contactViewerFilesService');
+    const filesMap = await contactViewerFilesService.getFilesMapForViewer(
+      adminId,
+      contacts.map((c) => c.id)
+    );
+    for (const contact of contacts) {
+      contact.crm_files = filesMap[contact.id] || [];
+    }
+
+    const myTagsMap = await contactViewerTagsService.getMyTagIdsMap(
+      adminId,
+      contacts.map((c) => c.id)
+    );
+    for (const contact of contacts) {
+      contact.my_tag_ids = myTagsMap[contact.id] || [];
     }
 
     // --- Гостевые контакты (на первой странице) + их количество в total на всех страницах ---
@@ -691,19 +782,24 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
     }
 
     const { first_name, last_name, name, preferred_language, language, is_blocked, email, phone, telegram, wallet, comment, link } = req.body;
-    
+    const isEditor = accessResolver.isPlatformEditor(req.viewerAccess);
+    const self = !String(userId).startsWith('guest_') && isSelfContact(req, userId);
+
     // Получаем ключ шифрования один раз
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
-    
+
     // Обработка гостевых контактов (guest_123)
     if (userId.startsWith('guest_')) {
+      if (!isEditor) {
+        return res.status(403).json({ success: false, error: 'Гостевые контакты доступны только редактору' });
+      }
       const guestId = parseInt(userId.replace('guest_', ''));
-      
+
       if (isNaN(guestId)) {
         return res.status(400).json({ success: false, error: 'Invalid guest ID format' });
       }
-      
+
       // Проверяем, существует ли гость и получаем его идентификатор
       const guestResult = await db.getQuery()(
         `WITH decrypted_guest AS (
@@ -725,15 +821,15 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
         LIMIT 1`,
         [guestId, encryptionKey]
       );
-      
+
       if (guestResult.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Guest contact not found' });
       }
-      
+
       const guest = guestResult.rows[0];
       const firstMessageId = guest.first_message_id;
       let metadata = guest.metadata || {};
-      
+
       // Если metadata - строка, парсим её
       if (typeof metadata === 'string') {
         try {
@@ -742,7 +838,7 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
           metadata = {};
         }
       }
-      
+
       // Обработка имени гостя
       let hasUpdates = false;
       if (name !== undefined) {
@@ -773,7 +869,7 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
           hasUpdates = true;
         }
       }
-      
+
       // Если имя пустое, удаляем кастомное имя
       if (name === '' || (first_name === '' && last_name === '')) {
         delete metadata.custom_name;
@@ -781,11 +877,11 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
         delete metadata.custom_last_name;
         hasUpdates = true;
       }
-      
+
       if (!hasUpdates) {
         return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
       }
-      
+
       // Обновляем metadata первого сообщения гостя
       await db.getQuery()(
         `UPDATE unified_guest_messages 
@@ -793,14 +889,14 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
          WHERE id = $2`,
         [JSON.stringify(metadata), firstMessageId]
       );
-      
+
       broadcastContactsUpdate();
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: 'Имя гостя обновлено'
       });
     }
-    
+
     // Обработка обычных пользователей
     const fields = [];
     const values = [];
@@ -812,7 +908,79 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
       return res.status(400).json({ success: false, error: 'Invalid user ID format' });
     }
 
+    // TZ_CRM_PERSONAL_FIELDS: non-editor — только личные имя/комментарий (self-имя → users)
+    if (!isEditor) {
+      if ([email, phone, telegram, wallet, link, is_blocked, preferred_language, language].some((v) => v !== undefined)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Идентификаторы, язык, блок и ссылки доступны только редактору'
+        });
+      }
+
+      const personalPayload = {};
+      if (name !== undefined) {
+        personalPayload.displayName = name;
+      } else if (first_name !== undefined || last_name !== undefined) {
+        personalPayload.displayName = [first_name, last_name]
+          .filter((x) => x != null && String(x).trim() !== '')
+          .join(' ')
+          .trim();
+      }
+      if (comment !== undefined) {
+        personalPayload.comment = comment;
+      }
+
+      if (self && (name !== undefined || first_name !== undefined || last_name !== undefined)) {
+        const selfFields = [];
+        const selfValues = [];
+        let sidx = 1;
+        if (name !== undefined) {
+          const nameParts = String(name || '').trim().split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          selfFields.push(`first_name_encrypted = encrypt_text($${sidx++}, $${sidx++})`);
+          selfValues.push(firstName, encryptionKey);
+          selfFields.push(`last_name_encrypted = encrypt_text($${sidx++}, $${sidx++})`);
+          selfValues.push(lastName, encryptionKey);
+        } else {
+          if (first_name !== undefined) {
+            selfFields.push(`first_name_encrypted = encrypt_text($${sidx++}, $${sidx++})`);
+            selfValues.push(first_name, encryptionKey);
+          }
+          if (last_name !== undefined) {
+            selfFields.push(`last_name_encrypted = encrypt_text($${sidx++}, $${sidx++})`);
+            selfValues.push(last_name, encryptionKey);
+          }
+        }
+        if (selfFields.length) {
+          selfValues.push(userIdNum);
+          await db.query(`UPDATE users SET ${selfFields.join(', ')} WHERE id = $${sidx}`, selfValues);
+        }
+        delete personalPayload.displayName;
+      }
+
+      if (!Object.keys(personalPayload).length) {
+        if (self && (name !== undefined || first_name !== undefined || last_name !== undefined)) {
+          broadcastContactsUpdate();
+          return res.json({ success: true, message: 'Пользователь обновлен' });
+        }
+        return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
+      }
+
+      await contactViewerFieldsService.upsertFields(viewerId, userIdNum, personalPayload, encryptionKey);
+      broadcastContactsUpdate();
+      return res.json({ success: true, message: 'Пользователь обновлен' });
+    }
+
     if (email !== undefined || phone !== undefined || telegram !== undefined || wallet !== undefined) {
+      if (isSelfContact(req, userIdNum)) {
+        if (email !== undefined) {
+          return res.status(400).json({ success: false, error: SELF_EMAIL_VERIFY_REQUIRED });
+        }
+        if (telegram !== undefined) {
+          return res.status(400).json({ success: false, error: SELF_TELEGRAM_VERIFY_REQUIRED });
+        }
+      }
       const identityService = require('../services/identity-service');
       const identityResult = await identityService.updateContactIdentities(userIdNum, {
         email,
@@ -825,36 +993,36 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
       }
       identityUpdated = true;
     }
-    
+
     // Обработка поля name - разбиваем на first_name и last_name
     if (name !== undefined) {
       const nameParts = name.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
-      fields.push(`first_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+      fields.push(`first_name_encrypted = encrypt_text($${idx++}, $${idx++})`);
       values.push(firstName);
       values.push(encryptionKey);
-      fields.push(`last_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+      fields.push(`last_name_encrypted = encrypt_text($${idx++}, $${idx++})`);
       values.push(lastName);
       values.push(encryptionKey);
     } else {
-      if (first_name !== undefined) { 
-        fields.push(`first_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+      if (first_name !== undefined) {
+        fields.push(`first_name_encrypted = encrypt_text($${idx++}, $${idx++})`);
         values.push(first_name);
         values.push(encryptionKey);
       }
-      if (last_name !== undefined) { 
-        fields.push(`last_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+      if (last_name !== undefined) {
+        fields.push(`last_name_encrypted = encrypt_text($${idx++}, $${idx++})`);
         values.push(last_name);
         values.push(encryptionKey);
       }
     }
-    
+
     // Обработка поля language (alias для preferred_language)
     const languageToUpdate = language !== undefined ? language : preferred_language;
-    if (languageToUpdate !== undefined) { 
-      fields.push(`preferred_language = $${idx++}`); 
-      values.push(JSON.stringify(languageToUpdate)); 
+    if (languageToUpdate !== undefined) {
+      fields.push(`preferred_language = $${idx++}`);
+      values.push(JSON.stringify(languageToUpdate));
     }
     if (is_blocked !== undefined) {
       fields.push(`is_blocked = $${idx++}`);
@@ -905,7 +1073,7 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
     if (!fields.length && !identityUpdated && comment === undefined && link === undefined) {
       return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
     }
-    
+
     if (fields.length) {
       const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`;
       values.push(userIdNum);
@@ -920,7 +1088,7 @@ router.patch('/:id', requireAuth, requireEditContactsScoped(), async (req, res) 
   }
 });
 
-router.post('/:id/files', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), (req, res, next) => {
+router.post('/:id/files', requireAuth, requireEditContactsScoped(), (req, res, next) => {
   contactFilesUpload.single('file')(req, res, (err) => {
     if (err) {
       return res.status(400).json({ success: false, error: err.message });
@@ -930,14 +1098,21 @@ router.post('/:id/files', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTAC
 }, async (req, res) => {
   try {
     const userId = Number(req.params.id);
+    const viewerId = req.user?.id || req.session?.userId;
+    const accessResolver = require('../services/accessResolverService');
     if (!Number.isInteger(userId) || userId <= 0) {
       return res.status(400).json({ success: false, error: 'Invalid user ID' });
+    }
+    const allowed = await accessResolver.canEditContact(req.viewerAccess, userId, viewerId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, error: 'Доступ к этому контакту запрещен' });
     }
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'Файл не получен' });
     }
 
-    const file = await userContactFilesService.addFile(userId, req.file);
+    const contactViewerFilesService = require('../services/contactViewerFilesService');
+    const file = await contactViewerFilesService.addFile(viewerId, userId, req.file);
     broadcastContactsUpdate();
     return res.json({ success: true, file });
   } catch (e) {
@@ -945,11 +1120,18 @@ router.post('/:id/files', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTAC
   }
 });
 
-router.delete('/:id/files/:fileId', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+router.delete('/:id/files/:fileId', requireAuth, requireEditContactsScoped(), async (req, res) => {
   try {
     const userId = Number(req.params.id);
     const fileId = Number(req.params.fileId);
-    const deleted = await userContactFilesService.deleteFile(userId, fileId);
+    const viewerId = req.user?.id || req.session?.userId;
+    const accessResolver = require('../services/accessResolverService');
+    const allowed = await accessResolver.canEditContact(req.viewerAccess, userId, viewerId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, error: 'Доступ к этому контакту запрещен' });
+    }
+    const contactViewerFilesService = require('../services/contactViewerFilesService');
+    const deleted = await contactViewerFilesService.deleteFile(viewerId, userId, fileId);
     if (!deleted) {
       return res.status(404).json({ success: false, error: 'Файл не найден' });
     }
@@ -957,6 +1139,37 @@ router.delete('/:id/files/:fileId', requireAuth, requirePermission(PERMISSIONS.E
     return res.json({ success: true });
   } catch (e) {
     return res.status(400).json({ success: false, error: e.message });
+  }
+});
+
+/** Убрать контакт из моего списка (не hard-delete users). */
+router.post('/:id/unlink', requireAuth, requireEditContactsScoped(), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const viewerId = req.user?.id || req.session?.userId;
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' });
+    }
+    if (Number(userId) === Number(viewerId)) {
+      return res.status(400).json({ success: false, error: 'Нельзя отвязать свой профиль' });
+    }
+    const accessResolver = require('../services/accessResolverService');
+    if (accessResolver.isPlatformEditor(req.viewerAccess)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Редактору используйте полное удаление контакта; unlink — для своего списка'
+      });
+    }
+    const contactProvenanceService = require('../services/contactProvenanceService');
+    const result = await contactProvenanceService.unlinkFromViewerList(userId, viewerId);
+    if (!result.unlinked) {
+      return res.status(404).json({ success: false, error: 'Контакт не был в вашем списке' });
+    }
+    broadcastContactsUpdate();
+    return res.json({ success: true, unlinked: true });
+  } catch (e) {
+    logger.error('unlink contact:', e);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -1240,11 +1453,13 @@ router.put('/me/preferences/:key', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/users/create — создать контакт вручную (редактор)
-router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+// POST /api/users/create — создать контакт (редактор: все; user/readonly: own + provenance)
+router.post('/create', requireAuth, requireEditContactsScoped(), async (req, res) => {
   try {
     const { name, email, phone, telegram, wallet, language } = req.body;
     const identityService = require('../services/identity-service');
+    const contactProvenanceService = require('../services/contactProvenanceService');
+    const creatorId = req.session?.userId || req.user?.id;
 
     const rawIdentities = [
       email ? { provider: 'email', value: email } : null,
@@ -1273,14 +1488,65 @@ router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS)
     const encryptionKey = encryptionUtils.getEncryptionKey();
     const dbq = db.getQuery();
 
+    const existingIds = new Set();
     for (const idn of identities) {
       const existingUserId = await identityService.findUserIdByIdentity(idn.provider, idn.provider_id);
-      if (existingUserId) {
-        return res.status(400).json({
-          success: false,
-          error: `Идентификатор ${identityService.getIdentityProviderLabel(idn.provider)} уже используется другим контактом`,
+      if (existingUserId) existingIds.add(Number(existingUserId));
+    }
+    if (existingIds.size > 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Указанные идентификаторы принадлежат разным контактам',
+      });
+    }
+
+    // Уже есть человек с таким identity → прицепить к моему списку
+    if (existingIds.size === 1) {
+      const userId = [...existingIds][0];
+      if (creatorId) {
+        await contactProvenanceService.recordManualCreateProvenance({
+          contactUserId: userId,
+          createdBy: creatorId,
         });
+        const accessResolver = require('../services/accessResolverService');
+        const creatorAccess = req.viewerAccess || await accessResolver.resolveAccess(creatorId);
+        if (!accessResolver.isPlatformEditor(creatorAccess) && name?.trim()) {
+          await contactViewerFieldsService.upsertFields(
+            creatorId,
+            userId,
+            { displayName: name.trim() },
+            encryptionKey
+          );
+        }
       }
+      broadcastContactsUpdate();
+      const identityPayload = await identityService.buildContactIdentityPayload(userId);
+      let displayName = name?.trim() || null;
+      if (!displayName) {
+        const nameResult = await dbq(
+          `SELECT CASE WHEN first_name_encrypted IS NULL OR first_name_encrypted = '' THEN NULL
+                  ELSE decrypt_text(first_name_encrypted, $2) END as first_name,
+                  CASE WHEN last_name_encrypted IS NULL OR last_name_encrypted = '' THEN NULL
+                  ELSE decrypt_text(last_name_encrypted, $2) END as last_name
+           FROM users WHERE id = $1`,
+          [userId, encryptionKey]
+        );
+        const fn = nameResult.rows[0]?.first_name || '';
+        const ln = nameResult.rows[0]?.last_name || '';
+        displayName = [fn, ln].filter(Boolean).join(' ').trim() || null;
+      }
+      return res.json({
+        success: true,
+        attached: true,
+        contact: {
+          id: userId,
+          name: displayName,
+          email: identityPayload.email || null,
+          phone: identityPayload.phone || null,
+          telegram: identityPayload.telegram || null,
+          wallet: identityPayload.wallet || null,
+        },
+      });
     }
 
     let first_name = '';
@@ -1310,12 +1576,30 @@ router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS)
       }
     }
 
+    if (creatorId) {
+      await contactProvenanceService.recordManualCreateProvenance({
+        contactUserId: userId,
+        createdBy: creatorId,
+      });
+      const accessResolver = require('../services/accessResolverService');
+      const creatorAccess = req.viewerAccess || await accessResolver.resolveAccess(creatorId);
+      if (!accessResolver.isPlatformEditor(creatorAccess) && name?.trim()) {
+        await contactViewerFieldsService.upsertFields(
+          creatorId,
+          userId,
+          { displayName: name.trim() },
+          encryptionKey
+        );
+      }
+    }
+
     broadcastContactsUpdate();
 
     const identityMap = Object.fromEntries(identities.map((idn) => [idn.provider, idn.provider_id]));
     const fullName = [first_name, last_name].filter(Boolean).join(' ').trim() || null;
     res.json({
       success: true,
+      attached: false,
       contact: {
         id: userId,
         name: fullName,
@@ -1345,6 +1629,9 @@ router.post('/:id/identities', requireAuth, requirePermission(PERMISSIONS.EDIT_C
     const value = req.body?.value;
     const label = req.body?.label;
     const makePrimary = Boolean(req.body?.is_primary || req.body?.makePrimary);
+    if (isSelfContact(req, userId) && provider === 'email') {
+      return res.status(400).json({ success: false, error: SELF_EMAIL_VERIFY_REQUIRED });
+    }
     const identityService = require('../services/identity-service');
     const result = await identityService.addContactIdentity(userId, provider, value, {
       label,
@@ -1370,6 +1657,18 @@ router.patch('/:id/identities/:identityId', requireAuth, requirePermission(PERMI
       return res.status(400).json({ success: false, error: 'Invalid id' });
     }
     const identityService = require('../services/identity-service');
+    if (isSelfContact(req, userId) && req.body?.value !== undefined) {
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+      const { rows } = await db.getQuery()(
+        `SELECT decrypt_text(provider_encrypted, $2) AS provider
+         FROM user_identities WHERE id = $1 AND user_id = $3`,
+        [identityId, encryptionKey, userId]
+      );
+      if (rows[0] && String(rows[0].provider).toLowerCase() === 'email') {
+        return res.status(400).json({ success: false, error: SELF_EMAIL_VERIFY_REQUIRED });
+      }
+    }
     const result = await identityService.updateContactIdentityRow(userId, identityId, {
       value: req.body?.value,
       label: req.body?.label,
@@ -1569,10 +1868,34 @@ router.get('/:id', requireAuth, requireViewContactsOrSelf, async (req, res, next
       ...(await (async () => {
         const extrasMap = await userContactFilesService.getContactExtrasMapForUserIds([Number(userId)], encryptionKey);
         const extras = extrasMap[Number(userId)] || { comment: null, link: null, files: [] };
-        return {
+        const contactViewerFilesService = require('../services/contactViewerFilesService');
+        const filesMap = await contactViewerFilesService.getFilesMapForViewer(viewerId, [Number(userId)]);
+        const payload = {
           crm_comment: extras.comment,
           crm_link: identityPayload.website || extras.link,
-          crm_files: extras.files
+          crm_files: filesMap[Number(userId)] || []
+        };
+        const contactRow = {
+          id: user.id,
+          name: fullName,
+          crm_comment: payload.crm_comment,
+          crm_files: payload.crm_files,
+          tag_ids: []
+        };
+        await contactViewerFieldsService.applyOverlayToContacts(
+          viewerId,
+          [contactRow],
+          encryptionKey,
+          { isPlatformEditor: accessResolver.isPlatformEditor(viewerAccess) }
+        );
+        payload.crm_comment = contactRow.crm_comment;
+        payload.crm_files = contactRow.crm_files;
+        const my_tag_ids = await contactViewerTagsService.getMyTagIdsForContact(viewerId, Number(userId));
+        return {
+          ...payload,
+          name: contactRow.name,
+          system_name: contactRow.system_name,
+          my_tag_ids
         };
       })()),
       ...(await (async () => {
@@ -1599,7 +1922,7 @@ router.get('/:id', requireAuth, requireViewContactsOrSelf, async (req, res, next
 });
 
 // POST /api/users
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   const { first_name, last_name, preferred_language } = req.body;
   
   // Получаем ключ шифрования
@@ -1626,9 +1949,11 @@ router.post('/import-jobs', requireAuth, requireImportContacts(), async (req, re
   try {
     const contactImportJobService = require('../services/contactImportJobService');
     const contacts = Array.isArray(req.body) ? req.body : req.body?.contacts;
+    const addCorpAuthDomains = Boolean(req.body?.addCorpAuthDomains);
     const job = await contactImportJobService.startImportJob({
       contacts,
-      requestedBy: req.user?.id || req.session?.userId || null
+      requestedBy: req.user?.id || req.session?.userId || null,
+      addCorpAuthDomains
     });
     res.status(202).json({ success: true, job });
   } catch (e) {
@@ -1682,9 +2007,11 @@ router.post('/import', requireAuth, requireImportContacts(), async (req, res) =>
   try {
     const contactImportJobService = require('../services/contactImportJobService');
     const contacts = Array.isArray(req.body) ? req.body : req.body?.contacts;
+    const addCorpAuthDomains = Boolean(req.body?.addCorpAuthDomains);
     const job = await contactImportJobService.startImportJob({
       contacts,
-      requestedBy: req.user?.id || req.session?.userId || null
+      requestedBy: req.user?.id || req.session?.userId || null,
+      addCorpAuthDomains
     });
     res.status(202).json({ success: true, job });
   } catch (e) {

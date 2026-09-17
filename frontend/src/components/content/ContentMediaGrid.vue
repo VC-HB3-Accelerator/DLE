@@ -73,7 +73,7 @@
             <UiGlyph name="eye" :size="16" />
           </button>
           <button
-            v-if="mode === 'manage'"
+            v-if="mode === 'manage' || mode === 'profile'"
             type="button"
             class="media-card__btn media-card__btn--danger"
             :title="t('common.delete')"
@@ -136,6 +136,7 @@ import contentMediaService from '../../services/contentMediaService';
 const props = defineProps({
   mode: { type: String, default: 'manage' },
   forcedType: { type: String, default: '' },
+  ownerUserId: { type: [Number, String], default: null },
 });
 
 const emit = defineEmits(['select']);
@@ -175,7 +176,10 @@ const mediaTypeQuery = computed(() => {
   return undefined;
 });
 
-const listScope = computed(() => (props.mode === 'manage' ? 'all' : 'cms'));
+const listScope = computed(() => {
+  if (props.mode === 'profile') return 'cms';
+  return props.mode === 'manage' ? 'all' : 'cms';
+});
 
 const hasMore = computed(() => items.value.length < total.value);
 
@@ -203,6 +207,7 @@ async function fetchPage({ append } = {}) {
       source: props.mode === 'manage' && sourceFilter.value !== 'all'
         ? sourceFilter.value
         : undefined,
+      owner: props.ownerUserId || undefined,
     });
     isForbidden.value = false;
     const data = Array.isArray(res.data) ? res.data : [];
@@ -224,13 +229,15 @@ async function fetchPage({ append } = {}) {
   }
 }
 
-function loadMore() {
-  fetchPage({ append: true });
-}
-
 function reload() {
   offset.value = 0;
-  fetchPage({ append: false });
+  return fetchPage({ append: false });
+}
+
+defineExpose({ reload });
+
+function loadMore() {
+  fetchPage({ append: true });
 }
 
 function onCardClick(item) {
@@ -278,11 +285,13 @@ watch(() => props.forcedType, (value) => {
   if (value) activeFilter.value = value;
 });
 
-onMounted(() => {
+watch(() => props.ownerUserId, () => {
   reload();
 });
 
-defineExpose({ reload });
+onMounted(() => {
+  reload();
+});
 </script>
 
 <style scoped>

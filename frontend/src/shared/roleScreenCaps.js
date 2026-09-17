@@ -12,7 +12,7 @@ export const EDITOR_LOCKED_SCREENS = Object.freeze(['/settings/security/roles'])
 export const SCREEN_GROUPS = Object.freeze([
   {
     id: 'nav',
-    keys: Object.freeze(['/', '/blog', '/blog/feed-settings', '/management', '/store'])
+    keys: Object.freeze(['/', '/blog', '/blog/feed-settings', '/blog/my-subscriptions', '/management', '/store'])
   },
   {
     id: 'management',
@@ -67,6 +67,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/conferences/:sessionId/live',
       '/admin-chat/:adminId',
       '/personal-messages',
+      '/personal-calls',
+      '/contacts-list/calls/calendar',
       '/book-call',
       '/conference/join',
       '/conference/live/:sessionId'
@@ -76,6 +78,7 @@ export const SCREEN_GROUPS = Object.freeze([
     id: 'content',
     keys: Object.freeze([
       '/content/create',
+      '/content/moderation',
       '/content/published',
       '/content/published/:slug',
       '/content/internal',
@@ -118,6 +121,7 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/security/rpc',
       '/settings/dle-v2-deploy',
       '/settings/security/auth',
+      '/settings/security/database',
       '/settings/security/roles'
     ])
   },
@@ -141,7 +145,6 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/ai/ollama',
       '/settings/ai/telegram',
       '/settings/ai/email',
-      '/settings/ai/database',
       '/settings/ai/rag',
       '/settings/ai/agent-access',
       '/settings/ai/voice-call',
@@ -279,7 +282,22 @@ function defaultUserScreens() {
     '/contacts/:id/conference',
     '/contacts/:id/conference/live/:sessionId',
     '/personal-messages',
-    '/conference/live/:sessionId'
+    '/personal-calls',
+    '/admin-chat/:adminId',
+    '/contacts-list/calls/calendar',
+    '/contacts-list/broadcast',
+    '/contacts-list/broadcast/agent',
+    '/contacts-list/broadcast/analytics',
+    '/contacts-list/broadcast/history',
+    '/conference/live/:sessionId',
+    '/tables',
+    '/tables/create',
+    '/tables/:id',
+    '/tables/:id/edit',
+    '/tables/:id/delete',
+    '/content/create',
+    '/content/store/product/new',
+    '/content/store/product/:id'
   ];
   for (const key of extra) {
     if (Object.prototype.hasOwnProperty.call(out, key)) out[key] = true;
@@ -297,9 +315,16 @@ export function cloneDefaultScreens(role) {
 export function normalizeScreensMap(rowScreens, role) {
   const base = cloneDefaultScreens(role);
   if (!rowScreens || typeof rowScreens !== 'object') return base;
+  const migrated = { ...rowScreens };
+  if (
+    Object.prototype.hasOwnProperty.call(migrated, '/settings/ai/database')
+    && !Object.prototype.hasOwnProperty.call(migrated, '/settings/security/database')
+  ) {
+    migrated['/settings/security/database'] = migrated['/settings/ai/database'];
+  }
   for (const key of SCREEN_KEYS) {
-    if (rowScreens[key] === false) base[key] = false;
-    else if (rowScreens[key] === true) base[key] = true;
+    if (migrated[key] === false) base[key] = false;
+    else if (migrated[key] === true) base[key] = true;
   }
   if (roleKeyForScreens(role) === 'editor') {
     for (const locked of EDITOR_LOCKED_SCREENS) {

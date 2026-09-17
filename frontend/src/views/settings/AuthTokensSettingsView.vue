@@ -18,6 +18,8 @@
       v-else
       :authTokens="authTokens"
       :domainRules="domainRules"
+      :registrationPolicy="registrationPolicy"
+      :publicEmails="publicEmails"
       @update="loadAuthTokens"
       @update-domain-rules="loadDomainRules"
     />
@@ -35,12 +37,25 @@ const { t } = useI18n();
 const isLoading = ref(true);
 const authTokens = ref([]);
 const domainRules = ref([]);
+const registrationPolicy = ref({ require_listed_domain: true });
+const publicEmails = ref({ notable: [], total: 0 });
 
 async function loadDomainRules() {
   try {
     const response = await api.get('/settings/auth-domain-rules');
     if (response.data?.success) {
       domainRules.value = response.data.data || [];
+      if (response.data.policy) {
+        registrationPolicy.value = {
+          require_listed_domain: Boolean(response.data.policy.require_listed_domain),
+        };
+      }
+      if (response.data.publicEmails) {
+        publicEmails.value = {
+          notable: response.data.publicEmails.notable || [],
+          total: Number(response.data.publicEmails.total || 0),
+        };
+      }
     } else {
       domainRules.value = [];
     }

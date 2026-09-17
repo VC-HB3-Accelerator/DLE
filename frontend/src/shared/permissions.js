@@ -7,12 +7,8 @@
  * 
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/VC-HB3-Accelerator
+ * GitHub: https://github.com/HB3-ACCELERATOR
  */
-
-import { i18n } from '@/locales/index.js';
-
-const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Единая матрица прав доступа для DLE
@@ -44,6 +40,10 @@ const PERMISSIONS = {
   // Отправка сообщений
   SEND_TO_USERS: 'send_to_users',
   CHAT_WITH_ADMINS: 'chat_with_admins',
+
+  // Звонки / конференции (отдельно от чата)
+  PERSONAL_CALLS: 'personal_calls',
+  SCHEDULE_CALLS: 'schedule_calls',
   
   // AI функции
   GENERATE_AI_REPLIES: 'generate_ai_replies',
@@ -102,6 +102,8 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_CONTACTS,
     PERMISSIONS.SEND_TO_USERS,
     PERMISSIONS.CHAT_WITH_ADMINS,
+    PERMISSIONS.PERSONAL_CALLS,
+    PERMISSIONS.SCHEDULE_CALLS,
     PERMISSIONS.VIEW_BASIC_DOCS,
     PERMISSIONS.CREATE_OWN_ARTICLES,
     PERMISSIONS.MANAGE_OWN_CONTACTS,
@@ -118,6 +120,8 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_DATA,
     PERMISSIONS.SEND_TO_USERS,
     PERMISSIONS.CHAT_WITH_ADMINS,
+    PERMISSIONS.PERSONAL_CALLS,
+    PERMISSIONS.SCHEDULE_CALLS,
     // Базовые документы для пользователей
     PERMISSIONS.VIEW_BASIC_DOCS,
     // Чтение внутренних юридических документов
@@ -143,6 +147,8 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_DATA,
     PERMISSIONS.SEND_TO_USERS,
     PERMISSIONS.CHAT_WITH_ADMINS,
+    PERMISSIONS.PERSONAL_CALLS,
+    PERMISSIONS.SCHEDULE_CALLS,
     PERMISSIONS.GENERATE_AI_REPLIES,
     PERMISSIONS.EDIT_USER_DATA,
     PERMISSIONS.EDIT_CONTACTS,
@@ -218,14 +224,14 @@ function hasAllPermissions(role, permissions) {
  * @returns {string}
  */
 function getRoleDescription(role) {
-  const descriptionKeys = {
-    [ROLES.GUEST]: 'permissions.roles.guest',
-    [ROLES.USER]: 'permissions.roles.user',
-    [ROLES.READONLY]: 'permissions.roles.readonly',
-    [ROLES.EDITOR]: 'permissions.roles.editor'
+  const descriptions = {
+    [ROLES.GUEST]: 'Гость',
+    [ROLES.USER]: 'Юзер',
+    [ROLES.READONLY]: 'Читатель',
+    [ROLES.EDITOR]: 'Редактор'
   };
-
-  return descriptionKeys[role] ? t(descriptionKeys[role]) : t('permissions.roles.unknown');
+  
+  return descriptions[role] || 'Неизвестная роль';
 }
 
 /**
@@ -241,7 +247,7 @@ function canSendMessage(senderRole, recipientRole, senderId, recipientId) {
   if (!hasPermission(senderRole, PERMISSIONS.SEND_TO_USERS)) {
     return {
       canSend: false,
-      errorMessage: t('permissions.errors.noSendPermission')
+      errorMessage: 'У вас нет права на отправку сообщений'
     };
   }
   
@@ -265,14 +271,14 @@ function canSendMessage(senderRole, recipientRole, senderId, recipientId) {
       (recipientRole === 'user' || recipientRole === 'readonly')) {
     return {
       canSend: false,
-      errorMessage: t('permissions.errors.userReaderCantMessageEachOther')
+      errorMessage: 'Пользователи и читатели не могут отправлять сообщения друг другу'
     };
   }
   
   // Остальные случаи запрещены
   return {
     canSend: false,
-    errorMessage: t('permissions.errors.roleCannotMessageRole', { senderRole, recipientRole })
+    errorMessage: `Роль ${senderRole} не может отправлять сообщения роли ${recipientRole}`
   };
 }
 

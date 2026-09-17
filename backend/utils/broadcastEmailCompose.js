@@ -206,6 +206,7 @@ async function ensureBroadcastComposeSchema(queryFn) {
   await q(`ALTER TABLE broadcast_campaigns ADD COLUMN IF NOT EXISTS greeting TEXT`);
   await q(`ALTER TABLE broadcast_campaigns ADD COLUMN IF NOT EXISTS signature TEXT`);
   await q(`ALTER TABLE broadcast_campaigns ADD COLUMN IF NOT EXISTS legal_footer TEXT`);
+  await q(`ALTER TABLE broadcast_campaigns ADD COLUMN IF NOT EXISTS channels JSONB`);
   await q(`ALTER TABLE broadcast_templates ADD COLUMN IF NOT EXISTS greeting TEXT`);
   await q(`ALTER TABLE broadcast_templates ADD COLUMN IF NOT EXISTS signature TEXT`);
   await q(`ALTER TABLE broadcast_templates ADD COLUMN IF NOT EXISTS legal_footer TEXT`);

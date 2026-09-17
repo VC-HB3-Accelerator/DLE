@@ -32,6 +32,12 @@
         @open="goAuthDetails"
       />
       <HubCard
+        v-if="canAccessPath('/settings/security/database')"
+        :title="$t('settings.ai.database.title')"
+        :description="$t('settings.ai.database.description')"
+        @open="goDatabaseDetails"
+      />
+      <HubCard
         v-if="canAccessPath('/settings/security/roles')"
         :title="$t('settings.security.roles.hubCard')"
         :description="$t('settings.security.roles.hubCardText')"
@@ -117,6 +123,14 @@ function goAuthDetails() {
     return;
   }
   router.push({ name: 'settings-security-auth' });
+}
+
+function goDatabaseDetails() {
+  if (!canManageSettings.value) {
+    showNoAccessModal.value = true;
+    return;
+  }
+  router.push({ name: 'database-settings' });
 }
 
 function goDeploy() {

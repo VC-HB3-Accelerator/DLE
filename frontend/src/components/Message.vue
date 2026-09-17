@@ -14,26 +14,18 @@
   <div
     :class="[
       'message',
-      isPrivateChat 
-        ? (isCurrentUserMessage ? 'private-current-user' : 'private-other-user')
-        : message.sender_type === 'assistant' || message.role === 'assistant'
-          ? 'ai-message'
-          : message.sender_type === 'system' || message.role === 'system'
-            ? (message.cmsEphemeral || message.i18n ? 'ai-message cms-welcome' : 'system-message')
-            : 'user-message',
+      messageBubbleClass,
       message.isLocal ? 'is-local' : '',
       message.hasError ? 'has-error' : '',
     ]"
   >
-    <!-- Информация об отправителе для приватного чата -->
-    <div v-if="message.message_type === 'admin_chat'" class="message-sender-info">
+    <!-- Подпись направления только если есть реальный wallet/имя (не «Админ») -->
+    <div v-if="showPrivateSenderInfo" class="message-sender-info">
       <div class="sender-label">
         <span class="sender-direction">
           {{ isCurrentUserMessage ? t('chat.message.youArrow') : t('chat.message.receivedFrom') }}
         </span>
-        <span class="sender-wallet">
-          {{ formatWalletAddress(isCurrentUserMessage ? message.recipient_wallet : message.sender_wallet) }}
-        </span>
+        <span class="sender-wallet">{{ privateCounterpartyLabel }}</span>
       </div>
     </div>
 
@@ -293,57 +285,72 @@ async function submitConsent() {
 }
 
 // Простая функция для определения, является ли сообщение отправленным текущим пользователем
-// Используем данные из самого сообщения для определения направления
 const isCurrentUserMessage = computed(() => {
-  // Для приватного чата используем sender_id и currentUserId
-  if (props.isPrivateChat && props.currentUserId) {
-    return props.message.sender_id == props.currentUserId;
+  const me = props.currentUserId;
+  if (me != null && me !== '' && (
+    props.isPrivateChat
+    || props.message.message_type === 'admin_chat'
+    || props.message.message_type === 'public'
+  )) {
+    return Number(props.message.sender_id) === Number(me);
   }
-  
-  // Если это admin_chat, используем sender_id для определения
-  if (props.message.message_type === 'admin_chat') {
-    // Для простоты, считаем что если sender_id равен user_id, то это ответное сообщение
-    // Это может потребовать корректировки в зависимости от логики
-    return props.message.sender_id === props.message.user_id;
-  }
-  
-  // Для публичных сообщений сравниваем sender_id с currentUserId
-  if (props.message.message_type === 'public' && props.currentUserId) {
-    return props.message.sender_id == props.currentUserId;
-  }
-  
+
   // Для обычных сообщений используем стандартную логику
   return props.message.sender_type === 'user' || props.message.role === 'user';
 });
 
-// Функция для форматирования wallet адреса
-const formatWalletAddress = (address) => {
-  if (!address || address === t('common.admin')) {
-    return t('common.admin');
+const messageBubbleClass = computed(() => {
+  // Приватный чат — те же пузыри, что и везде (не тёмный градиент)
+  if (props.isPrivateChat || props.message.message_type === 'admin_chat') {
+    return isCurrentUserMessage.value ? 'user-message' : 'peer-public-message';
   }
-  
-  // Если это wallet адрес (начинается с 0x), показываем сокращенную версию
-  if (address.startsWith('0x') && address.length === 42) {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  if (props.message.sender_type === 'assistant' || props.message.role === 'assistant') {
+    return 'ai-message';
   }
-  
-  return address;
-};
+  if (props.message.sender_type === 'system' || props.message.role === 'system') {
+    return props.message.cmsEphemeral || props.message.i18n ? 'ai-message cms-welcome' : 'system-message';
+  }
+  // Public: свои справа, чужие слева (раньше все люди шли в user-message справа → «Ответить» на «своём»)
+  if (props.message.message_type === 'public') {
+    return isCurrentUserMessage.value ? 'user-message' : 'peer-public-message';
+  }
+  return 'user-message';
+});
+
+function formatWalletAddress(address) {
+  if (!address) return '';
+  const raw = String(address).trim();
+  if (!raw || raw === t('common.admin')) return '';
+  if (raw.startsWith('0x') && raw.length === 42) {
+    return `${raw.slice(0, 6)}...${raw.slice(-4)}`;
+  }
+  return raw;
+}
+
+const privateCounterpartyLabel = computed(() => {
+  const raw = isCurrentUserMessage.value
+    ? (props.message.recipient_name || props.message.recipient_wallet)
+    : (props.message.sender_name || props.message.sender_wallet);
+  return formatWalletAddress(raw);
+});
+
+const showPrivateSenderInfo = computed(() => (
+  props.message.message_type === 'admin_chat' && Boolean(privateCounterpartyLabel.value)
+));
 
 // --- Логика ссылки "Ответить" для публичных сообщений ---
 const shouldShowReplyLink = computed(() => {
-  // Показываем ссылку только для публичных сообщений от других пользователей
-  return props.message.message_type === 'public' && 
-         !isCurrentUserMessage.value && 
-         props.message.sender_id && 
-         props.currentUserId &&
-         props.message.sender_id !== props.currentUserId;
+  if (props.message.message_type !== 'public') return false;
+  if (!props.message.sender_id || props.currentUserId == null || props.currentUserId === '') return false;
+  if (isCurrentUserMessage.value) return false;
+  // Loose compare: sender_id из API может быть number, currentUserId — string
+  return Number(props.message.sender_id) !== Number(props.currentUserId);
 });
 
 const replyLink = computed(() => {
   if (!shouldShowReplyLink.value) return '';
-  // Ссылка ведет на страницу контакта отправителя
-  return `/contacts/${props.message.sender_id}`;
+  // TZ_CHAT_SYSTEM §3.3: «Ответить» → приватная беседа, не карточка-чат
+  return `/admin-chat/${props.message.sender_id}`;
 });
 
 // --- Работа с вложениями --- 
@@ -511,6 +518,18 @@ function copyEmail(email) {
   margin-left: auto;
   margin-right: var(--spacing-sm);
   border-bottom-right-radius: 2px;
+}
+
+.peer-public-message {
+  background-color: var(--color-ai-message);
+  align-self: flex-start;
+  margin-right: auto;
+  margin-left: var(--spacing-sm);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 70%;
+  min-width: 0;
+  border-bottom-left-radius: 2px;
 }
 
 .ai-message {
@@ -945,43 +964,7 @@ function copyEmail(email) {
   color: var(--color-success, #10b981);
 }
 
-/* Стили для приватного чата */
-.private-current-user {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: white;
-  margin-left: auto;
-  margin-right: 0;
-  max-width: 70%;
-  border-radius: 18px 18px 4px 18px;
-}
-
-.private-other-user {
-  background: linear-gradient(135deg, #10b981, #059669); /* Зеленый градиент */
-  color: white;
-  margin-left: 0;
-  margin-right: auto;
-  max-width: 70%;
-  border-radius: 18px 18px 18px 4px;
-}
-
-/* Анимация появления сообщений */
-.private-current-user,
-.private-other-user {
-  animation: slideInMessage 0.3s ease-out;
-}
-
-@keyframes slideInMessage {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Стили для ссылки "Ответить" */
+/* Ссылка "Ответить" */
 .message-reply-link {
   margin-top: var(--spacing-xs);
   text-align: right;
@@ -1003,13 +986,5 @@ function copyEmail(email) {
   background-color: rgba(0, 123, 255, 0.2);
   color: var(--color-primary-dark);
   text-decoration: none;
-}
-
-/* Адаптивность для мобильных устройств */
-@media (max-width: 768px) {
-  .private-current-user,
-  .private-other-user {
-    max-width: 85%;
-  }
 }
 </style> 

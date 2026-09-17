@@ -159,7 +159,7 @@ import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 import UiGlyph from '../../components/UiGlyph.vue';
-import { isLocalCmsMediaUrl } from '../../utils/cmsMediaUrl';
+import { sanitizeCmsHtml } from '../../utils/sanitizeCmsHtml';
 
 // Props
 const props = defineProps({
@@ -255,28 +255,11 @@ function getStatusText(status) {
 }
 
 function formatContent(content) {
-  // Форматирование контента
   if (!content) return '';
-  
-  // Если контент уже содержит HTML теги (например, из RichTextEditor), обрабатываем его
   if (/<[a-z][\s\S]*>/i.test(content)) {
-    // Преобразуем iframe с локальными видео-файлами обратно в тег video
-    // Quill может преобразовывать video в iframe, но для локальных файлов нужен тег video
-    content = content.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
-      // Проверяем, является ли это видео-файл из нашей системы
-      if (isLocalCmsMediaUrl(url)) {
-        // Преобразуем в тег video для локальных видео-файлов
-        return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
-      }
-      // Оставляем iframe для внешних видео (YouTube, Vimeo и т.д.)
-      return match;
-    });
-    
-    return content;
+    return sanitizeCmsHtml(content);
   }
-  
-  // Иначе заменяем переносы строк на <br>
-  return content.replace(/\n/g, '<br>');
+  return sanitizeCmsHtml(content.replace(/\n/g, '<br>'));
 }
 
 async function loadPage() {

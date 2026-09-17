@@ -28,11 +28,12 @@ async function getOrCreateConversation(userId, title = 'Новая беседа'
   try {
     const encryptionKey = encryptionUtils.getEncryptionKey();
 
-    // Ищем существующую активную беседу
+    // Только личный чат с ИИ — не брать public_chat / private чужой переписки
     const { rows: existing } = await db.getQuery()(
-      `SELECT id, user_id, title, created_at, updated_at
+      `SELECT id, user_id, title, created_at, updated_at, conversation_type
        FROM conversations
        WHERE user_id = $1
+         AND (conversation_type IS NULL OR conversation_type = 'user_chat')
        ORDER BY updated_at DESC
        LIMIT 1`,
       [userId]
@@ -44,9 +45,9 @@ async function getOrCreateConversation(userId, title = 'Новая беседа'
 
     // Создаем новую беседу
     const { rows: newConv } = await db.getQuery()(
-      `INSERT INTO conversations (user_id, title)
-       VALUES ($1, $2)
-       RETURNING id, user_id, title, created_at, updated_at`,
+      `INSERT INTO conversations (user_id, title, conversation_type)
+       VALUES ($1, $2, 'user_chat')
+       RETURNING id, user_id, title, created_at, updated_at, conversation_type`,
       [userId, title]
     );
 
@@ -131,7 +132,7 @@ async function getConversationById(conversationId) {
     const encryptionKey = encryptionUtils.getEncryptionKey();
 
     const { rows } = await db.getQuery()(
-      `SELECT id, user_id, title, created_at, updated_at
+      `SELECT id, user_id, title, created_at, updated_at, conversation_type
        FROM conversations
        WHERE id = $1`,
       [conversationId]
@@ -241,36 +242,64 @@ async function updateConversationTitle(conversationId, userId, newTitle) {
 }
 
 /**
- * Приватная беседа editor↔участник (для лички / AdminChatView).
- * conversations.user_id = hostId (открывается как adminId у участника).
+ * Приватная беседа 1:1 (любые два участника).
+ * Ищем по обоим participants; host user_id = min(id) для стабильности.
  */
-async function getOrCreatePrivateConversation(hostUserId, participantUserId) {
-  const hostId = Number(hostUserId);
-  const partId = Number(participantUserId);
-  if (!Number.isInteger(hostId) || !Number.isInteger(partId) || hostId <= 0 || partId <= 0) {
+async function getOrCreatePrivateConversation(userIdA, userIdB) {
+  const a = Number(userIdA);
+  const b = Number(userIdB);
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a <= 0 || b <= 0 || a === b) {
     throw new Error('Некорректные id для приватной беседы');
   }
 
   const { rows: existing } = await db.getQuery()(
     `SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at, c.conversation_type
      FROM conversations c
-     INNER JOIN conversation_participants cp_host
-       ON cp_host.conversation_id = c.id AND cp_host.user_id = $1
-     INNER JOIN conversation_participants cp_part
-       ON cp_part.conversation_id = c.id AND cp_part.user_id = $2
+     INNER JOIN conversation_participants cp1
+       ON cp1.conversation_id = c.id AND cp1.user_id = $1
+     INNER JOIN conversation_participants cp2
+       ON cp2.conversation_id = c.id AND cp2.user_id = $2
      WHERE c.conversation_type = 'private'
-       AND c.user_id = $1
      ORDER BY c.updated_at DESC
      LIMIT 1`,
-    [hostId, partId]
+    [a, b]
   );
   if (existing.length) return existing[0];
+
+  const hostId = Math.min(a, b);
+  const partId = Math.max(a, b);
+
+  let title = `Чат ${hostId}-${partId}`;
+  try {
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    const { rows: nameRows } = await db.getQuery()(
+      `SELECT id,
+         CASE WHEN first_name_encrypted IS NULL OR first_name_encrypted = '' THEN NULL
+              ELSE decrypt_text(first_name_encrypted, $2) END AS first_name,
+         CASE WHEN last_name_encrypted IS NULL OR last_name_encrypted = '' THEN NULL
+              ELSE decrypt_text(last_name_encrypted, $2) END AS last_name
+       FROM users WHERE id = ANY($1::int[])`,
+      [[a, b], encryptionKey]
+    );
+    const nameOf = (id) => {
+      const row = nameRows.find((r) => Number(r.id) === Number(id));
+      if (!row) return null;
+      return [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || null;
+    };
+    const na = nameOf(a);
+    const nb = nameOf(b);
+    if (na && nb) title = `${na} · ${nb}`;
+    else if (na || nb) title = na || nb;
+  } catch (e) {
+    logger.warn('[ConversationService] Не удалось собрать имя для private title:', e.message);
+  }
 
   const { rows: created } = await db.getQuery()(
     `INSERT INTO conversations (user_id, title, conversation_type)
      VALUES ($1, $2, 'private')
      RETURNING id, user_id, title, created_at, updated_at, conversation_type`,
-    [hostId, `Приватный чат ${hostId}-${partId}`]
+    [hostId, title]
   );
   const conversation = created[0];
 

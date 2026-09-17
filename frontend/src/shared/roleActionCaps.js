@@ -37,6 +37,10 @@ export const ACTION_GROUPS = Object.freeze([
     keys: Object.freeze([PERMISSIONS.SEND_TO_USERS, PERMISSIONS.CHAT_WITH_ADMINS, PERMISSIONS.GENERATE_AI_REPLIES])
   },
   {
+    id: 'calls',
+    keys: Object.freeze([PERMISSIONS.PERSONAL_CALLS, PERMISSIONS.SCHEDULE_CALLS])
+  },
+  {
     id: 'edit',
     keys: Object.freeze([
       PERMISSIONS.EDIT_USER_DATA,

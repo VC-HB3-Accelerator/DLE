@@ -110,8 +110,8 @@ import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import pagesService from '../../services/pagesService';
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import UiGlyph from '../../components/UiGlyph.vue';
+import { sanitizeCmsHtml } from '../../utils/sanitizeCmsHtml';
 
 // Props
 const props = defineProps({
@@ -163,25 +163,19 @@ function formatAddress(address) {
 const formatContent = computed(() => {
   if (!page.value || !page.value.content) return '';
   const content = page.value.content;
-  
-  // Проверяем, является ли контент markdown (содержит markdown синтаксис)
-  const isMarkdown = /^#{1,6}\s|^\*\s|^\-\s|^\d+\.\s|```|\[.+\]\(.+\)|!\[.+\]\(.+\)/m.test(content);
-  
-  if (isMarkdown) {
-    // Конвертируем markdown в HTML
-    const rawHtml = marked.parse(content);
-    return DOMPurify.sanitize(rawHtml);
-  } else {
-    // Простое форматирование - замена переносов строк на <br>
-    return content.replace(/\n/g, '<br>');
-  }
-});
+  const isHtml = /<[a-z][\s\S]*>/i.test(content);
+  const isMarkdown =
+    !isHtml &&
+    /^#{1,6}\s|^\*\s|^\-\s|^\d+\.\s|```|\[.+\]\(.+\)|!\[.+\]\(.+\)/m.test(content);
 
-function formatContentAsFunc(content) {
-  if (!content) return '';
-  if (typeof content !== 'string') return '';
-  return content.replace(/\n/g, '<br>');
-}
+  if (isMarkdown) {
+    return sanitizeCmsHtml(marked.parse(content));
+  }
+  if (isHtml) {
+    return sanitizeCmsHtml(content);
+  }
+  return sanitizeCmsHtml(content.replace(/\n/g, '<br>'));
+});
 
 async function loadPage() {
   try {

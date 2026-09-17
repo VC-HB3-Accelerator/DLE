@@ -318,7 +318,16 @@ function readDeployDraft() {
     const raw = localStorage.getItem(DEPLOY_STORAGE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    return data && typeof data === 'object' ? data : null;
+    if (!data || typeof data !== 'object') return null;
+    // Не тянем секреты деплоя даже для префилла юр. полей
+    const {
+      unifiedPrivateKey: _u,
+      privateKeys: _pk,
+      privateKey: _p,
+      etherscanApiKey: _e,
+      ...safe
+    } = data;
+    return safe;
   } catch {
     return null;
   }

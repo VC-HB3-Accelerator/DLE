@@ -18,10 +18,17 @@
           class="storefront__header-filters"
           scope="store"
           hide-labels
-          :only-used="!canCreateCard"
-          :require-cascade="!canCreateCard"
+          :show-reset="true"
           @change="onCatalogFacetsChange"
-        />
+        >
+          <router-link
+            v-if="canCreateCard"
+            class="btn btn-primary"
+            :to="createProductTo"
+          >
+            {{ t('store.editor.createCard') }}
+          </router-link>
+        </CatalogLinkedFilters>
         <div class="storefront__header-actions">
           <router-link
             v-if="canCreateCard"
@@ -229,7 +236,8 @@ import { Grid, List, Plus, Setting, ShoppingCart, User } from '@element-plus/ico
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
-import { canAccessPath, ensureScreenAccessLoaded } from '../../composables/useScreenAccess.js';
+import { ensureScreenAccessLoaded } from '../../composables/useScreenAccess.js';
+import { ensureActionAccessLoaded } from '../../composables/useActionAccess.js';
 import {
   addToStoreCart,
   createStoreCheckout,
@@ -264,10 +272,11 @@ const { hasPermission } = usePermissions();
 const cartTo = computed(() => storeCartRoute(userId.value));
 const ordersTo = computed(() => storeOrdersRoute(userId.value));
 const canCreateCard = computed(() =>
-  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS) && canAccessPath('/content/store/product/new')
+  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS) || hasPermission(PERMISSIONS.CREATE_OWN_ARTICLES)
 );
 const canEditCard = computed(() =>
-  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS) && canAccessPath('/content/store/product/:id')
+  hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS)
+  || hasPermission(PERMISSIONS.CREATE_OWN_ARTICLES)
 );
 
 const VIEW_KEY = 'dle_store_view_mode_v1';
@@ -295,14 +304,21 @@ const catalogHasSelection = computed(() =>
   Object.values(catalogFacets.value || {}).some(Boolean)
 );
 
-const createProductTo = computed(() => ({
-  name: 'content-store-product-new',
-  query: catalogTermsPayloadFromSelection(catalogFacets.value),
-}));
+const createProductTo = computed(() => {
+  const facets = catalogTermsPayloadFromSelection(catalogFacets.value);
+  const query = {};
+  if (facets.section) query.catalog_section = facets.section;
+  for (const [k, v] of Object.entries(facets)) {
+    if (k === 'section' || !v) continue;
+    query[k] = v;
+  }
+  return { name: 'content-store-product-new', query };
+});
 
 function onCatalogFacetsChange(next) {
   catalogFacets.value = { ...emptyCatalogSelection(), ...next };
   const query = catalogSelectionToQuery(catalogFacets.value, { ...route.query }, { sectionParam: 'catalog_section' });
+  // keep section route param; only sync facet query on current name
   router.replace({ name: route.name, params: route.params, query }).catch(() => {});
   loadCatalog();
 }
@@ -413,6 +429,7 @@ async function loadCatalog() {
       fetchStoreCatalog({
         ...(slug ? { section: slug } : {}),
         ...catalogQuery,
+        ...(route.query.owner ? { owner: String(route.query.owner) } : {}),
       }),
       fetchStoreSections({ active: '1' }).catch(() => []),
     ]);
@@ -486,7 +503,7 @@ watch(
   { deep: true }
 );
 onMounted(async () => {
-  await ensureScreenAccessLoaded();
+  await Promise.all([ensureScreenAccessLoaded(true), ensureActionAccessLoaded(true)]);
   catalogFacets.value = catalogSelectionFromQuery(route.query, { sectionParam: 'catalog_section' });
   loadCatalog();
   offCart = onStoreCartChange(() => {
@@ -507,7 +524,7 @@ onUnmounted(() => {
 .storefront__header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1rem;
   gap: 0.75rem;
   flex-wrap: wrap;

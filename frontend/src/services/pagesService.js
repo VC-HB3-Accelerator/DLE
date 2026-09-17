@@ -14,8 +14,16 @@ import api from '../api/axios';
 
 export default {
   // Админские методы (требуют аутентификации и прав админа)
-  async getPages() {
-    const res = await api.get('/pages');
+  async getPages(params = {}) {
+    const res = await api.get('/pages', { params });
+    return res.data;
+  },
+  async approvePage(id) {
+    const res = await api.post(`/pages/${id}/approve`);
+    return res.data;
+  },
+  async returnPage(id, note = '') {
+    const res = await api.post(`/pages/${id}/return`, { note });
     return res.data;
   },
   async createPage(data, isFormData = false) {
@@ -68,8 +76,17 @@ export default {
     return Array.isArray(res.data) ? res.data : [];
   },
   async getBlogPages(params = {}) {
-    // category / search / filter + фасеты каталога (section и динамические ключи)
-    const res = await api.get('/pages/blog/all', { params: { ...params } });
+    // Все фасеты каталога (section + динамические ключи Тип/Город/…) должны уходить в query.
+    // Раньше передавались только legacy group/category/… — фильтры в UI не работали.
+    const queryParams = new URLSearchParams();
+    for (const [key, raw] of Object.entries(params || {})) {
+      if (raw == null || raw === '') continue;
+      if (typeof raw === 'object') continue;
+      queryParams.append(key, String(raw));
+    }
+
+    const url = `/pages/blog/all${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const res = await api.get(url);
     if (!Array.isArray(res.data)) {
       const errMsg = res.data?.error || 'Invalid blog pages response';
       const err = new Error(errMsg);

@@ -2,9 +2,9 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * Разделы каталога + динамические атрибуты (ключ/значение) на страницах и товарах.
- * Фильтры ленты/витрины — по filter_keys раздела и значениям атрибутов.
- * Паттерн как у тегов: справочник (раздел) + связи (атрибуты) + фильтр по выбранным.
+ * Разделы каталога + динамические атрибуты на страницах/товарах.
+ * filter_keys — порядок полей; filter_values — справочник опций { key: [values] }.
+ * Фильтры ленты/витрины — cascade по ключам раздела и выбранным значениям.
  */
 
 const db = require('../db');
@@ -59,6 +59,114 @@ function normalizeFilterKeys(keys) {
   return out;
 }
 
+const LINKS_KEY = '_links';
+
+function normalizeValueList(list) {
+  const values = [];
+  const seen = new Set();
+  for (const item of Array.isArray(list) ? list : []) {
+    const v = normalizeValue(item);
+    if (!v) continue;
+    const low = v.toLowerCase();
+    if (seen.has(low)) continue;
+    seen.add(low);
+    values.push(v);
+  }
+  return values;
+}
+
+/**
+ * Связи: parentField → parentValue → childField → [values]
+ * Хранятся в filter_values._links (без отдельной колонки).
+ */
+function normalizeFilterLinks(raw, keys = []) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const keySet = new Set((keys || []).map((k) => normalizeKey(k)).filter(Boolean));
+  const out = {};
+  for (const [parentKeyRaw, byValue] of Object.entries(src)) {
+    const parentKey = normalizeKey(parentKeyRaw);
+    if (!parentKey || (keySet.size && !keySet.has(parentKey))) continue;
+    if (!byValue || typeof byValue !== 'object' || Array.isArray(byValue)) continue;
+    const parentBucket = {};
+    for (const [parentValRaw, children] of Object.entries(byValue)) {
+      const parentVal = normalizeValue(parentValRaw);
+      if (!parentVal || !children || typeof children !== 'object' || Array.isArray(children)) continue;
+      const childBucket = {};
+      for (const [childKeyRaw, list] of Object.entries(children)) {
+        const childKey = normalizeKey(childKeyRaw);
+        if (!childKey || childKey === parentKey) continue;
+        if (keySet.size && !keySet.has(childKey)) continue;
+        childBucket[childKey] = normalizeValueList(list);
+      }
+      if (Object.keys(childBucket).length) parentBucket[parentVal] = childBucket;
+    }
+    if (Object.keys(parentBucket).length) out[parentKey] = parentBucket;
+  }
+  return out;
+}
+
+function normalizeFilterValues(raw, keys = []) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  const keyList = keys.length ? keys : Object.keys(src).filter((k) => k !== LINKS_KEY);
+  for (const k of keyList) {
+    const key = normalizeKey(k);
+    if (!key || key === LINKS_KEY) continue;
+    out[key] = normalizeValueList(src[k] ?? src[key]);
+  }
+  return out;
+}
+
+function packFilterStorage(filter_values, filter_links, keys) {
+  const values = normalizeFilterValues(filter_values, keys);
+  const links = normalizeFilterLinks(filter_links, keys);
+  if (Object.keys(links).length) values[LINKS_KEY] = links;
+  return values;
+}
+
+function unpackFilterStorage(rowVal, keys) {
+  const raw = parseFilterValues(rowVal);
+  const links = normalizeFilterLinks(raw[LINKS_KEY], keys);
+  const filter_values = normalizeFilterValues(raw, keys);
+  return { filter_values, filter_links: links };
+}
+
+/** Опции поля с учётом связей от уже выбранных родительских значений */
+function resolveOptionsForKey(section, key, facets = {}) {
+  const attrKey = normalizeKey(key);
+  const keys = section?.filter_keys || [];
+  const idx = keys.findIndex((k) => k === attrKey);
+  const links = section?.filter_links || {};
+  if (idx > 0) {
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      const parentKey = keys[i];
+      const parentVal = normalizeValue(facets[parentKey] || facets[`attr_${parentKey}`] || '');
+      if (!parentVal) continue;
+      const linked = links?.[parentKey]?.[parentVal]?.[attrKey];
+      if (Array.isArray(linked)) {
+        if (linked.length) return linked;
+        const fromField = section?.filter_values?.[attrKey];
+        return Array.isArray(fromField) ? fromField : [];
+      }
+    }
+  }
+  return Array.isArray(section?.filter_values?.[attrKey]) ? section.filter_values[attrKey] : [];
+}
+
+function parseFilterValues(rowVal) {
+  if (!rowVal) return {};
+  if (typeof rowVal === 'object' && !Array.isArray(rowVal)) return rowVal;
+  if (typeof rowVal === 'string') {
+    try {
+      const parsed = JSON.parse(rowVal);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 async function listSections({ activeOnly = true } = {}) {
   const sql = activeOnly
     ? `SELECT * FROM catalog_sections WHERE active = TRUE ORDER BY sort_order ASC, label_ru ASC`
@@ -69,6 +177,8 @@ async function listSections({ activeOnly = true } = {}) {
 
 function mapSection(row) {
   if (!row) return null;
+  const filter_keys = Array.isArray(row.filter_keys) ? row.filter_keys : [];
+  const { filter_values, filter_links } = unpackFilterStorage(row.filter_values, filter_keys);
   return {
     id: row.id,
     slug: row.slug,
@@ -76,7 +186,9 @@ function mapSection(row) {
     label_en: row.label_en || '',
     sort_order: row.sort_order,
     active: row.active !== false,
-    filter_keys: Array.isArray(row.filter_keys) ? row.filter_keys : [],
+    filter_keys,
+    filter_values,
+    filter_links,
   };
 }
 
@@ -91,7 +203,16 @@ async function getSectionByIdOrSlug(idOrSlug) {
   return mapSection(rows[0]);
 }
 
-async function createSection({ label_ru, label_en = '', slug, filter_keys = [], sort_order = 0, active = true } = {}) {
+async function createSection({
+  label_ru,
+  label_en = '',
+  slug,
+  filter_keys = [],
+  filter_values = {},
+  filter_links = {},
+  sort_order = 0,
+  active = true,
+} = {}) {
   const name = String(label_ru || '').trim();
   if (!name) {
     const err = new Error('Укажите название раздела');
@@ -105,11 +226,14 @@ async function createSection({ label_ru, label_en = '', slug, filter_keys = [], 
   );
   if (clash[0]) s = `${s}-${Date.now().toString(36).slice(-4)}`;
 
+  const keys = normalizeFilterKeys(filter_keys);
+  const storage = packFilterStorage(filter_values, filter_links, keys);
+
   const { rows } = await db.getQuery()(
-    `INSERT INTO catalog_sections (slug, label_ru, label_en, sort_order, active, filter_keys)
-     VALUES ($1, $2, $3, $4, $5, $6::text[])
+    `INSERT INTO catalog_sections (slug, label_ru, label_en, sort_order, active, filter_keys, filter_values)
+     VALUES ($1, $2, $3, $4, $5, $6::text[], $7::jsonb)
      RETURNING *`,
-    [s, name, String(label_en || ''), Number(sort_order) || 0, active !== false, normalizeFilterKeys(filter_keys)]
+    [s, name, String(label_en || ''), Number(sort_order) || 0, active !== false, keys, JSON.stringify(storage)]
   );
   return mapSection(rows[0]);
 }
@@ -133,6 +257,9 @@ async function updateSection(id, payload = {}) {
   const filter_keys = payload.filter_keys != null
     ? normalizeFilterKeys(payload.filter_keys)
     : current.filter_keys;
+  const nextValues = payload.filter_values != null ? payload.filter_values : current.filter_values;
+  const nextLinks = payload.filter_links != null ? payload.filter_links : current.filter_links;
+  const storage = packFilterStorage(nextValues, nextLinks, filter_keys);
   let slug = current.slug;
   if (payload.slug != null && String(payload.slug).trim()) {
     slug = slugify(payload.slug);
@@ -141,10 +268,10 @@ async function updateSection(id, payload = {}) {
   const { rows } = await db.getQuery()(
     `UPDATE catalog_sections
      SET slug = $2, label_ru = $3, label_en = $4, sort_order = $5, active = $6,
-         filter_keys = $7::text[], updated_at = NOW()
+         filter_keys = $7::text[], filter_values = $8::jsonb, updated_at = NOW()
      WHERE id = $1::uuid
      RETURNING *`,
-    [current.id, slug, label_ru, label_en, sort_order, active, filter_keys]
+    [current.id, slug, label_ru, label_en, sort_order, active, filter_keys, JSON.stringify(storage)]
   );
   return mapSection(rows[0]);
 }
@@ -241,6 +368,66 @@ async function getPageCatalog(pageId) {
   return { catalog_section_id: section?.id || null, catalog_section: section, catalog_attrs: attrs };
 }
 
+/**
+ * Теги для карточек ленты: label раздела + значения attrs в порядке filter_keys.
+ * @param {number[]} pageIds
+ * @returns {Promise<Map<number, string[]>>}
+ */
+async function getPagesCatalogTagsMap(pageIds = []) {
+  const ids = [...new Set((pageIds || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  const map = new Map();
+  if (!ids.length) return map;
+
+  const { rows } = await db.getQuery()(
+    `SELECT p.id AS page_id,
+            s.label_ru AS section_label_ru,
+            s.label_en AS section_label_en,
+            s.filter_keys AS filter_keys,
+            a.attr_key,
+            a.attr_value,
+            a.sort_order
+     FROM admin_pages_simple p
+     LEFT JOIN catalog_sections s ON s.id = p.catalog_section_id
+     LEFT JOIN page_catalog_attrs a ON a.page_id = p.id
+     WHERE p.id = ANY($1::int[])
+     ORDER BY p.id ASC, a.sort_order ASC NULLS LAST, a.attr_key ASC`,
+    [ids]
+  );
+
+  const byPage = new Map();
+  for (const row of rows) {
+    const pid = Number(row.page_id);
+    if (!byPage.has(pid)) {
+      byPage.set(pid, {
+        sectionLabel: String(row.section_label_ru || row.section_label_en || '').trim(),
+        filterKeys: Array.isArray(row.filter_keys) ? row.filter_keys : [],
+        attrs: [],
+      });
+    }
+    if (row.attr_key && row.attr_value) {
+      byPage.get(pid).attrs.push({
+        key: String(row.attr_key),
+        value: String(row.attr_value).trim(),
+      });
+    }
+  }
+
+  for (const [pid, data] of byPage.entries()) {
+    const tags = [];
+    if (data.sectionLabel) tags.push(data.sectionLabel);
+    const attrMap = {};
+    for (const a of data.attrs) {
+      if (a.key && a.value) attrMap[a.key] = a.value;
+    }
+    const keys = data.filterKeys.length ? data.filterKeys : Object.keys(attrMap);
+    for (const key of keys) {
+      if (attrMap[key]) tags.push(attrMap[key]);
+    }
+    map.set(pid, tags);
+  }
+  return map;
+}
+
 async function getProductCatalog(productId) {
   const { rows } = await db.getQuery()(
     `SELECT catalog_section_id FROM store_products WHERE id = $1::uuid LIMIT 1`,
@@ -252,10 +439,6 @@ async function getProductCatalog(productId) {
   return { catalog_section_id: section?.id || null, catalog_section: section, catalog_attrs: attrs };
 }
 
-/**
- * Payload с формы: catalog_section_id + catalog_attrs[{key,value}]
- * (старые catalog_terms игнорируем)
- */
 async function applyEntityCatalogPayload(kind, entityId, payload = {}) {
   const sectionId = payload.catalog_section_id ?? payload.section_id ?? null;
   const attrs = payload.catalog_attrs ?? payload.attrs ?? [];
@@ -264,34 +447,28 @@ async function applyEntityCatalogPayload(kind, entityId, payload = {}) {
   throw new Error(`Unknown catalog entity kind: ${kind}`);
 }
 
-async function listKnownKeysForSection(sectionId, scope = 'both') {
-  const params = [sectionId];
-  const parts = [];
-  if (scope === 'blog' || scope === 'both') {
-    parts.push(
-      `SELECT DISTINCT a.attr_key AS key
-       FROM page_catalog_attrs a
-       INNER JOIN admin_pages_simple p ON p.id = a.page_id
-       WHERE p.catalog_section_id = $1`
-    );
-  }
-  if (scope === 'store' || scope === 'both') {
-    parts.push(
-      `SELECT DISTINCT a.attr_key AS key
-       FROM store_product_attrs a
-       INNER JOIN store_products p ON p.id = a.product_id
-       WHERE p.catalog_section_id = $1`
-    );
-  }
-  if (!parts.length) return [];
-  const { rows } = await db.getQuery()(parts.join(' UNION '), params);
-  return rows.map((r) => r.key).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru'));
-}
-
-async function listValuesForKey({ sectionId, key, scope = 'both', q = '', limit = 500 } = {}) {
+async function listValuesForKey({ sectionId, key, scope = 'both', q = '', limit = 500, facets = {} } = {}) {
+  const section = await getSectionByIdOrSlug(sectionId);
+  if (!section) return [];
   const attrKey = normalizeKey(key);
-  if (!sectionId || !attrKey) return [];
-  const params = [sectionId, attrKey];
+  const dictList = resolveOptionsForKey(section, attrKey, facets);
+  let values = dictList.map((v) => ({ value: v, label: v }));
+  const linkedOnly = (() => {
+    const keys = section.filter_keys || [];
+    const idx = keys.findIndex((k) => k === attrKey);
+    if (idx <= 0) return false;
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      const parentKey = keys[i];
+      const parentVal = normalizeValue(facets[parentKey] || '');
+      if (!parentVal) continue;
+      if (Array.isArray(section.filter_links?.[parentKey]?.[parentVal]?.[attrKey])) return true;
+    }
+    return false;
+  })();
+  const allowSet = linkedOnly ? new Set(dictList.map((v) => v.toLowerCase())) : null;
+
+  // дополняем значениями, уже используемыми на сущностях
+  const params = [section.id, attrKey];
   const parts = [];
   if (scope === 'blog' || scope === 'both') {
     parts.push(
@@ -309,24 +486,43 @@ async function listValuesForKey({ sectionId, key, scope = 'both', q = '', limit 
        WHERE p.catalog_section_id = $1 AND a.attr_key = $2`
     );
   }
-  let sql = `SELECT DISTINCT value FROM (${parts.join(' UNION ')}) u`;
-  if (q) {
-    params.push(`%${String(q).trim()}%`);
-    sql += ` WHERE value ILIKE $${params.length}`;
+  if (parts.length) {
+    try {
+      let sql = `SELECT DISTINCT value FROM (${parts.join(' UNION ')}) u`;
+      if (q) {
+        params.push(`%${String(q).trim()}%`);
+        sql += ` WHERE value ILIKE $${params.length}`;
+      }
+      sql += ` ORDER BY value ASC LIMIT ${Math.min(Math.max(Number(limit) || 500, 1), 2000)}`;
+      const { rows } = await db.getQuery()(sql, params);
+      const seen = new Set(values.map((v) => v.value.toLowerCase()));
+      for (const r of rows) {
+        const v = normalizeValue(r.value);
+        if (!v) continue;
+        const low = v.toLowerCase();
+        if (allowSet && !allowSet.has(low)) continue;
+        if (seen.has(low)) continue;
+        seen.add(low);
+        values.push({ value: v, label: v });
+      }
+    } catch (_) {
+      /* attrs tables may be empty */
+    }
   }
-  sql += ` ORDER BY value ASC LIMIT ${Math.min(Math.max(Number(limit) || 500, 1), 2000)}`;
-  const { rows } = await db.getQuery()(sql, params);
-  return rows.map((r) => ({ value: r.value, label: r.value }));
+
+  if (q) {
+    const qq = String(q).trim().toLowerCase();
+    values = values.filter((v) => v.value.toLowerCase().includes(qq));
+  }
+  return values.slice(0, Math.min(Math.max(Number(limit) || 500, 1), 2000));
 }
 
 /**
- * Публичные фильтры: разделы + опции значений по filter_keys выбранного раздела.
- * selection: { section, [attrKey]: value }
+ * Публичные фильтры: разделы + опции по filter_keys / filter_values / filter_links.
  */
 async function getLinkedFiltersPayload({
   facets = {},
   scope = 'both',
-  onlyUsed = false,
 } = {}) {
   const sections = await listSections({ activeOnly: true });
   const sectionSlugOrId = facets.section || facets.group || null;
@@ -340,10 +536,13 @@ async function getLinkedFiltersPayload({
   if (section) {
     const keys = section.filter_keys || [];
     for (const key of keys) {
-      let values = await listValuesForKey({ sectionId: section.id, key, scope });
-      if (onlyUsed) {
-        // already from used attrs
-      }
+      const values = await listValuesForKey({
+        sectionId: section.id,
+        key,
+        scope,
+        limit: 5000,
+        facets,
+      });
       filters.push({
         key,
         label: key,
@@ -356,6 +555,7 @@ async function getLinkedFiltersPayload({
     sections,
     section: section || null,
     filters,
+    filter_links: section?.filter_links || {},
     selection: {
       section: section?.slug || '',
       ...Object.fromEntries(
@@ -406,7 +606,6 @@ async function filterPageIdsByFacets(facets = {}) {
     ? await getSectionByIdOrSlug(facets.section || facets.group)
     : null;
   const attrs = { ...facets };
-  // Только служебные ключи выбора раздела; имена полей (в т.ч. city) не трогаем.
   delete attrs.section;
   delete attrs.group;
   return filterEntityIdsByAttrs({
@@ -430,19 +629,13 @@ async function filterProductIdsByFacets(facets = {}) {
   });
 }
 
-/** Совместимость: старый сид Авто/гео больше не нужен */
 async function seedCatalogTerms() {
   return { skipped: true, reason: 'legacy_terms_disabled', counts: {} };
 }
 
 async function getAdminTaxonomy() {
   const sections = await listSections({ activeOnly: false });
-  const withKeys = [];
-  for (const s of sections) {
-    const known_keys = await listKnownKeysForSection(s.id, 'both');
-    withKeys.push({ ...s, known_keys });
-  }
-  return { sections: withKeys };
+  return { sections };
 }
 
 module.exports = {
@@ -453,11 +646,11 @@ module.exports = {
   updateSection,
   deleteSection,
   getPageCatalog,
+  getPagesCatalogTagsMap,
   getProductCatalog,
   setPageCatalog,
   setProductCatalog,
   applyEntityCatalogPayload,
-  listKnownKeysForSection,
   listValuesForKey,
   getLinkedFiltersPayload,
   filterPageIdsByFacets,
@@ -465,7 +658,6 @@ module.exports = {
   filterEntityIdsByAttrs,
   seedCatalogTerms,
   getAdminTaxonomy,
-  // legacy aliases used by older callers — map to new model
   async setEntityTermsFromPayload(linkTable, idColumn, entityId, payload) {
     const kind = linkTable === 'store_product_terms' ? 'product' : 'page';
     const result = await applyEntityCatalogPayload(kind, entityId, {

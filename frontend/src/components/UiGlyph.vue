@@ -389,6 +389,79 @@
       <circle cx="12" cy="12" r="3.25" />
       <path d="M16.5 12v1.1a2.4 2.4 0 0 0 4.8 0V12a9.3 9.3 0 1 0-3.4 7.2" />
     </g>
+    <!-- left sidebar panel toggle -->
+    <g
+      v-else-if="name === 'sidebar-left'"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <path d="M9 4.5v15" />
+      <rect x="3.5" y="4.5" width="5.5" height="15" rx="1" fill="currentColor" stroke="none" />
+    </g>
+    <g
+      v-else-if="name === 'paperclip'"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M8.2 12.6 14 6.8a3.2 3.2 0 0 1 4.5 4.5l-7.4 7.4a4.6 4.6 0 0 1-6.5-6.5l7.2-7.2" />
+    </g>
+    <g
+      v-else-if="name === 'download'"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M12 4v11" />
+      <path d="m7.5 11.5 4.5 4.5 4.5-4.5" />
+      <path d="M5 19h14" />
+    </g>
+    <g
+      v-else-if="name === 'mic'"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <rect x="9" y="3.5" width="6" height="10" rx="3" />
+      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" />
+      <path d="M12 17v3.5" />
+    </g>
+    <g
+      v-else-if="name === 'expand'"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M14 5h5v5" />
+      <path d="M19 5 13 11" />
+      <path d="M10 19H5v-5" />
+      <path d="M5 19 11 13" />
+    </g>
+    <!-- right sidebar panel toggle (ОС) -->
+    <g
+      v-else-if="name === 'sidebar-right'"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <path d="M15 4.5v15" />
+      <rect x="15" y="4.5" width="5.5" height="15" rx="1" fill="currentColor" stroke="none" />
+    </g>
   </svg>
 </template>
 
@@ -399,6 +472,8 @@ const VALID_NAMES = [
   'lock', 'eye', 'cube', 'warning', 'times', 'globe', 'user', 'check', 'info',
   'sync', 'external-link', 'shield', 'pause', 'play', 'stop', 'redo',
   'check-circle', 'times-circle', 'clock', 'wallet', 'telegram', 'at',
+  'sidebar-left', 'sidebar-right',
+  'paperclip', 'download', 'mic', 'expand',
 ];
 </script>
 

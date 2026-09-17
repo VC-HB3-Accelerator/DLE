@@ -10,12 +10,55 @@ const { PERMISSIONS } = require('/app/shared/permissions');
 const accessResolver = require('./accessResolverService');
 const { getLinkedWallet } = require('./wallet-service');
 
+const PAGE_STATUSES = Object.freeze({
+  DRAFT: 'draft',
+  PENDING: 'pending',
+  PUBLISHED: 'published',
+  REJECTED: 'rejected',
+});
+
 function hasPerm(access, permission) {
   return accessResolver.hasActionPermission(access, permission);
 }
 
 function canManageLegalGlobal(access) {
   return access?.dataScope === 'global' && hasPerm(access, PERMISSIONS.MANAGE_LEGAL_DOCS);
+}
+
+/** Редактор может одобрять/отклонять публикации в публичный блог/магазин. */
+function canApprovePublications(access) {
+  if (!access) return false;
+  if (canManageLegalGlobal(access)) return true;
+  if (access.dataScope === 'domain' && hasPerm(access, PERMISSIONS.APPROVE_DOMAIN_PUBLICATIONS)) {
+    return true;
+  }
+  return false;
+}
+
+/** Прямая публикация без очереди — только глобальный редактор. */
+function canPublishDirectly(access) {
+  return canManageLegalGlobal(access);
+}
+
+function normalizePageStatus(raw, { allowPublished = false } = {}) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (s === PAGE_STATUSES.DRAFT) return PAGE_STATUSES.DRAFT;
+  if (s === PAGE_STATUSES.PENDING) return PAGE_STATUSES.PENDING;
+  if (s === PAGE_STATUSES.REJECTED) return PAGE_STATUSES.REJECTED;
+  if (s === PAGE_STATUSES.PUBLISHED && allowPublished) return PAGE_STATUSES.PUBLISHED;
+  return PAGE_STATUSES.DRAFT;
+}
+
+/**
+ * Статус при создании/сохранении автором (не редактором):
+ * submitForReview → pending, иначе draft.
+ */
+function resolveAuthorWriteStatus(requestedStatus, { submitForReview = false } = {}) {
+  if (submitForReview) return PAGE_STATUSES.PENDING;
+  const s = normalizePageStatus(requestedStatus, { allowPublished: false });
+  if (s === PAGE_STATUSES.PENDING) return PAGE_STATUSES.PENDING;
+  if (s === PAGE_STATUSES.REJECTED) return PAGE_STATUSES.DRAFT;
+  return PAGE_STATUSES.DRAFT;
 }
 
 function pageMatchesScope(access, page, viewerUserId) {
@@ -67,7 +110,8 @@ function canWritePage(access, page, viewerUserId) {
 
   if (access.dataScope === 'domain') {
     return hasPerm(access, PERMISSIONS.APPROVE_DOMAIN_PUBLICATIONS)
-      || hasPerm(access, PERMISSIONS.VIEW_DOMAIN_ARTICLES);
+      || hasPerm(access, PERMISSIONS.VIEW_DOMAIN_ARTICLES)
+      || hasPerm(access, PERMISSIONS.CREATE_OWN_ARTICLES);
   }
 
   return false;
@@ -76,6 +120,7 @@ function canWritePage(access, page, viewerUserId) {
 function canListPages(access) {
   if (!access) return false;
   if (canManageLegalGlobal(access)) return true;
+  if (canApprovePublications(access)) return true;
   if (canCreatePage(access)) return true;
   if (access.dataScope === 'domain') {
     return hasPerm(access, PERMISSIONS.VIEW_DOMAIN_ARTICLES)
@@ -128,10 +173,15 @@ async function loadPageRow(pageId) {
 }
 
 module.exports = {
+  PAGE_STATUSES,
   canCreatePage,
   canWritePage,
   canListPages,
   canManageLegalGlobal,
+  canApprovePublications,
+  canPublishDirectly,
+  normalizePageStatus,
+  resolveAuthorWriteStatus,
   pageMatchesScope,
   appendPagesScopeWhere,
   resolveViewerAccess,

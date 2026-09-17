@@ -205,9 +205,12 @@ services:
       - BACKEND_CONTAINER=dapp-backend
     depends_on:
       - backend
+      - webssh-agent
     volumes:
       # Весь dist с хоста — update overlay сразу в SPA (не только blog/published)
       - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./frontend/nginx-local.conf:/etc/nginx/nginx-local.conf.template:ro
+      - ./frontend/nginx-simple.conf:/etc/nginx/nginx-ssl.conf.template:ro
 
   # BlancVPN (VLESS/SS subscription) → локальный SOCKS :1080 только для OpenAI
   blanc-xray:

@@ -21,8 +21,12 @@
         </div>
       </div>
 
-      <div v-else class="media-library-page__wrap">
-        <div class="media-library-page__header">
+      <div
+        v-else
+        class="media-library-page__wrap"
+        :class="{ 'media-library-page__wrap--agent': tab === 'agent' }"
+      >
+        <div v-if="tab === 'library'" class="media-library-page__header">
           <h1>{{ t('content.media.title') }}</h1>
           <button
             type="button"
@@ -33,24 +37,51 @@
             {{ t('content.media.upload') }}
           </button>
         </div>
-        <div v-if="progressText" class="media-library-page__progress-row">
-          <p class="media-library-page__progress">{{ progressText }}</p>
+
+        <nav
+          class="media-library-page__tabs"
+          :class="{ 'media-library-page__tabs--agent': tab === 'agent' }"
+          :aria-label="t('content.media.title')"
+        >
           <button
             type="button"
-            class="media-library-page__cancel"
-            @click="onCancelUpload"
+            class="media-library-page__tab"
+            :class="{ 'is-active': tab === 'library' }"
+            @click="setTab('library')"
           >
-            {{ t('content.media.uploadCancel') }}
+            {{ t('content.media.tabLibrary') }}
           </button>
-        </div>
-        <input
-          ref="fileInput"
-          type="file"
-          class="media-library-page__file"
-          :accept="acceptAttr"
-          @change="onFilePicked"
-        >
-        <ContentMediaGrid ref="gridRef" mode="manage" />
+          <button
+            type="button"
+            class="media-library-page__tab"
+            :class="{ 'is-active': tab === 'agent' }"
+            @click="setTab('agent')"
+          >
+            {{ t('content.media.tabAgent') }}
+          </button>
+        </nav>
+
+        <template v-if="tab === 'library'">
+          <div v-if="progressText" class="media-library-page__progress-row">
+            <p class="media-library-page__progress">{{ progressText }}</p>
+            <button
+              type="button"
+              class="media-library-page__cancel"
+              @click="onCancelUpload"
+            >
+              {{ t('content.media.uploadCancel') }}
+            </button>
+          </div>
+          <input
+            ref="fileInput"
+            type="file"
+            class="media-library-page__file"
+            :accept="acceptAttr"
+            @change="onFilePicked"
+          >
+          <ContentMediaGrid ref="gridRef" mode="manage" />
+        </template>
+        <MediaAgentStudio v-else />
       </div>
     </div>
   </BaseLayout>
@@ -58,11 +89,13 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import UiGlyph from '../../components/UiGlyph.vue';
 import ContentMediaGrid from '../../components/content/ContentMediaGrid.vue';
+import MediaAgentStudio from '../../components/content/MediaAgentStudio.vue';
 import {
   uploadContentMedia,
   abortContentMediaUpload,
@@ -80,6 +113,8 @@ defineProps({
 defineEmits(['auth-action-completed']);
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 const { isEditor } = usePermissions();
 const fileInput = ref(null);
 const gridRef = ref(null);
@@ -89,6 +124,14 @@ const activeFile = ref(null);
 const abortController = ref(null);
 
 const acceptAttr = computed(() => 'image/*,video/*,audio/*');
+const tab = computed(() => (route.query.tab === 'agent' ? 'agent' : 'library'));
+
+function setTab(next) {
+  const query = { ...route.query };
+  if (next === 'agent') query.tab = 'agent';
+  else delete query.tab;
+  router.replace({ query });
+}
 
 function onUploadClick() {
   if (uploading.value) return;
@@ -162,6 +205,45 @@ async function onFilePicked(event) {
   width: 100%;
   box-sizing: border-box;
   margin: 0 auto;
+}
+
+.media-library-page__wrap--agent {
+  max-width: none;
+  padding: 0 12px 12px;
+}
+
+.media-library-page__tabs--agent {
+  margin: 8px 12px 8px;
+}
+
+.media-library-page__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.media-library-page__tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: var(--block-radius, 8px);
+  border: 1px solid var(--color-border, #d1d5db);
+  background: var(--color-white, #fff);
+  color: var(--color-grey, #6b7280);
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.media-library-page__tab:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.media-library-page__tab.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
 .media-library-page__header {

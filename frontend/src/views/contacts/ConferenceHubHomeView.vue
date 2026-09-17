@@ -2,16 +2,17 @@
   Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
 
-  Список multi-конференций + автосоздание из ?ids= при bulk-выборе.
+  Список multi-конференций. Создание — только через Календарь (TZ_CALL_SYSTEM).
 -->
 
 <template>
   <div class="hub-home" v-loading="loading">
     <el-alert type="info" :closable="false" show-icon class="hub-alert">
-      <template #title>{{ t('contacts.conference.hub.hint') }}</template>
+      <template #title>{{ t('contacts.conference.hub.hintRedirect') }}</template>
     </el-alert>
 
     <div class="hub-actions">
+      <el-button type="primary" @click="goPersonalCalls">{{ t('contacts.personalCalls') }}</el-button>
       <el-button :disabled="loading" @click="loadList">{{ t('common.refresh') }}</el-button>
     </div>
 
@@ -64,26 +65,12 @@ function parseIds(raw) {
     .filter((n) => Number.isInteger(n) && n > 0);
 }
 
-async function createFromQueryIds() {
-  const ids = parseIds(route.query.ids);
-  if (ids.length < 2) return false;
-  if (ids.length > 3) {
-    ElMessage.warning(t('contacts.conference.bulk.maxThree'));
-    return false;
-  }
-  const data = await conferenceService.createMultiSession(ids, {
-    title: t('contacts.conference.hub.defaultTitle', { count: ids.length }),
-    notify_email: true,
-    notify_telegram: false
-  });
-  const sid = data.session?.id;
-  if (!sid) throw new Error('no session');
-  const n = data.notifications?.notified;
-  if (n != null) {
-    ElMessage.success(t('contacts.conference.hub.notified', { count: n }));
-  }
-  await router.replace({ name: 'hub-conference', params: { sessionId: String(sid) } });
-  return true;
+function goPersonalCalls() {
+  router.push({ name: 'personal-calls' });
+}
+
+function openSession(id) {
+  router.push({ name: 'hub-conference', params: { sessionId: String(id) } });
 }
 
 async function loadList() {
@@ -92,52 +79,54 @@ async function loadList() {
     const data = await conferenceService.listMultiSessions();
     sessions.value = data.sessions || [];
   } catch (e) {
+    sessions.value = [];
     ElMessage.error(e?.response?.data?.error || t('contacts.conference.hub.loadError'));
   } finally {
     loading.value = false;
   }
 }
 
-function openSession(id) {
-  router.push({ name: 'hub-conference', params: { sessionId: String(id) } });
-}
-
 onMounted(async () => {
-  loading.value = true;
-  try {
-    if (route.query.ids) {
-      const created = await createFromQueryIds();
-      if (created) return;
-    }
-    await loadList();
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.error || t('contacts.conference.hub.createError'));
-    await loadList();
-  } finally {
-    loading.value = false;
+  const ids = parseIds(route.query.ids);
+  if (ids.length >= 1) {
+    // Старый silent create убран: всегда через календарь
+    await router.replace({
+      name: 'contacts-calls-calendar',
+      query: { ids: ids.slice(0, 3).join(',') }
+    });
+    return;
   }
+  await loadList();
 });
 </script>
 
 <style scoped>
+.hub-home {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .hub-alert {
-  margin-bottom: 16px;
+  margin: 0;
 }
 
 .hub-actions {
-  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .session-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .session-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--color-border);
@@ -148,34 +137,20 @@ onMounted(async () => {
 
 .session-title {
   font-weight: 600;
-  margin-bottom: 4px;
 }
 
 .session-id {
   margin-left: 6px;
-  font-weight: 400;
   color: var(--color-grey);
-  font-size: var(--font-size-xs);
+  font-weight: 400;
 }
 
 .session-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+  margin-top: 4px;
   color: var(--color-grey);
-  font-size: var(--font-size-xs);
-}
-
-/* TZ package C */
-@media (max-width: 768px) {
-  .hub-home, .conference-hub-home, .page {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-  .cards, .grid, .row {
-    grid-template-columns: 1fr !important;
-    flex-direction: column;
-  }
+  font-size: var(--font-size-sm);
 }
 </style>

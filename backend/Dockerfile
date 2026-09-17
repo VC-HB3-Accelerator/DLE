@@ -19,27 +19,28 @@ LABEL website="https://hb3-accelerator.com"
 WORKDIR /app
 
 # Устанавливаем системные зависимости для компиляции нативных модулей Node.js
-# HTTPS: на части VDS исходящий :80 к deb.debian.org таймаутится, :443 проходит.
-# Базовые пакеты отдельно от компиляторов — так надёжнее при обрывах зеркала.
-RUN find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec \
-        sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' {} + && \
-    echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
-    echo 'Acquire::http::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
-    echo 'Acquire::https::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
-    echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
-    for i in 1 2 3 4 5; do \
-        apt-get update && break || sleep 15; \
-    done && \
+# Сначала HTTP + ca-certificates (иначе https://deb.debian.org падает: issuer unknown),
+# затем зеркало HTTPS и остальные пакеты. set -e — без ssh образ не должен «успешно» собраться.
+RUN set -eux; \
+    echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries; \
+    echo 'Acquire::http::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries; \
+    echo 'Acquire::https::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates; \
+    find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' {} +; \
+    apt-get update; \
     apt-get install -y --no-install-recommends \
         python3 \
         make \
         curl \
-        ca-certificates \
         openssh-client \
-        sshpass && \
+        sshpass; \
+    command -v ssh; \
+    command -v sshpass; \
     (apt-get install -y --no-install-recommends gcc-12 g++-12 g++ || \
-        (sleep 10 && apt-get update && apt-get install -y --no-install-recommends gcc-12 g++-12 g++)) && \
-    apt-get install -f -y || true && \
+        (sleep 10 && apt-get update && apt-get install -y --no-install-recommends gcc-12 g++-12 g++)); \
+    apt-get install -f -y || true; \
     rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/80-retries
 
 # Актуальный Docker CLI + Compose v2 (для update.sh / apply-here через /var/run/docker.sock).

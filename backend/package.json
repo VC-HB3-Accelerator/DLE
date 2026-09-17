@@ -13,7 +13,6 @@
     "migrate": "node scripts/run-migrations.js",
     "prod": "NODE_ENV=production node server.js",
     "test": "mocha tests/**/*.test.js --exit",
-    "test:conference": "mocha tests/conference-*.test.js --exit",
     "test:contracts": "hardhat test",
     "test:contracts:hv": "hardhat test test/hierarchical-voting*.test.js",
     "test:contracts:audit": "hardhat test test/dle-core-audit.test.js test/dle-execute-by-signatures.test.js test/dle-reader-resolve.test.js",
@@ -38,6 +37,7 @@
     "test:prerender": "node scripts/test-pre-render.js",
     "extract:site-emails": "node scripts/extract-site-emails.js",
     "verify:mailing-emails": "node scripts/verify-mailing-emails.js",
+    "test:conference": "mocha tests/conference-*.test.js --exit",
     "generate:notices": "node ../scripts/generate-third-party-notices.js"
   },
   "bin": {},
@@ -91,6 +91,7 @@
     "pg-large-object": "^2.0.0",
     "semver": "^7.7.1",
     "session-file-store": "^1.5.0",
+    "sharp": "^0.35.4",
     "siwe": "^2.1.4",
     "socks-proxy-agent": "^8.0.5",
     "telegraf": "^4.16.3",

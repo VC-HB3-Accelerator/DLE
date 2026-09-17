@@ -16,6 +16,7 @@ const UnifiedDeploymentService = require('../services/unifiedDeploymentService')
 const unifiedDeploymentService = new UnifiedDeploymentService();
 const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
 const authService = require('../services/auth-service');
 const dleDeployLicenseCheckService = require('../services/dleDeployLicenseCheckService');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
@@ -71,7 +72,7 @@ async function executeDeploymentInBackground(deploymentId) {
  * @desc    Создать новое DLE v2 (Digital Legal Entity)
  * @access  Private (только для авторизованных пользователей с ролью admin)
  */
-router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.post('/', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const dleParams = req.body;
     logger.info('🔥 Получен запрос на асинхронный деплой DLE v2');
@@ -166,7 +167,7 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
  * @route   GET /api/dle-v2/module-deployer
  * @desc    Статус ключа деплоя модулей (без private key)
  */
-router.get('/module-deployer', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.get('/module-deployer', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const dleAttachService = require('../services/dleAttachService');
     const address = req.query.dleAddress || req.query.address;
@@ -188,7 +189,7 @@ router.get('/module-deployer', auth.requireAuth, auth.requireAdmin, async (req, 
  * @route   PUT /api/dle-v2/module-deployer
  * @desc    ETHEREUM_NETWORK_URL + PRIVATE_KEY для деплоя модулей этой книги
  */
-router.put('/module-deployer', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.put('/module-deployer', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const dleAttachService = require('../services/dleAttachService');
     const {
@@ -294,7 +295,7 @@ router.get('/default-params', auth.requireAuth, async (req, res, next) => {
  * @desc    Привязать уже существующую в сети книгу: auth_tokens + хвост deploy_params без private_key
  * @access  Private (editor / manage_settings)
  */
-router.post('/attach', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.post('/attach', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const authTokenService = require('../services/authTokenService');
     const dleAttachService = require('../services/dleAttachService');
@@ -356,7 +357,7 @@ router.post('/attach', auth.requireAuth, auth.requireAdmin, async (req, res, nex
  * @desc    Удалить DLE v2 по deployment ID
  * @access  Private (только для авторизованных пользователей с ролью admin)
  */
-router.delete('/deployment/:deploymentId', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.delete('/deployment/:deploymentId', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { deploymentId } = req.params;
     logger.info(`Получен запрос на удаление DLE v2 с deployment ID: ${deploymentId}`);
@@ -392,7 +393,7 @@ router.delete('/deployment/:deploymentId', auth.requireAuth, auth.requireAdmin, 
  * @desc    Снять книгу с этой ОС после on-chain isActive=false (не уничтожает контракт)
  * @access  Private (admin)
  */
-router.post('/:dleAddress/delist', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/:dleAddress/delist', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress } = req.params;
     const chainId = req.body?.chainId != null ? Number(req.body.chainId) : null;
@@ -438,7 +439,7 @@ router.post('/:dleAddress/delist', auth.requireAuth, auth.requireAdmin, async (r
  * @desc    Удалить DLE v2 по адресу
  * @access  Private (только для авторизованных пользователей с ролью admin)
  */
-router.delete('/:dleAddress', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.delete('/:dleAddress', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { dleAddress } = req.params;
     logger.info(`Получен запрос на удаление DLE v2 с адресом: ${dleAddress}`);
@@ -534,7 +535,7 @@ router.get('/check-admin-tokens', async (req, res, next) => {
  * @desc    Проверить license-токен на кошельке для деплоя
  * @access  Private
  */
-router.get('/check-deploy-license', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.get('/check-deploy-license', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const requestedAddress = String(req.query?.address || '').trim();
     const sessionAddress = req.user?.walletAddress || req.user?.address || '';
@@ -563,7 +564,7 @@ router.get('/check-deploy-license', auth.requireAuth, auth.requireAdmin, async (
  * @desc    Валидировать приватный ключ и получить адрес кошелька
  * @access  Public
  */
-router.post('/validate-private-key', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+router.post('/validate-private-key', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
   try {
     const { privateKey } = req.body;
     
@@ -616,7 +617,7 @@ router.post('/validate-private-key', auth.requireAuth, auth.requireAdmin, async 
  * @desc    Получить статус деплоя
  * @access  Private
  */
-router.get('/deployment-status/:deploymentId', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.get('/deployment-status/:deploymentId', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { deploymentId } = req.params;
     
@@ -658,7 +659,7 @@ router.get('/deployment-status/:deploymentId', auth.requireAuth, auth.requireAdm
  * @desc    Получить результат завершенного деплоя
  * @access  Private
  */
-router.get('/deployment-result/:deploymentId', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.get('/deployment-result/:deploymentId', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { deploymentId } = req.params;
     
@@ -702,7 +703,7 @@ router.get('/deployment-result/:deploymentId', auth.requireAuth, auth.requireAdm
  * @desc    Получить статистику деплоев
  * @access  Private
  */
-router.get('/deployment-stats', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.get('/deployment-stats', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const stats = deploymentTracker.getStats();
     const activeDeployments = deploymentTracker.getActiveDeployments();
@@ -737,7 +738,7 @@ module.exports = router;
 
 
 // Сохранить GUID верификации (если нужно отдельным вызовом)
-router.post('/verify/save-guid', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/verify/save-guid', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { address, chainId, guid } = req.body || {};
     if (!address || !chainId || !guid) return res.status(400).json({ success: false, message: 'address, chainId, guid обязательны' });
@@ -762,7 +763,7 @@ router.get('/verify/status/:address', auth.requireAuth, async (req, res) => {
 });
 
 // Обновить статусы верификации, опросив Etherscan V2
-router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/verify/refresh/:address', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { address } = req.params;
     const ApiKeyManager = require('../utils/apiKeyManager');
@@ -820,7 +821,7 @@ router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, asy
 });
 
 // Повторно отправить верификацию на Etherscan V2 для уже созданного DLE
-router.post('/verify/resubmit/:address', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/verify/resubmit/:address', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { address } = req.params;
     const ApiKeyManager = require('../utils/apiKeyManager');
@@ -863,7 +864,7 @@ router.post('/verify/resubmit/:address', auth.requireAuth, auth.requireAdmin, as
 });
 
 // Предварительная проверка балансов во всех выбранных сетях
-router.post('/precheck', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/precheck', auth.requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { supportedChainIds, privateKey } = req.body || {};
     if (!privateKey) return res.status(400).json({ success: false, message: 'Приватный ключ не передан' });

@@ -13,7 +13,7 @@
     <div class="call-cal__weekdays">
       <span v-for="wd in weekdayLabels" :key="wd">{{ wd }}</span>
     </div>
-    <div class="call-cal__grid">
+    <div class="call-cal__days">
       <button
         v-for="(cell, idx) in cells"
         :key="idx"
@@ -160,9 +160,9 @@ defineExpose({ viewYear, viewMonth });
   cursor: pointer;
 }
 .call-cal__weekdays,
-.call-cal__grid {
+.call-cal__days {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 .call-cal__weekdays span {

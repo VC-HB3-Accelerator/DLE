@@ -17,37 +17,38 @@ const checkSystemRequirements = async (options) => {
   log.info('🔍 Проверка системных требований VDS...');
   
   try {
-    // Проверка памяти
-    log.info('📊 Проверка памяти...');
-    const memoryResult = await execSshCommand('free -h | grep "Mem:" | awk \'{print $2}\'', options);
-    const memoryStr = memoryResult.stdout.trim().replace('G', '').replace('Gi', '');
-    const memoryGB = parseFloat(memoryStr);
-    
-    // Проверка диска
-    log.info('💾 Проверка диска...');
-    const diskResult = await execSshCommand('df -h / | tail -1 | awk \'{print $4}\'', options);
-    const diskStr = diskResult.stdout.trim().replace('G', '').replace('Gi', '');
-    const diskGB = parseFloat(diskStr);
-    
-    // Проверка CPU
-    log.info('⚡ Проверка CPU...');
-    const cpuResult = await execSshCommand('nproc', options);
-    const cpuCores = parseInt(cpuResult.stdout.trim());
-    
-    // Проверка архитектуры
-    log.info('🏗️ Проверка архитектуры...');
-    const archResult = await execSshCommand('uname -m', options);
-    const architecture = archResult.stdout.trim();
-    
-    // Дополнительная диагностика архитектуры
-    const archInfoResult = await execSshCommand('uname -a', options);
+    log.info('📊 Сбор сведений о системе одним SSH-запросом...');
+    const probe = await execSshCommand(
+      [
+        'echo MEM:$(free -g | awk \'/^Mem:/{print $2}\')',
+        'echo DISK:$(df -BG / | awk \'NR==2{gsub(/G/,"",$4); print $4}\')',
+        'echo CPU:$(nproc)',
+        'echo ARCH:$(uname -m)',
+        'echo UNAME:$(uname -a)',
+        'echo UBUNTU:$(lsb_release -ds 2>/dev/null || true)',
+      ].join('; '),
+      options
+    );
+    if (probe.code !== 0) {
+      throw new Error(`Не удалось получить системную информацию по SSH: ${probe.stderr || probe.stdout || `код ${probe.code}`}`);
+    }
+    const lines = Object.fromEntries(
+      String(probe.stdout || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const idx = line.indexOf(':');
+          return idx === -1 ? [line, ''] : [line.slice(0, idx), line.slice(idx + 1).trim()];
+        })
+    );
+    const memoryGB = parseFloat(lines.MEM);
+    const diskGB = parseFloat(lines.DISK);
+    const cpuCores = parseInt(lines.CPU, 10);
+    const architecture = lines.ARCH || '';
+    const ubuntuVersion = lines.UBUNTU || '';
     log.info(`Архитектура (uname -m): "${architecture}"`);
-    log.info(`Полная информация (uname -a): "${archInfoResult.stdout.trim()}"`);
-    
-    // Проверка версии Ubuntu
-    log.info('🐧 Проверка версии Ubuntu...');
-    const ubuntuResult = await execSshCommand('lsb_release -d | cut -f2', options);
-    const ubuntuVersion = ubuntuResult.stdout.trim();
+    log.info(`Полная информация (uname -a): "${lines.UNAME || ''}"`);
     
     const systemInfo = {
       memoryGB: memoryGB,

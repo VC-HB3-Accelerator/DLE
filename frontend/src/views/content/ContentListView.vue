@@ -21,6 +21,12 @@
     <AdminPageShell :show-close="true" :fallback="{ name: 'crm' }">
       <HubGrid>
         <HubCard
+          v-if="isEditor && canAccessPath('/content/moderation')"
+          :title="t('content.list.moderation.title')"
+          :description="t('content.list.moderation.description')"
+          @open="goToModeration"
+        />
+        <HubCard
           v-if="canAccessPath('/content/published')"
           :title="t('content.list.published.title')"
           :description="t('content.list.published.description')"
@@ -92,6 +98,7 @@ onMounted(() => {
 
 function goToTemplates() { router.push({ name: 'content-templates' }); }
 function goToMedia() { router.push({ name: 'content-media' }); }
+function goToModeration() { router.push({ name: 'content-moderation' }); }
 function goToPublished() { router.push({ name: 'content-published' }); }
 function goToContentSettings() { router.push({ name: 'content-settings' }); }
 function goToInternal() { router.push({ name: 'content-internal' }); }

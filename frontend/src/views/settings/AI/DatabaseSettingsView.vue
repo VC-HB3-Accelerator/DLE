@@ -15,7 +15,7 @@
     <AdminPageShell
       :title="$t('settings.ai.database.pageTitle')"
       :show-close="true"
-      fallback="/settings/ai"
+      fallback="/settings/security"
       variant="panel"
     >
               <form v-if="editMode" @submit.prevent="saveDbSettings" class="settings-form">

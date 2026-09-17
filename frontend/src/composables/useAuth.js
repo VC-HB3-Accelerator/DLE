@@ -13,22 +13,30 @@
 import { ref, onMounted, onUnmounted, provide, inject } from 'vue';
 import axios from '../api/axios';
 import { syncActionAccessRole } from './useActionAccess.js';
+import { syncScreenAccessRole } from './useScreenAccess.js';
 import eventBus from '../utils/eventBus';
 import { i18n } from '@/locales/index.js';
 
 const t = (key, params) => i18n.global.t(key, params);
 
 // === SINGLETON STATE ===
-const isAuthenticated = ref(false);
+export const isAuthenticated = ref(false);
 const authType = ref(null);
 export const userId = ref(null);
 const address = ref(null);
 const telegramId = ref(null);
-const email = ref(null);
+export const email = ref(null);
 const processedGuestIds = ref([]);
 const identities = ref([]);
 const tokenBalances = ref([]);
-const userAccessLevel = ref({ level: 'guest', tokenCount: 0, hasAccess: false });
+export const userAccessLevel = ref({
+  level: 'guest',
+  tokenCount: 0,
+  hasAccess: false,
+  dataScope: 'none',
+  domain: null,
+  isDomainAdmin: false,
+});
 
 // Функция для обновления списка идентификаторов
 const updateIdentities = async () => {
@@ -123,8 +131,16 @@ const checkUserAccessLevel = async (address) => {
   try {
     const response = await axios.get(`/auth/access-level/${address}`);
     if (response.data.success) {
-      userAccessLevel.value = response.data.data;
-      return response.data.data;
+      const next = response.data.data || {};
+      // Не терять dataScope, если endpoint вернул только token-level
+      userAccessLevel.value = {
+        ...userAccessLevel.value,
+        ...next,
+        dataScope: next.dataScope ?? userAccessLevel.value.dataScope ?? 'own',
+        domain: next.domain !== undefined ? next.domain : userAccessLevel.value.domain,
+        isDomainAdmin: next.isDomainAdmin ?? userAccessLevel.value.isDomainAdmin ?? false,
+      };
+      return userAccessLevel.value;
     }
     return null;
   } catch (error) {
@@ -183,7 +199,14 @@ const updateAuth = async ({
     // Сбрасываем userAccessLevel для неавторизованных пользователей
     if (userAccessLevel.value.level !== 'guest') {
       console.log('[updateAuth] Resetting userAccessLevel to guest');
-      userAccessLevel.value = { level: 'guest', tokenCount: 0, hasAccess: false };
+      userAccessLevel.value = {
+        level: 'guest',
+        tokenCount: 0,
+        hasAccess: false,
+        dataScope: 'none',
+        domain: null,
+        isDomainAdmin: false,
+      };
     }
   }
 
@@ -333,7 +356,7 @@ const linkMessages = async () => {
   }
 };
 
-const checkAuth = async () => {
+export const checkAuth = async () => {
   try {
     const response = await axios.get('/auth/check');
     console.log('Auth check response:', JSON.stringify(response.data, null, 2));
@@ -370,6 +393,7 @@ const checkAuth = async () => {
       userAccessLevel.value = response.data.userAccessLevel;
       const role = response.data.userAccessLevel.level;
       if (role === 'readonly' || role === 'editor' || role === 'user') {
+        await syncScreenAccessRole(role);
         await syncActionAccessRole(role);
       }
     }
@@ -448,7 +472,14 @@ const disconnect = async () => {
     localStorage.removeItem('authData');
 
     tokenBalances.value = [];
-    userAccessLevel.value = { level: 'guest', tokenCount: 0, hasAccess: false };
+    userAccessLevel.value = {
+      level: 'guest',
+      tokenCount: 0,
+      hasAccess: false,
+      dataScope: 'none',
+      domain: null,
+      isDomainAdmin: false,
+    };
 
     // Удаляем класс подключенного кошелька
     document.body.classList.remove('wallet-connected');

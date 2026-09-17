@@ -70,14 +70,28 @@ async function ensureTables() {
       ON auth_email_domain_rules (kind, value)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS auth_email_registration_policy (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      require_listed_domain BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+  await pool.query(`
+    INSERT INTO auth_email_registration_policy (id, require_listed_domain)
+    VALUES (1, TRUE)
+    ON CONFLICT (id) DO NOTHING
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS contact_provenance (
-      contact_user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      imported_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      contact_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      imported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       owner_domain TEXT,
       source VARCHAR(32) NOT NULL DEFAULT 'import',
       job_id INTEGER REFERENCES contact_import_jobs(id) ON DELETE SET NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (contact_user_id, imported_by)
     )
   `);
   await pool.query(`
@@ -89,6 +103,12 @@ async function ensureTables() {
       ON contact_provenance (owner_domain)
   `);
   tablesReady = true;
+  try {
+    const contactProvenanceService = require('./contactProvenanceService');
+    await contactProvenanceService.ensureMultiListSchema();
+  } catch (e) {
+    logger.warn('[accessResolver] provenance migrate:', e.message);
+  }
 }
 
 async function lookupDomainRule(domain) {
@@ -294,7 +314,20 @@ async function recomputeAllWithEmailIdentities() {
 }
 
 /**
+ * Primary email на домене зрителя (Boss@company.com → все @company.com).
+ */
+async function contactPrimaryEmailOnDomain(contactUserId, domain) {
+  if (!contactUserId || !domain) return false;
+  const email = await identityService.getPrimaryIdentityValue(contactUserId, 'email');
+  if (!email || !String(email).includes('@')) return false;
+  const emailDomain = String(email).split('@').pop().toLowerCase();
+  return emailDomain === String(domain).toLowerCase();
+}
+
+/**
  * SQL-фильтр списка CRM (users u).
+ * own: я + imported_by + platform editor.
+ * domain: все с primary email @domain + provenance.owner_domain + platform editor (+ я).
  * @returns {number} next param index
  */
 function appendContactsScopeWhere(access, viewerUserId, where, params, idx) {
@@ -302,15 +335,40 @@ function appendContactsScopeWhere(access, viewerUserId, where, params, idx) {
     return idx;
   }
   if (access.dataScope === 'domain' && access.domain) {
-    where.push(`EXISTS (
-      SELECT 1 FROM contact_provenance cp
-      WHERE cp.contact_user_id = u.id AND cp.owner_domain = $${idx++}
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    const domainParam = idx;
+    const key1 = idx + 1;
+    const key2 = idx + 2;
+    const viewerParam = idx + 3;
+    where.push(`(
+      u.id = $${viewerParam}
+      OR u.role = 'editor'
+      OR EXISTS (
+        SELECT 1 FROM user_identities ui
+        WHERE ui.user_id = u.id
+          AND ui.is_primary = true
+          AND ui.provider_encrypted = encrypt_text('email', $${key1})
+          AND lower(split_part(decrypt_text(ui.provider_id_encrypted, $${key2}), '@', 2))
+            = lower($${domainParam})
+      )
+      OR EXISTS (
+        SELECT 1 FROM contact_provenance cp
+        WHERE cp.contact_user_id = u.id
+          AND lower(cp.owner_domain) = lower($${domainParam})
+      )
     )`);
-    params.push(access.domain);
-    return idx;
+    params.push(
+      String(access.domain).toLowerCase(),
+      encryptionKey,
+      encryptionKey,
+      viewerUserId
+    );
+    return idx + 4;
   }
   where.push(`(
     u.id = $${idx}
+    OR u.role = 'editor'
     OR EXISTS (
       SELECT 1 FROM contact_provenance cp
       WHERE cp.contact_user_id = u.id AND cp.imported_by = $${idx}
@@ -325,10 +383,21 @@ async function canViewContact(access, contactUserId, viewerUserId) {
   if (access.dataScope === 'global') return true;
   if (Number(contactUserId) === Number(viewerUserId)) return true;
 
+  const { rows: roleRows } = await db.getQuery()(
+    `SELECT role FROM users WHERE id = $1 LIMIT 1`,
+    [contactUserId]
+  );
+  if (roleRows[0]?.role === ROLES.EDITOR || roleRows[0]?.role === 'editor') {
+    return true;
+  }
+
   if (access.dataScope === 'domain' && access.domain) {
+    if (await contactPrimaryEmailOnDomain(contactUserId, access.domain)) {
+      return true;
+    }
     const { rows } = await db.getQuery()(
       `SELECT 1 FROM contact_provenance
-       WHERE contact_user_id = $1 AND owner_domain = $2
+       WHERE contact_user_id = $1 AND lower(owner_domain) = lower($2)
        LIMIT 1`,
       [contactUserId, access.domain]
     );
@@ -381,6 +450,15 @@ function canEditContacts(access) {
   return false;
 }
 
+/** Platform editor: shared CRM fields (tags/files/block/identities). Boss@ ≠ editor. */
+function isPlatformEditor(access) {
+  return Boolean(
+    access
+    && access.dataScope === 'global'
+    && hasActionPermission(access, PERMISSIONS.EDIT_CONTACTS)
+  );
+}
+
 function canBroadcast(access) {
   if (!access) return false;
   if (access.dataScope === 'global' && hasActionPermission(access, PERMISSIONS.BROADCAST)) {
@@ -403,6 +481,40 @@ async function filterContactIdsToScope(access, contactIds, viewerUserId) {
     }
   }
   return out;
+}
+
+function parseProfileOwnerId(raw) {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * TZ_PROFILE_OWNED_DATA: доступ к CRM/таблицам/admin-данным профиля.
+ * own + чужой :id → 403 (даже при импорте); public лента/магазин этим helper не пользуются.
+ * @returns {Promise<{ ok: boolean, status?: number, error?: string, profileId: number|null, access: object|null }>}
+ */
+async function assertCanAccessProfileOwnedData(viewerUserId, profileIdRaw) {
+  const profileId = parseProfileOwnerId(profileIdRaw);
+  if (!profileId) {
+    return { ok: false, status: 400, error: 'Invalid owner', profileId: null, access: null };
+  }
+  if (!viewerUserId) {
+    return { ok: false, status: 401, error: 'Unauthorized', profileId, access: null };
+  }
+  const access = await resolveAccess(viewerUserId);
+  if (!access || access.dataScope === 'none') {
+    return { ok: false, status: 403, error: 'Forbidden', profileId, access };
+  }
+  const isSelf = Number(profileId) === Number(viewerUserId);
+  if (access.dataScope === 'own' && !isSelf) {
+    return { ok: false, status: 403, error: 'Forbidden', profileId, access };
+  }
+  const allowed = await canViewContact(access, profileId, viewerUserId);
+  if (!allowed) {
+    return { ok: false, status: 403, error: 'Forbidden', profileId, access };
+  }
+  return { ok: true, profileId, access };
 }
 
 function canViewImportJob(access, job, viewerUserId) {
@@ -440,10 +552,13 @@ module.exports = {
   canViewContact,
   canEditContact,
   canEditContacts,
+  isPlatformEditor,
   canImportContacts,
   canBroadcast,
   filterContactIdsToScope,
   canViewImportJob,
+  parseProfileOwnerId,
+  assertCanAccessProfileOwnedData,
   hasActionPermission,
   lookupEmailRules,
   initialize,

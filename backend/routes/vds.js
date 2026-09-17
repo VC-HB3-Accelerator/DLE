@@ -20,18 +20,62 @@ const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS } = require('../shared/permissions');
 const db = require('../db');
 const encryptedDb = require('../services/encryptedDatabaseService');
+const {
+  ShellSafeError,
+  assertSafeUnixUsername,
+  assertSafeDockerName,
+  assertSafeHost,
+  assertSafeAbsPath,
+  assertSafeSshPublicKey,
+  assertPositiveInt,
+  shellSingleQuote,
+  spawnCapture,
+  chpasswdLocal,
+} = require('../utils/shellSafe');
 
 const execAsync = promisify(exec);
 const fs = require('fs');
 const dockerSocket = require('../utils/dockerSocket');
 const hostStats = require('../utils/hostStats');
 
+function vdsSafeError(res, error, fallbackMessage) {
+  if (error instanceof ShellSafeError) {
+    return res.status(error.status || 400).json({ success: false, error: error.message });
+  }
+  logger.error(fallbackMessage, error);
+  return res.status(500).json({ success: false, error: error.message || fallbackMessage });
+}
+
 /**
  * Backend запущен на VDS с доступом к docker.sock (prod compose).
- * Локальный dev-backend socket не монтирует — там остаётся SSH.
+ * Локальный dev тоже монтирует socket (Gitea/update.sh) — это НЕ значит, что
+ * /home/docker/dapp есть в этом контейнере. Тогда управление VDS идёт по SSH.
  */
 function isVdsDockerRuntime() {
-  return dockerSocket.isSocketAvailable();
+  if (!dockerSocket.isSocketAvailable()) {
+    return false;
+  }
+  return fs.existsSync('/host-project/docker-compose.prod.yml')
+    || fs.existsSync('/home/docker/dapp/docker-compose.prod.yml');
+}
+
+function getLocalComposeRoot() {
+  if (fs.existsSync('/host-project/docker-compose.prod.yml')) {
+    return '/host-project';
+  }
+  if (fs.existsSync('/home/docker/dapp/docker-compose.prod.yml')) {
+    return '/home/docker/dapp';
+  }
+  return null;
+}
+
+function getVdsSshIdentityPath() {
+  const dedicated = '/root/.ssh/auto_lends_vds';
+  const fallback = '/root/.ssh/id_rsa';
+  if (fs.existsSync(dedicated)) {
+    return dedicated;
+  }
+  return fallback;
 }
 
 async function execLocalShellCommand(command) {
@@ -149,7 +193,7 @@ function updateDomainCache(domain) {
  * encryptedDb.getData автоматически расшифровывает поля с суффиксом _encrypted
  * и возвращает их БЕЗ суффикса (например, domain_encrypted -> domain)
  */
-router.get('/settings', async (req, res) => {
+router.get('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const rows = await encryptedDb.getData('vds_settings', {}, 1);
 
@@ -184,10 +228,8 @@ router.get('/settings', async (req, res) => {
 
 /**
  * Сохранить настройки VDS
- * ⚠️ ВРЕМЕННО без requireAuth/requirePermission, чтобы настройки из формы WebSSH
- * гарантированно сохранялись в таблицу vds_settings даже при проблемах с сессией.
  */
-router.post('/settings', async (req, res) => {
+router.post('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { 
       domain, 
@@ -248,6 +290,16 @@ router.post('/settings', async (req, res) => {
     
     // Нормализуем домен
     const normalizedDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+    // Shell-safe поля (потом попадают в команды / пути)
+    const safeUbuntu = assertSafeUnixUsername(ubuntuUser, 'ubuntuUser', { allowRoot: true });
+    const safeDocker = assertSafeUnixUsername(dockerUser, 'dockerUser', { allowRoot: true });
+    const safeSshUser = assertSafeUnixUsername(sshUser, 'sshUser', { allowRoot: true });
+    const safeSshHost = assertSafeHost(sshHost, 'sshHost');
+    const safePort = assertPositiveInt(sshPort, { min: 1, max: 65535, fallback: 22 });
+    const safeDappPath = (dappPath && String(dappPath).trim())
+      ? assertSafeAbsPath(dappPath, 'dappPath')
+      : null;
     
     // Проверяем существующие настройки (для валидации пароля)
     const existing = await encryptedDb.getData('vds_settings', {}, 1);
@@ -258,13 +310,13 @@ router.post('/settings', async (req, res) => {
     const settings = {
       domain: normalizedDomain, // encryptedDb автоматически найдет domain_encrypted и зашифрует
       email: email.trim(),
-      ubuntu_user: ubuntuUser.trim(),
-      docker_user: dockerUser.trim(),
-      ssh_host: sshHost.trim(),
-      ssh_port: parseInt(sshPort, 10),
-      ssh_user: sshUser.trim(),
+      ubuntu_user: safeUbuntu,
+      docker_user: safeDocker,
+      ssh_host: safeSshHost,
+      ssh_port: safePort,
+      ssh_user: safeSshUser,
       ssl_provider: 'letsencrypt', // Используем только Let's Encrypt (работает без аккаунта)
-      dapp_path: (dappPath && dappPath.trim()) ? dappPath.trim() : null, // null означает использование значения по умолчанию
+      dapp_path: safeDappPath, // null означает использование значения по умолчанию
       updated_at: new Date()
     };
     
@@ -287,8 +339,7 @@ router.post('/settings', async (req, res) => {
     logger.warn(`[VDS] Настройки VDS сохранены в таблицу vds_settings для домена: ${normalizedDomain}`);
     res.json({ success: true, settings });
   } catch (error) {
-    logger.error('[VDS] Ошибка сохранения настроек:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, '[VDS] Ошибка сохранения настроек:');
   }
 });
 
@@ -426,11 +477,10 @@ async function execSshCommandOnVds(command, settings) {
     .replace(/"/g, '\\"');   // Экранируем двойные кавычки
   
   // Базовые опции SSH
-  const sshOptions = `-p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR`;
+  const sshOptions = `-F /dev/null -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR`;
   
-  // Явно указываем путь к приватному ключу
-  // Ключ должен быть в /root/.ssh/id_rsa (монтируется из ~/.ssh хоста через docker-compose)
-  const privateKeyPath = '/root/.ssh/id_rsa';
+  // Ключ auto-lends (предпочтительно) или общий id_rsa
+  const privateKeyPath = getVdsSshIdentityPath();
   
   // Проверяем существование ключа и используем его явно
   if (fs.existsSync(privateKeyPath)) {
@@ -441,7 +491,7 @@ async function execSshCommandOnVds(command, settings) {
     
     // Используем явный путь к ключу с опцией -i
     // Публичный ключ добавляется для root при настройке VDS через setupRootSshKeys
-    const sshCommand = `ssh -i "${privateKeyPath}" ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
+    const sshCommand = `ssh -i "${privateKeyPath}" -o IdentitiesOnly=yes ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
     logger.info(`[VDS] Используем SSH ключ: ${privateKeyPath} для подключения к ${sshUser}@${sshHost}:${sshPort}`);
     
     // Читаем публичный ключ для диагностики
@@ -553,13 +603,9 @@ router.get('/containers', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
  */
 router.post('/containers/:name/restart', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
+    const name = assertSafeDockerName(req.params.name);
     
-    if (!name) {
-      return res.status(400).json({ success: false, error: 'Имя контейнера обязательно' });
-    }
-    
-    const result = await execDockerCommand(`docker restart ${name}`);
+    const result = await execDockerCommand(`docker restart ${shellSingleQuote(name)}`);
     
     if (result.code !== 0) {
       return res.status(500).json({ success: false, error: result.stderr || 'Не удалось перезапустить контейнер' });
@@ -568,8 +614,7 @@ router.post('/containers/:name/restart', requireAuth, requirePermission(PERMISSI
     logger.info(`[VDS] Контейнер ${name} перезапущен`);
     res.json({ success: true, message: `Контейнер ${name} перезапущен` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка перезапуска контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка перезапуска контейнера ${req.params.name}:`);
   }
 });
 
@@ -609,32 +654,24 @@ router.post('/containers/restart-all', requireAuth, requirePermission(PERMISSION
  */
 router.post('/containers/:name/rebuild', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
-    
-    if (!name) {
-      return res.status(400).json({ success: false, error: 'Имя контейнера обязательно' });
-    }
+    const name = assertSafeDockerName(req.params.name);
+    const qName = shellSingleQuote(name);
     
     // Получаем информацию о контейнере
-    const inspectResult = await execDockerCommand(`docker inspect ${name} --format '{{.Config.Image}}'`);
+    const inspectResult = await execDockerCommand(`docker inspect ${qName} --format '{{.Config.Image}}'`);
     if (inspectResult.code !== 0) {
       return res.status(404).json({ success: false, error: 'Контейнер не найден' });
     }
     
     const imageName = inspectResult.stdout.trim();
-    if (!imageName) {
-      return res.status(404).json({ success: false, error: 'Контейнер не найден' });
+    if (!imageName || !/^[a-zA-Z0-9][a-zA-Z0-9_./:@-]{0,255}$/.test(imageName)) {
+      return res.status(404).json({ success: false, error: 'Контейнер не найден или некорректный образ' });
     }
     
-    // Останавливаем контейнер
-    await execDockerCommand(`docker stop ${name}`);
+    await execDockerCommand(`docker stop ${qName}`);
+    await execDockerCommand(`docker rm ${qName}`);
     
-    // Удаляем контейнер
-    await execDockerCommand(`docker rm ${name}`);
-    
-    // Пересобираем образ (если есть Dockerfile)
-    // Для простоты просто пересоздаем контейнер из образа
-    const runResult = await execDockerCommand(`docker run -d --name ${name} ${imageName}`);
+    const runResult = await execDockerCommand(`docker run -d --name ${qName} ${shellSingleQuote(imageName)}`);
     if (runResult.code !== 0) {
       return res.status(500).json({ success: false, error: 'Не удалось пересоздать контейнер. Возможно, нужны дополнительные параметры запуска.' });
     }
@@ -642,8 +679,7 @@ router.post('/containers/:name/rebuild', requireAuth, requirePermission(PERMISSI
     logger.info(`[VDS] Контейнер ${name} пересобран`);
     res.json({ success: true, message: `Контейнер ${name} пересобран` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка пересборки контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка пересборки контейнера ${req.params.name}:`);
   }
 });
 
@@ -845,8 +881,8 @@ router.get('/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)
  */
 router.post('/containers/:name/stop', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
-    const result = await execDockerCommand(`docker stop ${name}`);
+    const name = assertSafeDockerName(req.params.name);
+    const result = await execDockerCommand(`docker stop ${shellSingleQuote(name)}`);
     
     if (result.code !== 0) {
       return res.status(500).json({ success: false, error: result.stderr || 'Не удалось остановить контейнер' });
@@ -855,8 +891,7 @@ router.post('/containers/:name/stop', requireAuth, requirePermission(PERMISSIONS
     logger.info(`[VDS] Контейнер ${name} остановлен`);
     res.json({ success: true, message: `Контейнер ${name} остановлен` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка остановки контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка остановки контейнера ${req.params.name}:`);
   }
 });
 
@@ -865,8 +900,8 @@ router.post('/containers/:name/stop', requireAuth, requirePermission(PERMISSIONS
  */
 router.post('/containers/:name/start', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
-    const result = await execDockerCommand(`docker start ${name}`);
+    const name = assertSafeDockerName(req.params.name);
+    const result = await execDockerCommand(`docker start ${shellSingleQuote(name)}`);
     
     if (result.code !== 0) {
       return res.status(500).json({ success: false, error: result.stderr || 'Не удалось запустить контейнер' });
@@ -875,8 +910,7 @@ router.post('/containers/:name/start', requireAuth, requirePermission(PERMISSION
     logger.info(`[VDS] Контейнер ${name} запущен`);
     res.json({ success: true, message: `Контейнер ${name} запущен` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка запуска контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка запуска контейнера ${req.params.name}:`);
   }
 });
 
@@ -885,9 +919,10 @@ router.post('/containers/:name/start', requireAuth, requirePermission(PERMISSION
  */
 router.delete('/containers/:name', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
-    await execDockerCommand(`docker stop ${name}`);
-    const result = await execDockerCommand(`docker rm ${name}`);
+    const name = assertSafeDockerName(req.params.name);
+    const qName = shellSingleQuote(name);
+    await execDockerCommand(`docker stop ${qName}`);
+    const result = await execDockerCommand(`docker rm ${qName}`);
     
     if (result.code !== 0) {
       return res.status(500).json({ success: false, error: result.stderr || 'Не удалось удалить контейнер' });
@@ -896,8 +931,7 @@ router.delete('/containers/:name', requireAuth, requirePermission(PERMISSIONS.MA
     logger.info(`[VDS] Контейнер ${name} удален`);
     res.json({ success: true, message: `Контейнер ${name} удален` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка удаления контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка удаления контейнера ${req.params.name}:`);
   }
 });
 
@@ -906,9 +940,9 @@ router.delete('/containers/:name', requireAuth, requirePermission(PERMISSIONS.MA
  */
 router.get('/containers/:name/logs', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
-    const { tail = 100 } = req.query;
-    const result = await execDockerCommand(`docker logs --tail ${tail} ${name}`);
+    const name = assertSafeDockerName(req.params.name);
+    const tail = assertPositiveInt(req.query.tail, { min: 1, max: 5000, fallback: 100 });
+    const result = await execDockerCommand(`docker logs --tail ${tail} ${shellSingleQuote(name)}`);
     
     if (result.code !== 0) {
       return res.status(500).json({ success: false, error: result.stderr || 'Не удалось получить логи контейнера' });
@@ -916,8 +950,7 @@ router.get('/containers/:name/logs', requireAuth, requirePermission(PERMISSIONS.
     
     res.json({ success: true, logs: result.stdout });
   } catch (error) {
-    logger.error(`[VDS] Ошибка получения логов контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка получения логов контейнера ${req.params.name}:`);
   }
 });
 
@@ -926,8 +959,8 @@ router.get('/containers/:name/logs', requireAuth, requirePermission(PERMISSIONS.
  */
 router.get('/containers/:name/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { name } = req.params;
-    const result = await execDockerCommand(`docker stats --no-stream --format "{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}" ${name}`);
+    const name = assertSafeDockerName(req.params.name);
+    const result = await execDockerCommand(`docker stats --no-stream --format "{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}" ${shellSingleQuote(name)}`);
     
     if (result.code !== 0) {
       return res.status(500).json({ success: false, error: result.stderr || 'Не удалось получить статистику контейнера' });
@@ -936,8 +969,7 @@ router.get('/containers/:name/stats', requireAuth, requirePermission(PERMISSIONS
     const [cpu, mem, net, block] = result.stdout.trim().split('|');
     res.json({ success: true, stats: { cpu, mem, net, block } });
   } catch (error) {
-    logger.error(`[VDS] Ошибка получения статистики контейнера ${req.params.name}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка получения статистики контейнера ${req.params.name}:`);
   }
 });
 
@@ -1024,7 +1056,8 @@ router.post('/server/update', requireAuth, requirePermission(PERMISSIONS.MANAGE_
  */
 router.get('/server/logs', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { type = 'syslog', lines = 100 } = req.query; // syslog, journalctl, auth
+    const { type = 'syslog' } = req.query;
+    const lines = assertPositiveInt(req.query.lines, { min: 1, max: 5000, fallback: 100 });
     let command;
     
     switch (type) {
@@ -1034,15 +1067,17 @@ router.get('/server/logs', requireAuth, requirePermission(PERMISSIONS.MANAGE_SET
       case 'auth':
         command = `tail -n ${lines} /var/log/auth.log`;
         break;
-      default:
+      case 'syslog':
         command = `tail -n ${lines} /var/log/syslog`;
+        break;
+      default:
+        return res.status(400).json({ success: false, error: 'Некорректный type логов' });
     }
     
     const { stdout } = await execAsync(command);
     res.json({ success: true, logs: stdout, type });
   } catch (error) {
-    logger.error('[VDS] Ошибка получения системных логов:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, '[VDS] Ошибка получения системных логов:');
   }
 });
 
@@ -1078,25 +1113,30 @@ router.get('/server/processes', requireAuth, requirePermission(PERMISSIONS.MANAG
  */
 router.post('/users/create', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { username, password, addToDocker = false } = req.body;
+    const username = assertSafeUnixUsername(req.body.username);
+    const { password, addToDocker = false } = req.body;
     
-    if (!username || !password) {
+    if (!password || typeof password !== 'string') {
       return res.status(400).json({ success: false, error: 'Имя пользователя и пароль обязательны' });
     }
     
-    let command = `useradd -m -s /bin/bash ${username}`;
-    if (addToDocker) {
-      command += ` && usermod -aG docker ${username}`;
+    const args = ['-m', '-s', '/bin/bash', username];
+    const createResult = await spawnCapture('useradd', args);
+    if (createResult.code !== 0) {
+      return res.status(500).json({ success: false, error: createResult.stderr || 'useradd failed' });
     }
-    
-    await execAsync(command);
-    await execAsync(`echo "${username}:${password}" | chpasswd`);
+    if (addToDocker) {
+      const mod = await spawnCapture('usermod', ['-aG', 'docker', username]);
+      if (mod.code !== 0) {
+        return res.status(500).json({ success: false, error: mod.stderr || 'usermod failed' });
+      }
+    }
+    await chpasswdLocal(username, password);
     
     logger.info(`[VDS] Пользователь ${username} создан`);
     res.json({ success: true, message: `Пользователь ${username} создан` });
   } catch (error) {
-    logger.error('[VDS] Ошибка создания пользователя:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, '[VDS] Ошибка создания пользователя:');
   }
 });
 
@@ -1105,17 +1145,18 @@ router.post('/users/create', requireAuth, requirePermission(PERMISSIONS.MANAGE_S
  */
 router.delete('/users/:username', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { username } = req.params;
-    const { removeHome = false } = req.query;
-    
-    const command = removeHome ? `userdel -r ${username}` : `userdel ${username}`;
-    await execAsync(command);
+    const username = assertSafeUnixUsername(req.params.username);
+    const removeHome = req.query.removeHome === 'true' || req.query.removeHome === '1';
+    const args = removeHome ? ['-r', username] : [username];
+    const result = await spawnCapture('userdel', args);
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'userdel failed' });
+    }
     
     logger.info(`[VDS] Пользователь ${username} удален`);
     res.json({ success: true, message: `Пользователь ${username} удален` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка удаления пользователя ${req.params.username}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка удаления пользователя ${req.params.username}:`);
   }
 });
 
@@ -1124,19 +1165,18 @@ router.delete('/users/:username', requireAuth, requirePermission(PERMISSIONS.MAN
  */
 router.post('/users/:username/password', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = assertSafeUnixUsername(req.params.username);
     const { password } = req.body;
     
     if (!password) {
       return res.status(400).json({ success: false, error: 'Пароль обязателен' });
     }
     
-    await execAsync(`echo "${username}:${password}" | chpasswd`);
+    await chpasswdLocal(username, password);
     logger.info(`[VDS] Пароль пользователя ${username} изменен`);
     res.json({ success: true, message: `Пароль пользователя ${username} изменен` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка изменения пароля пользователя ${req.params.username}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка изменения пароля пользователя ${req.params.username}:`);
   }
 });
 
@@ -1162,16 +1202,21 @@ router.get('/users', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)
  */
 router.get('/users/:username/ssh-keys', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { username } = req.params;
-    const { stdout } = await execAsync(`cat /home/${username}/.ssh/authorized_keys 2>/dev/null || echo ""`);
+    const username = assertSafeUnixUsername(req.params.username);
+    const authKeys = `/home/${username}/.ssh/authorized_keys`;
+    let stdout = '';
+    try {
+      stdout = fs.readFileSync(authKeys, 'utf8');
+    } catch {
+      stdout = '';
+    }
     const keys = stdout.trim().split('\n').filter(k => k.trim()).map((key, index) => ({
       id: index + 1,
       key: key.trim()
     }));
     res.json({ success: true, keys });
   } catch (error) {
-    logger.error(`[VDS] Ошибка получения SSH ключей пользователя ${req.params.username}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка получения SSH ключей пользователя ${req.params.username}:`);
   }
 });
 
@@ -1180,24 +1225,24 @@ router.get('/users/:username/ssh-keys', requireAuth, requirePermission(PERMISSIO
  */
 router.post('/users/:username/ssh-keys', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { username } = req.params;
-    const { key } = req.body;
-    
-    if (!key) {
-      return res.status(400).json({ success: false, error: 'SSH ключ обязателен' });
+    const username = assertSafeUnixUsername(req.params.username);
+    const key = assertSafeSshPublicKey(req.body.key);
+    const sshDir = `/home/${username}/.ssh`;
+    const authKeys = `${sshDir}/authorized_keys`;
+
+    fs.mkdirSync(sshDir, { recursive: true, mode: 0o700 });
+    fs.appendFileSync(authKeys, `${key}\n`, { mode: 0o600 });
+    const chown = await spawnCapture('chown', ['-R', `${username}:${username}`, sshDir]);
+    if (chown.code !== 0) {
+      return res.status(500).json({ success: false, error: chown.stderr || 'chown failed' });
     }
-    
-    await execAsync(`mkdir -p /home/${username}/.ssh`);
-    await execAsync(`chmod 700 /home/${username}/.ssh`);
-    await execAsync(`echo "${key}" >> /home/${username}/.ssh/authorized_keys`);
-    await execAsync(`chmod 600 /home/${username}/.ssh/authorized_keys`);
-    await execAsync(`chown -R ${username}:${username} /home/${username}/.ssh`);
+    fs.chmodSync(sshDir, 0o700);
+    fs.chmodSync(authKeys, 0o600);
     
     logger.info(`[VDS] SSH ключ добавлен пользователю ${username}`);
     res.json({ success: true, message: `SSH ключ добавлен пользователю ${username}` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка добавления SSH ключа пользователю ${req.params.username}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка добавления SSH ключа пользователю ${req.params.username}:`);
   }
 });
 
@@ -1206,25 +1251,24 @@ router.post('/users/:username/ssh-keys', requireAuth, requirePermission(PERMISSI
  */
 router.delete('/users/:username/ssh-keys/:keyId', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { username, keyId } = req.params;
-    const keyIndex = parseInt(keyId, 10) - 1;
+    const username = assertSafeUnixUsername(req.params.username);
+    const keyIndex = parseInt(req.params.keyId, 10) - 1;
+    const authKeys = `/home/${username}/.ssh/authorized_keys`;
     
-    const { stdout } = await execAsync(`cat /home/${username}/.ssh/authorized_keys`);
+    const stdout = fs.readFileSync(authKeys, 'utf8');
     const keys = stdout.trim().split('\n').filter(k => k.trim());
     
-    if (keyIndex < 0 || keyIndex >= keys.length) {
+    if (!Number.isFinite(keyIndex) || keyIndex < 0 || keyIndex >= keys.length) {
       return res.status(400).json({ success: false, error: 'Неверный ID ключа' });
     }
     
     keys.splice(keyIndex, 1);
-    await execAsync(`echo "${keys.join('\n')}" > /home/${username}/.ssh/authorized_keys`);
-    await execAsync(`chmod 600 /home/${username}/.ssh/authorized_keys`);
+    fs.writeFileSync(authKeys, keys.length ? `${keys.join('\n')}\n` : '', { mode: 0o600 });
     
     logger.info(`[VDS] SSH ключ удален у пользователя ${username}`);
     res.json({ success: true, message: `SSH ключ удален у пользователя ${username}` });
   } catch (error) {
-    logger.error(`[VDS] Ошибка удаления SSH ключа пользователя ${req.params.username}:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, `[VDS] Ошибка удаления SSH ключа пользователя ${req.params.username}:`);
   }
 });
 
@@ -1255,7 +1299,7 @@ router.post('/backup/create', requireAuth, requirePermission(PERMISSIONS.MANAGE_
  */
 router.post('/backup/send', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { file, localHost, localUser, localPath, sshKeyPath } = req.body;
+    const { file, localHost, localUser, localPath } = req.body;
     
     if (!file || !localHost || !localUser || !localPath) {
       return res.status(400).json({ 
@@ -1263,20 +1307,32 @@ router.post('/backup/send', requireAuth, requirePermission(PERMISSIONS.MANAGE_SE
         error: 'Файл, локальный хост, пользователь и путь обязательны' 
       });
     }
+
+    const safeFile = assertSafeAbsPath(file, 'file');
+    if (!/^\/tmp\/backup-[A-Za-z0-9._-]+\.sql$/.test(safeFile)) {
+      return res.status(400).json({ success: false, error: 'Разрешены только /tmp/backup-*.sql' });
+    }
+    const safeHost = assertSafeHost(localHost, 'localHost');
+    const safeUser = assertSafeUnixUsername(localUser, 'localUser', { allowRoot: true });
+    const safePath = assertSafeAbsPath(localPath, 'localPath');
+    // Клиентский sshKeyPath запрещён — только встроенный ключ VDS
+    const keyPath = getVdsSshIdentityPath();
     
-    let command;
-    if (sshKeyPath) {
-      command = `scp -i ${sshKeyPath} ${file} ${localUser}@${localHost}:${localPath}`;
-    } else {
-      command = `scp ${file} ${localUser}@${localHost}:${localPath}`;
+    const result = await spawnCapture('scp', [
+      '-i', keyPath,
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'UserKnownHostsFile=/dev/null',
+      safeFile,
+      `${safeUser}@${safeHost}:${safePath}`,
+    ]);
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'scp failed' });
     }
     
-    const { stdout } = await execAsync(command);
-    logger.info(`[VDS] Бэкап отправлен на ${localHost}:${localPath}`);
-    res.json({ success: true, message: 'Бэкап отправлен', output: stdout });
+    logger.info(`[VDS] Бэкап отправлен на ${safeHost}:${safePath}`);
+    res.json({ success: true, message: 'Бэкап отправлен', output: result.stdout });
   } catch (error) {
-    logger.error('[VDS] Ошибка отправки бэкапа:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, '[VDS] Ошибка отправки бэкапа:');
   }
 });
 
@@ -1292,16 +1348,25 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     }
     
     // Проверяем, используется ли Docker certbot
-    const dockerUser = vdsSettings.dockerUser || 'docker';
-    const domain = vdsSettings.domain || vdsSettings.sshHost;
+    const dockerUser = assertSafeUnixUsername(vdsSettings.dockerUser || 'docker', 'dockerUser', { allowRoot: true });
+    const domain = assertSafeHost(vdsSettings.domain || vdsSettings.sshHost, 'domain');
     // Используем только Let's Encrypt (работает без аккаунта)
     const sslProvider = 'letsencrypt';
+    const email = String(vdsSettings.email || '').trim();
+    if (!/^[^\s@;|&`$<>"']+@[^\s@;|&`$<>"']+\.[^\s@;|&`$<>"']+$/.test(email)) {
+      return res.status(400).json({ success: false, error: 'Некорректный email в настройках VDS' });
+    }
     
     // Используем путь из настроек или значение по умолчанию на основе dockerUser
     let dappPath = vdsSettings.dappPath || `/home/${dockerUser}/dapp`;
+    if (isVdsDockerRuntime()) {
+      dappPath = getLocalComposeRoot() || dappPath;
+    }
+    dappPath = assertSafeAbsPath(dappPath, 'dappPath');
+    let qDapp = shellSingleQuote(dappPath);
     
     // Проверяем существование пути и файла docker-compose.prod.yml
-    const pathCheckResult = await execDockerCommand(`test -d ${dappPath} && test -f ${dappPath}/docker-compose.prod.yml && echo "exists" || echo "not_exists"`);
+    const pathCheckResult = await execDockerCommand(`test -d ${qDapp} && test -f ${qDapp}/docker-compose.prod.yml && echo "exists" || echo "not_exists"`);
     if (pathCheckResult.stdout && pathCheckResult.stdout.includes('not_exists')) {
       logger.warn(`[VDS] Путь ${dappPath} или файл docker-compose.prod.yml не найден, ищем...`);
       
@@ -1310,7 +1375,8 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
       if (findResult.stdout && findResult.stdout.trim()) {
         const foundPath = findResult.stdout.trim().replace('/docker-compose.prod.yml', '');
         logger.info(`[VDS] Найден docker-compose.prod.yml в: ${foundPath}`);
-        dappPath = foundPath;
+        dappPath = assertSafeAbsPath(foundPath, 'dappPath');
+        qDapp = shellSingleQuote(dappPath);
       } else {
         logger.error(`[VDS] docker-compose.prod.yml не найден на VDS сервере`);
         return res.status(400).json({ 
@@ -1324,7 +1390,7 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     logger.info(`[VDS] Используем провайдер SSL: Let's Encrypt, путь: ${dappPath}`);
     
     // Проверяем статус сертификата через Docker certbot
-    const checkCommand = `cd ${dappPath} && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`;
+    const checkCommand = `cd ${shellSingleQuote(dappPath)} && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`;
     const checkResult = await execDockerCommand(checkCommand);
     
     if (checkResult.code !== 0) {
@@ -1358,12 +1424,12 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     // Пытаемся обновить сертификат через Docker certbot
     logger.info('[VDS] Обновление SSL сертификата...');
     // Сначала пробуем renew (без --force-renewal) для обновления существующего сертификата
-    const renewCommand = `cd ${dappPath} && docker compose -f docker-compose.prod.yml run --rm certbot renew --non-interactive 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot renew --non-interactive 2>&1 || certbot renew --non-interactive 2>&1`;
+    const renewCommand = `cd ${shellSingleQuote(dappPath)} && docker compose -f docker-compose.prod.yml run --rm certbot renew --non-interactive 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot renew --non-interactive 2>&1 || certbot renew --non-interactive 2>&1`;
     let renewResult = await execDockerCommand(renewCommand);
     
     if (hasValidCert && renewResult.code === 0) {
       logger.info('[VDS] Используем существующий валидный сертификат');
-      const reloadResult = await execDockerCommand(`cd ${dappPath} && (docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || docker-compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || systemctl reload nginx 2>&1)`);
+      const reloadResult = await execDockerCommand(`cd ${shellSingleQuote(dappPath)} && (docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || docker-compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || systemctl reload nginx 2>&1)`);
       logger.info('[VDS] SSL сертификат обновлен (renew)');
       return res.json({ 
         success: true, 
@@ -1393,13 +1459,13 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
         // Удаляем только сертификаты с суффиксами
         for (const certName of certNames) {
           logger.info(`[VDS] Удаление старого сертификата с суффиксом: ${certName}`);
-          const deleteCommand = `cd ${dappPath} && docker compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${certName} --non-interactive 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${certName} --non-interactive 2>&1 || true`;
+          const deleteCommand = `cd ${shellSingleQuote(dappPath)} && docker compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${shellSingleQuote(certName)} --non-interactive 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${shellSingleQuote(certName)} --non-interactive 2>&1 || true`;
           await execDockerCommand(deleteCommand);
         }
       }
       // Создаем новый сертификат только если его нет
       const email = vdsSettings.email || 'admin@example.com';
-      const certCommand = `cd ${dappPath} && (docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${email} --agree-tos --no-eff-email --non-interactive -d ${domain} 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${email} --agree-tos --no-eff-email --non-interactive -d ${domain} 2>&1 || certbot certonly --webroot --webroot-path=/var/www/certbot --email ${email} --agree-tos --no-eff-email --non-interactive -d ${domain} 2>&1)`;
+      const certCommand = `cd ${shellSingleQuote(dappPath)} && (docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${shellSingleQuote(email)} --agree-tos --no-eff-email --non-interactive -d ${shellSingleQuote(domain)} 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${shellSingleQuote(email)} --agree-tos --no-eff-email --non-interactive -d ${shellSingleQuote(domain)} 2>&1 || certbot certonly --webroot --webroot-path=/var/www/certbot --email ${shellSingleQuote(email)} --agree-tos --no-eff-email --non-interactive -d ${shellSingleQuote(domain)} 2>&1)`;
       logger.info(`[VDS] Команда создания сертификата: ${certCommand.substring(0, 300)}...`);
       renewResult = await execDockerCommand(certCommand);
       logger.info(`[VDS] Результат создания сертификата: code=${renewResult.code}, stdout длина=${renewResult.stdout?.length || 0}, stderr длина=${renewResult.stderr?.length || 0}`);
@@ -1427,7 +1493,7 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     
     if (renewResult.code === 0) {
       // Перезапускаем nginx для применения нового сертификата
-      const reloadResult = await execDockerCommand(`cd ${dappPath} && (docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || docker-compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || systemctl reload nginx 2>&1)`);
+      const reloadResult = await execDockerCommand(`cd ${shellSingleQuote(dappPath)} && (docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || docker-compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || systemctl reload nginx 2>&1)`);
       
       // Очищаем старые сертификаты с суффиксами, чтобы они не накапливались
       logger.info('[VDS] Очистка старых сертификатов с суффиксами...');
@@ -1440,7 +1506,7 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
             // Удаляем сертификаты с суффиксами (например, hb3-accelerator.com-0001, hb3-accelerator.com-0002)
             if (certName && certName !== domain && certName.startsWith(domain + '-')) {
               logger.info(`[VDS] Удаление старого сертификата с суффиксом: ${certName}`);
-              const deleteCommand = `cd ${dappPath} && docker compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${certName} --non-interactive 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${certName} --non-interactive 2>&1 || true`;
+              const deleteCommand = `cd ${shellSingleQuote(dappPath)} && docker compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${shellSingleQuote(certName)} --non-interactive 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${shellSingleQuote(certName)} --non-interactive 2>&1 || true`;
               await execDockerCommand(deleteCommand);
             }
           }
@@ -1480,8 +1546,7 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
       });
     }
   } catch (error) {
-    logger.error('[VDS] Ошибка обновления SSL сертификата:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, '[VDS] Ошибка обновления SSL сертификата:');
   }
 });
 
@@ -1496,11 +1561,15 @@ router.get('/check-dapp-path', requireAuth, requirePermission(PERMISSIONS.MANAGE
       return res.status(400).json({ success: false, error: 'VDS не настроена' });
     }
     
-    const dockerUser = vdsSettings.dockerUser || 'docker';
-    const configuredPath = vdsSettings.dappPath || `/home/${dockerUser}/dapp`;
+    const dockerUser = assertSafeUnixUsername(vdsSettings.dockerUser || 'docker', 'dockerUser', { allowRoot: true });
+    const configuredPath = assertSafeAbsPath(
+      vdsSettings.dappPath || `/home/${dockerUser}/dapp`,
+      'dappPath'
+    );
+    const qPath = shellSingleQuote(configuredPath);
     
     // Проверяем указанный путь
-    const pathCheck = await execDockerCommand(`test -d ${configuredPath} && test -f ${configuredPath}/docker-compose.prod.yml && echo "exists" || echo "not_exists"`);
+    const pathCheck = await execDockerCommand(`test -d ${qPath} && test -f ${qPath}/docker-compose.prod.yml && echo "exists" || echo "not_exists"`);
     
     // Ищем docker-compose.prod.yml на VDS
     const findResult = await execDockerCommand(`find /home /root -name "docker-compose.prod.yml" -type f 2>/dev/null`);
@@ -1516,7 +1585,7 @@ router.get('/check-dapp-path', requireAuth, requirePermission(PERMISSIONS.MANAGE
     });
   } catch (error) {
     logger.error('[VDS] Ошибка проверки пути:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return vdsSafeError(res, error, '[VDS] Ошибка проверки пути:');
   }
 });
 
@@ -1531,14 +1600,19 @@ router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
       return res.status(400).json({ success: false, error: 'VDS не настроена' });
     }
     
-    const dockerUser = vdsSettings.dockerUser || 'docker';
-    const domain = vdsSettings.domain || vdsSettings.sshHost;
+    const dockerUser = assertSafeUnixUsername(vdsSettings.dockerUser || 'docker', 'dockerUser', { allowRoot: true });
+    const domain = assertSafeHost(vdsSettings.domain || vdsSettings.sshHost, 'domain');
     
     // Используем путь из настроек или значение по умолчанию (проверено: /home/docker/dapp)
     let dappPath = vdsSettings.dappPath || `/home/${dockerUser}/dapp`;
+    if (isVdsDockerRuntime()) {
+      dappPath = getLocalComposeRoot() || dappPath;
+    }
+    dappPath = assertSafeAbsPath(dappPath, 'dappPath');
+    let qDapp = shellSingleQuote(dappPath);
     
     // Проверяем существование пути и файла docker-compose.prod.yml
-    const pathCheckResult = await execDockerCommand(`test -d ${dappPath} && test -f ${dappPath}/docker-compose.prod.yml && echo "exists" || echo "not_exists"`);
+    const pathCheckResult = await execDockerCommand(`test -d ${qDapp} && test -f ${qDapp}/docker-compose.prod.yml && echo "exists" || echo "not_exists"`);
     if (pathCheckResult.stdout && pathCheckResult.stdout.includes('not_exists')) {
       logger.warn(`[VDS] Путь ${dappPath} или файл docker-compose.prod.yml не найден, ищем...`);
       
@@ -1547,7 +1621,8 @@ router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
       if (findResult.stdout && findResult.stdout.trim()) {
         const foundPath = findResult.stdout.trim().replace('/docker-compose.prod.yml', '');
         logger.info(`[VDS] Найден docker-compose.prod.yml в: ${foundPath}`);
-        dappPath = foundPath;
+        dappPath = assertSafeAbsPath(foundPath, 'dappPath');
+        qDapp = shellSingleQuote(dappPath);
       } else {
         logger.error(`[VDS] docker-compose.prod.yml не найден на VDS сервере`);
         return res.status(400).json({ 
@@ -1559,7 +1634,7 @@ router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     
     // Используем только Let's Encrypt (работает без аккаунта)
     // Проверяем статус сертификата через Docker certbot
-    const checkCommand = `cd ${dappPath} && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`;
+    const checkCommand = `cd ${shellSingleQuote(dappPath)} && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || docker-compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`;
     const checkResult = await execDockerCommand(checkCommand);
     
     // Проверяем срок действия сертификата
@@ -1662,17 +1737,7 @@ router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
       hasCertificates: allCertificates.length > 0
     });
   } catch (error) {
-    logger.error('[VDS] Ошибка проверки SSL сертификата:', error);
-    logger.error('[VDS] Детали ошибки:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
-    res.status(500).json({ 
-      success: false, 
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    return vdsSafeError(res, error, '[VDS] Ошибка проверки SSL сертификата:');
   }
 });
 

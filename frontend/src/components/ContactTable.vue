@@ -18,31 +18,58 @@
           {{ t('contacts.personalMessages') }}
           <el-badge v-if="privateUnreadCount > 0" :value="privateUnreadCount" class="notification-badge" />
         </el-button>
-        <el-button v-if="canSendToUsers" :disabled="!hasSelectedEditor" @click="sendPublicMessage">
+        <el-button v-if="showPersonalCallsButton" @click="goToPersonalCalls">
+          {{ t('contacts.personalCalls') }}
+          <el-badge v-if="upcomingCallsCount > 0" :value="upcomingCallsCount" class="notification-badge" />
+        </el-button>
+        <el-button
+          v-if="canBroadcast"
+          :disabled="!canStartPublicBroadcast"
+          @click="sendPublicMessage"
+        >
           {{ t('contacts.publicMessage') }}
         </el-button>
-        <el-button v-if="canViewContacts" :disabled="!hasSelectedEditor" @click="sendPrivateMessage">
+        <el-button
+          v-if="canChatWithAdmins"
+          :disabled="!canStartPrivateMessage"
+          @click="sendPrivateMessage"
+        >
           {{ t('contacts.privateMessage') }}
+        </el-button>
+        <el-button
+          v-if="showScheduleCallButton"
+          :disabled="!canStartCall"
+          @click="goToCallCalendar"
+        >
+          {{ t('contacts.callAction') }}
         </el-button>
         <el-button v-if="canEditContacts" @click="goToCreateContact">{{ t('contacts.addContact') }}</el-button>
         <el-button v-if="canEditContacts" :disabled="!hasSingleSelection" @click="editSelectedContact">
           {{ t('contacts.editContact') }}
         </el-button>
-        <el-button v-if="canEditContacts" @click="goToImportContacts">{{ t('contacts.import') }}</el-button>
+        <el-button v-if="canImportContacts" @click="goToImportContacts">{{ t('contacts.import') }}</el-button>
       </div>
     </div>
 
     <div v-if="selectedCount > 0 && hasBulkActions" class="contacts-toolbar contacts-toolbar--context">
       <span class="selection-info">{{ t('common.selected', { count: selectedCount }) }}</span>
       <div class="toolbar-group-actions">
-        <el-button v-if="canManageTags" type="primary" @click="openBulkTagsDialog">
+        <el-button v-if="canManageTags || usePersonalTags" type="primary" @click="openBulkTagsDialog">
           {{ t('contacts.manageTags') }}
         </el-button>
-        <el-button v-if="canBroadcast" @click="goToBroadcastPage">
+        <el-button
+          v-if="canBroadcast"
+          :disabled="!canStartPublicBroadcast"
+          @click="goToBroadcastPage"
+        >
           {{ t('contacts.broadcast.button') }}
         </el-button>
-        <el-button v-if="canEditContacts" @click="goToConferenceFromSelection">
-          {{ t('contacts.conference.button') }}
+        <el-button
+          v-if="showScheduleCallButton"
+          :disabled="!canStartCall"
+          @click="goToCallCalendar"
+        >
+          {{ t('contacts.callAction') }}
         </el-button>
         <el-button v-if="canEditContacts" @click="goToSiteParserPage">
           {{ t('contacts.parser.button') }}
@@ -57,7 +84,7 @@
       </div>
     </div>
 
-    <el-form v-if="isEditorRole" class="filters-form" label-position="top" @submit.prevent>
+    <el-form v-if="isEditorRole || usePersonalTags" class="filters-form" label-position="top" @submit.prevent>
       <div class="filters-row filters-row--primary">
         <el-form-item :label="t('contacts.search')" class="filter-search">
           <el-input v-model="filterSearch" :placeholder="t('contacts.searchPlaceholder')" clearable @input="onSearchInput" />
@@ -118,14 +145,14 @@
             />
           </div>
         </el-form-item>
-        <el-form-item :label="t('contacts.blocked')">
+        <el-form-item v-if="isEditorRole" :label="t('contacts.blocked')">
           <el-select v-model="filterBlocked" :placeholder="t('common.all')" class="filter-field" @change="() => applyFilters(true)">
             <el-option :label="t('common.all')" value="all" />
             <el-option :label="t('contacts.blockedOnly')" value="blocked" />
             <el-option :label="t('contacts.unblockedOnly')" value="unblocked" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('contacts.tags')" class="filter-tags">
+        <el-form-item :label="usePersonalTags ? t('contacts.myTags') : t('contacts.tags')" class="filter-tags">
           <el-select
             v-model="selectedTagIds"
             multiple
@@ -204,6 +231,9 @@
             <col v-if="isColumnVisible('comment')" :style="columnWidthStyle('comment')" />
             <col v-if="isColumnVisible('link')" :style="columnWidthStyle('link')" />
             <col v-if="isColumnVisible('file')" :style="columnWidthStyle('file')" />
+            <col v-if="isColumnVisible('importedBy')" :style="columnWidthStyle('importedBy')" />
+            <col v-if="isColumnVisible('importedByRole')" :style="columnWidthStyle('importedByRole')" />
+            <col v-if="isColumnVisible('ownerDomain')" :style="columnWidthStyle('ownerDomain')" />
             <col v-if="isEditorRole" :style="columnWidthStyle('settings')" />
           </colgroup>
           <thead>
@@ -213,6 +243,7 @@
                   <input
                     ref="selectAllCheckboxRef"
                     type="checkbox"
+                    class="contact-checkbox"
                     :checked="selectAll"
                     @change="onSelectAllChange"
                   />
@@ -288,7 +319,7 @@
                 />
               </th>
               <th v-if="isColumnVisible('tags')" class="col-tags resizable-th">
-                <span class="th-label">{{ t('contacts.tags') }}</span>
+                <span class="th-label">{{ usePersonalTags ? t('contacts.myTags') : t('contacts.tags') }}</span>
                 <span
                   class="col-resize-handle"
                   :title="t('contacts.resizeColumn')"
@@ -343,6 +374,30 @@
                   @mousedown="startResize('file', $event)"
                 />
               </th>
+              <th v-if="isColumnVisible('importedBy')" class="col-imported-by resizable-th">
+                <span class="th-label">{{ t('contacts.importedBy') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('importedBy', $event)"
+                />
+              </th>
+              <th v-if="isColumnVisible('importedByRole')" class="col-imported-role resizable-th">
+                <span class="th-label">{{ t('contacts.importedByRole') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('importedByRole', $event)"
+                />
+              </th>
+              <th v-if="isColumnVisible('ownerDomain')" class="col-owner-domain resizable-th">
+                <span class="th-label">{{ t('contacts.ownerDomain') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('ownerDomain', $event)"
+                />
+              </th>
               <th v-if="isEditorRole" class="col-settings">
                 <el-popover placement="bottom-end" :width="240" trigger="click">
                   <template #reference>
@@ -386,6 +441,7 @@
               <td v-if="canViewContacts" class="col-checkbox" @click.stop>
                 <input
                   type="checkbox"
+                  class="contact-checkbox"
                   :checked="isContactSelected(contact.id)"
                   @change="onContactCheckboxChange(contact, $event)"
                 />
@@ -457,6 +513,15 @@
                 >{{ getPrimaryContactFile(contact).originalName }}</a>
                 <span v-else>-</span>
               </td>
+              <td v-if="isColumnVisible('importedBy')" class="col-imported-by" :title="formatImportedBy(contact)">
+                {{ formatImportedBy(contact) }}
+              </td>
+              <td v-if="isColumnVisible('importedByRole')" class="col-imported-role">
+                {{ formatImportedByRole(contact) }}
+              </td>
+              <td v-if="isColumnVisible('ownerDomain')" class="col-owner-domain">
+                {{ contact.owner_domain || '-' }}
+              </td>
               <td v-if="isEditorRole" class="col-settings" />
             </tr>
           </tbody>
@@ -523,7 +588,7 @@
 <script setup>
 import { defineProps, computed, ref, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElButton, ElMessageBox, ElMessage, ElPagination, ElPopover, ElCheckbox, ElCheckboxGroup } from 'element-plus';
 import messagesService from '../services/messagesService';
 import { getContacts, getContactIds } from '../services/contactsService';
@@ -534,8 +599,10 @@ import {
   setPreference
 } from '../services/userPreferencesService';
 import { usePermissions } from '@/composables/usePermissions';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { getPrivateUnreadCount } from '../services/messagesService';
+import conferenceService from '@/services/conferenceService';
 import { useRoles } from '@/composables/useRoles';
 import { loadClientTagsList, resolveClientTagsTableId } from '../utils/clientTagsTable';
 import websocketServiceModule from '../services/websocketService';
@@ -544,6 +611,8 @@ import { useResizableColumns } from '@/composables/useResizableColumns';
 import { useContactTableColumns, CONTACT_TABLE_COLUMNS } from '@/composables/useContactTableColumns';
 import { stripAutoEnrichMarkers } from '@/utils/helpers';
 
+ensureScreenAccessLoaded();
+const route = useRoute();
 const CONTACT_TABLE_COLUMN_WIDTHS = {
   checkbox: 44,
   id: 72,
@@ -574,6 +643,8 @@ const {
 
 function isColumnVisible(key) {
   if (!isEditorRole.value) {
+    if (key === 'tags' && usePersonalTags.value) return true;
+    if (key === 'file' && usePersonalTags.value) return true;
     const column = CONTACT_TABLE_COLUMNS.find((item) => item.key === key);
     return column?.defaultVisible ?? false;
   }
@@ -600,7 +671,14 @@ const PAGE_SIZE_ALL = 0;
 const ALL_MODE_CHUNK = 100;
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const router = useRouter();
-const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canBroadcast, canChatWithAdmins, canEditData, canEditContacts, canManageTags } = usePermissions();
+const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canBroadcast, canChatWithAdmins, canPersonalCalls, canScheduleCalls, canEditData, canEditContacts, canEditPersonalContactFields, canImportContacts, canManageTags } = usePermissions();
+const usePersonalTags = computed(() => canEditPersonalContactFields.value && !canManageTags.value);
+const showPersonalCallsButton = computed(() =>
+  canPersonalCalls.value && canAccessPath('/personal-calls')
+);
+const showScheduleCallButton = computed(() =>
+  canScheduleCalls.value && canAccessPath('/contacts-list/calls/calendar')
+);
 const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
 const { getRoleDisplayName, getRoleClass, fetchRoles } = useRoles();
 const { onTagsUpdate } = useTagsWebSocket();
@@ -670,8 +748,9 @@ const filterNewMessages = ref('');
 const filterNewMessagesDate = ref('');
 const filterBlocked = ref('all');
 
-// Уведомления для приватных сообщений
+// Уведомления для приватных сообщений / звонков
 const privateUnreadCount = ref(0);
+const upcomingCallsCount = ref(0);
 
 // Функция для загрузки количества непрочитанных приватных сообщений
 async function loadPrivateUnreadCount() {
@@ -686,19 +765,34 @@ async function loadPrivateUnreadCount() {
   }
 }
 
+async function loadUpcomingCallsCount() {
+  if (!canPersonalCalls.value) {
+    upcomingCallsCount.value = 0;
+    return;
+  }
+  try {
+    const data = await conferenceService.getMyUpcomingCallsCount();
+    upcomingCallsCount.value = Number(data.count) || 0;
+  } catch {
+    upcomingCallsCount.value = 0;
+  }
+}
+
 const availableTags = ref([]);
 const selectedTagIds = ref([]);
 const isLoadingTags = ref(false);
 
 async function loadAvailableTags() {
-  if (!isEditorRole.value) {
-    availableTags.value = [];
-    return;
-  }
-
   isLoadingTags.value = true;
   try {
-    availableTags.value = await loadClientTagsList();
+    if (usePersonalTags.value) {
+      const data = await contactsService.getMyTagsDictionary();
+      availableTags.value = Array.isArray(data?.tags) ? data.tags : [];
+    } else if (isEditorRole.value) {
+      availableTags.value = await loadClientTagsList();
+    } else {
+      availableTags.value = [];
+    }
   } catch (error) {
     console.error('[ContactTable] Ошибка загрузки тегов:', error);
     availableTags.value = [];
@@ -882,11 +976,15 @@ function getContactByIdLocal(id) {
   return pageContacts.value.find(c => normalizeContactId(c.id) === norm) || null;
 }
 
-const hasSelectedEditor = computed(() => (
-  selectedIdsForActions.value.some(id => getContactByIdLocal(id)?.role === 'editor')
-));
+/** Приват: ровно один зарегистрированный. Публичное (рассылка): два и больше. Звонок: 1–3. */
+const canStartPrivateMessage = computed(() => selectedRegisteredUserIds.value.length === 1);
+const canStartPublicBroadcast = computed(() => selectedRegisteredUserIds.value.length >= 2);
+const canStartCall = computed(() => {
+  const n = selectedRegisteredUserIds.value.length;
+  return n >= 1 && n <= 3;
+});
 
-const hasBulkActions = computed(() => canManageTags.value || canBroadcast.value || canEditContacts.value || canDeleteMessages.value || canDeleteData.value);
+const hasBulkActions = computed(() => canManageTags.value || usePersonalTags.value || canBroadcast.value || canEditContacts.value || canDeleteMessages.value || canDeleteData.value);
 
 const showAdvancedFilters = ref(false);
 
@@ -1040,7 +1138,9 @@ function formatContactDate(value) {
 }
 
 function formatContactTags(contact) {
-  const tagIds = Array.isArray(contact.tag_ids) ? contact.tag_ids : [];
+  const tagIds = usePersonalTags.value
+    ? (Array.isArray(contact.my_tag_ids) ? contact.my_tag_ids : [])
+    : (Array.isArray(contact.tag_ids) ? contact.tag_ids : []);
   if (!tagIds.length) return '-';
   const names = tagIds
     .map((tagId) => tagNameById.value.get(tagId) || `#${tagId}`)
@@ -1078,6 +1178,17 @@ function formatContactLastMessageAt(contact) {
   return formatContactDate(value);
 }
 
+function formatImportedBy(contact) {
+  if (contact.imported_by_email) return contact.imported_by_email;
+  if (contact.imported_by_user_id) return `#${contact.imported_by_user_id}`;
+  return '-';
+}
+
+function formatImportedByRole(contact) {
+  if (!contact.imported_by_role) return '-';
+  return getRoleDisplayName(contact.imported_by_role) || contact.imported_by_role;
+}
+
 watch(visibleColumnKeys, (keys) => {
   if (!isEditorRole.value) return;
   if (!keys.length) {
@@ -1096,6 +1207,12 @@ watch(isEditorRole, async (isEditor) => {
   if (isEditor) {
     await loadAvailableTags();
     await setupTagsTableWebSocket();
+  } else if (usePersonalTags.value) {
+    await loadAvailableTags();
+    if (unsubscribeTagsTableUpdate) {
+      unsubscribeTagsTableUpdate();
+      unsubscribeTagsTableUpdate = null;
+    }
   } else {
     availableTags.value = [];
     if (unsubscribeTagsTableUpdate) {
@@ -1104,6 +1221,10 @@ watch(isEditorRole, async (isEditor) => {
     }
   }
 });
+
+watch(usePersonalTags, async (enabled) => {
+  if (enabled) await loadAvailableTags();
+}, { immediate: true });
 
 function buildFilterParams(options = {}) {
   const append = Boolean(options.append);
@@ -1119,7 +1240,10 @@ function buildFilterParams(options = {}) {
   }
 
   const params = { limit, offset };
-  if (selectedTagIds.value.length > 0) params.tagIds = selectedTagIds.value.join(',');
+  if (selectedTagIds.value.length > 0) {
+    if (usePersonalTags.value) params.myTagIds = selectedTagIds.value.join(',');
+    else params.tagIds = selectedTagIds.value.join(',');
+  }
   if (filterCreatedDateFrom.value) params.createdDateFrom = formatDateOnly(filterCreatedDateFrom.value);
   if (filterCreatedDateTo.value) params.createdDateTo = formatDateOnly(filterCreatedDateTo.value);
   if (filterMessageDateFrom.value) params.messageDateFrom = formatDateOnly(filterMessageDateFrom.value);
@@ -1131,6 +1255,10 @@ function buildFilterParams(options = {}) {
     params.newMessagesDate = formatDateOnly(filterNewMessagesDate.value);
   }
   if (filterBlocked.value && filterBlocked.value !== 'all') params.blocked = filterBlocked.value;
+  const profileOwner = route.query.owner;
+  if (profileOwner != null && String(profileOwner).trim() !== '') {
+    params.owner = String(profileOwner).trim();
+  }
   return params;
 }
 
@@ -1427,6 +1555,7 @@ onMounted(async () => {
     try {
       await fetchRoles();
       await loadPrivateUnreadCount();
+      await loadUpcomingCallsCount();
       await loadAvailableTags();
       await setupTagsTableWebSocket();
       await loadSavedFilters();
@@ -1464,6 +1593,12 @@ watch(isAuthenticated, async (newValue) => {
     selectAll.value = false;
     teardownContactsWebSocket();
   }
+});
+
+watch(() => route.query.owner, async () => {
+  if (!isAuthenticated.value) return;
+  currentPage.value = 1;
+  await loadContactsPage();
 });
 
 onUnmounted(() => {
@@ -1555,32 +1690,21 @@ async function openChatForSelected() {
   await goToContactDetails(contact.id);
 }
 
-// Новая функция для отправки публичного сообщения
+// Публичное сообщение с списка = рассылка (≥2 выбранных)
 function sendPublicMessage() {
-  if (!selectedIdsForActions.value.length) {
-    ElMessage.warning(t('contacts.selectContactPublic'));
+  if (!canStartPublicBroadcast.value) {
+    ElMessage.warning(t('contacts.selectForBroadcast'));
     return;
   }
-  
-  const contactId = selectedIdsForActions.value[0];
-  const contact = getContactByIdLocal(contactId);
-  if (!contact) {
-    ElMessage.error(t('contacts.contactNotFound'));
-    return;
-  }
-  
-  // Открываем страницу детали контакта с чатом для публичных сообщений
-  goToContactDetails(contactId);
+  goToBroadcastPage();
 }
 
-// Функция для открытия приватного чата
+// Приватное: ровно один зарегистрированный контакт
 function sendPrivateMessage() {
-  if (!selectedIdsForActions.value.length) {
+  if (!canStartPrivateMessage.value) {
     ElMessage.warning(t('contacts.selectContactPrivate'));
     return;
   }
-  
-  // Открываем приватный чат вместо отправки через prompt
   openPrivateChatForSelected();
 }
 
@@ -1618,6 +1742,10 @@ function goToPersonalMessages() {
   router.push({ name: 'personal-messages' });
 }
 
+function goToPersonalCalls() {
+  router.push({ name: 'personal-calls' });
+}
+
 function goToBroadcastPage() {
   if (!selectedRegisteredUserIds.value.length) {
     if (selectedGuestCount.value > 0) {
@@ -1636,32 +1764,26 @@ function goToBroadcastPage() {
   });
 }
 
-/**
- * CRM bulk: только multi (2–3). 1:1 — со страницы контакта.
- */
-function goToConferenceFromSelection() {
+/** TZ_CALL_SYSTEM: 1–3 registered → Календарь (не silent create). */
+function goToCallCalendar() {
   const ids = selectedRegisteredUserIds.value;
   if (!ids.length) {
     if (selectedGuestCount.value > 0) {
       ElMessage.warning(t('contacts.conference.bulk.guestsExcluded'));
     } else {
-      ElMessage.warning(t('contacts.conference.bulk.selectRegistered'));
+      ElMessage.warning(t('contacts.calls.selectForCall'));
     }
     return;
   }
-  if (ids.length === 1) {
-    ElMessage.warning(t('contacts.conference.bulk.needMulti'));
-    return;
-  }
   if (ids.length > 3) {
-    ElMessage.warning(t('contacts.conference.bulk.maxThree'));
+    ElMessage.warning(t('contacts.calls.maxThree'));
     return;
   }
   if (selectedGuestCount.value > 0) {
     ElMessage.info(t('contacts.conference.bulk.guestsExcluded'));
   }
   router.push({
-    name: 'hub-conferences',
+    name: 'contacts-calls-calendar',
     query: { ids: ids.join(',') }
   });
 }
@@ -1715,10 +1837,17 @@ async function applyBulkTags() {
 
   bulkTagsLoading.value = true;
   try {
-    await contactsService.addTagsToContactsBulk(
-      selectedRegisteredUserIds.value,
-      bulkSelectedTagIds.value
-    );
+    if (usePersonalTags.value) {
+      await contactsService.addMyTagsToContactsBulk(
+        selectedRegisteredUserIds.value,
+        bulkSelectedTagIds.value
+      );
+    } else {
+      await contactsService.addTagsToContactsBulk(
+        selectedRegisteredUserIds.value,
+        bulkSelectedTagIds.value
+      );
+    }
     ElMessage.success(t('contacts.bulkAddTagsSuccess', {
       users: selectedRegisteredUserIds.value.length,
       tags: bulkSelectedTagIds.value.length
@@ -1753,10 +1882,17 @@ async function applyBulkRemoveTags() {
 
   bulkTagsLoading.value = true;
   try {
-    await contactsService.removeTagsFromContactsBulk(
-      selectedRegisteredUserIds.value,
-      bulkSelectedTagIds.value
-    );
+    if (usePersonalTags.value) {
+      await contactsService.removeMyTagsFromContactsBulk(
+        selectedRegisteredUserIds.value,
+        bulkSelectedTagIds.value
+      );
+    } else {
+      await contactsService.removeTagsFromContactsBulk(
+        selectedRegisteredUserIds.value,
+        bulkSelectedTagIds.value
+      );
+    }
     ElMessage.success(t('contacts.bulkRemoveTagsSuccess', {
       users: selectedRegisteredUserIds.value.length,
       tags: bulkSelectedTagIds.value.length
@@ -2168,6 +2304,60 @@ async function deleteMessagesSelected() {
 
 .col-checkbox .th-label {
   padding-right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contact-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid color-mix(in srgb, var(--color-primary) 45%, #94a3b8);
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.contact-checkbox::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: transform 0.12s ease;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+  background: #fff;
+}
+
+.contact-checkbox:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+.contact-checkbox:checked::before {
+  transform: scale(1);
+}
+
+.contact-checkbox:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.contact-checkbox:indeterminate {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.contact-checkbox:indeterminate::before {
+  transform: scale(1);
+  clip-path: inset(40% 15% 40% 15%);
 }
 
 .col-id,

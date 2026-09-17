@@ -17,9 +17,9 @@ const aiAssistant = require('../services/ai-assistant');
 const db = require('../db');
 const encryptedDb = require('../services/encryptedDatabaseService');
 const logger = require('../utils/logger');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
-const { PERMISSIONS, hasPermission } = require('../shared/permissions');
+const { PERMISSIONS, hasPermission } = require('/app/shared/permissions');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botManager = require('../services/botManager');
@@ -80,16 +80,13 @@ router.post('/guest-message', chatUpload, chatMediaRateLimit, async (req, res) =
       });
     }
 
-    // Web-чат не ждёт Telegram/Email: достаточно Web Bot или полного BotManager
-    const webBotReady = (() => {
+    // Web-чат (карточка / ИИ) идёт через unifiedMessageProcessor — Telegram/Email-боты не обязательны.
+    // Жёсткий 503 ломал отправку Ваня→Саша на /contacts/:id после рестарта backend.
+    if (!botManager.isReady()) {
       const webBot = botManager.getBot('web');
-      return Boolean(webBot && webBot.isInitialized);
-    })();
-    if (!botManager.isReady() && !webBotReady) {
-      return res.status(503).json({
-        success: false,
-        error: 'Система ботов не готова. Попробуйте позже.'
-      });
+      if (!(webBot && webBot.isInitialized)) {
+        logger.warn('[Chat] BotManager/WebBot ещё не готовы — продолжаем web-сообщение без ботов');
+      }
     }
 
     if (await chatRoleCapabilitiesService.rejectIfChatCapDenied(
@@ -228,16 +225,12 @@ router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req,
       });
     }
 
-    // Web-чат не ждёт Telegram/Email: достаточно Web Bot или полного BotManager
-    const webBotReady = (() => {
+    // Web-чат карточки / ИИ — без обязательного BotManager (см. guest handler выше)
+    if (!botManager.isReady()) {
       const webBot = botManager.getBot('web');
-      return Boolean(webBot && webBot.isInitialized);
-    })();
-    if (!botManager.isReady() && !webBotReady) {
-      return res.status(503).json({
-        success: false,
-        error: 'Система ботов не готова. Попробуйте позже.'
-      });
+      if (!(webBot && webBot.isInitialized)) {
+        logger.warn('[Chat] BotManager/WebBot ещё не готовы — продолжаем auth web-сообщение без ботов');
+      }
     }
 
     const senderRole = req.session.userAccessLevel?.level || 'user';
@@ -284,18 +277,14 @@ router.post('/message', requireAuth, chatUpload, chatMediaRateLimit, async (req,
 
     const user = users[0];
 
-    // Находим wallet идентификатор пользователя
-    const walletIdentity = await identityService.findIdentity(userId, 'wallet');
-    
-    if (!walletIdentity) {
+    const { resolveSenderIdentifier } = require('../utils/senderIdentifier');
+    const identifier = await resolveSenderIdentifier(userId);
+    if (!identifier) {
       return res.status(403).json({
         success: false,
-        error: 'Требуется подключение кошелька'
+        error: 'Не найден способ связи аккаунта (email, telegram или кошелёк)'
       });
     }
-
-    // Создаем identifier для пользователя
-    const identifier = `wallet:${walletIdentity.provider_id}`;
 
     let attachments = [];
     let messageContent = content;
@@ -609,7 +598,7 @@ router.post('/ai-draft', requireAuth, requirePermission(PERMISSIONS.GENERATE_AI_
 });
 
 // Перезапуск конкретного бота (только для админов)
-router.post('/restart-bot', requireAdmin, async (req, res) => {
+router.post('/restart-bot', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { botName } = req.body;
 

@@ -25,6 +25,7 @@ const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
 const identityService = require('../services/identity-service');
 const sessionService = require('../services/session-service');
+const authDomainRulesService = require('../services/authDomainRulesService');
 // Используем централизованный сервис для работы с согласиями
 const consentService = require('../services/consentService');
 const { DOCUMENT_CONSENT_MAP } = consentService;
@@ -51,13 +52,29 @@ function getSiweStatement(locale) {
   return SIWE_STATEMENTS[resolveSiweLocale(locale)];
 }
 
-// Создаем лимитер для попыток аутентификации (отключено - лимиты убраны)
+// Лимиты auth / OTP (раньше max≈∞ — временно «для тестов»)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 1000000, // Очень большой лимит (практически без ограничений)
+  windowMs: 15 * 60 * 1000,
+  max: 40,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток аутентификации. Попробуйте позже.' },
+});
+
+const emailOtpInitLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Слишком много запросов кода. Подождите 15 минут.' },
+});
+
+const emailOtpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Слишком много попыток ввода кода. Подождите 15 минут.' },
 });
 
 // Получение nonce для аутентификации
@@ -575,8 +592,25 @@ router.post('/telegram/verify', async (req, res) => {
   }
 });
 
+// Публичная политика: нужна ли корп. почта для новой регистрации
+router.get('/email/registration-policy', async (req, res) => {
+  try {
+    const policy = await authDomainRulesService.getRegistrationPolicy();
+    return res.json({
+      success: true,
+      requireListedDomain: Boolean(policy.require_listed_domain),
+    });
+  } catch (error) {
+    logger.error('Error reading email registration policy:', error);
+    return res.json({
+      success: true,
+      requireListedDomain: true,
+    });
+  }
+});
+
 // Маршрут для запроса кода подтверждения по email
-router.post('/email/request', authLimiter, async (req, res) => {
+router.post('/email/request', emailOtpInitLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     const privacyAccepted = Boolean(req.body?.privacyAccepted);
@@ -614,12 +648,17 @@ router.post('/email/request', authLimiter, async (req, res) => {
     }
   } catch (error) {
     logger.error('Error requesting email code:', error);
-    res.status(500).json({ error: error.message || 'Ошибка сервера' });
+    const status = error.status || 500;
+    res.status(status).json({
+      success: false,
+      error: error.message || 'Ошибка сервера',
+      code: error.code,
+    });
   }
 });
 
 // Маршрут для верификации email
-router.post('/email/verify-code', async (req, res) => {
+router.post('/email/verify-code', emailOtpVerifyLimiter, async (req, res) => {
   try {
     const { code, email } = req.body;
 
@@ -762,13 +801,16 @@ router.post('/email/verify-code', async (req, res) => {
 
   } catch (error) {
     logger.error('[email/verify-code] Error:', error);
-    // Проверяем, является ли ошибка созданной нами в authService
-    const errorMessage = error.message === 'Ошибка обработки верификации Email'
-      ? error.message
-      : 'Ошибка сервера';
-    return res.status(500).json({
+    const status = error.status || 500;
+    const errorMessage = error.status
+      ? (error.message || 'Ошибка привязки email')
+      : (error.message === 'Ошибка обработки верификации Email'
+        ? error.message
+        : 'Ошибка сервера');
+    return res.status(status).json({
       success: false,
       error: errorMessage,
+      code: error.code,
     });
   }
 });
@@ -810,7 +852,7 @@ router.post('/telegram/init', async (req, res) => {
 });
 
 // Инициализация email аутентификации
-router.post('/email/init', async (req, res) => {
+router.post('/email/init', emailOtpInitLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -833,9 +875,11 @@ router.post('/email/init', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in email auth initialization:', error);
-    res.status(500).json({
+    const status = error.status || 500;
+    res.status(status).json({
       success: false,
-      error: 'Внутренняя ошибка сервера',
+      error: error.message || 'Внутренняя ошибка сервера',
+      code: error.code,
     });
   }
 });
@@ -847,40 +891,36 @@ router.get('/check', async (req, res) => {
     const authType = req.session.authType || null;
 
     let identities = [];
-    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
+    let userAccessLevel = {
+      level: 'user',
+      tokenCount: 0,
+      hasAccess: false,
+      dataScope: 'own',
+      domain: null,
+      isDomainAdmin: false,
+    };
 
     if (authenticated && req.session.userId) {
-      // Если пользователь аутентифицирован, получаем его идентификаторы из БД
       try {
         identities = await identityService.getUserIdentities(req.session.userId);
 
-        // Для пользователей с кошельком проверяем токены в реальном времени
-        if (authType === 'wallet' && req.session.address) {
-          userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-          logger.info(`[auth/check] Access level for wallet ${req.session.address}:`, userAccessLevel);
-        } else {
-          // Для других типов аутентификации используем роль из БД
-          const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
-            req.session.userId,
-          ]);
-
-          if (roleResult.rows.length > 0) {
-            const role = roleResult.rows[0].role;
-            // Преобразуем старую роль в новый формат
-            // Определяем userAccessLevel на основе роли
-            if (role === 'editor') {
-              userAccessLevel = { level: 'editor', tokenCount: 5999998, hasAccess: true };
-            } else if (role === 'readonly') {
-              userAccessLevel = { level: 'readonly', tokenCount: 100, hasAccess: true };
-            } else {
-              userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
-            }
+        const accessResolver = require('../services/accessResolverService');
+        const access = await accessResolver.resolveAccess(req.session.userId);
+        let walletLevel = null;
+        if (req.session.address) {
+          try {
+            walletLevel = await authService.getUserAccessLevel(req.session.address);
+          } catch (walletErr) {
+            logger.warn(`[auth/check] getUserAccessLevel: ${walletErr.message}`);
           }
         }
-        
+        userAccessLevel = authService.userAccessLevelFromAccess(access, walletLevel);
         req.session.userAccessLevel = userAccessLevel;
+        logger.info(
+          `[auth/check] user ${req.session.userId}: level=${userAccessLevel.level} scope=${userAccessLevel.dataScope} domainAdmin=${userAccessLevel.isDomainAdmin}`
+        );
       } catch (error) {
-        logger.error(`[session/check] Error fetching identities: ${error.message}`);
+        logger.error(`[session/check] Error fetching identities/access: ${error.message}`);
       }
     }
 
@@ -900,7 +940,10 @@ router.get('/check', async (req, res) => {
       guestId: req.session.guestId || null,
       authType,
       identitiesCount: identities.length,
-      userAccessLevel: userAccessLevel,
+      userAccessLevel,
+      dataScope: userAccessLevel.dataScope || (authenticated ? 'own' : 'none'),
+      domain: userAccessLevel.domain ?? null,
+      isDomainAdmin: Boolean(userAccessLevel.isDomainAdmin),
     };
 
     // Добавляем специфические поля в зависимости от типа аутентификации
@@ -1093,8 +1136,9 @@ router.post('/wallet', async (req, res) => {
 
     // Роль через access resolver (токены + corp email/domain)
     const accessResolver = require('../services/accessResolverService');
-    await accessResolver.recompute(userId);
-    const userAccessLevel = await authService.getUserAccessLevel(address);
+    const access = await accessResolver.recompute(userId);
+    const walletLevel = await authService.getUserAccessLevel(address);
+    const userAccessLevel = authService.userAccessLevelFromAccess(access, walletLevel);
 
     // Устанавливаем сессию
     req.session.userId = userId;
@@ -1115,6 +1159,9 @@ router.post('/wallet', async (req, res) => {
       userId,
       address,
       userAccessLevel,
+      dataScope: userAccessLevel.dataScope,
+      domain: userAccessLevel.domain,
+      isDomainAdmin: userAccessLevel.isDomainAdmin,
       authenticated: true,
     });
   } catch (error) {
@@ -1196,8 +1243,19 @@ router.get('/access-level/:address', async (req, res) => {
   try {
     const { address } = req.params;
 
-    // Получаем уровень доступа пользователя
-    const accessLevel = await authService.getUserAccessLevel(address);
+    const walletLevel = await authService.getUserAccessLevel(address);
+    let accessLevel = walletLevel;
+
+    if (req.session?.authenticated && req.session.userId) {
+      try {
+        const accessResolver = require('../services/accessResolverService');
+        const access = await accessResolver.resolveAccess(req.session.userId);
+        accessLevel = authService.userAccessLevelFromAccess(access, walletLevel);
+        req.session.userAccessLevel = accessLevel;
+      } catch (scopeErr) {
+        logger.warn(`[access-level] resolveAccess: ${scopeErr.message}`);
+      }
+    }
 
     res.json({
       success: true,

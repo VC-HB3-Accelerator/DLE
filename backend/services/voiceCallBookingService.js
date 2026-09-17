@@ -129,13 +129,16 @@ async function saveSchedule(payload = {}) {
   };
 }
 
-async function bookSlot(owner, startsAt) {
+async function bookSlot(owner, startsAt, { pageId = null } = {}) {
   await ensureVoiceCallSchema();
   if (owner.ownerType !== 'user') {
     const err = new Error('Чтобы записаться, войдите в аккаунт');
     err.status = 401;
     err.code = 'AUTH_REQUIRED';
-    err.returnUrl = sanitizeReturnUrl(bookingPageUrl());
+    const returnPath = pageId
+      ? `${bookingPageUrl()}?page=${encodeURIComponent(pageId)}`
+      : bookingPageUrl();
+    err.returnUrl = sanitizeReturnUrl(returnPath);
     throw err;
   }
   const { settings, editorId } = await requireEditorConfigured();
@@ -156,6 +159,21 @@ async function bookSlot(owner, startsAt) {
     err.status = 400;
     err.code = 'SLOT_OUTSIDE_HOURS';
     throw err;
+  }
+
+  let conferenceTitle = 'Запись на звонок с сотрудником';
+  let listingMeta = null;
+  const listingPageId = Number(pageId);
+  if (Number.isInteger(listingPageId) && listingPageId > 0) {
+    try {
+      const listingContactService = require('./listingContactService');
+      listingMeta = await listingContactService.resolvePageMeta(listingPageId);
+      if (listingMeta) {
+        conferenceTitle = `Звонок по объявлению: ${listingMeta.title}`;
+      }
+    } catch (_) {
+      /* ignore */
+    }
   }
 
   const id = crypto.randomUUID();
@@ -179,12 +197,21 @@ async function bookSlot(owner, startsAt) {
     owner.ownerUserId,
     {
       create_new: true,
-      title: 'Запись на звонок с сотрудником',
+      title: conferenceTitle,
+      notes: listingMeta
+        ? [
+            `Объявление: ${listingMeta.title}`,
+            `Ссылка: ${listingMeta.url}`,
+            listingMeta.owner_user_id ? `ID автора: ${listingMeta.owner_user_id}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : undefined,
       scheduled_at: start.toISOString(),
       schedule: true,
       notify_email: true,
       notify_telegram: true,
-      status: 'scheduled'
+      status: 'scheduled',
     },
     editorId
   );

@@ -53,20 +53,12 @@ const requireAuth = async (req, res, next) => {
 };
 
 /**
- * Middleware для проверки прав администратора
+ * Middleware: только роль editor (секреты: ключ шифрования, пароль БД).
+ * Не смотрит матрицу «Действия» — для обычных настроек используйте
+ * requirePermission(PERMISSIONS.MANAGE_SETTINGS).
  */
 async function requireAdmin(req, res, next) {
   try {
-    // Временно включаем логирование для диагностики
-    logger.info(`[requireAdmin] Проверка доступа для ${req.method} ${req.url}`);
-    logger.info(`[requireAdmin] Session:`, {
-      exists: !!req.session,
-      authenticated: req.session?.authenticated,
-      userAccessLevel: req.session?.userAccessLevel,
-      userId: req.session?.userId,
-      address: req.session?.address
-    });
-    
     const isAuthenticated = req.session?.authenticated ||
       (req.session?.userId && req.session?.authType) ||
       (req.session?.address && req.session?.authType === 'wallet');
@@ -76,40 +68,33 @@ async function requireAdmin(req, res, next) {
       return next(createError('Требуется аутентификация', 401));
     }
 
-    // Проверка через сессию
-    if (req.session.userAccessLevel?.hasAccess) {
-      // logger.info(`[requireAdmin] Доступ разрешен через сессию userAccessLevel`); // Убрано
+    if (req.session.userAccessLevel?.level === ROLES.EDITOR) {
       return next();
     }
 
-    // Проверка через кошелек
     if (req.session.address) {
-      // logger.info(`[requireAdmin] Проверка через кошелек: ${req.session.address}`); // Убрано
       const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-      if (userAccessLevel.hasAccess) {
-        // Обновляем сессию
+      if (userAccessLevel.level === ROLES.EDITOR) {
         req.session.userAccessLevel = userAccessLevel;
-        // logger.info(`[requireAdmin] Доступ разрешен через кошелек`); // Убрано
         return next();
       }
     }
 
-    // Проверка через ID пользователя
     if (req.session.userId) {
-      // logger.info(`[requireAdmin] Проверка через userId: ${req.session.userId}`); // Убрано
       const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
         req.session.userId,
       ]);
-      if (userResult.rows.length > 0 && (userResult.rows[0].role === 'editor' || userResult.rows[0].role === 'readonly')) {
-        // Обновляем сессию
-        req.session.userAccessLevel = { level: 'editor', tokenCount: 0, hasAccess: true };
-        // logger.info(`[requireAdmin] Доступ разрешен через userId`); // Убрано
+      if (userResult.rows.length > 0 && userResult.rows[0].role === ROLES.EDITOR) {
+        req.session.userAccessLevel = {
+          ...(req.session.userAccessLevel || {}),
+          level: ROLES.EDITOR,
+          hasAccess: true,
+        };
         return next();
       }
     }
 
-    // Если ни одна проверка не прошла
-    logger.warn(`[requireAdmin] Доступ запрещен - все проверки не прошли`);
+    logger.warn(`[requireAdmin] Доступ запрещен (нужна роль editor)`);
     return next(createError('Доступ запрещен', 403));
   } catch (error) {
     logger.error(`Error in requireAdmin middleware: ${error.message}`);
@@ -124,17 +109,15 @@ async function requireAdmin(req, res, next) {
 function requireRole(role) {
   return async (req, res, next) => {
     try {
-      // Проверка аутентификации
       if (!req.session || !req.session.authenticated) {
         return next(createError('Требуется аутентификация', 401));
       }
 
-      // Для администраторов разрешаем все
-      if (req.session.userAccessLevel?.hasAccess) {
+      // Editor проходит любую requireRole (полный доступ)
+      if (req.session.userAccessLevel?.level === ROLES.EDITOR) {
         return next();
       }
 
-      // Проверка через ID пользователя
       if (req.session.userId) {
         const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
           req.session.userId,
@@ -144,7 +127,6 @@ function requireRole(role) {
         }
       }
 
-      // Если проверка не прошла
       return next(createError('Доступ запрещен', 403));
     } catch (error) {
       logger.error(`Error in requireRole middleware: ${error.message}`);

@@ -10,9 +10,9 @@ const encryptionUtils = require('../utils/encryptionUtils');
 
 const encryptionKey = encryptionUtils.getEncryptionKey();
 
-/** Публичный автор комментария: только id, без email/telegram/wallet. */
+/** Публичный автор: только id, без User/#, email, telegram, wallet. */
 function getUserDisplayName(userId) {
-  return `User #${userId}`;
+  return `id${userId}`;
 }
 
 async function pageExists(pageId) {
@@ -111,7 +111,7 @@ async function getEngagement(pageId, currentUserId = null) {
       body: c.body,
       created_at: c.created_at,
       updated_at: c.updated_at,
-      author_name: authorNames[c.user_id] || `User #${c.user_id}`,
+      author_name: authorNames[c.user_id] || getUserDisplayName(c.user_id),
       replies: commentRows
         .filter((r) => r.parent_id === c.id)
         .map((r) => ({
@@ -122,7 +122,7 @@ async function getEngagement(pageId, currentUserId = null) {
           body: r.body,
           created_at: r.created_at,
           updated_at: r.updated_at,
-          author_name: authorNames[r.user_id] || `User #${r.user_id}`,
+          author_name: authorNames[r.user_id] || getUserDisplayName(r.user_id),
         })),
     }));
 
@@ -202,8 +202,11 @@ async function addComment(pageId, userId, body, parentId = null) {
   }
 
   const trimmed = String(body || '').trim();
-  if (!trimmed || trimmed.length > 5000) {
+  if (!trimmed) {
     throw new Error('Некорректный текст комментария');
+  }
+  if (trimmed.length > 500) {
+    throw new Error('Комментарий не длиннее 500 символов');
   }
 
   if (parentId) {
@@ -416,6 +419,7 @@ async function getPreviewCommentsByPageIds(pageIds, limitPerPage = 2) {
     if (!byPage[row.page_id]) byPage[row.page_id] = [];
     byPage[row.page_id].push({
       id: row.id,
+      user_id: row.user_id,
       body: row.body,
       created_at: row.created_at,
       author_name: authorCache[row.user_id],

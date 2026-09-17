@@ -13,11 +13,12 @@ export default {
    * @param {{ media_type?: string, q?: string, limit?: number, offset?: number, scope?: 'cms'|'all', source?: string }} opts
    * scope=cms — только статьи (пикер); scope=all — CMS+чат+гости (очистка)
    */
-  async list({ media_type, q, limit = 24, offset = 0, scope = 'cms', source } = {}) {
+  async list({ media_type, q, limit = 24, offset = 0, scope = 'cms', source, owner } = {}) {
     const params = { limit, offset, scope };
     if (media_type) params.media_type = media_type;
     if (q) params.q = q;
     if (source) params.source = source;
+    if (owner) params.owner = owner;
     const res = await api.get('/uploads/media', { params });
     return res.data;
   },

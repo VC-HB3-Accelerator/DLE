@@ -17,14 +17,13 @@
       <div v-if="isLoading" class="page-state">{{ t('common.loading') }}</div>
       <div v-else-if="!contact && !isCreateMode" class="page-state">{{ t('contacts.contactNotFound') }}</div>
       <div v-else class="contact-details-content">
-        <header class="contact-details-header">
+        <header v-if="showContactPageTitle" class="contact-details-header">
           <div class="header-top">
             <div class="header-main">
               <h1>{{ contactTitle }}</h1>
               <p v-if="contact.name?.trim()" class="header-subtitle">{{ t('contacts.details.userId') }} {{ contact.id }}</p>
             </div>
           </div>
-          <ContactDetailsNav v-if="!isCreateMode" />
         </header>
 
         <router-view />
@@ -39,9 +38,9 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '@/components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
-import ContactDetailsNav from './ContactDetailsNav.vue';
 import { provideContactDetails } from '@/composables/useContactDetails';
 import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
 import websocketServiceModule from '@/services/websocketService';
 
@@ -49,11 +48,20 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { canViewContacts } = usePermissions();
+const { userId: sessionUserId } = useAuthContext();
 const { markContactAsRead } = useContactsAndMessagesWebSocket();
 const { websocketService } = websocketServiceModule;
 
 const userId = computed(() => route.params.id);
 const { contact, isLoading, isCreateMode, reloadContact } = provideContactDetails(userId);
+
+const isOwnCard = computed(() => (
+  sessionUserId.value != null
+  && String(sessionUserId.value) === String(userId.value)
+));
+
+/** Своё имя — в личном сайдбаре вместо «Рабочее место»; на странице не дублируем. */
+const showContactPageTitle = computed(() => isCreateMode.value || !isOwnCard.value);
 
 const pageCloseHandler = ref(null);
 provide('registerPageCloseHandler', (fn) => {
@@ -68,14 +76,7 @@ function handlePageClose() {
     pageCloseHandler.value();
     return;
   }
-  try {
-    if (window.history.state?.back != null || window.history.length > 1) {
-      router.back();
-      return;
-    }
-  } catch {
-    /* ignore */
-  }
+  // Как «Закрыть» на стр.2 личного сайдбара → список контактов (стр.1 workspace).
   router.push({ name: 'contacts-list' });
 }
 

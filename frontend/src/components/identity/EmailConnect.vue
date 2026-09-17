@@ -21,8 +21,8 @@
       </div>
     <div v-if="!showVerification" class="email-form">
         <label for="email-input" class="form-label">{{ t('identity.email.title') }}</label>
-        <input id="email-input" v-model="email" type="email" :placeholder="t('identity.email.placeholder')" class="email-input" :disabled="isLoading" autocomplete="email" />
-        <div class="form-hint">{{ t('identity.email.codeHint') }}</div>
+        <input id="email-input" v-model="email" type="email" :placeholder="emailPlaceholder" class="email-input" :disabled="isLoading" autocomplete="email" />
+        <div class="form-hint">{{ emailHint }}</div>
         <label class="email-consent">
           <input v-model="privacyAccepted" type="checkbox" :disabled="isLoading" />
           <span>
@@ -64,17 +64,6 @@
 
   const { t } = useI18n();
   const privacyDocsUrl = getPrivacyDocsUrl();
-
-  onMounted(() => {
-    window.addEventListener('clear-application-data', () => {
-      console.log('[EmailConnect] Clearing email connect data');
-    });
-    
-    window.addEventListener('refresh-application-data', () => {
-      console.log('[EmailConnect] Refreshing email connect data');
-    });
-  });
-
   const emit = defineEmits(['close', 'success']);
   const { checkAuth } = useAuthContext();
 
@@ -85,9 +74,40 @@
   const privacyAccepted = ref(false);
   const isLoading = ref(false);
   const showVerification = ref(false);
+  const requireListedDomain = ref(false);
 
   const isValidEmail = computed(() => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value);
+  });
+
+  const emailPlaceholder = computed(() => (
+    requireListedDomain.value
+      ? t('identity.email.corpPlaceholder')
+      : t('identity.email.placeholder')
+  ));
+
+  const emailHint = computed(() => (
+    requireListedDomain.value
+      ? t('identity.email.corpHint')
+      : t('identity.email.codeHint')
+  ));
+
+  onMounted(() => {
+    window.addEventListener('clear-application-data', () => {
+      console.log('[EmailConnect] Clearing email connect data');
+    });
+    
+    window.addEventListener('refresh-application-data', () => {
+      console.log('[EmailConnect] Refreshing email connect data');
+    });
+
+    axios.get('/auth/email/registration-policy')
+      .then((response) => {
+        requireListedDomain.value = Boolean(response.data?.requireListedDomain);
+      })
+      .catch(() => {
+        requireListedDomain.value = true;
+      });
   });
 
   const requestCode = async () => {
@@ -252,11 +272,30 @@
 }
 .email-consent {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: row;
+  justify-content: flex-start;
   align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
   font-size: 0.9rem;
   line-height: 1.35;
   margin: 0.35rem 0 0.5rem;
+  text-align: left;
+}
+.email-consent input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  max-width: 1rem;
+  margin: 0.15rem 0 0;
+  flex-shrink: 0;
+  accent-color: var(--color-primary, #2e7d32);
+}
+.email-consent span {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 .email-consent a {
   color: inherit;
@@ -271,7 +310,9 @@
 }
 .actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
   margin-top: 0.5rem;
 }
 .cancel-btn {
@@ -292,11 +333,28 @@
 
 /* TZ package C */
 @media (max-width: 768px) {
-  .email-connect, form {
+  .email-connection,
+  .email-form-panel {
     max-width: 100%;
     box-sizing: border-box;
   }
-  input, button { width: 100%; max-width: 100%; box-sizing: border-box; }
-  button { height: var(--button-height-mobile); }
+  .email-input,
+  .code-input,
+  .email-btn,
+  .verify-btn,
+  .main-btn {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .email-btn,
+  .verify-btn,
+  .main-btn {
+    height: var(--button-height-mobile);
+  }
+  .email-consent input[type="checkbox"] {
+    width: 1rem;
+    max-width: 1rem;
+  }
 }
 </style>

@@ -240,7 +240,8 @@ router.post('/booking', async (req, res) => {
   try {
     const owner = ownerFromReq(req);
     if (!owner) return res.status(400).json({ success: false, error: 'Нет сессии' });
-    const data = await booking.bookSlot(owner, req.body?.starts_at);
+    const pageId = req.body?.page_id ?? req.body?.pageId ?? null;
+    const data = await booking.bookSlot(owner, req.body?.starts_at, { pageId });
     res.json({ success: true, data });
   } catch (error) {
     if (error.status === 401) {

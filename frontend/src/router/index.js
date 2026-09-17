@@ -52,6 +52,12 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'blog', permissionFallback: 'blog' },
   },
   {
+    path: '/blog/my-subscriptions',
+    name: 'blog-my-subscriptions',
+    component: () => import('../views/BlogMySubscriptionsView.vue'),
+    meta: { closeFallback: 'blog' },
+  },
+  {
     path: '/blog/:slug',
     name: 'blog-article',
     component: () => import('../views/BlogView.vue'),
@@ -224,10 +230,14 @@ const routes = [
     meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
   },
   {
-    path: '/settings/ai/database',
+    path: '/settings/security/database',
     name: 'database-settings',
     component: () => import('@/views/settings/AI/DatabaseSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-security', permissionFallback: 'settings-security' },
+  },
+  {
+    path: '/settings/ai/database',
+    redirect: { name: 'database-settings' },
   },
   {
     path: '/settings/ai/assistant',
@@ -317,6 +327,12 @@ const routes = [
         name: 'contact-profile',
         meta: { closeFallback: 'contacts-list' },
         component: () => import('../views/contacts/ContactProfileView.vue'),
+      },
+      {
+        path: 'media',
+        name: 'contact-media',
+        meta: { closeFallback: 'contacts-list' },
+        component: () => import('../views/contacts/ProfileMediaView.vue'),
       },
       {
         path: 'orders',
@@ -410,7 +426,14 @@ const routes = [
   {
     path: '/contacts-list/import',
     name: 'contacts-import',
-    meta: { permission: PERMISSIONS.EDIT_CONTACTS, closeFallback: 'contacts-list' },
+    meta: {
+      anyPermission: [
+        PERMISSIONS.EDIT_CONTACTS,
+        PERMISSIONS.IMPORT_OWN_CONTACTS,
+        PERMISSIONS.EDIT_DOMAIN_CONTACTS,
+      ],
+      closeFallback: 'contacts-list',
+    },
     component: () => import('../views/contacts/ContactImportView.vue'),
   },
   {
@@ -429,7 +452,9 @@ const routes = [
   {
     path: '/contacts-list/broadcast',
     component: () => import('../views/contacts/BroadcastLayout.vue'),
-    meta: { permission: PERMISSIONS.BROADCAST },
+    meta: {
+      anyPermission: [PERMISSIONS.BROADCAST, PERMISSIONS.BROADCAST_OWN_CONTACTS],
+    },
     children: [
       {
         path: '',
@@ -469,6 +494,21 @@ const routes = [
     component: () => import('../views/PersonalMessagesView.vue'),
     meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'crm' }
   },
+  {
+    path: '/personal-calls',
+    name: 'personal-calls',
+    component: () => import('../views/PersonalCallsView.vue'),
+    meta: { permission: PERMISSIONS.PERSONAL_CALLS, closeFallback: 'crm' }
+  },
+  {
+    path: '/contacts-list/calls/calendar',
+    name: 'contacts-calls-calendar',
+    component: () => import('../views/contacts/CallsCalendarView.vue'),
+    meta: {
+      anyPermission: [PERMISSIONS.SCHEDULE_CALLS],
+      closeFallback: 'contacts-list'
+    }
+  },
 
   {
     path: '/settings/ai/telegram',
@@ -487,6 +527,12 @@ const routes = [
     name: 'content-list',
     meta: { closeFallback: 'crm' },
     component: () => import('../views/content/ContentListView.vue'),
+  },
+  {
+    path: '/content/moderation',
+    name: 'content-moderation',
+    component: () => import('../views/content/ModerationQueueView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-list', permissionFallback: 'content-list' },
   },
   {
     path: '/content/media',
@@ -528,13 +574,21 @@ const routes = [
     path: '/content/store/product/new',
     name: 'content-store-product-new',
     component: () => import('../views/content/StoreProductEditView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+    meta: {
+      anyPermission: [PERMISSIONS.MANAGE_LEGAL_DOCS, PERMISSIONS.CREATE_OWN_ARTICLES],
+      closeFallback: 'content-store',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/content/store/product/:id',
     name: 'content-store-product-edit',
     component: () => import('../views/content/StoreProductEditView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+    meta: {
+      anyPermission: [PERMISSIONS.MANAGE_LEGAL_DOCS, PERMISSIONS.CREATE_OWN_ARTICLES],
+      closeFallback: 'content-store',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/crm/store',
@@ -793,6 +847,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const requiredPermission = to.meta?.permission;
+  const anyPermission = Array.isArray(to.meta?.anyPermission) ? to.meta.anyPermission : null;
   const requiresAuth = to.meta?.requiresAuth;
   const editorOnly = to.matched.some((r) => r.meta?.editorOnly);
 
@@ -805,7 +860,9 @@ router.beforeEach(async (to, from, next) => {
 
     await ensureScreenAccessLoaded();
     await ensureActionAccessLoaded();
-    if (!canAccessPath(to.path)) {
+    // Маршруты с permission (admin-chat и т.п.) сначала синхронизируют роль ниже —
+    // иначе устаревший кэш матрицы режет /admin-chat/:id до syncScreenAccessRole.
+    if (!canAccessPath(to.path) && !requiredPermission && !anyPermission && !requiresAuth && !editorOnly) {
       console.log('[Router] Экран скрыт матрицей ролей:', to.path);
       if (isOwnContactScreen(to, sessionUserId?.value)) {
         return next();
@@ -816,14 +873,29 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'home' });
     }
 
-    if (!requiredPermission && !requiresAuth && !editorOnly) {
+    if (!requiredPermission && !anyPermission && !requiresAuth && !editorOnly) {
       if (to.path.startsWith('/management/')) {
         const response = await axios.get('/auth/check');
         if (response.data?.authenticated && response.data.userAccessLevel) {
           const role = response.data.userAccessLevel.level;
           if (role === 'readonly' || role === 'editor' || role === 'user') {
+            await syncScreenAccessRole(role);
             await syncActionAccessRole(role);
           }
+        }
+      } else if (sessionUserId?.value) {
+        // /blog, /store и др. без meta.permission — иначе caps остаются guest после логина
+        try {
+          const response = await axios.get('/auth/check');
+          if (response.data?.authenticated && response.data.userAccessLevel) {
+            const role = response.data.userAccessLevel.level;
+            if (role === 'readonly' || role === 'editor' || role === 'user') {
+              await syncScreenAccessRole(role);
+              await syncActionAccessRole(role);
+            }
+          }
+        } catch (_) {
+          /* ignore */
         }
       }
       return next();
@@ -871,11 +943,11 @@ router.beforeEach(async (to, from, next) => {
       return next();
     }
 
-    if (requiresAuth && !requiredPermission) {
+    if (requiresAuth && !requiredPermission && !anyPermission) {
       return next();
     }
 
-    if (!requiredPermission) {
+    if (!requiredPermission && !anyPermission) {
       return next();
     }
 
@@ -887,14 +959,18 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'home' });
     }
 
-    if (!hasActionAccess(requiredPermission)) {
+    const permissionOk = anyPermission
+      ? anyPermission.some((p) => hasActionAccess(p))
+      : hasActionAccess(requiredPermission);
+
+    if (!permissionOk) {
       const level = userAccessLevel?.level;
       const governanceFallback =
         requiredPermission === PERMISSIONS.GOVERNANCE_PROPOSAL
         && userAccessLevel?.hasAccess
         && (level === 'readonly' || level === 'editor');
       if (!governanceFallback) {
-        console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права ${requiredPermission}`);
+        console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права`, anyPermission || requiredPermission);
         if (to.meta?.permissionFallback) {
           return next({ name: to.meta.permissionFallback });
         }

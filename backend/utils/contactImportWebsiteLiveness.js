@@ -29,6 +29,7 @@ function withTimeout(promise, ms, label) {
     promise.finally(() => clearTimeout(timer)),
     new Promise((_, reject) => {
       timer = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
+      if (typeof timer.unref === 'function') timer.unref();
     })
   ]);
 }

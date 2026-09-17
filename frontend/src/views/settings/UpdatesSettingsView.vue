@@ -203,45 +203,6 @@ const jobDetail = ref('');
 const applyJobId = ref('');
 const applyVersion = ref('');
 
-const APPLY_STORAGE_KEY = 'dle-updates-apply-job';
-const APPLY_STORAGE_MAX_MS = 45 * 60 * 1000;
-const JOB_POLL_MS = 2000;
-const HEALTH_POLL_MS = 3000;
-const DOWN_STREAK_TO_REBUILD = 2;
-const UP_STREAK_TO_READY = 2;
-
-const applySteps = [
-  { id: 'downloading', labelKey: 'settings.updates.phaseDownloading' },
-  { id: 'applying', labelKey: 'settings.updates.phaseUpdateSh' },
-  { id: 'rebuilding', labelKey: 'settings.updates.phaseRebuild' },
-];
-
-const showApplyProgress = computed(() => (
-  applyPhase.value !== 'idle' && applyPhase.value !== 'error'
-));
-
-const liveStatusText = computed(() => {
-  switch (applyPhase.value) {
-    case 'downloading':
-      return t('settings.updates.phaseDownloadingHint');
-    case 'applying':
-      return t('settings.updates.phaseUpdateShHint');
-    case 'started':
-      return t('settings.updates.phaseUpdateShHint');
-    case 'rebuilding':
-      return t('settings.updates.phaseWaitingSite');
-    case 'ready':
-      return t('settings.updates.phaseSiteReady');
-    default:
-      return '';
-  }
-});
-
-let pollTimer = null;
-let pollCancelled = false;
-let downStreak = 0;
-let upStreak = 0;
-
 const hubMeta = ref({});
 const hubSettingsLoaded = ref(false);
 const hubForm = ref({
@@ -285,6 +246,45 @@ function applyHubToForm(data) {
   };
   hubSettingsLoaded.value = true;
 }
+
+const APPLY_STORAGE_KEY = 'dle-updates-apply-job';
+const APPLY_STORAGE_MAX_MS = 45 * 60 * 1000;
+const JOB_POLL_MS = 2000;
+const HEALTH_POLL_MS = 3000;
+const DOWN_STREAK_TO_REBUILD = 2;
+const UP_STREAK_TO_READY = 2;
+
+const applySteps = [
+  { id: 'downloading', labelKey: 'settings.updates.phaseDownloading' },
+  { id: 'applying', labelKey: 'settings.updates.phaseUpdateSh' },
+  { id: 'rebuilding', labelKey: 'settings.updates.phaseRebuild' },
+];
+
+const showApplyProgress = computed(() => (
+  applyPhase.value !== 'idle' && applyPhase.value !== 'error'
+));
+
+const liveStatusText = computed(() => {
+  switch (applyPhase.value) {
+    case 'downloading':
+      return t('settings.updates.phaseDownloadingHint');
+    case 'applying':
+      return t('settings.updates.phaseUpdateShHint');
+    case 'started':
+      return t('settings.updates.phaseUpdateShHint');
+    case 'rebuilding':
+      return t('settings.updates.phaseWaitingSite');
+    case 'ready':
+      return t('settings.updates.phaseSiteReady');
+    default:
+      return '';
+  }
+});
+
+let pollTimer = null;
+let pollCancelled = false;
+let downStreak = 0;
+let upStreak = 0;
 
 async function loadPage() {
   loadError.value = '';

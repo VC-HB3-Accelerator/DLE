@@ -30,6 +30,8 @@ export default defineConfig({
     'process.env': {},
   },
   build: {
+    // Не печатать сотни gzip-строк — на VDS это рвёт SSH mid-build.
+    reportCompressedSize: false,
     rollupOptions: {
       plugins: [polyfillNode()],
       output: {
@@ -54,6 +56,12 @@ export default defineConfig({
     allowedHosts: ['dapp-frontend', 'localhost', '127.0.0.1', 'hb3-accelerator.com'],
     force: true,
     proxy: {
+      '/webssh-agent': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/webssh-agent/, '') || '/',
+      },
       '/api': {
         target: apiProxyTarget,
         changeOrigin: true,

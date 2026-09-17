@@ -14,8 +14,11 @@ export const CONTACT_TABLE_COLUMNS = [
   { key: 'languages', labelKey: 'contacts.languages', defaultVisible: false },
   { key: 'lastMessageAt', labelKey: 'contacts.lastMessageAt', defaultVisible: false },
   { key: 'comment', labelKey: 'contacts.comment', defaultVisible: true },
-  { key: 'link', labelKey: 'contacts.link', defaultVisible: true },
-  { key: 'file', labelKey: 'contacts.file', defaultVisible: true }
+  { key: 'link', labelKey: 'contacts.link', defaultVisible: false },
+  { key: 'file', labelKey: 'contacts.file', defaultVisible: false },
+  { key: 'importedBy', labelKey: 'contacts.importedBy', defaultVisible: false },
+  { key: 'importedByRole', labelKey: 'contacts.importedByRole', defaultVisible: false },
+  { key: 'ownerDomain', labelKey: 'contacts.ownerDomain', defaultVisible: false },
 ];
 
 const STORAGE_KEY = 'contact-table-visible-columns';

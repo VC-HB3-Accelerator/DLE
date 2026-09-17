@@ -24,14 +24,14 @@
  */
 :root {
   /* ========================================================================
-   * A. ТЕМА — сдержанный slate / приглушённый green-gray
+   * A. ТЕМА — чёрный primary (кнопки / акцент-текст)
    * ======================================================================== */
-  --theme-primary: #4a7c59;
-  --theme-primary-hover: #3d684a;
+  --theme-primary: #111827;
+  --theme-primary-hover: #000000;
   --theme-secondary: #5f6f7a;
   --theme-secondary-hover: #4d5b64;
-  --theme-accent: #64748b;
-  --theme-accent-hover: #526074;
+  --theme-accent: #374151;
+  --theme-accent-hover: #1f2937;
   --theme-bg: #ffffff;
   --theme-surface: #f3f4f6;
   --theme-text: #1f2937;
@@ -72,7 +72,10 @@
   --bp-phone: 480px;
   --bp-phone-sm: 360px;
 
-  --header-height: 65px;
+  /* Совпадает с padding+ряд кнопок Header.vue — горизонт контента страниц */
+  --header-height: calc(
+    max(30px, env(safe-area-inset-top, 0px)) + 44px + 25px
+  );
   /* Ширины правой панели (Sidebar fixed) + резерв в BaseLayout */
   --sidebar-panel-width: 420px;
   --sidebar-panel-width-narrow: 350px;

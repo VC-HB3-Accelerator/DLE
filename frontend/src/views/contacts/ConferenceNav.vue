@@ -7,8 +7,8 @@
   <nav class="conference-nav">
     <router-link
       v-for="item in visibleNavItems"
-      :key="item.name"
-      :to="item.hub ? { name: item.name } : { name: item.name, params: { id: contactId } }"
+      :key="item.key"
+      :to="item.to"
       class="conference-nav-link"
       active-class="is-active"
     >
@@ -22,22 +22,71 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
+import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
 const { t } = useI18n();
 const route = useRoute();
-const { isEditor } = usePermissions();
+const { isEditor, canPersonalCalls, canScheduleCalls } = usePermissions();
+const { userId } = useAuthContext();
+ensureScreenAccessLoaded();
 
 const contactId = computed(() => route.params.id);
+const isOwnCard = computed(() => (
+  contactId.value != null
+  && userId.value != null
+  && String(contactId.value) === String(userId.value)
+));
 
-const navItems = [
-  { name: 'contact-conference', labelKey: 'contacts.conference.nav.settings' },
-  { name: 'contact-conference-agent', labelKey: 'contacts.conference.nav.agent', editorOnly: true },
-  { name: 'hub-conference-schedule', labelKey: 'contacts.conference.nav.schedule', editorOnly: true, hub: true },
-];
+const visibleNavItems = computed(() => {
+  const id = contactId.value;
+  const items = [];
 
-const visibleNavItems = computed(() =>
-  navItems.filter((item) => !item.editorOnly || isEditor.value)
-);
+  if (canAccessPath(`/contacts/${id}/conference`)) {
+    items.push({
+      key: 'settings',
+      labelKey: 'contacts.conference.nav.settings',
+      to: { name: 'contact-conference', params: { id } }
+    });
+  }
+  if (isEditor.value && canAccessPath(`/contacts/${id}/conference/agent`)) {
+    items.push({
+      key: 'agent',
+      labelKey: 'contacts.conference.nav.agent',
+      to: { name: 'contact-conference-agent', params: { id } }
+    });
+  }
+  if (canPersonalCalls.value && canAccessPath('/personal-calls')) {
+    items.push({
+      key: 'personal-calls',
+      labelKey: 'contacts.personalCalls',
+      to: { name: 'personal-calls' }
+    });
+  }
+  if (
+    !isOwnCard.value
+    && id
+    && canScheduleCalls.value
+    && canAccessPath('/contacts-list/calls/calendar')
+  ) {
+    items.push({
+      key: 'book',
+      labelKey: 'contacts.conference.nav.schedule',
+      to: { name: 'contacts-calls-calendar', query: { ids: String(id) } }
+    });
+  } else if (
+    isOwnCard.value
+    && isEditor.value
+    && canAccessPath('/conferences/schedule')
+  ) {
+    items.push({
+      key: 'availability',
+      labelKey: 'contacts.conference.nav.schedule',
+      to: { name: 'hub-conference-schedule' }
+    });
+  }
+  return items;
+});
 </script>
 
 <style scoped>
@@ -71,7 +120,6 @@ const visibleNavItems = computed(() =>
   color: var(--color-white);
 }
 
-/* TZ package C */
 @media (max-width: 768px) {
   .conference-nav, nav {
     max-width: 100%;

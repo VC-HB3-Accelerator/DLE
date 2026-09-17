@@ -17,7 +17,7 @@
         <div class="info-row">
           <span class="info-label">{{ t('contacts.details.name') }}</span>
           <span class="info-value">
-            <template v-if="canEditContacts">
+            <template v-if="canEditPersonalContactFields">
               <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
               <span v-if="isSavingName" class="saving">{{ t('common.saving') }}</span>
             </template>
@@ -49,7 +49,62 @@
                 :placeholder="t('contacts.email')"
               />
             </template>
-            <template v-else-if="canEditContacts">
+            <template v-else-if="canEditContacts && isOwnProfile">
+              <div
+                v-for="row in emailRows"
+                :key="row.id || row._key"
+                class="identity-line"
+              >
+                <label class="identity-primary" :title="t('contacts.details.primaryHint')">
+                  <input
+                    type="radio"
+                    name="primary-email"
+                    :checked="row.is_primary"
+                    :disabled="identityBusy || !row.id"
+                    @change="setPrimaryIdentity(row, 'email')"
+                  />
+                  <span>{{ t('contacts.details.primaryShort') }}</span>
+                </label>
+                <input
+                  class="edit-input identity-value"
+                  type="email"
+                  :value="row.value"
+                  readonly
+                  :title="t('contacts.details.selfEmailReadonlyHint')"
+                />
+                <input
+                  v-model="row.label"
+                  class="edit-input identity-label"
+                  :placeholder="t('contacts.details.labelPlaceholder')"
+                  maxlength="80"
+                  @blur="persistIdentityRow(row, 'email')"
+                />
+                <button
+                  type="button"
+                  class="identity-remove"
+                  :disabled="identityBusy"
+                  :title="t('contacts.details.removeIdentity')"
+                  @click="removeIdentityRow(row, 'email')"
+                >×</button>
+              </div>
+              <button
+                v-if="!showOwnEmailVerify"
+                type="button"
+                class="identity-add"
+                :disabled="identityBusy"
+                @click="showOwnEmailVerify = true"
+              >{{ t('contacts.details.verifyAddEmail') }}</button>
+              <div v-if="showOwnEmailVerify" class="own-verify-panel">
+                <EmailConnect @success="onOwnEmailLinked" @close="showOwnEmailVerify = false">
+                  <template #actions>
+                    <button type="button" class="btn btn-outline" @click="showOwnEmailVerify = false">
+                      {{ t('common.cancel') }}
+                    </button>
+                  </template>
+                </EmailConnect>
+              </div>
+            </template>
+            <template v-else-if="canEditSharedContactProfile">
               <div
                 v-for="row in emailRows"
                 :key="row.id || row._key"
@@ -135,7 +190,7 @@
                 :placeholder="t('contacts.phone')"
               />
             </template>
-            <template v-else-if="canEditContacts">
+            <template v-else-if="canEditSharedContactProfile">
               <div
                 v-for="row in phoneRows"
                 :key="row.id || row._key"
@@ -199,8 +254,31 @@
         <div class="info-row">
           <span class="info-label">{{ t('contacts.details.telegram') }}</span>
           <span class="info-value info-value--with-consent">
+            <template v-if="canEditContacts && isOwnProfile">
+              <span
+                v-if="contact.telegram"
+                class="info-value personal-field personal-field--revealed"
+              >{{ contact.telegram }}</span>
+              <span v-else class="info-value">-</span>
+              <button
+                v-if="!showOwnTelegramVerify"
+                type="button"
+                class="identity-add"
+                :disabled="ownTgLoading"
+                @click="showOwnTelegramVerify = true"
+              >{{ contact.telegram ? t('contacts.details.verifyChangeTelegram') : t('contacts.details.verifyAddTelegram') }}</button>
+              <div v-if="showOwnTelegramVerify" class="own-verify-panel">
+                <TelegramConnect
+                  :bot-link="ownTgBotLink"
+                  :error="ownTgError"
+                  :is-loading="ownTgLoading"
+                  @cancel="cancelOwnTelegramLink"
+                  @request-link="requestOwnTelegramLink"
+                />
+              </div>
+            </template>
             <input
-              v-if="canEditContacts"
+              v-else-if="canEditSharedContactProfile"
               v-model="draftTelegram"
               class="edit-input"
               :placeholder="t('contacts.telegram')"
@@ -235,7 +313,7 @@
           <span class="info-label">{{ t('contacts.details.wallet') }}</span>
           <span class="info-value info-value--with-consent">
             <input
-              v-if="canEditContacts"
+              v-if="canEditSharedContactProfile"
               v-model="draftWallet"
               class="edit-input"
               :placeholder="t('contacts.wallet')"
@@ -266,17 +344,17 @@
           </span>
         </div>
 
-        <div class="info-row">
+        <div v-if="canEditSharedContactProfile" class="info-row">
           <span class="info-label">{{ t('contacts.details.language') }}</span>
           <span class="info-value">
             <div class="multi-select">
               <div class="selected-langs">
                 <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
                   {{ getLanguageLabel(lang) }}
-                  <span v-if="canEditContacts" class="remove-tag" @click="removeLanguage(lang)">×</span>
+                  <span v-if="canEditSharedContactProfile" class="remove-tag" @click="removeLanguage(lang)">×</span>
                 </span>
                 <input
-                  v-if="canEditContacts"
+                  v-if="canEditSharedContactProfile"
                   v-model="langInput"
                   @focus="showLangDropdown = true"
                   @input="showLangDropdown = true"
@@ -285,7 +363,7 @@
                   :placeholder="t('contacts.details.addLanguage')"
                 />
               </div>
-              <ul v-if="showLangDropdown && canEditContacts" class="lang-dropdown">
+              <ul v-if="showLangDropdown && canEditSharedContactProfile" class="lang-dropdown">
                 <li
                   v-for="lang in filteredLanguages"
                   :key="lang.value"
@@ -310,8 +388,21 @@
           <span class="info-value info-value--meta">{{ formatDate(lastMessageDate) }}</span>
         </div>
 
-        <div v-if="!isCreateMode" class="info-row info-row--tags">
-          <span class="info-label">{{ t('contacts.details.userTags') }}</span>
+        <div v-if="!isCreateMode && canEditPersonalContactFields && !canEditSharedContactProfile" class="info-row info-row--tags">
+          <span class="info-label">{{ t('contacts.myTags') }}</span>
+          <span class="info-value">
+            <span v-for="tag in myUserTags" :key="'my-' + tag.id" class="user-tag">
+              {{ tag.name }}
+              <span class="remove-tag" @click="removeMyUserTag(tag.id)">×</span>
+            </span>
+            <el-button size="small" type="primary" plain @click="openMyTagModal">
+              {{ t('contacts.details.addTag') }}
+            </el-button>
+          </span>
+        </div>
+
+        <div v-if="!isCreateMode && canEditSharedContactProfile" class="info-row info-row--tags">
+          <span class="info-label">{{ t('contacts.crmTags') }}</span>
           <span class="info-value">
             <span v-for="tag in userTags" :key="tag.id" class="user-tag">
               {{ tag.name }}
@@ -327,7 +418,7 @@
           <span class="info-label">{{ t('contacts.comment') }}</span>
           <span class="info-value">
             <textarea
-              v-if="canEditContacts"
+              v-if="canEditPersonalContactFields"
               v-model="draftComment"
               class="edit-textarea"
               rows="3"
@@ -337,10 +428,10 @@
           </span>
         </div>
 
-        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row info-row--stack">
+        <div v-if="!isCreateMode && canEditSharedContactProfile && !String(contact.id).startsWith('guest_')" class="info-row info-row--stack">
           <span class="info-label">{{ t('contacts.link') }}</span>
           <span class="info-value info-value--stack">
-            <template v-if="canEditContacts">
+            <template v-if="canEditSharedContactProfile">
               <div
                 v-for="row in websiteRows"
                 :key="row.id || row._key"
@@ -397,14 +488,13 @@
           </span>
         </div>
 
-        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row">
+        <div v-if="!isCreateMode && canEditPersonalContactFields && !String(contact.id).startsWith('guest_')" class="info-row">
           <span class="info-label">{{ t('contacts.file') }}</span>
           <span class="info-value contact-files">
             <div v-if="contactFiles.length" class="contact-files__list">
               <div v-for="file in contactFiles" :key="file.id" class="contact-files__item">
                 <a :href="file.url" target="_blank" rel="noopener noreferrer">{{ file.originalName }}</a>
                 <button
-                  v-if="canEditContacts"
                   type="button"
                   class="contact-files__remove"
                   @click="removeContactFile(file.id)"
@@ -412,14 +502,14 @@
               </div>
             </div>
             <span v-else>-</span>
-            <label v-if="canEditContacts" class="contact-files__upload">
+            <label class="contact-files__upload">
               <input type="file" class="contact-files__input" @change="onContactFileSelected" />
               {{ isUploadingFile ? t('common.saving') : t('contacts.file') }}
             </label>
           </span>
         </div>
 
-        <div v-if="!isCreateMode" class="info-row">
+        <div v-if="!isCreateMode && canEditSharedContactProfile" class="info-row">
           <span class="info-label">{{ t('contacts.details.blockStatus') }}</span>
           <span class="info-value block-user-value">
             <span v-if="contact.is_blocked" class="blocked-status">{{ t('contacts.details.blocked') }}</span>
@@ -455,6 +545,13 @@
           </el-button>
         </div>
       </div>
+      <div v-else-if="canEditPersonalContactFields && !canEditSharedContactProfile && !isOwnProfile" class="contact-actions">
+        <div class="contact-actions__buttons">
+          <el-button type="danger" plain @click="unlinkFromMyList">
+            {{ t('contacts.details.unlinkFromList') }}
+          </el-button>
+        </div>
+      </div>
     </section>
 
     <el-dialog v-if="canManageTags" v-model="showTagModal" :title="t('contacts.details.addTagTitle')">
@@ -487,6 +584,31 @@
         <el-button type="primary" @click="createTag">{{ t('contacts.details.createTag') }}</el-button>
       </div>
     </el-dialog>
+
+    <el-dialog v-if="canEditPersonalContactFields && !canEditSharedContactProfile" v-model="showMyTagModal" :title="t('contacts.myTags')">
+      <div v-if="myAllTags.length">
+        <el-select
+          v-model="mySelectedTags"
+          multiple
+          filterable
+          :placeholder="t('contacts.details.selectTags')"
+          class="tag-modal-select"
+          @change="addMyTagsToUser"
+        >
+          <el-option
+            v-for="tag in myAllTags"
+            :key="tag.id"
+            :label="tag.name"
+            :value="tag.id"
+          />
+        </el-select>
+      </div>
+      <div class="tag-modal-create">
+        <el-input v-model="myNewTagName" :placeholder="t('contacts.details.newTag')" />
+        <el-input v-model="myNewTagDescription" :placeholder="t('contacts.details.tagDescription')" />
+        <el-button type="primary" @click="createMyTag">{{ t('contacts.details.createTag') }}</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -504,15 +626,18 @@ import { useContactDetailsContext } from '@/composables/useContactDetails';
 import { useAuthContext } from '@/composables/useAuth';
 import tablesService from '@/services/tablesService';
 import { useTagsWebSocket } from '@/composables/useTagsWebSocket';
-import { getClientTagsTableMeta, findClientTagsTableInList, loadClientTagsList } from '@/utils/clientTagsTable';
+import { getClientTagsTableMeta, loadClientTagsList, resolveClientTagsTableId } from '@/utils/clientTagsTable';
 import { stripAutoEnrichMarkers } from '@/utils/helpers';
 import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
+import EmailConnect from '@/components/identity/EmailConnect.vue';
+import TelegramConnect from '@/components/identity/TelegramConnect.vue';
+import api from '@/api/axios';
 
 const { t } = useI18n();
 const router = useRouter();
-const { canEditContacts, canDeleteData, canManageTags, canBlockUsers } = usePermissions();
+const { canEditContacts, canEditPersonalContactFields, canEditSharedContactProfile, canDeleteData, canManageTags, canBlockUsers } = usePermissions();
 const { contact, userId, isCreateMode, reloadContact } = useContactDetailsContext();
-const { userId: authUserId, disconnect } = useAuthContext();
+const { userId: authUserId, disconnect, checkAuth, telegramId: authTelegramId } = useAuthContext();
 
 const privacyDocsUrl = getPrivacyDocsUrl();
 const consentBusy = ref(null);
@@ -523,6 +648,15 @@ const isOwnProfile = computed(() => {
   if (cid == null || aid == null) return false;
   return String(cid) === String(aid);
 });
+
+const showOwnEmailVerify = ref(false);
+const showOwnTelegramVerify = ref(false);
+const ownTgBotLink = ref('');
+const ownTgError = ref('');
+const ownTgLoading = ref(false);
+let ownTgPollTimer = null;
+let ownTgTimeoutTimer = null;
+const ownTgHadBefore = ref(false);
 
 /** Снимать включённую галочку: редактор или сам пользователь на своём профиле */
 const canRevokeConsent = computed(() => canDeleteData.value || isOwnProfile.value);
@@ -654,7 +788,7 @@ function applyIdentityPayload(data) {
 }
 
 async function addIdentityRow(provider) {
-  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id) return;
+  if (!canEditSharedContactProfile.value || isCreateMode.value || !contact.value?.id) return;
   identityBusy.value = true;
   try {
     const placeholder = provider === 'email' ? `new${Date.now()}@example.invalid` : `+1000000${Date.now() % 100000}`;
@@ -676,7 +810,7 @@ async function addIdentityRow(provider) {
 }
 
 async function persistIdentityRow(row, provider) {
-  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id || !row) return;
+  if (!canEditSharedContactProfile.value || isCreateMode.value || !contact.value?.id || !row) return;
   const value = String(row.value || '').trim();
   const label = String(row.label || '').trim();
   if (!value) {
@@ -687,6 +821,17 @@ async function persistIdentityRow(row, provider) {
   }
   if (!row._isNew && row.id && value === row._origValue && label === row._origLabel) {
     return;
+  }
+  if (isOwnProfile.value && provider === 'email') {
+    if (row._isNew || (row.id && value !== row._origValue)) {
+      ElMessageBox.alert(
+        t('contacts.details.selfEmailVerifyRequired'),
+        t('common.error'),
+        { type: 'warning' }
+      );
+      syncFormFromContact();
+      return;
+    }
   }
   identityBusy.value = true;
   try {
@@ -847,8 +992,8 @@ async function loadLastMessageDate() {
 
 async function ensureTagsTable() {
   const tagsMeta = getClientTagsTableMeta();
-  const tables = await tablesService.getTables();
-  let tagsTable = findClientTagsTableInList(tables);
+  let tableId = await resolveClientTagsTableId();
+  let tagsTable = tableId ? { id: tableId } : null;
 
   if (!tagsTable) {
     tagsTable = await tablesService.createTable({
@@ -889,7 +1034,7 @@ function openTagModal() {
 }
 
 function addLanguage(lang) {
-  if (!canEditContacts.value) return;
+  if (!canEditSharedContactProfile.value) return;
   if (!selectedLanguages.value.includes(lang)) {
     selectedLanguages.value.push(lang);
     if (!isCreateMode.value) {
@@ -901,13 +1046,13 @@ function addLanguage(lang) {
 }
 
 function addLanguageFromInput() {
-  if (!canEditContacts.value) return;
+  if (!canEditSharedContactProfile.value) return;
   const found = filteredLanguages.value[0];
   if (found) addLanguage(found.value);
 }
 
 function removeLanguage(lang) {
-  if (!canEditContacts.value) return;
+  if (!canEditSharedContactProfile.value) return;
   selectedLanguages.value = selectedLanguages.value.filter(l => l !== lang);
   if (!isCreateMode.value) {
     saveLanguages();
@@ -915,7 +1060,7 @@ function removeLanguage(lang) {
 }
 
 function saveLanguages() {
-  if (!canEditContacts.value || isCreateMode.value) return;
+  if (!canEditSharedContactProfile.value || isCreateMode.value) return;
   isSavingLangs.value = true;
   contactsService.updateContact(contact.value.id, { language: selectedLanguages.value })
     .then(() => reloadContact())
@@ -923,7 +1068,7 @@ function saveLanguages() {
 }
 
 async function saveContactExtras() {
-  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id) return;
+  if (!canEditPersonalContactFields.value || isCreateMode.value || !contact.value?.id) return;
   if (String(contact.value.id).startsWith('guest_')) return;
   if (isSavingExtras.value) return;
 
@@ -1006,8 +1151,20 @@ function hasAtLeastOneIdentifier({ email, phone, telegram, wallet }) {
 }
 
 async function saveIdentityField(field) {
-  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id) return;
+  if (!canEditSharedContactProfile.value || isCreateMode.value || !contact.value?.id) return;
   if (isSavingIdentity.value) return;
+
+  if (isOwnProfile.value && (field === 'email' || field === 'telegram')) {
+    ElMessageBox.alert(
+      field === 'email'
+        ? t('contacts.details.selfEmailVerifyRequired')
+        : t('contacts.details.selfTelegramVerifyRequired'),
+      t('common.error'),
+      { type: 'warning' }
+    );
+    syncFormFromContact();
+    return;
+  }
 
   const draftValue = getDraftIdentityValue(field);
   const currentValue = contact.value[field] || '';
@@ -1150,6 +1307,29 @@ function deleteContact() {
   router.push({ name: 'contact-delete-confirm', params: { id: contact.value.id } });
 }
 
+async function unlinkFromMyList() {
+  if (!contact.value?.id || isOwnProfile.value) return;
+  try {
+    await ElMessageBox.confirm(
+      t('contacts.details.unlinkConfirm'),
+      t('contacts.details.unlinkFromList'),
+      {
+        type: 'warning',
+        confirmButtonText: t('contacts.details.unlinkFromList'),
+        cancelButtonText: t('common.cancel'),
+      }
+    );
+    await contactsService.unlinkContact(contact.value.id);
+    ElMessage.success(t('contacts.details.unlinkSuccess'));
+    router.push({ name: 'contacts-list' });
+  } catch (e) {
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(
+      t('contacts.details.unlinkError', { error: e?.response?.data?.error || e?.message || e })
+    );
+  }
+}
+
 function identityPresent(provider) {
   if (provider === 'email') {
     return emailRows.value.some((r) => String(r.value || '').trim()) || Boolean(contact.value?.email);
@@ -1288,6 +1468,97 @@ async function createTag() {
   newTagDescription.value = '';
 }
 
+const myUserTags = ref([]);
+const showMyTagModal = ref(false);
+const myAllTags = ref([]);
+const mySelectedTags = ref([]);
+const myNewTagName = ref('');
+const myNewTagDescription = ref('');
+
+async function loadMyAllTags() {
+  const data = await contactsService.getMyTagsDictionary();
+  myAllTags.value = Array.isArray(data?.tags) ? data.tags : [];
+}
+
+function openMyTagModal() {
+  if (!canEditPersonalContactFields.value) return;
+  showMyTagModal.value = true;
+  mySelectedTags.value = myUserTags.value.map(t => t.id);
+  loadMyAllTags();
+}
+
+async function loadMyUserTags() {
+  if (!contact.value?.id || canEditSharedContactProfile.value) {
+    myUserTags.value = [];
+    return;
+  }
+  if (String(contact.value.id).startsWith('guest_')) {
+    myUserTags.value = [];
+    return;
+  }
+  const tagIds = await contactsService.getMyContactTags(contact.value.id);
+  if (!Array.isArray(tagIds) || !tagIds.length) {
+    myUserTags.value = [];
+    return;
+  }
+  await loadMyAllTags();
+  myUserTags.value = myAllTags.value.filter(tag => tagIds.includes(tag.id));
+}
+
+async function addMyTagsToUser() {
+  if (!canEditPersonalContactFields.value || !contact.value?.id || !mySelectedTags.value?.length) return;
+  try {
+    await contactsService.setMyContactTags(contact.value.id, mySelectedTags.value);
+    await loadMyUserTags();
+    showMyTagModal.value = false;
+    ElMessageBox.alert(t('contacts.details.tagsAdded'), t('common.success'), { type: 'success' });
+  } catch (e) {
+    ElMessageBox.alert(
+      t('contacts.details.tagsAddError', { error: e?.response?.data?.error || e?.message || e }),
+      t('common.error'),
+      { type: 'error' }
+    );
+  }
+}
+
+async function removeMyUserTag(tagId) {
+  if (!canEditPersonalContactFields.value || !contact.value?.id) return;
+  try {
+    await contactsService.removeMyTagFromContact(contact.value.id, tagId);
+    await loadMyUserTags();
+    ElMessageBox.alert(t('contacts.details.tagRemoved'), t('common.success'), { type: 'success' });
+  } catch (e) {
+    ElMessageBox.alert(
+      t('contacts.details.tagRemoveError', { error: e?.response?.data?.error || e?.message || e }),
+      t('common.error'),
+      { type: 'error' }
+    );
+  }
+}
+
+async function createMyTag() {
+  if (!myNewTagName.value?.trim()) return;
+  try {
+    const tag = await contactsService.createMyTag({
+      name: myNewTagName.value.trim(),
+      description: myNewTagDescription.value || '',
+    });
+    await loadMyAllTags();
+    if (tag?.id) {
+      mySelectedTags.value = [...mySelectedTags.value, tag.id];
+      await addMyTagsToUser();
+    }
+    myNewTagName.value = '';
+    myNewTagDescription.value = '';
+  } catch (e) {
+    ElMessageBox.alert(
+      t('contacts.details.tagsAddError', { error: e?.response?.data?.error || e?.message || e }),
+      t('common.error'),
+      { type: 'error' }
+    );
+  }
+}
+
 async function loadUserTags() {
   if (!contact.value?.id) {
     userTags.value = [];
@@ -1340,7 +1611,10 @@ async function removeUserTag(tagId) {
 async function loadProfileData() {
   syncFormFromContact();
   if (isCreateMode.value) return;
-  await Promise.all([loadUserTags(), loadLastMessageDate()]);
+  await Promise.all([
+    canEditSharedContactProfile.value ? loadUserTags() : loadMyUserTags(),
+    loadLastMessageDate()
+  ]);
 }
 
 onMounted(async () => {
@@ -1351,7 +1625,81 @@ onMounted(async () => {
   });
 });
 
+function clearOwnTelegramPoll() {
+  if (ownTgPollTimer) {
+    clearInterval(ownTgPollTimer);
+    ownTgPollTimer = null;
+  }
+  if (ownTgTimeoutTimer) {
+    clearTimeout(ownTgTimeoutTimer);
+    ownTgTimeoutTimer = null;
+  }
+}
+
+async function onOwnEmailLinked() {
+  showOwnEmailVerify.value = false;
+  await checkAuth();
+  await reloadContact();
+  ElMessage.success(t('contacts.details.selfEmailLinked'));
+}
+
+function cancelOwnTelegramLink() {
+  clearOwnTelegramPoll();
+  showOwnTelegramVerify.value = false;
+  ownTgBotLink.value = '';
+  ownTgError.value = '';
+  ownTgLoading.value = false;
+}
+
+async function requestOwnTelegramLink() {
+  if (ownTgLoading.value) return;
+  ownTgLoading.value = true;
+  ownTgError.value = '';
+  ownTgBotLink.value = '';
+  ownTgHadBefore.value = Boolean(authTelegramId.value || contact.value?.telegram);
+  try {
+    const response = await api.post('/auth/telegram/init', { privacyAccepted: true });
+    if (response.data?.success && response.data.botLink) {
+      ownTgBotLink.value = response.data.botLink;
+      clearOwnTelegramPoll();
+      ownTgTimeoutTimer = setTimeout(() => {
+        ownTgError.value = t('auth.flow.telegramTimeout');
+        clearOwnTelegramPoll();
+      }, 5 * 60 * 1000);
+      ownTgPollTimer = setInterval(async () => {
+        try {
+          await checkAuth();
+          const linkedNow = Boolean(authTelegramId.value);
+          if (linkedNow && !ownTgHadBefore.value) {
+            clearOwnTelegramPoll();
+            showOwnTelegramVerify.value = false;
+            ownTgBotLink.value = '';
+            await reloadContact();
+            ElMessage.success(t('contacts.details.selfTelegramLinked'));
+          } else if (linkedNow && ownTgHadBefore.value) {
+            // смена/повторная привязка — обновляем карточку
+            clearOwnTelegramPoll();
+            showOwnTelegramVerify.value = false;
+            ownTgBotLink.value = '';
+            await reloadContact();
+            ElMessage.success(t('contacts.details.selfTelegramLinked'));
+          }
+        } catch {
+          /* poll best-effort */
+        }
+      }, 2000);
+    } else {
+      ownTgError.value = response.data?.error || t('auth.flow.telegramInitFailed');
+    }
+  } catch (error) {
+    ownTgError.value = error?.response?.data?.error || t('auth.flow.telegramInitError');
+  } finally {
+    ownTgLoading.value = false;
+  }
+}
+
 onUnmounted(() => {
+  clearOwnTelegramPoll();
   if (unsubscribeFromTags) {
     unsubscribeFromTags();
   }
@@ -1467,6 +1815,17 @@ watch(contact, () => {
   cursor: pointer;
   padding: 0;
   font-size: 0.9em;
+}
+
+.own-verify-panel {
+  width: 100%;
+  max-width: 420px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-light, #f7f7f7);
+  box-sizing: border-box;
 }
 
 .info-row {

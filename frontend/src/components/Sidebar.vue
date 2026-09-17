@@ -13,6 +13,20 @@
 <template>
   <transition name="sidebar-slide">
     <div v-if="modelValue" class="wallet-sidebar">
+      <!-- Тоггл в полосе хедера; кнопки — с горизонта страницы -->
+      <div class="wallet-sidebar-head">
+        <button
+          type="button"
+          class="sidebar-panel-toggle"
+          :aria-label="t('personalSidebar.osToggle')"
+          :title="t('personalSidebar.osToggle')"
+          aria-expanded="true"
+          @click="closeSidebar"
+        >
+          <UiGlyph name="sidebar-right" :size="20" />
+        </button>
+      </div>
+
       <div class="wallet-sidebar-content">
         <!-- Блок для неавторизованных пользователей -->
         <div v-if="!isAuthenticated">
@@ -58,10 +72,6 @@
                 </li>
               </ul>
             </div>
-            <button type="button" class="btn btn-outline btn-icon close-sidebar-btn" @click="closeSidebar">×</button>
-          </div>
-          <div v-else class="button-with-close">
-            <button type="button" class="btn btn-outline btn-icon close-sidebar-btn" @click="closeSidebar">×</button>
           </div>
 
           <div v-if="telegramAuth?.showVerification" class="auth-modal-panel">
@@ -87,19 +97,16 @@
         </div>
 
         <!-- Блок для авторизованных пользователей -->
-        <div v-if="isAuthenticated">
-          <div class="button-with-close">
-            <button type="button" class="btn btn-ghost disconnect-wallet-btn" @click="disconnectWallet">
-              {{ t('auth.disconnect') }}
-            </button>
-            <button type="button" class="btn btn-outline btn-icon close-sidebar-btn" @click="closeSidebar">×</button>
-          </div>
+        <div v-if="isAuthenticated" class="sidebar-auth-actions">
+          <button type="button" class="btn btn-ghost btn-block disconnect-wallet-btn" @click="disconnectWallet">
+            {{ t('auth.disconnect') }}
+          </button>
         </div>
 
         <!-- Язык и локации -->
         <LocaleControls />
 
-        <!-- Навигационные кнопки -->
+        <!-- Навигационные кнопки: Мессенджер → Объявления → Магазин → Управление -->
         <div class="navigation-buttons">
           <router-link
             v-if="showChatNav"
@@ -115,14 +122,25 @@
             to="/blog"
             class="btn btn-ghost btn-block nav-link-btn"
             active-class="active"
+            @click="closeSidebar"
           >
             <span>{{ t('nav.blog') }}</span>
+          </router-link>
+          <router-link
+            v-if="showStore && canAccessPath('/store')"
+            to="/store"
+            class="btn btn-ghost btn-block nav-link-btn"
+            active-class="active"
+            @click="closeSidebar"
+          >
+            <span>{{ t('nav.store') }}</span>
           </router-link>
           <router-link
             v-if="canAccessPath('/management')"
             to="/management"
             class="btn btn-ghost btn-block nav-link-btn"
             active-class="active"
+            @click="closeSidebar"
           >
             <span>{{ t('nav.management') }}</span>
           </router-link>
@@ -136,15 +154,6 @@
           >
             <span>{{ t('nav.repositories') }}</span>
           </a>
-          <router-link
-            v-if="showStore && canAccessPath('/store')"
-            to="/store"
-            class="btn btn-ghost btn-block nav-link-btn"
-            active-class="active"
-            @click="closeSidebar"
-          >
-            <span>{{ t('nav.store') }}</span>
-          </router-link>
         </div>
 
         <!-- Текст редактора + Политика и согласия -->
@@ -280,6 +289,10 @@ import {
   ensureScreenAccessLoaded,
   invalidateScreenAccess
 } from '@/composables/useScreenAccess.js';
+import {
+  ensureActionAccessLoaded,
+  invalidateActionAccess
+} from '@/composables/useActionAccess.js';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -333,7 +346,8 @@ const chatNavTo = computed(() => {
   return '/';
 });
 const showChatNav = computed(() => {
-  if (ownContactId.value) return true;
+  // Auth: чат только в личном сайдбаре (TZ §4.2). Гость → `/`.
+  if (ownContactId.value) return false;
   return canAccessPath('/');
 });
 
@@ -448,6 +462,7 @@ const handleWalletAuth = () => {
 };
 
 const disconnectWallet = () => {
+  closeSidebar();
   emit('disconnect-wallet');
 };
 
@@ -457,7 +472,9 @@ const closeSidebar = () => {
 
 const handleAuthEvent = () => {
   invalidateScreenAccess();
+  invalidateActionAccess();
   ensureScreenAccessLoaded(true);
+  ensureActionAccessLoaded(true);
 };
 
 let unsubscribe = null;
@@ -523,12 +540,25 @@ const handleDeleteIdentity = async (provider, providerId) => {
   z-index: 1000;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--spacing-lg);
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   transition: transform var(--transition-normal), opacity var(--transition-normal);
   box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.wallet-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  min-height: var(--header-height);
+  padding-top: max(30px, env(safe-area-inset-top, 0px));
+  padding-bottom: 25px;
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
 }
 
 .wallet-sidebar-content {
@@ -539,7 +569,9 @@ const handleDeleteIdentity = async (provider, providerId) => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Анимация появления и исчезновения правой панели */
@@ -565,7 +597,12 @@ const handleDeleteIdentity = async (provider, providerId) => {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
+}
+
+.sidebar-auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
 }
 
 .connect-wallet-btn,
@@ -641,6 +678,27 @@ const handleDeleteIdentity = async (provider, providerId) => {
   text-align: center;
   padding-left: 0;
   padding-right: 0;
+}
+
+.sidebar-panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: var(--color-white);
+  color: var(--color-primary);
+  border: none;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background-color var(--transition-normal);
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.sidebar-panel-toggle:hover {
+  background-color: var(--color-light);
 }
 
 /* Навигация: active поверх .btn-ghost */
@@ -790,12 +848,12 @@ h3 {
 
 @media (max-width: 768px) {
   .wallet-sidebar {
-    padding: var(--spacing-md);
+    padding: 0 var(--spacing-md) var(--spacing-md);
   }
 
   .wallet-sidebar-content {
     padding: 0;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
   }
 }
 

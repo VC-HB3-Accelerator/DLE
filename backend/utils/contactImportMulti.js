@@ -3,22 +3,12 @@
  * Import email policy: corporate domains only; drop free-mail and role/mailbox junk.
  */
 
+const { isBlockedPublicEmailDomain, getBlockedPublicEmailDomainSet } = require('./publicEmailDomainSet');
+
 const JUNK_VALUE_RE = /^(нет|нету|нет\.|no|n\/?a|none|null|nil|-|—|–|\.|…|без|отсутствует|не указан[ао]?|неизвестно|unknown|empty|undefined)$/i;
 
 /** Публичные / free-mail домены — не считаем корпоративными сотрудниками */
-const FREE_EMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com',
-  'yahoo.com', 'yahoo.co.uk', 'ymail.com',
-  'yandex.ru', 'yandex.com', 'ya.ru',
-  'mail.ru', 'bk.ru', 'list.ru', 'inbox.ru', 'internet.ru',
-  'icloud.com', 'me.com', 'mac.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'proton.me', 'protonmail.com',
-  'rambler.ru', 'auto.ru',
-  'aol.com', 'gmx.com', 'gmx.de', 'mail.com',
-  'zoho.com', 'tutanota.com', 'fastmail.com',
-  'qq.com', '163.com', '126.com'
-]);
+const FREE_EMAIL_DOMAINS = getBlockedPublicEmailDomainSet();
 
 /**
  * Локальная часть: заявки / саппорт / авторассылка / служебный мусор.
@@ -102,7 +92,7 @@ function classifyImportEmail(rawEmail) {
   if (!local || !domain) {
     return { ok: false, reason: 'некорректный формат' };
   }
-  if (FREE_EMAIL_DOMAINS.has(domain)) {
+  if (isBlockedPublicEmailDomain(domain)) {
     return { ok: false, reason: `публичный домен ${domain}` };
   }
   // local может быть name+tag — берём базу до +
@@ -130,6 +120,33 @@ function emailDomainOf(email) {
   if (at < 0) return null;
   const domain = e.slice(at + 1).trim();
   return domain || null;
+}
+
+function isIpHostname(host) {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(String(host || ''));
+}
+
+/**
+ * Корп. домены для правил входа: почта + сайты, которые уже прошли живой DNS
+ * (без www, без free-mail, без паразитов). Мёртвый хост сюда не передавать.
+ */
+function collectCorpAuthDomains({ emails = [], websites = [], parasiteHosts } = {}) {
+  const out = new Set();
+  const parasites = parasiteHosts instanceof Set ? parasiteHosts : new Set(parasiteHosts || []);
+
+  for (const email of emails) {
+    const domain = emailDomainOf(email);
+    if (!domain || isBlockedPublicEmailDomain(domain) || isIpHostname(domain)) continue;
+    out.add(domain);
+  }
+
+  for (const site of websites) {
+    const host = websiteHostname(site);
+    if (!host || parasites.has(host) || isBlockedPublicEmailDomain(host) || isIpHostname(host)) continue;
+    out.add(host);
+  }
+
+  return out;
 }
 
 /** hostname сайта ↔ домен email (включая поддомены) */
@@ -302,6 +319,7 @@ module.exports = {
   prepareImportIdentities,
   websiteHostname,
   emailDomainOf,
+  collectCorpAuthDomains,
   websiteMatchesEmailDomain,
   buildParasiteHostSet,
   rankWebsitesForImport

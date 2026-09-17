@@ -20,7 +20,7 @@ const botManager = require('../services/botManager');
 const universalGuestService = require('../services/UniversalGuestService');
 const { isUserBlocked } = require('../utils/userUtils');
 const { requireAuth } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permissions');
+const { requirePermission, requireBroadcastScoped } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 const { attachmentMetaFromRow, attachmentMetasForRows, chatUploadMiddleware, chatMediaRateLimit, prepareChatAttachment, mediaTooLargePayload, MEDIA_MAX_BYTES } = require('../utils/chatMedia');
@@ -41,74 +41,6 @@ const chatUpload = chatUploadMiddleware(multer({
   limits: { fileSize: MEDIA_MAX_BYTES, files: 1 }
 }).array('attachments', 1));
 
-async function saveBroadcastOutgoingMessage({
-  conversationId,
-  senderId,
-  recipientUserId,
-  content,
-  channel,
-  encryptionKey
-}) {
-  await db.getQuery()(
-    `INSERT INTO messages (
-      conversation_id,
-      sender_id,
-      sender_type_encrypted,
-      content_encrypted,
-      channel_encrypted,
-      role_encrypted,
-      direction_encrypted,
-      message_type,
-      user_id,
-      role,
-      direction,
-      created_at
-    ) VALUES (
-      $1, $2,
-      encrypt_text($3, $12),
-      encrypt_text($4, $12),
-      encrypt_text($5, $12),
-      encrypt_text($6, $12),
-      encrypt_text($7, $12),
-      $8, $9, $10, $11,
-      NOW()
-    )`,
-    [
-      conversationId,
-      senderId,
-      'editor',
-      content,
-      channel,
-      'editor',
-      'outgoing',
-      'user_chat',
-      recipientUserId,
-      'user',
-      'outgoing',
-      encryptionKey
-    ]
-  );
-}
-
-async function getOrCreateConversation(recipientUserId) {
-  const conversationResult = await db.getQuery()(
-    'SELECT id, user_id, created_at, updated_at, title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-    [recipientUserId]
-  );
-
-  if (conversationResult.rows.length > 0) {
-    return conversationResult.rows[0];
-  }
-
-  const title = `Чат с пользователем ${recipientUserId}`;
-  const newConv = await db.getQuery()(
-    'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
-    [recipientUserId, title]
-  );
-  return newConv.rows[0];
-}
-
-// GET /api/messages/public?userId=123 - получить публичные сообщения пользователя
 router.get('/public', requireAuth, async (req, res) => {
   const userId = req.query.userId;
   const currentUserId = req.user.id;
@@ -285,21 +217,40 @@ router.get('/public', requireAuth, async (req, res) => {
       });
     }
 
+    const sameCard = String(targetUserId) === String(currentUserId);
+    if (!sameCard && !String(targetUserId).startsWith('guest_')) {
+      const accessResolver = require('../services/accessResolverService');
+      const access = await accessResolver.resolveAccess(currentUserId);
+      const ok = await accessResolver.canViewContact(access, targetUserId, currentUserId);
+      if (!ok) {
+        return res.status(403).json({ success: false, error: 'Forbidden' });
+      }
+    }
+    // Своя: ИИ + public-стена карточки. Чужая: public только между парой (TZ_CHAT_SYSTEM §3).
+    const { contactCardMessageIncludes } = require('../services/chatSystemRules');
+    const {
+      includePublicPeer,
+      includePublicOnCard,
+      includeTargetUserChat
+    } = contactCardMessageIncludes({ sameCard });
+
     // Если нужен только подсчет
     if (countOnly) {
       const countResult = await db.getQuery()(
         `SELECT COUNT(*) FROM messages 
          WHERE (
-           (message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
-           OR (message_type = 'user_chat' AND user_id = $1)
+           ($3::boolean AND message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
+           OR ($5::boolean AND message_type = 'public' AND user_id = $1)
+           OR ($4::boolean AND message_type = 'user_chat' AND user_id = $1)
          )`,
-        [targetUserId, currentUserId]
+        [targetUserId, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard]
       );
       const totalCount = parseInt(countResult.rows[0].count, 10);
       return res.json({ success: true, count: totalCount, total: totalCount });
     }
     
-    // Загружаем публичные сообщения между пользователями И личные сообщения с ИИ целевого пользователя
+    // Своя карточка → user_chat (ИИ) + public на этой карточке (посетители + ИИ §3.4).
+    // Чужой peer → только public между парой (без чужого ИИ).
     const result = await db.getQuery()(
       `SELECT m.id, m.user_id, m.sender_id, decrypt_text(m.sender_type_encrypted, $2) as sender_type, 
               decrypt_text(m.content_encrypted, $2) as content, 
@@ -312,22 +263,24 @@ router.get('/public', requireAuth, async (req, res) => {
        FROM messages m
        LEFT JOIN admin_read_messages arm ON arm.user_id = m.user_id AND arm.admin_id = $5
        WHERE (
-         (m.message_type = 'public' AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1)))
-         OR (m.message_type = 'user_chat' AND m.user_id = $1)
+         ($6::boolean AND m.message_type = 'public' AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1)))
+         OR ($8::boolean AND m.message_type = 'public' AND m.user_id = $1)
+         OR ($7::boolean AND m.message_type = 'user_chat' AND m.user_id = $1)
        )
        ORDER BY m.created_at ASC
        LIMIT $3 OFFSET $4`,
-      [targetUserId, encryptionKey, limit, offset, currentUserId]
+      [targetUserId, encryptionKey, limit, offset, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard]
     );
     
     // Получаем общее количество для пагинации
     const countResult = await db.getQuery()(
       `SELECT COUNT(*) FROM messages 
        WHERE (
-         (message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
-         OR (message_type = 'user_chat' AND user_id = $1)
+         ($3::boolean AND message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
+         OR ($5::boolean AND message_type = 'public' AND user_id = $1)
+         OR ($4::boolean AND message_type = 'user_chat' AND user_id = $1)
        )`,
-      [targetUserId, currentUserId]
+      [targetUserId, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard]
     );
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
@@ -503,7 +456,7 @@ async function ensureBroadcastEditorAccess(req, res) {
   return { allowed: true, access };
 }
 
-router.get('/broadcast/recipients-summary', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/recipients-summary', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -535,7 +488,7 @@ router.get('/broadcast/recipients-summary', requireAuth, requirePermission(PERMI
   }
 });
 
-router.get('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/ai-agent/settings', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -551,7 +504,7 @@ router.get('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMIS
   }
 });
 
-router.get('/broadcast/ai-agent/history', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/ai-agent/history', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -568,7 +521,7 @@ router.get('/broadcast/ai-agent/history', requireAuth, requirePermission(PERMISS
   }
 });
 
-router.put('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.put('/broadcast/ai-agent/settings', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -585,7 +538,7 @@ router.put('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMIS
   }
 });
 
-router.get('/broadcast/ai-agent/models', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/ai-agent/models', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -604,7 +557,7 @@ router.get('/broadcast/ai-agent/models', requireAuth, requirePermission(PERMISSI
   }
 });
 
-router.post('/broadcast/ai-agent/preview', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/ai-agent/preview', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -641,7 +594,7 @@ router.post('/broadcast/ai-agent/preview', requireAuth, requirePermission(PERMIS
   }
 });
 
-router.get('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/templates', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -656,7 +609,7 @@ router.get('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BR
   }
 });
 
-router.post('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/templates', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -695,7 +648,7 @@ router.post('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.B
   }
 });
 
-router.put('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.put('/broadcast/templates/:id', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -737,7 +690,7 @@ router.put('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSION
   }
 });
 
-router.delete('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.delete('/broadcast/templates/:id', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -761,7 +714,7 @@ router.delete('/broadcast/templates/:id', requireAuth, requirePermission(PERMISS
   }
 });
 
-router.get('/broadcast/history', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/history', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -772,7 +725,16 @@ router.get('/broadcast/history', requireAuth, requirePermission(PERMISSIONS.BROA
     const offset = parseInt(req.query.offset, 10) || 0;
     const dateFrom = String(req.query.dateFrom || '').trim();
     const dateTo = String(req.query.dateTo || '').trim();
-    const history = await broadcastService.getHistory({ limit, offset, dateFrom, dateTo });
+    const viewerId = req.session?.userId || req.user?.id;
+    // own: только свои кампании; global editor — все
+    const senderIdFilter = access.access?.dataScope === 'global' ? null : viewerId;
+    const history = await broadcastService.getHistory({
+      limit,
+      offset,
+      dateFrom,
+      dateTo,
+      senderId: senderIdFilter
+    });
     res.json({ success: true, ...history });
   } catch (error) {
     logger.error('[Messages] Broadcast history error:', error);
@@ -780,7 +742,7 @@ router.get('/broadcast/history', requireAuth, requirePermission(PERMISSIONS.BROA
   }
 });
 
-router.delete('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.delete('/broadcast/campaigns', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -805,7 +767,7 @@ router.delete('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS
   }
 });
 
-router.get('/broadcast/analytics', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/analytics', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -820,7 +782,7 @@ router.get('/broadcast/analytics', requireAuth, requirePermission(PERMISSIONS.BR
   }
 });
 
-router.get('/broadcast/campaigns/:id', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/campaigns/:id', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -844,7 +806,7 @@ router.get('/broadcast/campaigns/:id', requireAuth, requirePermission(PERMISSION
   }
 });
 
-router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), broadcastUpload.array('attachments'), async (req, res) => {
+router.post('/broadcast/campaigns', requireAuth, requireBroadcastScoped(), broadcastUpload.array('attachments'), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -874,6 +836,11 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
   const scheduleHourStart = Number(req.body?.schedule_hour_start);
   const scheduleHourEnd = Number(req.body?.schedule_hour_end);
   const scheduleTimezone = String(req.body?.schedule_timezone || 'Europe/Moscow').trim();
+  const channels = broadcastService.normalizeBroadcastChannels(
+    typeof req.body?.channels === 'string'
+      ? (() => { try { return JSON.parse(req.body.channels); } catch { return req.body.channels; } })()
+      : req.body?.channels
+  );
   const attachments = req.files || [];
 
   if (!recipientIds.length) {
@@ -884,7 +851,21 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
     return res.status(400).json({ error: 'message обязателен' });
   }
 
+  if (!channels.length) {
+    return res.status(400).json({ error: 'Выберите хотя бы один канал: чат, email или telegram' });
+  }
+
   try {
+    const accessResolver = require('../services/accessResolverService');
+    const scopedRecipientIds = await accessResolver.filterContactIdsToScope(
+      req.viewerAccess,
+      recipientIds,
+      senderId
+    );
+    if (!scopedRecipientIds.length) {
+      return res.status(403).json({ error: 'Нет получателей в вашем scope контактов' });
+    }
+
     let campaign = await broadcastService.createCampaign({
       senderId,
       subject,
@@ -892,7 +873,7 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
       greeting,
       signature,
       legalFooter,
-      recipientIds,
+      recipientIds: scopedRecipientIds,
       warmupMode,
       delaySeconds,
       maxRecipients,
@@ -901,7 +882,8 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
       scheduleDays,
       scheduleHourStart,
       scheduleHourEnd,
-      scheduleTimezone
+      scheduleTimezone,
+      channels
     });
 
     if (attachments.length) {
@@ -957,7 +939,7 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
   }
 });
 
-router.post('/broadcast/campaigns/:id/prepare', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/prepare', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1017,7 +999,7 @@ router.post('/broadcast/campaigns/:id/prepare', requireAuth, requirePermission(P
   }
 });
 
-router.get('/broadcast/campaigns/:id/drafts', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/campaigns/:id/drafts', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1038,7 +1020,7 @@ router.get('/broadcast/campaigns/:id/drafts', requireAuth, requirePermission(PER
   }
 });
 
-router.get('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1063,7 +1045,7 @@ router.get('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermis
   }
 });
 
-router.put('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.put('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1089,7 +1071,7 @@ router.put('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermis
   }
 });
 
-router.get('/broadcast/campaigns/:id/status', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/campaigns/:id/status', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1119,7 +1101,7 @@ router.get('/broadcast/campaigns/:id/status', requireAuth, requirePermission(PER
   }
 });
 
-router.post('/broadcast/campaigns/:id/start', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/start', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1133,7 +1115,10 @@ router.post('/broadcast/campaigns/:id/start', requireAuth, requirePermission(PER
   }
 
   try {
-    const campaign = await broadcastService.startCampaign({ campaignId, actorId });
+    const channels = req.body?.channels != null
+      ? broadcastService.normalizeBroadcastChannels(req.body.channels)
+      : null;
+    const campaign = await broadcastService.startCampaign({ campaignId, actorId, channels });
     broadcastQueueService.enqueue(campaignId);
     res.json({ success: true, campaign });
   } catch (error) {
@@ -1142,7 +1127,7 @@ router.post('/broadcast/campaigns/:id/start', requireAuth, requirePermission(PER
   }
 });
 
-router.post('/broadcast/campaigns/:id/pause', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/pause', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1169,7 +1154,7 @@ router.post('/broadcast/campaigns/:id/pause', requireAuth, requirePermission(PER
   }
 });
 
-router.post('/broadcast/campaigns/:id/resume', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/resume', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1192,7 +1177,7 @@ router.post('/broadcast/campaigns/:id/resume', requireAuth, requirePermission(PE
   }
 });
 
-router.post('/broadcast/campaigns/:id/interrupt', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/interrupt', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1219,7 +1204,7 @@ router.post('/broadcast/campaigns/:id/interrupt', requireAuth, requirePermission
   }
 });
 
-router.get('/broadcast/campaigns/:id/events', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.get('/broadcast/campaigns/:id/events', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1246,7 +1231,7 @@ router.get('/broadcast/campaigns/:id/events', requireAuth, requirePermission(PER
   }
 });
 
-router.post('/broadcast/campaigns/:id/complete', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/complete', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1275,7 +1260,7 @@ router.post('/broadcast/campaigns/:id/complete', requireAuth, requirePermission(
   }
 });
 
-router.post('/broadcast/campaigns/:id/deliveries', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns/:id/deliveries', requireAuth, requireBroadcastScoped(), async (req, res) => {
   const access = await ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -1311,7 +1296,12 @@ router.post('/broadcast/campaigns/:id/deliveries', requireAuth, requirePermissio
 });
 
 // Массовая рассылка сообщения во все каналы пользователя
-router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST), broadcastUpload.array('attachments'), async (req, res) => {
+router.post('/broadcast', requireAuth, requireBroadcastScoped(), broadcastUpload.array('attachments'), async (req, res) => {
+  const accessGate = await ensureBroadcastEditorAccess(req, res);
+  if (!accessGate.allowed) {
+    return;
+  }
+
   const { content } = req.body;
   const subject = String(req.body.subject || 'Новое сообщение').trim() || 'Новое сообщение';
   const recipientUserId = parseInt(req.body.user_id, 10);
@@ -1327,22 +1317,18 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
     return res.status(400).json({ error: 'user_id и content обязательны' });
   }
 
-  const adminLogicService = require('../services/adminLogicService');
-  const editorRole = req.userRole || ROLES.USER;
-  const canBroadcast = adminLogicService.canPerformAdminAction({
-    role: editorRole,
-    action: 'broadcast_message'
-  });
-
-  if (!canBroadcast) {
-    logger.warn(`[Messages] Пользователь ${senderId} (роль: ${editorRole}) пытался сделать broadcast без прав`);
-    return res.status(403).json({
-      error: 'Только редакторы (editor) могут делать массовую рассылку'
-    });
-  }
-
   if (!senderId) {
     return res.status(401).json({ error: 'Не удалось определить отправителя' });
+  }
+
+  const accessResolver = require('../services/accessResolverService');
+  const scoped = await accessResolver.filterContactIdsToScope(
+    req.viewerAccess,
+    [recipientUserId],
+    senderId
+  );
+  if (!scoped.length) {
+    return res.status(403).json({ error: 'Получатель вне вашего scope контактов' });
   }
 
   const encryptionUtils = require('../utils/encryptionUtils');
@@ -1358,6 +1344,7 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
   }
 
   try {
+    let campaignChannels = null;
     if (campaignId && !Number.isNaN(campaignId)) {
       const campaign = await broadcastService.getCampaignById(campaignId);
       if (!campaign) {
@@ -1366,6 +1353,7 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
       if (['completed', 'interrupted'].includes(campaign.status)) {
         return res.status(400).json({ error: 'Рассылка уже завершена' });
       }
+      campaignChannels = campaign.channels;
     }
 
     const sendResult = await broadcastSendService.sendToRecipient({
@@ -1374,7 +1362,10 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
       subject,
       content,
       attachments,
-      campaignId: Number.isNaN(campaignId) ? null : campaignId
+      campaignId: Number.isNaN(campaignId) ? null : campaignId,
+      channels: campaignChannels != null
+        ? campaignChannels
+        : broadcastService.normalizeBroadcastChannels(req.body?.channels)
     });
 
     if (!sendResult.success) {
@@ -1582,7 +1573,11 @@ router.post('/send', requireAuth, maybeChatUpload, async (req, res) => {
     // Работа с зарегистрированными пользователями
     let recipientIdNum;
     if (messageType === 'private') {
-      recipientIdNum = 1;
+      // устаревший путь /messages/send?messageType=private — peer из body, не хардкод id=1
+      recipientIdNum = parseInt(recipientId, 10);
+      if (Number.isNaN(recipientIdNum) || recipientIdNum <= 0) {
+        return res.status(400).json({ error: 'recipientId обязателен для private' });
+      }
     } else {
       recipientIdNum = parseInt(recipientId, 10);
       if (Number.isNaN(recipientIdNum)) {
@@ -1620,16 +1615,14 @@ router.post('/send', requireAuth, maybeChatUpload, async (req, res) => {
     }
 
     const unifiedMessageProcessor = require('../services/unifiedMessageProcessor');
-    const identityService = require('../services/identity-service');
+    const { resolveSenderIdentifier } = require('../utils/senderIdentifier');
 
-    const walletIdentity = await identityService.findIdentity(senderId, 'wallet');
-    if (!walletIdentity) {
+    const identifier = await resolveSenderIdentifier(senderId);
+    if (!identifier) {
       return res.status(403).json({
-        error: 'Требуется подключение кошелька'
+        error: 'Не найден способ связи аккаунта (email, telegram или кошелёк)'
       });
     }
-
-    const identifier = `wallet:${walletIdentity.provider_id}`;
 
     const result = await unifiedMessageProcessor.processMessage({
       identifier,
@@ -1638,6 +1631,7 @@ router.post('/send', requireAuth, maybeChatUpload, async (req, res) => {
       attachments: [],
       conversationId: null,
       recipientId: recipientIdNum,
+      forcePrivate: messageType === 'private',
       userId: senderId,
       metadata: {
         messageType,
@@ -1884,17 +1878,14 @@ router.post('/private/send', requireAuth, chatUpload, chatMediaRateLimit, async 
     
     // ✨ Используем unifiedMessageProcessor для унификации
     const unifiedMessageProcessor = require('../services/unifiedMessageProcessor');
-    const identityService = require('../services/identity-service');
-    
-    // Получаем wallet идентификатор отправителя
-    const walletIdentity = await identityService.findIdentity(senderId, 'wallet');
-    if (!walletIdentity) {
+    const { resolveSenderIdentifier } = require('../utils/senderIdentifier');
+
+    const identifier = await resolveSenderIdentifier(senderId);
+    if (!identifier) {
       return res.status(403).json({
-        error: 'Требуется подключение кошелька'
+        error: 'Не найден способ связи аккаунта (email, telegram или кошелёк)'
       });
     }
-    
-    const identifier = `wallet:${walletIdentity.provider_id}`;
 
     let attachments = [];
     let messageContent = content;
@@ -1914,14 +1905,23 @@ router.post('/private/send', requireAuth, chatUpload, chatMediaRateLimit, async 
     }
     
     // Обрабатываем через unifiedMessageProcessor
-    // Для приватных сообщений recipientId всегда = 1 (редактор)
+    // Реальный recipientId + forcePrivate (не подменять на id=1)
+    const peerId = parseInt(recipientId, 10);
+    if (!Number.isInteger(peerId) || peerId <= 0) {
+      return res.status(400).json({ error: 'recipientId должен быть положительным числом' });
+    }
+    if (peerId === Number(senderId)) {
+      return res.status(400).json({ error: 'Нельзя открыть приват с самим собой' });
+    }
+
     const result = await unifiedMessageProcessor.processMessage({
       identifier: identifier,
       content: messageContent,
       channel: 'web',
       attachments,
-      conversationId: null, // unifiedMessageProcessor сам найдет/создаст беседу
-      recipientId: 1, // Приватные сообщения всегда к редактору
+      conversationId: null,
+      recipientId: peerId,
+      forcePrivate: true,
       userId: senderId,
       metadata: attachments[0] ? { attachment_kind: attachments[0].kind } : {}
     });
@@ -1946,28 +1946,95 @@ router.get('/private/conversations', requireAuth, async (req, res) => {
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
     
-    // Получаем приватные чаты где пользователь является участником
+    // peer_user_id — собеседник для UI (/admin-chat/:id), не host conversations.user_id
     const result = await db.getQuery()(
-      `SELECT DISTINCT 
+      `SELECT
          c.id as conversation_id,
-         c.user_id,
+         c.user_id as host_user_id,
+         peer.user_id as peer_user_id,
          c.title,
          c.updated_at,
-         COUNT(m.id) as message_count
+         (
+           SELECT COUNT(*)::int
+           FROM messages m
+           WHERE m.conversation_id = c.id AND m.message_type = 'admin_chat'
+         ) as message_count,
+         last_msg.content as last_message,
+         last_msg.created_at as last_message_at,
+         CASE
+           WHEN u.first_name_encrypted IS NULL OR u.first_name_encrypted = '' THEN NULL
+           ELSE decrypt_text(u.first_name_encrypted, $2)
+         END as peer_first_name,
+         CASE
+           WHEN u.last_name_encrypted IS NULL OR u.last_name_encrypted = '' THEN NULL
+           ELSE decrypt_text(u.last_name_encrypted, $2)
+         END as peer_last_name
        FROM conversations c
        INNER JOIN conversation_participants cp ON c.id = cp.conversation_id
-       LEFT JOIN messages m ON c.id = m.conversation_id AND m.message_type = 'admin_chat'
+       LEFT JOIN LATERAL (
+         SELECT cp2.user_id
+         FROM conversation_participants cp2
+         WHERE cp2.conversation_id = c.id AND cp2.user_id <> $1
+         ORDER BY cp2.user_id
+         LIMIT 1
+       ) peer ON true
+       LEFT JOIN users u ON u.id = peer.user_id
+       LEFT JOIN LATERAL (
+         SELECT
+           decrypt_text(m.content_encrypted, $2) as content,
+           m.created_at
+         FROM messages m
+         WHERE m.conversation_id = c.id AND m.message_type = 'admin_chat'
+         ORDER BY m.created_at DESC
+         LIMIT 1
+       ) last_msg ON true
        WHERE cp.user_id = $1 AND c.conversation_type = 'private'
-       GROUP BY c.id, c.user_id, c.title, c.updated_at
-       ORDER BY c.updated_at DESC`,
-      [currentUserId]
+         AND EXISTS (
+           SELECT 1 FROM messages mx
+           WHERE mx.conversation_id = c.id AND mx.message_type = 'admin_chat'
+         )
+       ORDER BY COALESCE(last_msg.created_at, c.updated_at) DESC`,
+      [currentUserId, encryptionKey]
     );
+
+    const toIso = (value) => {
+      if (!value) return null;
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value.toISOString();
+      }
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString();
+    };
+
+    const conversations = result.rows.map((row) => {
+      const peerName = [row.peer_first_name, row.peer_last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || null;
+      const preview = String(row.last_message || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 160);
+      return {
+        conversation_id: row.conversation_id,
+        // совместимость: user_id в UI = peer (с кем чат)
+        user_id: row.peer_user_id || row.host_user_id,
+        peer_user_id: row.peer_user_id,
+        host_user_id: row.host_user_id,
+        title: row.title,
+        peer_name: peerName,
+        last_message: preview || null,
+        last_message_at: toIso(row.last_message_at) || toIso(row.updated_at),
+        updated_at: toIso(row.updated_at),
+        message_count: Number(row.message_count) || 0
+      };
+    });
     
-    console.log('[DEBUG] /messages/private/conversations result:', result.rows);
+    console.log('[DEBUG] /messages/private/conversations result:', conversations);
     
     res.json({
       success: true,
-      conversations: result.rows
+      conversations
     });
     
   } catch (error) {

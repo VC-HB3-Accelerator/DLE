@@ -13,34 +13,57 @@
 <template>
   <div class="header">
     <div class="header-content">
-      <div class="header-text">
+      <div class="header-start">
+        <button
+          v-if="showPersonalToggle && !isPersonalSidebarOpen"
+          type="button"
+          class="header-personal-btn"
+          :aria-label="personalToggleLabel"
+          :title="personalToggleLabel"
+          aria-expanded="false"
+          @click="togglePersonalSidebar"
+        >
+          <UiGlyph name="sidebar-left" :size="20" />
+        </button>
+      </div>
+
+      <div class="header-center">
         <div v-if="dleDisplayName" class="footer-dle-info">
-          <img 
-            v-if="footerDle?.logoURI" 
-            :src="footerDle.logoURI" 
-            :alt="dleDisplayName.name" 
+          <img
+            v-if="headerLogoUrl"
+            :src="headerLogoUrl"
+            :alt="dleDisplayName.name"
             class="footer-dle-logo"
             @error="handleLogoError"
           />
-          <div v-else class="footer-dle-logo-placeholder">DLE</div>
-          <span class="dle-name">{{ dleDisplayName.name }} ({{ dleDisplayName.symbol }})</span>
+          <div class="footer-dle-text">
+            <span class="dle-name">{{ dleDisplayName.name }} ({{ dleDisplayName.symbol }})</span>
+            <span v-if="headerDescription" class="dle-header-desc">{{ headerDescription }}</span>
+          </div>
         </div>
       </div>
+
       <div class="header-actions">
         <button
           v-if="showClose"
           type="button"
           class="header-close-btn"
-          :aria-label="closeLabel"
-          :title="closeLabel"
+          :aria-label="backLabel"
+          :title="backLabel"
           @click="closePage"
-        >×</button>
+        >
+          <UiGlyph name="arrow-left" :size="20" />
+        </button>
         <button
+          v-if="!isSidebarOpen"
+          type="button"
           class="header-wallet-btn"
-          :class="{ active: isSidebarOpen }"
+          :aria-label="osToggleLabel"
+          :title="osToggleLabel"
+          aria-expanded="false"
           @click="toggleSidebar"
         >
-        <div class="hamburger-line" />
+          <UiGlyph name="sidebar-right" :size="20" />
         </button>
       </div>
     </div>
@@ -52,39 +75,56 @@ import { defineProps, defineEmits, onMounted, onBeforeUnmount, watch, computed }
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../composables/useAuth';
 import { useFooterDle } from '../composables/useFooterDle';
+import { useSiteBrand } from '../composables/useSiteBrand';
 import { usePageClose } from '../composables/usePageClose';
 import eventBus from '../utils/eventBus';
+import UiGlyph from './UiGlyph.vue';
 
 const props = defineProps({
   isSidebarOpen: {
     type: Boolean,
     required: true
+  },
+  isPersonalSidebarOpen: {
+    type: Boolean,
+    default: false
+  },
+  showPersonalToggle: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['toggle-sidebar']);
+const emit = defineEmits(['toggle-sidebar', 'toggle-personal-sidebar']);
 
 const { t } = useI18n();
 const { showClose, closePage } = usePageClose();
-const closeLabel = computed(() => t('common.close'));
+const backLabel = computed(() => t('common.back'));
+const personalToggleLabel = computed(() => t('personalSidebar.toggle'));
+const osToggleLabel = computed(() => t('personalSidebar.osToggle'));
 
 const toggleSidebar = () => {
   emit('toggle-sidebar');
 };
 
-// Обработка аутентификации
+const togglePersonalSidebar = () => {
+  emit('toggle-personal-sidebar');
+};
+
 const auth = useAuthContext();
 const { isAuthenticated } = auth;
 
-// Используем composable для выбранного DLE
 const { footerDle } = useFooterDle();
+const {
+  headerDescription,
+  headerLogoUrl,
+  loadSiteBrand,
+} = useSiteBrand();
 
-// Вычисляемое свойство для отображения названия
 const dleDisplayName = computed(() => {
   if (!footerDle.value || !footerDle.value.name || !footerDle.value.symbol) return null;
-  // Проверяем, что это не fallback данные (не начинается с "DLE " и адресом)
   if (footerDle.value.name.startsWith('DLE ') && footerDle.value.name.includes('...')) {
-    return null; // Не показываем fallback данные
+    return null;
   }
   return {
     name: footerDle.value.name,
@@ -92,57 +132,42 @@ const dleDisplayName = computed(() => {
   };
 });
 
-// Обработка ошибки загрузки логотипа
 const handleLogoError = (event) => {
-  console.log('[Header] Ошибка загрузки логотипа:', event.target.src);
-  event.target.style.display = 'none';
-  // Показываем placeholder, если его нет
-  const infoContainer = event.target.closest('.footer-dle-info');
-  if (infoContainer) {
-    let placeholder = infoContainer.querySelector('.footer-dle-logo-placeholder');
-    if (!placeholder) {
-      placeholder = document.createElement('div');
-      placeholder.className = 'footer-dle-logo-placeholder';
-      placeholder.textContent = 'DLE';
-      infoContainer.insertBefore(placeholder, event.target);
-    }
-    placeholder.style.display = 'flex';
+  const el = event.target;
+  const fallback = '/og-default.png';
+  console.log('[Header] Ошибка загрузки логотипа:', el?.src);
+  if (el && el.src && !String(el.src).includes('og-default.png')) {
+    el.src = fallback;
+    return;
   }
+  if (el) el.style.display = 'none';
 };
 
-// Мониторинг изменений статуса аутентификации
 let unwatch = null;
 let refreshInterval = null;
 
 onMounted(() => {
-  // Следим за изменениями авторизации и сообщаем о них через eventBus
   unwatch = watch(isAuthenticated, (newValue, oldValue) => {
     if (newValue !== oldValue) {
-      // console.log('[Header] Состояние аутентификации изменилось:', newValue);
-      // Оповещаем остальные компоненты через шину событий
-      eventBus.emit('auth-state-changed', { 
-        isAuthenticated: newValue, 
+      eventBus.emit('auth-state-changed', {
+        isAuthenticated: newValue,
         fromHeader: true
       });
     }
   });
-  
-  // Обновляем данные DLE из блокчейна периодически (каждые 5 минут)
+
   const { refreshFooterDle } = useFooterDle();
   refreshInterval = setInterval(() => {
     refreshFooterDle();
-  }, 5 * 60 * 1000); // 5 минут
-  
-  // НЕ очищаем footerDle при отключении кошелька, так как это глобальная настройка,
-  // не связанная с пользовательским кошельком
+    loadSiteBrand({ force: true });
+  }, 5 * 60 * 1000);
+  loadSiteBrand();
 });
 
-// Очищаем наблюдатель при удалении компонента
 onBeforeUnmount(() => {
   if (unwatch) {
     unwatch();
   }
-  // Очищаем интервал обновления
   if (refreshInterval) {
     clearInterval(refreshInterval);
   }
@@ -159,7 +184,7 @@ onBeforeUnmount(() => {
     max(20px, env(safe-area-inset-left, 0px));
   position: sticky;
   top: 0;
-  z-index: 100; /* Ensure header stays on top */
+  z-index: 100;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -167,26 +192,64 @@ onBeforeUnmount(() => {
 }
 
 .header-content {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, auto) minmax(min-content, 1fr);
   align-items: center;
   min-width: 0;
   max-width: 100%;
   gap: var(--spacing-sm);
 }
 
-.header-text {
-  flex-grow: 1;
+.header-start {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  min-width: 44px;
+  position: relative;
+  z-index: 1;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--spacing-xs);
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.header-personal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-white);
+  color: var(--color-primary);
+  border: none;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background-color var(--transition-normal);
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.header-personal-btn:hover {
+  background-color: var(--color-light);
+}
+
+.header-personal-btn.active {
+  background-color: var(--color-light);
 }
 
 .header-close-btn {
@@ -203,7 +266,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-lg, 8px);
   background: transparent;
   box-shadow: none;
-  color: var(--theme-text, #444);
+  color: var(--color-primary);
   font-size: 1.5rem;
   font-weight: 400;
   line-height: 1;
@@ -213,7 +276,7 @@ onBeforeUnmount(() => {
 }
 
 .header-close-btn:hover {
-  color: var(--theme-text, #222);
+  color: var(--color-primary);
   background: var(--color-light, #f3f4f6);
 }
 
@@ -225,14 +288,26 @@ onBeforeUnmount(() => {
 .footer-dle-info {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-sm);
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
+}
+
+.footer-dle-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .footer-dle-logo {
-  width: 32px;
-  height: 32px;
+  width: clamp(22px, 4.2vw + 10px, 32px);
+  height: clamp(22px, 4.2vw + 10px, 32px);
   border-radius: 6px;
   object-fit: contain;
   border: 2px solid var(--color-border);
@@ -240,41 +315,31 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.footer-dle-logo-placeholder {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--theme-surface);
-  color: var(--color-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: var(--font-size-xs);
-  border: 2px solid var(--color-border);
-  flex-shrink: 0;
-}
-
 .dle-name {
-  font-size: 0.9rem;
+  display: block;
+  width: 100%;
+  font-size: clamp(0.7rem, 0.52rem + 1.1vw, 0.9rem);
   color: var(--color-primary);
   font-weight: 500;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  max-width: 100%;
 }
 
-.title {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: bold;
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-grey-dark);
+.dle-header-desc {
+  display: block;
+  width: 100%;
+  font-size: clamp(0.6rem, 0.48rem + 0.85vw, 0.75rem);
+  color: var(--color-grey-dark, #4a5568);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .header-wallet-btn {
@@ -299,61 +364,6 @@ onBeforeUnmount(() => {
   background-color: var(--color-light);
 }
 
-.header-wallet-btn.active {
-  background-color: var(--color-light);
-}
-
-.hamburger-line {
-  width: 20px;
-  height: 3px;
-  background-color: var(--color-primary);
-  position: relative;
-  transition: all var(--transition-normal);
-  flex-shrink: 0;
-}
-
-.hamburger-line::before,
-.hamburger-line::after {
-  content: '';
-  position: absolute;
-  width: 100%;
-  height: 3px;
-  background-color: var(--color-primary);
-  left: 0;
-  transition: all var(--transition-normal);
-}
-
-.hamburger-line::before {
-  top: -6px;
-}
-
-.hamburger-line::after {
-  top: 6px;
-}
-
-/* Удаляем стили для трансформации бургера в крестик */
-/*
-.header-wallet-btn.active .hamburger-line {
-  background-color: transparent; 
-}
-
-.header-wallet-btn.active .hamburger-line::before {
-  top: 0;
-  transform: rotate(45deg);
-}
-
-.header-wallet-btn.active .hamburger-line::after {
-  top: 0;
-  transform: rotate(-45deg);
-}
-*/
-
-.nav-btn-text {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-/* Add some responsive styles if needed */
 @media (max-width: 768px) {
   .header {
     padding:
@@ -363,23 +373,20 @@ onBeforeUnmount(() => {
       max(12px, env(safe-area-inset-left, 0px));
   }
 
-  .title {
-    font-size: 1.2rem;
+  .header-content {
+    gap: var(--spacing-xs);
   }
-  .subtitle {
-    font-size: 0.8rem;
+
+  .footer-dle-info {
+    gap: 6px;
   }
+
   .header-close-btn,
-  .header-wallet-btn {
+  .header-wallet-btn,
+  .header-personal-btn {
     min-width: 48px;
     min-height: 48px;
     padding: 12px;
-  }
-  .header-close-btn {
-    font-size: 1.6rem;
-  }
-  .nav-btn-text {
-    font-size: 0.8rem;
   }
 }
 
@@ -387,42 +394,58 @@ onBeforeUnmount(() => {
   .header {
     padding:
       max(12px, env(safe-area-inset-top, 0px))
-      max(14px, env(safe-area-inset-right, 0px))
+      max(10px, env(safe-area-inset-right, 0px))
       10px
-      max(12px, env(safe-area-inset-left, 0px));
+      max(10px, env(safe-area-inset-left, 0px));
   }
 
-  .title {
-    font-size: 1em;
-    text-align: left;
-    word-break: break-word;
-  }
-  .subtitle {
-    font-size: 0.7em;
-    text-align: left;
-    word-break: break-word;
-  }
   .header-content {
-    flex-direction: row;
-    align-items: center;
+    gap: 4px;
   }
-  .header-text {
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    width: auto;
+
+  .footer-dle-info {
+    gap: 4px;
   }
+
+  .footer-dle-text {
+    gap: 1px;
+  }
+
+  .footer-dle-logo {
+    border-width: 1px;
+  }
+
   .header-close-btn,
-  .header-wallet-btn {
+  .header-wallet-btn,
+  .header-personal-btn {
     min-width: 48px;
     min-height: 48px;
-    margin-right: 2px;
   }
+
   .header-close-btn {
-    font-size: 1.6rem;
     padding: 0;
-    margin-right: 0;
   }
 }
 
-</style> 
+@media (max-width: 360px) {
+  .header {
+    padding:
+      max(10px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      8px
+      max(8px, env(safe-area-inset-left, 0px));
+  }
+
+  .header-content {
+    gap: 2px;
+  }
+
+  .footer-dle-info {
+    gap: 4px;
+  }
+
+  .header-actions {
+    gap: 0;
+  }
+}
+</style>

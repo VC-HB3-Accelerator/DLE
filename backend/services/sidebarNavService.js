@@ -24,7 +24,7 @@ const DEFAULT_AUTH_METHODS = {
 };
 
 /** Поддерживаемые языки UI (порядок отображения: первый — по умолчанию). */
-const KNOWN_LOCALES = ['en', 'ru'];
+const KNOWN_LOCALES = ['ru', 'en'];
 const DEFAULT_LOCALES = [...KNOWN_LOCALES];
 
 function normalizeButtons(raw) {

@@ -683,6 +683,7 @@ async function addTag() {
     // 1. Создаем новую пустую строку в связанной таблице
     const rowResponse = await fetch(`/api/tables/${rel.relatedTableId}/rows`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' }
     });
     const newRow = await rowResponse.json();
@@ -692,6 +693,7 @@ async function addTag() {
     // 2. Добавляем значение в ячейку через POST /cell
     const cellResponse = await fetch(`/api/tables/cell`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         row_id: newRow.id,

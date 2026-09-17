@@ -20,8 +20,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useNotifications } from '../../composables/useNotifications';
+import { shareOrCopyUrl } from '../../utils/browserBookmark';
 import BlogGlyph from './BlogGlyph.vue';
 
 const props = defineProps({
@@ -31,31 +33,24 @@ const props = defineProps({
 });
 
 const { t } = useI18n();
+const { showSuccessMessage, showErrorMessage } = useNotifications();
 const copied = ref(false);
-
-const canNativeShare = computed(() => typeof navigator !== 'undefined' && !!navigator.share);
+let copiedTimer = null;
 
 async function share() {
-  if (canNativeShare.value) {
-    try {
-      await navigator.share({
-        title: props.title || document.title,
-        url: props.url,
-      });
-      return;
-    } catch (e) {
-      if (e?.name === 'AbortError') return;
-      console.warn('[BlogShareBar] native share failed:', e);
-    }
+  const result = await shareOrCopyUrl({
+    url: props.url,
+    title: props.title || (typeof document !== 'undefined' ? document.title : ''),
+  });
+  if (result === 'aborted') return;
+  if (result === 'failed') {
+    showErrorMessage(t('blog.share.failed'));
+    return;
   }
-
-  try {
-    await navigator.clipboard.writeText(props.url);
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
-  } catch (e) {
-    console.warn('[BlogShareBar] copy failed:', e);
-  }
+  copied.value = true;
+  if (copiedTimer) clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => { copied.value = false; }, 2000);
+  if (result === 'copied') showSuccessMessage(t('blog.share.copied'));
 }
 </script>
 

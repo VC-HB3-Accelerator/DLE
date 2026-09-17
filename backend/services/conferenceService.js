@@ -763,6 +763,19 @@ async function createMultiSession(userIdsRaw, payload = {}, actorId = null) {
     ? Boolean(payload.interpretation_enabled)
     : true;
 
+  let scheduledAt = null;
+  let status = 'draft';
+  if (payload.scheduled_at) {
+    const dt = new Date(payload.scheduled_at);
+    if (Number.isNaN(dt.getTime()) || dt.getTime() <= Date.now()) {
+      const err = new Error('Для планирования укажите дату в будущем');
+      err.status = 400;
+      throw err;
+    }
+    scheduledAt = dt.toISOString();
+    status = payload.schedule === false ? 'draft' : 'scheduled';
+  }
+
   const { rows } = await db.getQuery()(
     `INSERT INTO conference_sessions (
        contact_user_id, created_by, title,
@@ -773,8 +786,8 @@ async function createMultiSession(userIdsRaw, payload = {}, actorId = null) {
      ) VALUES (
        $1, $2, $3,
        NULL, NULL,
-       NULL, $6, $7,
-       $4, $5, NULL, $8, 'draft', true
+       $9, $6, $7,
+       $4, $5, NULL, $8, $10, true
      )
      RETURNING id`,
     [
@@ -785,7 +798,9 @@ async function createMultiSession(userIdsRaw, payload = {}, actorId = null) {
       hostLanguage,
       notifyTelegram,
       notifyEmail,
-      interpretationEnabled
+      interpretationEnabled,
+      scheduledAt,
+      status
     ]
   );
 
@@ -963,6 +978,251 @@ async function listInvitesForUser(userId) {
   }));
 }
 
+/**
+ * Inbox «Личные звонки»: upcoming, где я host или participant (1:1 + multi).
+ */
+async function listMyUpcomingCalls(userId, { limit = 50 } = {}) {
+  const uid = await assertRegisteredUser(userId);
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+  const encryptionKey = getEncryptionKey();
+  const { rows } = await db.getQuery()(
+    `SELECT
+       s.*,
+       CASE WHEN s.notes_encrypted IS NULL OR s.notes_encrypted = '' THEN NULL
+            ELSE decrypt_text(s.notes_encrypted, $2) END AS notes,
+       CASE WHEN s.presentation_outline_encrypted IS NULL OR s.presentation_outline_encrypted = '' THEN NULL
+            ELSE decrypt_text(s.presentation_outline_encrypted, $2) END AS presentation_outline,
+       (
+         SELECT COUNT(*)::int FROM conference_participants cp2
+         WHERE cp2.conference_id = s.id
+       ) AS participant_count,
+       CASE
+         WHEN s.created_by = $1 THEN 'host'
+         ELSE COALESCE(
+           (SELECT cp.role FROM conference_participants cp
+            WHERE cp.conference_id = s.id AND cp.user_id = $1 LIMIT 1),
+           'participant'
+         )
+       END AS my_role
+     FROM conference_sessions s
+     WHERE s.status IN ('draft', 'scheduled', 'live')
+       AND (
+         s.created_by = $1
+         OR EXISTS (
+           SELECT 1 FROM conference_participants cp
+           WHERE cp.conference_id = s.id AND cp.user_id = $1
+         )
+       )
+     ORDER BY
+       CASE WHEN s.status = 'live' THEN 0 ELSE 1 END,
+       COALESCE(s.scheduled_at, s.updated_at) ASC
+     LIMIT $3`,
+    [uid, encryptionKey, safeLimit]
+  );
+
+  const calls = [];
+  for (const row of rows) {
+    const mapped = mapSessionRow(row);
+    const isMulti = Boolean(row.is_multi);
+    let peerName = null;
+    let peerId = null;
+    if (!isMulti) {
+      peerId = Number(mapped.contact_user_id) === uid
+        ? Number(mapped.created_by)
+        : Number(mapped.contact_user_id);
+      if (Number.isInteger(peerId) && peerId > 0 && peerId !== uid) {
+        try {
+          const identity = await getContactIdentities(peerId);
+          peerName = identity.name || null;
+        } catch (_) {
+          peerName = null;
+        }
+      }
+    }
+    calls.push({
+      ...mapped,
+      kind: isMulti ? 'multi' : 'one_to_one',
+      my_role: row.my_role,
+      participant_count: row.participant_count || 0,
+      peer_id: peerId,
+      peer_name: peerName,
+      title: mapped.title
+        || (isMulti ? null : peerName)
+        || null
+    });
+  }
+  return calls;
+}
+
+async function countMyUpcomingCalls(userId) {
+  const uid = await assertRegisteredUser(userId);
+  const { rows } = await db.getQuery()(
+    `SELECT COUNT(*)::int AS cnt
+     FROM conference_sessions s
+     WHERE s.status IN ('draft', 'scheduled', 'live')
+       AND (
+         s.created_by = $1
+         OR EXISTS (
+           SELECT 1 FROM conference_participants cp
+           WHERE cp.conference_id = s.id AND cp.user_id = $1
+         )
+       )`,
+    [uid]
+  );
+  return rows[0]?.cnt || 0;
+}
+
+/**
+ * Слоты календаря для кнопки «Звонок»: часы организатора (системные booking_hours).
+ */
+async function listCallCalendarSlots(actorId, { peerIds = [], from, to } = {}) {
+  const hostId = await assertRegisteredUser(actorId);
+  const peers = [];
+  const seen = new Set([hostId]);
+  for (const raw of peerIds) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    peers.push(await assertRegisteredUser(id));
+  }
+  if (!peers.length) {
+    const err = new Error('Выберите хотя бы одного участника');
+    err.status = 400;
+    err.code = 'NO_PEERS';
+    throw err;
+  }
+  if (peers.length > MAX_PARTICIPANTS) {
+    const err = new Error(`Максимум ${MAX_PARTICIPANTS} участника`);
+    err.status = 400;
+    err.code = 'MULTI_COUNT';
+    throw err;
+  }
+
+  const settingsService = require('./voiceCallSettingsService');
+  const { normalizeBookingHours, slotRange } = require('./voiceCallSlotTime');
+  const settings = await settingsService.getSettings();
+  const hours = normalizeBookingHours(settings.booking_hours);
+  const slotMinutes = Number(settings.booking_slot_minutes) || 30;
+  const all = slotRange(
+    { ...settings, booking_hours: hours, booking_slot_minutes: slotMinutes },
+    from,
+    to
+  );
+
+  const involved = [hostId, ...peers];
+  const { rows } = await db.getQuery()(
+    `SELECT DISTINCT s.scheduled_at
+     FROM conference_sessions s
+     WHERE s.status IN ('draft', 'scheduled', 'live')
+       AND s.scheduled_at IS NOT NULL
+       AND s.scheduled_at >= NOW()
+       AND (
+         s.created_by = ANY($1::int[])
+         OR s.contact_user_id = ANY($1::int[])
+         OR EXISTS (
+           SELECT 1 FROM conference_participants cp
+           WHERE cp.conference_id = s.id AND cp.user_id = ANY($1::int[])
+         )
+       )`,
+    [involved]
+  );
+  const taken = new Set(rows.map((r) => new Date(r.scheduled_at).toISOString()));
+
+  return {
+    mode: peers.length === 1 ? 'one_to_one' : 'multi',
+    peer_ids: peers,
+    slot_minutes: slotMinutes,
+    time_zone: hours.timeZone,
+    booking_hours: hours,
+    slots: all.filter((iso) => !taken.has(iso)).map((starts_at) => ({ starts_at })),
+    occupied: [...taken].map((starts_at) => ({ starts_at }))
+  };
+}
+
+/**
+ * Назначить звонок из contacts-list / календаря. 1 peer → 1:1; 2–3 → multi.
+ */
+async function scheduleCallFromContacts(actorId, payload = {}) {
+  const hostId = await assertRegisteredUser(actorId);
+  const rawIds = payload.userIds || payload.ids || payload.peerIds || [];
+  const peers = [];
+  const seen = new Set([hostId]);
+  for (const raw of rawIds) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    peers.push(await assertRegisteredUser(id));
+  }
+  if (!peers.length) {
+    const err = new Error('Выберите хотя бы одного участника');
+    err.status = 400;
+    err.code = 'NO_PEERS';
+    throw err;
+  }
+  if (peers.length > MAX_PARTICIPANTS) {
+    const err = new Error(`Максимум ${MAX_PARTICIPANTS} участника`);
+    err.status = 400;
+    err.code = 'MULTI_COUNT';
+    throw err;
+  }
+
+  const scheduledAt = payload.scheduled_at;
+  if (!scheduledAt) {
+    const err = new Error('Выберите слот в календаре');
+    err.status = 400;
+    err.code = 'SLOT_REQUIRED';
+    throw err;
+  }
+
+  const title = payload.title !== undefined
+    ? (String(payload.title || '').trim().slice(0, 200) || null)
+    : null;
+
+  if (peers.length === 1) {
+    const peerId = peers[0];
+    const data = await upsertSessionForContact(
+      peerId,
+      {
+        create_new: true,
+        title: title || 'Звонок 1:1',
+        scheduled_at: scheduledAt,
+        schedule: true,
+        notify_email: payload.notify_email !== undefined ? Boolean(payload.notify_email) : true,
+        notify_telegram: payload.notify_telegram !== undefined ? Boolean(payload.notify_telegram) : false
+      },
+      hostId
+    );
+    return {
+      kind: 'one_to_one',
+      session: data.session,
+      contact: data.contact,
+      notificationsQueued: data.notificationsQueued,
+      notificationResult: data.notificationResult
+    };
+  }
+
+  const data = await createMultiSession(
+    peers,
+    {
+      title: title || `Конференция (${peers.length})`,
+      scheduled_at: scheduledAt,
+      schedule: true,
+      notify_email: payload.notify_email !== undefined ? Boolean(payload.notify_email) : true,
+      notify_telegram: payload.notify_telegram !== undefined ? Boolean(payload.notify_telegram) : false,
+      guest_language: payload.guest_language,
+      host_language: payload.host_language
+    },
+    hostId
+  );
+  return {
+    kind: 'multi',
+    session: data.session,
+    participants: data.participants,
+    contact: data.contact,
+    notifications: data.notifications
+  };
+}
+
 async function updateSessionLanguages(conferenceId, actorId, payload = {}) {
   const id = Number(conferenceId);
   const uid = Number(actorId);
@@ -1071,6 +1331,10 @@ module.exports = {
   updateSessionById,
   updateSessionLanguages,
   listInvitesForUser,
+  listMyUpcomingCalls,
+  countMyUpcomingCalls,
+  listCallCalendarSlots,
+  scheduleCallFromContacts,
   MAX_PARTICIPANTS,
   STATUSES
 };

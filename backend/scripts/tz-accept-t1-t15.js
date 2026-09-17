@@ -246,11 +246,22 @@ async function main() {
       assert('T7', can === false, `canViewContact=${can}`);
     }
 
-    // T8
+    // T8 — boss видит импортированный внешний контакт (provenance)
     {
       const boss = await accessResolver.resolveAccess(bossId);
       const can = await accessResolver.canViewContact(boss, contactId, bossId);
       assert('T8', can === true && boss.dataScope === 'domain', `canViewContact=${can} scope=${boss.dataScope}`);
+    }
+
+    // T8b — boss видит юзера домена по primary email без provenance
+    {
+      const boss = await accessResolver.resolveAccess(bossId);
+      const can = await accessResolver.canViewContact(boss, ivanId, bossId);
+      assert(
+        'T8b',
+        can === true && boss.dataScope === 'domain',
+        `canViewContact(ivan)=${can} scope=${boss.dataScope}`
+      );
     }
 
     // T9 — demotion

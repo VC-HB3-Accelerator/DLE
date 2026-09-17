@@ -134,7 +134,7 @@ class WebSocketService {
         
       case 'messages-updated':
         // console.log('📨 [WebSocket] Обновление сообщений');
-        this.emit('messages-updated');
+        this.emit('messages-updated', data);
         break;
         
       case 'contacts-updated':

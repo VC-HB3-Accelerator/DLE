@@ -77,7 +77,7 @@ function applyLocales(list) {
     selected[code] = enabled.has(code);
   }
   if (selectedCount.value === 0) {
-    selected.en = true;
+    selected.ru = true;
   }
 }
 

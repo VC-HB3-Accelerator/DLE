@@ -107,6 +107,11 @@ function mapProduct(row, mediaRows = [], sectionIds = null) {
     attributes: Array.isArray(attributes) ? attributes : [],
     kind: row.kind,
     published: Boolean(row.published),
+    moderation_status: row.moderation_status || (row.published ? 'published' : 'draft'),
+    moderation_note: row.moderation_note || null,
+    submitted_at: row.submitted_at || null,
+    reviewed_at: row.reviewed_at || null,
+    reviewed_by: row.reviewed_by || null,
     sort_order: Number(row.sort_order || 0),
     pay_token_address: row.pay_token_address,
     pay_token_decimals: Number(row.pay_token_decimals),
@@ -367,6 +372,8 @@ async function listProducts({
   sectionId = null,
   sectionSlug = null,
   facets = null,
+  createdBy = null,
+  moderationStatus = null,
 } = {}) {
   let sectionFilterId = sectionId;
   if (!sectionFilterId && sectionSlug) {
@@ -394,22 +401,46 @@ async function listProducts({
     }
   }
 
+  const ownerId = createdBy != null && String(createdBy).trim() !== ''
+    ? String(createdBy).trim()
+    : null;
+  const modStatus = moderationStatus != null && String(moderationStatus).trim() !== ''
+    ? String(moderationStatus).trim().toLowerCase()
+    : null;
+
   let sql;
   let params = [];
   if (sectionFilterId) {
     sql = publishedOnly
       ? `SELECT p.* FROM store_products p
          INNER JOIN store_product_sections ps ON ps.product_id = p.id AND ps.section_id = $1
-         WHERE p.published = TRUE
-         ORDER BY p.sort_order ASC, p.created_at DESC`
+         WHERE p.published = TRUE`
       : `SELECT p.* FROM store_products p
          INNER JOIN store_product_sections ps ON ps.product_id = p.id AND ps.section_id = $1
-         ORDER BY p.sort_order ASC, p.created_at DESC`;
+         WHERE TRUE`;
     params = [sectionFilterId];
+    if (ownerId) {
+      params.push(ownerId);
+      sql += ` AND CAST(p.created_by AS TEXT) = $${params.length}`;
+    }
+    if (modStatus) {
+      params.push(modStatus);
+      sql += ` AND p.moderation_status = $${params.length}`;
+    }
+    sql += ` ORDER BY p.sort_order ASC, p.created_at DESC`;
   } else {
     sql = publishedOnly
-      ? `SELECT * FROM store_products WHERE published = TRUE ORDER BY sort_order ASC, created_at DESC`
-      : `SELECT * FROM store_products ORDER BY sort_order ASC, created_at DESC`;
+      ? `SELECT * FROM store_products WHERE published = TRUE`
+      : `SELECT * FROM store_products WHERE TRUE`;
+    if (ownerId) {
+      params.push(ownerId);
+      sql += ` AND CAST(created_by AS TEXT) = $${params.length}`;
+    }
+    if (modStatus) {
+      params.push(modStatus);
+      sql += ` AND moderation_status = $${params.length}`;
+    }
+    sql += ` ORDER BY sort_order ASC, created_at DESC`;
   }
 
   let { rows } = await db.getQuery()(sql, params);
@@ -421,17 +452,19 @@ async function listProducts({
   for (const row of rows) {
     const media = await loadProductMedia(row.id);
     const section_ids = await loadProductSectionIds(row.id);
-    let catalogMeta = { catalog_section_id: null, catalog_attrs: [], catalog_section: null };
+    let catalogMeta = { catalog_section_id: null, catalog_section: null, catalog_attrs: [] };
     try {
       const catalogFilters = require('./catalogFiltersService');
       catalogMeta = await catalogFilters.getProductCatalog(row.id);
-    } catch (_) { /* ignore */ }
+    } catch (_) {
+      catalogMeta = { catalog_section_id: null, catalog_section: null, catalog_attrs: [] };
+    }
     const mapped = publishedOnly
       ? mapProductPublic(row, media, section_ids)
       : mapProduct(row, media, section_ids);
     mapped.catalog_section_id = catalogMeta.catalog_section_id;
     mapped.catalog_section = catalogMeta.catalog_section;
-    mapped.catalog_attrs = catalogMeta.catalog_attrs || [];
+    mapped.catalog_attrs = catalogMeta.catalog_attrs;
     out.push(storeReviews.attachRatings(mapped, ratingMap));
   }
   return out;
@@ -448,17 +481,19 @@ async function getProduct(id, { publishedOnly = false } = {}) {
   }
   const media = await loadProductMedia(row.id);
   const section_ids = await loadProductSectionIds(row.id);
-  let catalogMeta = { catalog_section_id: null, catalog_attrs: [], catalog_section: null };
+  let catalogMeta = { catalog_section_id: null, catalog_section: null, catalog_attrs: [] };
   try {
     const catalogFilters = require('./catalogFiltersService');
     catalogMeta = await catalogFilters.getProductCatalog(row.id);
-  } catch (_) { /* ignore */ }
+  } catch (_) {
+    catalogMeta = { catalog_section_id: null, catalog_section: null, catalog_attrs: [] };
+  }
   const mapped = publishedOnly
     ? mapProductPublic(row, media, section_ids)
     : mapProduct(row, media, section_ids);
   mapped.catalog_section_id = catalogMeta.catalog_section_id;
   mapped.catalog_section = catalogMeta.catalog_section;
-  mapped.catalog_attrs = catalogMeta.catalog_attrs || [];
+  mapped.catalog_attrs = catalogMeta.catalog_attrs;
   const ratingMap = await storeReviews.loadRatingMap([row.id]);
   return storeReviews.attachRatings(mapped, ratingMap);
 }
@@ -593,6 +628,8 @@ function validateProductPayload(payload) {
     attributes: normalizeAttributes(payload.attributes),
     kind,
     published: Boolean(payload.published),
+    moderation_status: String(payload.moderation_status || '').trim() || null,
+    submit_for_review: payload.submit_for_review === true || payload.submit_for_review === 'true',
     sort_order: Number(payload.sort_order || 0) || 0,
     pay_token_address,
     pay_token_decimals,
@@ -614,30 +651,49 @@ function validateProductPayload(payload) {
   };
 }
 
-async function createProduct(payload, createdBy) {
+async function createProduct(payload, createdBy, { asEditor = false } = {}) {
   const data = validateProductPayload(payload);
   if (data.receipt_enabled) {
     await assertReceiptTokenOk(data);
   }
+
+  let moderationStatus = 'draft';
+  let published = false;
+  let submittedAt = null;
+  if (asEditor) {
+    published = Boolean(data.published);
+    moderationStatus = published ? 'published' : (data.moderation_status || 'draft');
+    if (!['draft', 'pending', 'published', 'rejected'].includes(moderationStatus)) {
+      moderationStatus = published ? 'published' : 'draft';
+    }
+  } else if (data.submit_for_review) {
+    moderationStatus = 'pending';
+    published = false;
+    submittedAt = new Date();
+  } else {
+    moderationStatus = 'draft';
+    published = false;
+  }
+
   const { rows } = await db.getQuery()(
     `INSERT INTO store_products (
        title, summary, description, features, benefit_note, attributes,
-       kind, published, sort_order,
+       kind, published, moderation_status, submitted_at, sort_order,
        pay_token_address, pay_token_decimals, pay_token_symbol, price_units,
        license_token_address, license_token_decimals, license_token_symbol, license_amount_units,
        receipt_enabled, receipt_standard, receipt_erc1155_token_id, max_qty,
        max_payments_per_wallet, created_by
      ) VALUES (
        $1,$2,$3,$4,$5,$6::jsonb,
-       $7,$8,$9,
-       $10,$11,$12,$13,
-       $14,$15,$16,$17,
-       $18,$19,$20,$21,
-       $22,$23
+       $7,$8,$9,$10,$11,
+       $12,$13,$14,$15,
+       $16,$17,$18,$19,
+       $20,$21,$22,$23,
+       $24,$25
      ) RETURNING *`,
     [
       data.title, data.summary, data.description, data.features, data.benefit_note, JSON.stringify(data.attributes),
-      data.kind, data.published, data.sort_order,
+      data.kind, published, moderationStatus, submittedAt, data.sort_order,
       data.pay_token_address, data.pay_token_decimals, data.pay_token_symbol, data.price_units,
       data.license_token_address, data.license_token_decimals, data.license_token_symbol, data.license_amount_units,
       data.receipt_enabled, data.receipt_standard, data.receipt_erc1155_token_id, data.max_qty,
@@ -658,26 +714,57 @@ async function createProduct(payload, createdBy) {
   return getProduct(rows[0].id);
 }
 
-async function updateProduct(id, payload) {
+async function updateProduct(id, payload, { asEditor = false } = {}) {
   const data = validateProductPayload(payload);
   if (data.receipt_enabled) {
     await assertReceiptTokenOk(data);
   }
+
+  const existing = await getProduct(id);
+  if (!existing) {
+    const err = new Error('Товар не найден');
+    err.status = 404;
+    throw err;
+  }
+
+  let moderationStatus = existing.moderation_status || 'draft';
+  let published = Boolean(existing.published);
+  let submittedAt = existing.submitted_at || null;
+
+  if (asEditor) {
+    published = Boolean(data.published);
+    moderationStatus = published ? 'published' : (data.moderation_status || moderationStatus);
+    if (published) moderationStatus = 'published';
+  } else if (data.submit_for_review) {
+    moderationStatus = 'pending';
+    published = false;
+    submittedAt = new Date();
+  } else {
+    // автор правит черновик / rejected → снова draft
+    if (moderationStatus === 'rejected' || moderationStatus === 'draft') {
+      moderationStatus = 'draft';
+    }
+    if (moderationStatus === 'pending') {
+      // оставляем pending при правках до решения редактора
+    }
+    published = false;
+  }
+
   const { rows } = await db.getQuery()(
     `UPDATE store_products SET
        title = $2, summary = $3, description = $4, features = $5, benefit_note = $6, attributes = $7::jsonb,
-       kind = $8, published = $9, sort_order = $10,
-       pay_token_address = $11, pay_token_decimals = $12, pay_token_symbol = $13, price_units = $14,
-       license_token_address = $15, license_token_decimals = $16, license_token_symbol = $17,
-       license_amount_units = $18,
-       receipt_enabled = $19, receipt_standard = $20, receipt_erc1155_token_id = $21, max_qty = $22,
-       max_payments_per_wallet = $23, updated_at = NOW()
+       kind = $8, published = $9, moderation_status = $10, submitted_at = COALESCE($11, submitted_at), sort_order = $12,
+       pay_token_address = $13, pay_token_decimals = $14, pay_token_symbol = $15, price_units = $16,
+       license_token_address = $17, license_token_decimals = $18, license_token_symbol = $19,
+       license_amount_units = $20,
+       receipt_enabled = $21, receipt_standard = $22, receipt_erc1155_token_id = $23, max_qty = $24,
+       max_payments_per_wallet = $25, updated_at = NOW()
      WHERE id = $1
      RETURNING *`,
     [
       id,
       data.title, data.summary, data.description, data.features, data.benefit_note, JSON.stringify(data.attributes),
-      data.kind, data.published, data.sort_order,
+      data.kind, published, moderationStatus, submittedAt, data.sort_order,
       data.pay_token_address, data.pay_token_decimals, data.pay_token_symbol, data.price_units,
       data.license_token_address, data.license_token_decimals, data.license_token_symbol,
       data.license_amount_units,
@@ -702,6 +789,72 @@ async function updateProduct(id, payload) {
     if (!/catalog_sections|store_product_attrs|does not exist/i.test(String(e.message || ''))) throw e;
   }
   return getProduct(id);
+}
+
+async function approveProduct(id, reviewerUserId) {
+  const existing = await getProduct(id);
+  if (existing.moderation_status !== 'pending') {
+    const err = new Error('Одобрить можно только карточку со статусом «на проверке»');
+    err.status = 409;
+    err.code = 'NOT_PENDING';
+    throw err;
+  }
+  const { rows } = await db.getQuery()(
+    `UPDATE store_products SET
+       published = TRUE,
+       moderation_status = 'published',
+       reviewed_at = NOW(),
+       reviewed_by = $2,
+       moderation_note = NULL,
+       updated_at = NOW()
+     WHERE id = $1 AND moderation_status = 'pending'
+     RETURNING id`,
+    [id, reviewerUserId || null]
+  );
+  if (!rows[0]) {
+    const err = new Error('Статус уже изменился — обновите очередь');
+    err.status = 409;
+    err.code = 'STATUS_RACE';
+    throw err;
+  }
+  return getProduct(id);
+}
+
+async function returnProduct(id, reviewerUserId, note = '') {
+  const existing = await getProduct(id);
+  if (existing.moderation_status !== 'pending') {
+    const err = new Error('Вернуть можно только карточку из очереди проверки');
+    err.status = 409;
+    err.code = 'NOT_PENDING';
+    throw err;
+  }
+  const { rows } = await db.getQuery()(
+    `UPDATE store_products SET
+       published = FALSE,
+       moderation_status = 'rejected',
+       reviewed_at = NOW(),
+       reviewed_by = $2,
+       moderation_note = $3,
+       updated_at = NOW()
+     WHERE id = $1 AND moderation_status = 'pending'
+     RETURNING id`,
+    [id, reviewerUserId || null, String(note || '').slice(0, 2000) || null]
+  );
+  if (!rows[0]) {
+    const err = new Error('Статус уже изменился — обновите очередь');
+    err.status = 409;
+    err.code = 'STATUS_RACE';
+    throw err;
+  }
+  return getProduct(id);
+}
+
+async function listProductsForModeration({ moderationStatus = 'pending', createdBy = null } = {}) {
+  return listProducts({
+    publishedOnly: false,
+    createdBy,
+    moderationStatus,
+  });
 }
 
 async function countWalletSlots(client, productId, buyer) {
@@ -1944,6 +2097,9 @@ module.exports = {
   recordProductView,
   createProduct,
   updateProduct,
+  approveProduct,
+  returnProduct,
+  listProductsForModeration,
   setProductMedia,
   setProductSections,
   createOrder,

@@ -5,7 +5,28 @@
 
 <template>
   <section v-if="pageId" ref="rootEl" class="blog-engagement">
-    <div class="blog-engagement__toolbar">
+    <Teleport v-if="mediaRail && mediaRailTargetReady" to="#blog-article-media-rail">
+      <BlogMediaRail
+        show-subscribe
+        expand-overflow
+        :subscribe-active="showSubscribeForm"
+        :counts="engagement.reactions"
+        :my-reaction="engagement.myReaction"
+        :comments-count="engagement.commentsCount"
+        :views-count="engagement.viewsCount"
+        :page-id="pageId"
+        :page-slug="pageSlug"
+        :owner-user-id="ownerUserId"
+        :is-authenticated="isAuthenticated"
+        :article-url="shareUrl"
+        :page-title="pageTitle"
+        show-author
+        @select="handleReaction"
+        @comments="scrollToComments"
+        @subscribe="openSubscribe"
+      />
+    </Teleport>
+    <div v-if="!mediaRail" class="blog-engagement__toolbar">
       <div class="blog-engagement__actions">
         <BlogReactions
           :counts="engagement.reactions"
@@ -27,6 +48,23 @@
           :title="pageTitle"
           compact
         />
+        <button
+          type="button"
+          class="blog-engagement__icon-btn"
+          :class="{ 'blog-engagement__icon-btn--ok': savedOk }"
+          :title="t('blog.bookmark.action')"
+          @click="saveToBrowserBookmarks"
+        >
+          <BlogGlyph name="bookmark" :filled="savedOk" />
+        </button>
+        <ListingContactActions
+          v-if="pageId"
+          icon-only
+          :page-id="pageId"
+          :page-slug="pageSlug"
+          :owner-user-id="ownerUserId"
+          :is-authenticated="isAuthenticated"
+        />
         <span class="blog-engagement__icon-btn blog-engagement__icon-btn--static" :title="t('blog.views.label')">
           <BlogGlyph name="views" />
           <span class="blog-engagement__count">{{ engagement.viewsCount || 0 }}</span>
@@ -43,81 +81,100 @@
       @refresh="loadEngagement"
     />
 
-    <div class="blog-engagement__subscribe">
+    <div v-if="!mediaRail && !showSubscribeForm" class="blog-engagement__footer-actions">
+      <button
+        type="button"
+        class="btn btn-primary btn-sm blog-engagement__subscribe-btn"
+        @click="openSubscribe"
+      >
+        {{ t('blog.subscribe.button') }}
+      </button>
+    </div>
+
+    <Teleport v-if="mediaRail && subscribeTargetReady" to="#blog-article-subscribe">
+      <div v-if="showSubscribeForm" class="blog-engagement__subscribe">
+        <div class="blog-engagement__subscribe-head">
+          <div class="blog-engagement__subscribe-text">
+            <h4 class="blog-engagement__subscribe-title">{{ t('blog.subscribe.title') }}</h4>
+            <p class="blog-engagement__subscribe-hint">{{ t('blog.subscribe.hint') }}</p>
+          </div>
+          <button
+            type="button"
+            class="btn btn-outline btn-sm"
+            @click="showSubscribeForm = false"
+          >
+            {{ t('common.cancel') }}
+          </button>
+        </div>
+        <BlogSubscribeForm
+          :filters="subscribeFilters"
+          :source-page-id="pageId"
+          :is-authenticated="isAuthenticated"
+          @auth-changed="onSubscribeAuth"
+          @done="onSubscribeDone"
+        />
+      </div>
+    </Teleport>
+    <div v-else-if="showSubscribeForm" class="blog-engagement__subscribe">
       <div class="blog-engagement__subscribe-head">
         <div class="blog-engagement__subscribe-text">
           <h4 class="blog-engagement__subscribe-title">{{ t('blog.subscribe.title') }}</h4>
           <p class="blog-engagement__subscribe-hint">{{ t('blog.subscribe.hint') }}</p>
         </div>
         <button
-          v-if="!isAuthenticated"
           type="button"
-          class="btn btn-ghost btn-sm"
-          @click="requestLogin"
+          class="btn btn-outline btn-sm"
+          @click="showSubscribeForm = false"
         >
-          {{ t('blog.feed.login') }}
+          {{ t('common.cancel') }}
         </button>
       </div>
-      <form class="blog-engagement__subscribe-form" @submit.prevent="handleSubscribe">
-        <input
-          v-model="subscribeEmail"
-          type="email"
-          class="blog-engagement__subscribe-input"
-          :placeholder="t('blog.subscribe.placeholder')"
-          required
-        />
-        <label class="blog-engagement__consent">
-          <input v-model="privacyConsent" type="checkbox" required />
-          <span>
-            {{ t('blog.subscribe.consentPrefix') }}
-            <a
-              :href="privacyDocsUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              @click.stop
-            >{{ t('blog.subscribe.consentLink') }}</a>
-          </span>
-        </label>
-        <button
-          type="submit"
-          class="btn btn-primary btn-sm"
-          :disabled="isSubscribing || !privacyConsent"
-        >
-          {{ t('blog.subscribe.button') }}
-        </button>
-      </form>
-      <p v-if="subscribeMessage" class="blog-engagement__subscribe-msg">{{ subscribeMessage }}</p>
+      <BlogSubscribeForm
+        :filters="subscribeFilters"
+        :source-page-id="pageId"
+        :is-authenticated="isAuthenticated"
+        @auth-changed="onSubscribeAuth"
+        @done="onSubscribeDone"
+      />
     </div>
-
-    <button type="button" class="btn btn-ghost btn-sm blog-engagement__ask-btn" @click="askAi">
-      <BlogGlyph name="ask" />
-      <span>{{ t('blog.askAi.button') }}</span>
-    </button>
   </section>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import eventBus from '../../utils/eventBus';
 import blogEngagementService from '../../services/blogEngagementService';
 import { emptyReactionCounts } from '../../constants/blogReactions';
-import { getPrivacyDocsUrl } from '../../constants/publishedDocs';
+import {
+  catalogSelectionFromQuery,
+  catalogSelectionToSubscribeFilters,
+} from '../../services/catalogFiltersService';
 import BlogShareBar from './BlogShareBar.vue';
 import BlogComments from './BlogComments.vue';
 import BlogReactions from './BlogReactions.vue';
 import BlogGlyph from './BlogGlyph.vue';
+import ListingContactActions from './ListingContactActions.vue';
+import BlogSubscribeForm from './BlogSubscribeForm.vue';
+import BlogMediaRail from './BlogMediaRail.vue';
+import { useNotifications } from '../../composables/useNotifications';
+import { copyUrlForBookmark, isApplePlatform } from '../../utils/browserBookmark';
 
 const props = defineProps({
   pageId: { type: Number, default: null },
   pageSlug: { type: String, default: '' },
   pageTitle: { type: String, default: '' },
+  ownerUserId: { type: [Number, String], default: null },
   isAuthenticated: { type: Boolean, default: false },
+  subscribeFilters: { type: Object, default: null },
+  /** Столбик действий на карусели статьи (лента уже имеет свой rail) */
+  mediaRail: { type: Boolean, default: false },
 });
 
-const router = useRouter();
+const route = useRoute();
 const { t } = useI18n();
+const { showSuccessMessage } = useNotifications();
 
 const engagement = ref({
   reactions: emptyReactionCounts(),
@@ -127,12 +184,16 @@ const engagement = ref({
   comments: [],
 });
 const isLoading = ref(false);
-const subscribeEmail = ref('');
-const subscribeMessage = ref('');
-const isSubscribing = ref(false);
-const privacyConsent = ref(false);
-const privacyDocsUrl = getPrivacyDocsUrl();
 const rootEl = ref(null);
+const showSubscribeForm = ref(false);
+const savedOk = ref(false);
+const mediaRailTargetReady = ref(false);
+const subscribeTargetReady = ref(false);
+
+const subscribeFilters = computed(() => {
+  if (props.subscribeFilters) return props.subscribeFilters;
+  return catalogSelectionToSubscribeFilters(catalogSelectionFromQuery(route.query));
+});
 
 const shareUrl = computed(() => {
   if (!props.pageSlug) return '';
@@ -155,8 +216,8 @@ async function loadEngagement() {
     const data = await blogEngagementService.getEngagement(props.pageId);
     engagement.value = {
       reactions: { ...emptyReactionCounts(), ...(data.reactions || {}) },
-      viewsCount: data.viewsCount || 0,
-      commentsCount: data.commentsCount || 0,
+      viewsCount: data.viewsCount ?? 0,
+      commentsCount: data.commentsCount ?? 0,
       myReaction: data.myReaction || null,
       comments: data.comments || [],
     };
@@ -191,58 +252,52 @@ async function handleReaction(type) {
   }
 }
 
-function requestLogin() {
-  eventBus.emit('open-auth-sidebar');
+function onSubscribeAuth() {
+  /* auth state обновляется через checkAuth в форме */
 }
 
-async function handleSubscribe() {
-  if (!subscribeEmail.value.trim()) return;
-  if (!privacyConsent.value) {
-    subscribeMessage.value = t('blog.subscribe.consentRequired');
-    return;
-  }
-  isSubscribing.value = true;
-  subscribeMessage.value = '';
-  try {
-    const result = await blogEngagementService.subscribe(
-      subscribeEmail.value.trim(),
-      props.pageId,
-      {
-        privacyConsent: true,
-        privacyConsentUrl: privacyDocsUrl,
-      }
-    );
-    if (result.alreadyConfirmed) {
-      subscribeMessage.value = t('blog.subscribe.already');
-    } else {
-      subscribeMessage.value = t('blog.subscribe.sent');
-      subscribeEmail.value = '';
-      privacyConsent.value = false;
-    }
-  } catch (e) {
-    subscribeMessage.value = e?.response?.data?.error || t('blog.subscribe.error');
-  } finally {
-    isSubscribing.value = false;
-  }
+function onSubscribeDone() {
+  setTimeout(() => { showSubscribeForm.value = false; }, 1800);
 }
 
-function askAi() {
-  const ask = props.pageTitle
-    ? t('blog.askAi.prompt', { title: props.pageTitle })
-    : t('blog.askAi.promptDefault');
-  router.push({
-    path: '/',
-    query: {
-      pageId: String(props.pageId),
-      ask,
-    },
+function openSubscribe() {
+  showSubscribeForm.value = true;
+  nextTick(() => {
+    document.getElementById('blog-article-subscribe')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
   });
+}
+
+async function saveToBrowserBookmarks() {
+  await copyUrlForBookmark(shareUrl.value);
+  savedOk.value = true;
+  setTimeout(() => { savedOk.value = false; }, 2000);
+  showSuccessMessage(
+    isApplePlatform() ? t('blog.bookmark.hintMac') : t('blog.bookmark.hintWin')
+  );
 }
 
 function scrollToComments() {
   const el = rootEl.value?.querySelector('#blog-comments') || rootEl.value;
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+watch(
+  () => props.mediaRail,
+  async (on) => {
+    if (!on) {
+      mediaRailTargetReady.value = false;
+      subscribeTargetReady.value = false;
+      return;
+    }
+    await nextTick();
+    mediaRailTargetReady.value = Boolean(document.getElementById('blog-article-media-rail'));
+    subscribeTargetReady.value = Boolean(document.getElementById('blog-article-subscribe'));
+  },
+  { immediate: true }
+);
 
 defineExpose({ scrollToComments });
 
@@ -274,6 +329,22 @@ watch(() => props.isAuthenticated, loadEngagement);
   margin-bottom: 20px;
 }
 
+.blog-engagement__subscribe-btn {
+  flex-shrink: 0;
+}
+
+.blog-engagement__subscribe {
+  margin: 0 0 1.25rem;
+  padding: 16px 18px;
+  background: var(--color-light);
+  border: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
+  border-radius: var(--radius-lg);
+}
+
+.blog-engagement__listing {
+  margin-left: auto;
+}
+
 .blog-engagement__actions {
   display: flex;
   align-items: center;
@@ -302,6 +373,10 @@ watch(() => props.isAuthenticated, loadEngagement);
   color: var(--color-primary);
 }
 
+.blog-engagement__icon-btn--ok {
+  color: var(--color-primary);
+}
+
 .blog-engagement__icon-btn--static {
   cursor: default;
   margin-left: auto;
@@ -317,14 +392,6 @@ watch(() => props.isAuthenticated, loadEngagement);
 .blog-engagement__count {
   min-width: 0.75em;
   font-variant-numeric: tabular-nums;
-}
-
-.blog-engagement__subscribe {
-  margin-top: 24px;
-  padding: 16px 18px;
-  background: var(--color-light);
-  border: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
-  border-radius: var(--radius-lg);
 }
 
 .blog-engagement__subscribe-head {
@@ -399,15 +466,13 @@ watch(() => props.isAuthenticated, loadEngagement);
   color: var(--color-primary-dark);
 }
 
-.blog-engagement__ask-btn {
+.blog-engagement__footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin-top: 16px;
 }
-
-.blog-engagement__ask-btn:hover:not(:disabled):not(.is-disabled) {
-  color: var(--color-primary-dark);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-}
-
 
 /* TZ package D */
 @media (max-width: 768px) {

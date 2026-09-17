@@ -26,6 +26,20 @@ const {
   isScreenAllowedByMap
 } = loadShared('roleScreenCaps');
 
+/** Продуктовый минимум для user: свой контент + таблицы + приватные чаты. */
+const USER_OWN_WORKSPACE_SCREENS = Object.freeze([
+  '/content/create',
+  '/content/store/product/new',
+  '/content/store/product/:id',
+  '/tables',
+  '/tables/create',
+  '/tables/:id',
+  '/tables/:id/edit',
+  '/tables/:id/delete',
+  '/personal-messages',
+  '/admin-chat/:adminId',
+]);
+
 function screensAreEmpty(screens) {
   return !screens || typeof screens !== 'object' || Array.isArray(screens) || Object.keys(screens).length === 0;
 }
@@ -52,6 +66,25 @@ async function ensureStoredDefaults() {
       );
       if (!rows.length || screensAreEmpty(rows[0].screens)) {
         await persistRoleScreens(role, cloneDefaultScreens(role));
+      }
+    }
+
+    // Старые сохранённые матрицы могли держать own-workspace=false у user
+    const { rows: userRows } = await db.getQuery()(
+      `SELECT screens FROM role_screen_capabilities WHERE role_key = 'user'`
+    );
+    if (userRows[0]?.screens) {
+      const screens = normalizeScreensMap(userRows[0].screens, 'user');
+      let changed = false;
+      for (const path of USER_OWN_WORKSPACE_SCREENS) {
+        if (screens[path] !== true) {
+          screens[path] = true;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await persistRoleScreens('user', screens);
+        logger.info('[roleScreenCaps] enabled own-workspace screens for role=user');
       }
     }
   })()

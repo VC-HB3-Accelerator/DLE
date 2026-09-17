@@ -210,11 +210,11 @@ async function runMigrations() {
       const catalogFilters = require('../services/catalogFiltersService');
       const stats = await catalogFilters.seedCatalogTerms();
       console.log(
-        `[run-migrations] catalog terms seed OK: skipped=${Boolean(stats.skipped)} ` +
-          `inserted=${stats.inserted || 0} counts=${JSON.stringify(stats.counts || {})}`
+        `[run-migrations] catalog seed: skipped=${Boolean(stats.skipped)} ` +
+          `reason=${stats.reason || 'ok'} counts=${JSON.stringify(stats.counts || {})}`
       );
     } catch (catalogErr) {
-      console.error('[run-migrations] catalog terms seed failed:', catalogErr);
+      console.error('[run-migrations] catalog seed failed:', catalogErr);
       throw catalogErr;
     }
   } catch (error) {

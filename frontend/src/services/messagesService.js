@@ -132,7 +132,8 @@ export default {
     scheduleDays = [1, 2, 3, 4, 5],
     scheduleHourStart = 10,
     scheduleHourEnd = 18,
-    scheduleTimezone = 'Europe/Moscow'
+    scheduleTimezone = 'Europe/Moscow',
+    channels = ['web', 'email', 'telegram']
   }) {
     const formData = new FormData();
     formData.append('subject', subject);
@@ -150,6 +151,7 @@ export default {
     formData.append('schedule_hour_start', String(scheduleHourStart));
     formData.append('schedule_hour_end', String(scheduleHourEnd));
     formData.append('schedule_timezone', scheduleTimezone);
+    formData.append('channels', JSON.stringify(channels));
     attachments.forEach(file => {
       formData.append('attachments', file);
     });
@@ -248,8 +250,10 @@ export default {
     });
     return data;
   },
-  async startBroadcastCampaign(campaignId) {
-    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/start`, {}, {
+  async startBroadcastCampaign(campaignId, { channels = null } = {}) {
+    const body = {};
+    if (channels != null) body.channels = channels;
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/start`, body, {
       withCredentials: true
     });
     return data;

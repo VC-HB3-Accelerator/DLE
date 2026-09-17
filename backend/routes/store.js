@@ -94,9 +94,12 @@ router.post('/resolve-token', requireAuth, requirePermission(PERMISSIONS.MANAGE_
 
 router.get('/catalog', async (req, res) => {
   try {
-    const reserved = new Set(['section_id', 'section', 'slug', 'catalog_section']);
+    const reserved = new Set([
+      'section_id', 'section', 'slug', 'catalog_section', 'owner', 'created_by',
+    ]);
     const facets = {};
     if (req.query.catalog_section) facets.section = req.query.catalog_section;
+    else if (req.query.group) facets.section = req.query.group;
     for (const [k, v] of Object.entries(req.query || {})) {
       if (reserved.has(k)) continue;
       if (typeof v === 'string' && v.trim()) facets[k] = v.trim();
@@ -106,6 +109,7 @@ router.get('/catalog', async (req, res) => {
       sectionId: req.query.section_id || null,
       sectionSlug: req.query.section || req.query.slug || null,
       facets,
+      createdBy: req.query.owner || req.query.created_by || null,
     });
     res.json({ products });
   } catch (error) {
@@ -243,27 +247,72 @@ router.get('/orders/contact/:userId', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/products', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+router.get('/products', requireAuth, async (req, res) => {
   try {
-    const products = await store.listProducts({ publishedOnly: false });
+    const accessResolver = require('../services/accessResolverService');
+    const viewerId = actorId(req);
+    const access = await accessResolver.resolveAccess(viewerId);
+    const role = await getUserRole(req);
+    const isEditor = hasPermission(role, PERMISSIONS.MANAGE_LEGAL_DOCS)
+      || access?.dataScope === 'global';
+    const canOwn = hasPermission(role, PERMISSIONS.CREATE_OWN_ARTICLES);
+    const canDomain = access?.dataScope === 'domain'
+      && accessResolver.hasActionPermission(access, PERMISSIONS.EDIT_DOMAIN_CONTACTS);
+    if (!isEditor && !canOwn && !canDomain) {
+      return res.status(403).json({ success: false, error: 'Доступ запрещен' });
+    }
+
+    const ownerRaw = req.query.owner || req.query.created_by || null;
+    const profileOwnerId = accessResolver.parseProfileOwnerId(ownerRaw);
+    let createdBy = null;
+
+    if (profileOwnerId) {
+      const gate = await accessResolver.assertCanAccessProfileOwnedData(viewerId, profileOwnerId);
+      if (!gate.ok) {
+        return res.status(gate.status || 403).json({ success: false, error: gate.error || 'Forbidden' });
+      }
+      createdBy = profileOwnerId;
+    } else if (access?.dataScope === 'global' || isEditor) {
+      createdBy = null;
+    } else {
+      createdBy = viewerId;
+    }
+
+    const moderationStatus = req.query.moderation_status || req.query.status || null;
+    const products = await store.listProducts({
+      publishedOnly: false,
+      createdBy,
+      moderationStatus: moderationStatus || null,
+    });
     res.json({ products });
   } catch (error) {
     sendError(res, error);
   }
 });
 
-router.get('/products/:id', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+router.get('/products/:id', requireAuth, async (req, res) => {
   try {
+    const role = await getUserRole(req);
+    const isEditor = hasPermission(role, PERMISSIONS.MANAGE_LEGAL_DOCS);
     const product = await store.getProduct(req.params.id);
+    if (!isEditor && String(product.created_by || '') !== String(actorId(req))) {
+      return res.status(403).json({ success: false, error: 'Доступ запрещен' });
+    }
     res.json({ product });
   } catch (error) {
     sendError(res, error);
   }
 });
 
-router.post('/products', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+router.post('/products', requireAuth, async (req, res) => {
   try {
-    const product = await store.createProduct(req.body || {}, actorId(req));
+    const role = await getUserRole(req);
+    const isEditor = hasPermission(role, PERMISSIONS.MANAGE_LEGAL_DOCS);
+    const canOwn = hasPermission(role, PERMISSIONS.CREATE_OWN_ARTICLES);
+    if (!isEditor && !canOwn) {
+      return res.status(403).json({ success: false, error: 'Доступ запрещен' });
+    }
+    const product = await store.createProduct(req.body || {}, actorId(req), { asEditor: isEditor });
     res.status(201).json({ product });
   } catch (error) {
     sendError(res, error);
@@ -279,9 +328,37 @@ router.post('/products/import', requireAuth, requirePermission(PERMISSIONS.MANAG
   }
 });
 
-router.put('/products/:id', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+router.put('/products/:id', requireAuth, async (req, res) => {
   try {
-    const product = await store.updateProduct(req.params.id, req.body || {});
+    const role = await getUserRole(req);
+    const isEditor = hasPermission(role, PERMISSIONS.MANAGE_LEGAL_DOCS);
+    const product = await store.getProduct(req.params.id);
+    if (!isEditor && String(product.created_by || '') !== String(actorId(req))) {
+      return res.status(403).json({ success: false, error: 'Доступ запрещен' });
+    }
+    const updated = await store.updateProduct(req.params.id, req.body || {}, { asEditor: isEditor });
+    res.json({ product: updated });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/products/:id/approve', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+  try {
+    const product = await store.approveProduct(req.params.id, req.session?.userId);
+    res.json({ product });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/products/:id/return', requireAuth, requirePermission(PERMISSIONS.MANAGE_LEGAL_DOCS), async (req, res) => {
+  try {
+    const product = await store.returnProduct(
+      req.params.id,
+      req.session?.userId,
+      req.body?.note || req.body?.moderation_note || ''
+    );
     res.json({ product });
   } catch (error) {
     sendError(res, error);

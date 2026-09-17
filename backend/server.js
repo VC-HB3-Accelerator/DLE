@@ -161,6 +161,27 @@ async function startServer() {
       } catch (error) {
         console.warn('[Server] contactProvenance initialize:', error.message);
       }
+
+      try {
+        require('./services/contactViewerFieldsService').initialize();
+        console.log('[Server] ✅ Contact viewer fields (личные имя/комментарий) готовы');
+      } catch (error) {
+        console.warn('[Server] contactViewerFields initialize:', error.message);
+      }
+
+      try {
+        require('./services/contactViewerTagsService').initialize();
+        console.log('[Server] ✅ Contact viewer tags (личные теги) готовы');
+      } catch (error) {
+        console.warn('[Server] contactViewerTags initialize:', error.message);
+      }
+
+      try {
+        require('./services/contactViewerFilesService').initialize();
+        console.log('[Server] ✅ Contact viewer files (личные файлы) готовы');
+      } catch (error) {
+        console.warn('[Server] contactViewerFiles initialize:', error.message);
+      }
     })
     .then(() => {
       // Запускаем AI Queue Worker после инициализации ботов

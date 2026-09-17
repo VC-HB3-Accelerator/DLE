@@ -15,6 +15,7 @@
     <AdminPageShell :show-close="true" :fallback="{ name: 'crm' }" variant="panel">
       <h1 class="contacts-page-header">
         {{ t('contacts.title') }}
+        <span v-if="profileOwnerId" class="contacts-owner-hint">#{{ profileOwnerId }}</span>
         <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
       </h1>
       <ContactTable
@@ -30,8 +31,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import ContactTable from '../components/ContactTable.vue';
@@ -40,12 +42,20 @@ import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 
 const { t } = useI18n();
+const route = useRoute();
 const {
   contacts, newContacts, newMessages,
   markMessagesAsRead, markMessagesAsReadForUser, markContactAsRead, fetchContacts, clearContactsData
 } = useContactsAndMessagesWebSocket();
 const auth = useAuthContext();
 const { canViewContacts } = usePermissions();
+
+const profileOwnerId = computed(() => {
+  const raw = route.query.owner;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+});
 
 // Отладочная информация о правах доступа
 onMounted(() => {
@@ -80,6 +90,12 @@ watch(canViewContacts, (newValue, oldValue) => {
   font-size: var(--font-size-xxl);
   font-weight: 600;
   color: var(--color-dark);
+}
+
+.contacts-owner-hint {
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  color: var(--color-grey);
 }
 
 .badge {

@@ -8,13 +8,19 @@
     <button
       type="button"
       class="blog-reactions__btn"
-      :class="{ 'blog-reactions__btn--active': isActive }"
+      :class="{
+        'blog-reactions__btn--active': isActive,
+        'blog-reactions__btn--stacked': stacked,
+      }"
       :title="t('blog.likes.action')"
       :aria-pressed="isActive"
       @click.stop="$emit('select', 'heart')"
     >
-      <BlogGlyph name="heart" :filled="isActive" />
-      <span v-if="likesCount" class="blog-reactions__count">{{ likesCount }}</span>
+      <span v-if="stacked" class="blog-reactions__count">{{ likesCount }}</span>
+      <span class="blog-reactions__icon">
+        <BlogGlyph name="heart" :filled="isActive" :size="glyphSize" />
+      </span>
+      <span v-if="!stacked && likesCount" class="blog-reactions__count">{{ likesCount }}</span>
     </button>
   </div>
 </template>
@@ -33,6 +39,16 @@ const props = defineProps({
   myReaction: {
     type: String,
     default: null,
+  },
+  /** Оверлей на медиа: цифра слева, иконка справа */
+  stacked: {
+    type: Boolean,
+    default: false,
+  },
+  /** Пиксельный размер SVG; в рейле совпадает с --rail-icon */
+  glyphSize: {
+    type: [Number, String],
+    default: 24,
   },
 });
 
@@ -54,6 +70,10 @@ const likesCount = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+}
+
+.blog-reactions__icon {
+  display: contents;
 }
 
 .blog-reactions__btn {
@@ -88,8 +108,42 @@ const likesCount = computed(() => {
   color: inherit;
 }
 
+.blog-reactions__btn--stacked {
+  flex-direction: row;
+  justify-content: flex-end;
+  height: auto;
+  padding: 0;
+  gap: 12px;
+  background: transparent;
+  color: #fff;
+}
+
+.blog-reactions__btn--stacked:hover {
+  background: transparent;
+  color: #fff;
+}
+
+.blog-reactions__btn--stacked.blog-reactions__btn--active {
+  color: #ff3040;
+}
+
+.blog-reactions__btn--stacked .blog-reactions__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blog-reactions__btn--stacked .blog-reactions__count {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: right;
+  min-width: 3ch;
+}
+
 @media (max-width: 480px) {
-  .blog-reactions__btn {
+  .blog-reactions__btn:not(.blog-reactions__btn--stacked) {
     height: 34px;
     padding: 0 4px;
     gap: 3px;

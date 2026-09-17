@@ -12,6 +12,7 @@
 
 import { ref, onMounted, onUnmounted } from 'vue';
 import { i18n } from '@/locales/index.js';
+import { getWebSshAgentWsUrl } from '../services/webSshService';
 
 const t = (key, params) => i18n.global.t(key, params);
 
@@ -91,10 +92,7 @@ export function useWebSshLogs() {
     console.log('[WebSSH Logs] Начинаем прослушивание логов...');
     
     try {
-      // Подключаемся к WebSSH Agent WebSocket
-      // Всегда используем localhost:3000, так как порт проброшен в Docker
-      const wsUrl = 'ws://localhost:3000';
-      
+      const wsUrl = getWebSshAgentWsUrl();
       console.log('[WebSSH Logs] Подключение к:', wsUrl);
       ws = new WebSocket(wsUrl);
       

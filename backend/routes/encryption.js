@@ -15,6 +15,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { requireAdmin } = require('../middleware/auth');
 
 // Путь к папке с ключами шифрования
 const KEYS_DIR = path.join(__dirname, '../../ssl/keys');
@@ -45,7 +46,7 @@ const writeEncryptionKey = (keyPath, key) => {
 };
 
 // GET /api/encryption-key - Get existing encryption key
-router.get('/encryption-key', (req, res) => {
+router.get('/encryption-key', requireAdmin, (req, res) => {
   const encryptionKey = readEncryptionKey(ENCRYPTION_KEY_PATH);
   
   if (encryptionKey) {
@@ -56,7 +57,7 @@ router.get('/encryption-key', (req, res) => {
 });
 
 // POST /api/encryption-key/generate - Generate a new encryption key
-router.post('/encryption-key/generate', (req, res) => {
+router.post('/encryption-key/generate', requireAdmin, (req, res) => {
   try {
     // Генерируем новый ключ шифрования (256 бит)
     const encryptionKey = crypto.randomBytes(32).toString('hex');

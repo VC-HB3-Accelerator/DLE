@@ -15,9 +15,17 @@ import api from '../api/axios';
 const tablesApi = '/tables';
 
 export default {
-  async getTables() {
-    const res = await api.get(`${tablesApi}?_t=${Date.now()}`);
+  async getTables(params = {}) {
+    const query = { _t: Date.now() };
+    if (params.mine) query.mine = 1;
+    if (params.scope) query.scope = params.scope;
+    if (params.owner) query.owner = params.owner;
+    const res = await api.get(tablesApi, { params: query });
     return res.data;
+  },
+  async lookupTablesByName(name) {
+    const res = await api.get(`${tablesApi}/lookup`, { params: { name } });
+    return Array.isArray(res.data) ? res.data : [];
   },
   async createTable(data) {
     const res = await api.post(tablesApi, data);

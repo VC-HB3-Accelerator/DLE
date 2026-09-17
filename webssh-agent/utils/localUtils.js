@@ -5,7 +5,7 @@ const path = require('path');
 const log = require('./logger');
 
 const sshDir = path.join(os.homedir(), '.ssh');
-const privateKeyPath = path.join(sshDir, 'id_rsa');
+const privateKeyPath = path.join(sshDir, 'auto_lends_vds');
 const publicKeyPath = `${privateKeyPath}.pub`;
 const sshConfigPath = path.join(sshDir, 'config');
 

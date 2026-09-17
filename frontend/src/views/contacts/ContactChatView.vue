@@ -41,7 +41,7 @@
       :isLoading="isLoadingMessages"
       :attachments="chatAttachments"
       :newMessage="chatNewMessage"
-      :canSend="broadcastDraftMode ? true : (canSendToUsers && !!address)"
+      :canSend="broadcastDraftMode ? true : (canSendToUsers && !!currentUserId)"
       :canAttach="!broadcastDraftMode"
       :canGenerateAI="canGenerateAI && !broadcastDraftMode && !isGuestContact"
       :canSelectMessages="canGenerateAI && !broadcastDraftMode && !isGuestContact"
@@ -62,18 +62,19 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import ChatInterface from '@/components/ChatInterface.vue';
 import messagesService from '@/services/messagesService.js';
-import { getConversationByUserId, getMessagesByConversationId } from '@/services/messagesService.js';
 import { notifyStoreCabinetAsk } from '@/services/storeService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { useContactDetailsContext } from '@/composables/useContactDetails';
+import websocketServiceModule from '@/services/websocketService';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { canSendToUsers, canGenerateAI } = usePermissions();
-const { address, userId: currentUserId } = useAuthContext();
+const { userId: currentUserId } = useAuthContext();
 const { contact, userId, isCreateMode } = useContactDetailsContext();
+const { websocketService } = websocketServiceModule;
 
 const isLoadingMessages = ref(false);
 const messages = ref([]);
@@ -86,14 +87,21 @@ const draftDirty = ref(false);
 const draftSaving = ref(false);
 let draftSaveTimer = null;
 let draftSaveQueued = false;
+let chatReloadTimer = null;
 
+function scheduleChatReloadFromWs() {
+  if (chatReloadTimer) clearTimeout(chatReloadTimer);
+  chatReloadTimer = setTimeout(async () => {
+    await loadMessages();
+  }, 150);
+}
+
+const isGuestContact = computed(() => String(contact.value?.id || '').startsWith('guest_'));
 const broadcastCampaignId = computed(() => {
   const raw = Number(route.query.broadcastCampaignId);
   return Number.isInteger(raw) && raw > 0 ? raw : null;
 });
-
 const broadcastDraftMode = computed(() => Boolean(broadcastCampaignId.value && contact.value?.id));
-const isGuestContact = computed(() => String(contact.value?.id || '').startsWith('guest_'));
 
 async function saveBroadcastDraft() {
   if (!broadcastDraftMode.value) return;
@@ -136,17 +144,11 @@ async function loadMessages() {
       return;
     }
 
-    const convData = await getConversationByUserId(contact.value.id);
-    const convId = convData?.conversations?.[0]?.id || convData?.id || null;
-    conversationId.value = convId;
-
-    if (!convId) {
-      messages.value = [];
-      return;
-    }
-
-    const response = await getMessagesByConversationId(convId, { limit: 50, offset: 0 });
-    messages.value = response?.messages || [];
+    // API /messages/public?userId=: своя → ИИ + public-стена карточки; чужая → public между парой.
+    const data = await messagesService.getMessagesByUserId(contact.value.id);
+    messages.value = data?.messages || [];
+    const fromMsg = messages.value.find((m) => m.conversation_id)?.conversation_id;
+    conversationId.value = fromMsg || null;
   } catch (e) {
     console.error('[ContactChatView] Ошибка загрузки сообщений:', e);
     messages.value = [];
@@ -243,7 +245,7 @@ async function handleSendMessage({ message, attachments = [], silent = false }) 
 
   const sessionUserId = Number(currentUserId.value);
   const contactNum = Number(contact.value.id);
-  const isOwnCard = Number.isInteger(sessionUserId) && sessionUserId > 0 && sessionUserId === contactNum;
+  const ownCard = Number.isInteger(sessionUserId) && sessionUserId > 0 && sessionUserId === contactNum;
 
   try {
     const result = isGuestContact.value
@@ -253,10 +255,10 @@ async function handleSendMessage({ message, attachments = [], silent = false }) 
         attachments: files
       })
       : await messagesService.sendMessage({
-        conversationId: conversationId.value,
+        // Не передаём conversationId — иначе user_chat может попасть в public_chat и наоборот
         message,
         attachments: files,
-        toUserId: isOwnCard ? undefined : contact.value.id
+        toUserId: ownCard ? undefined : contact.value.id
       });
 
     if (result?.success) {
@@ -350,9 +352,19 @@ async function maybeSendStoreAsk() {
   });
 }
 
-onMounted(bootstrap);
+onMounted(() => {
+  if (currentUserId.value) {
+    websocketService.connect(currentUserId.value);
+  }
+  websocketService.on('messages-updated', scheduleChatReloadFromWs);
+  websocketService.on('conversation-updated', scheduleChatReloadFromWs);
+  bootstrap();
+});
 
 onBeforeUnmount(async () => {
+  if (chatReloadTimer) clearTimeout(chatReloadTimer);
+  websocketService.off('messages-updated', scheduleChatReloadFromWs);
+  websocketService.off('conversation-updated', scheduleChatReloadFromWs);
   if (draftSaveTimer) {
     clearTimeout(draftSaveTimer);
     draftSaveTimer = null;

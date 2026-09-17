@@ -127,40 +127,65 @@ function normalizeBookingHours(raw, fallback) {
   };
 }
 
+function addCalendarDays(year, month, day, delta) {
+  const utc = new Date(Date.UTC(year, month - 1, day + delta));
+  return {
+    year: utc.getUTCFullYear(),
+    month: utc.getUTCMonth() + 1,
+    day: utc.getUTCDate()
+  };
+}
+
 function slotRange(settings, fromIso, toIso) {
   const hours = normalizeBookingHours(settings?.booking_hours);
   const tz = hours.timeZone;
-  const step = Math.max(10, Number(settings?.booking_slot_minutes) || 30) * 60 * 1000;
+  const stepMinutes = Math.max(10, Number(settings?.booking_slot_minutes) || 30);
+  const step = stepMinutes * 60 * 1000;
   const from = fromIso ? new Date(fromIso) : new Date();
   const to = toIso ? new Date(toIso) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to.getTime() <= from.getTime()) {
     return [];
   }
-  const fromParts = partsInZone(from, tz);
-  let cursor = zonedLocalToUtc(tz, fromParts.year, fromParts.month, fromParts.day, hours.startHour, 0);
-  if (cursor.getTime() < from.getTime()) {
-    const extra = Math.ceil((from.getTime() - cursor.getTime()) / step);
-    cursor = new Date(cursor.getTime() + extra * step);
-  }
+
+  const minStart = Date.now() + 5 * 60 * 1000;
+  const windowStart = Math.max(from.getTime(), minStart);
+  if (windowStart >= to.getTime()) return [];
+
+  const startParts = partsInZone(new Date(windowStart), tz);
+  let ymd = { year: startParts.year, month: startParts.month, day: startParts.day };
   const slots = [];
   const end = to.getTime();
-  const minStart = Date.now() + 5 * 60 * 1000;
-  let guard = 0;
-  while (cursor.getTime() < end && guard < 2500) {
-    guard += 1;
-    const p = partsInZone(cursor, tz);
-    const minutes = p.hour * 60 + p.minute;
-    const wd = weekdayFromYmd(p.year, p.month, p.day);
-    if (
-      hours.weekdays.includes(wd)
-      && minutes >= hours.startHour * 60
-      && minutes < hours.endHour * 60
-      && cursor.getTime() > minStart
-    ) {
-      slots.push(cursor.toISOString());
+
+  // По дням (не тикаем 10‑мин шагом через уже прошедшие сутки — иначе guard «съедает» месяц).
+  for (let dayGuard = 0; dayGuard < 93; dayGuard += 1) {
+    const wd = weekdayFromYmd(ymd.year, ymd.month, ymd.day);
+    if (hours.weekdays.includes(wd)) {
+      let cursor = zonedLocalToUtc(tz, ymd.year, ymd.month, ymd.day, hours.startHour, 0);
+      const dayEnd = zonedLocalToUtc(tz, ymd.year, ymd.month, ymd.day, hours.endHour, 0);
+      if (cursor.getTime() < windowStart) {
+        const extra = Math.ceil((windowStart - cursor.getTime()) / step);
+        cursor = new Date(cursor.getTime() + extra * step);
+      }
+      while (cursor.getTime() < dayEnd.getTime() && cursor.getTime() < end) {
+        if (cursor.getTime() >= windowStart) {
+          const p = partsInZone(cursor, tz);
+          const minutes = p.hour * 60 + p.minute;
+          if (
+            p.year === ymd.year
+            && p.month === ymd.month
+            && p.day === ymd.day
+            && minutes >= hours.startHour * 60
+            && minutes < hours.endHour * 60
+          ) {
+            slots.push(cursor.toISOString());
+          }
+        }
+        cursor = new Date(cursor.getTime() + step);
+      }
     }
-    cursor = new Date(cursor.getTime() + step);
-    if (slots.length >= 500) break;
+    ymd = addCalendarDays(ymd.year, ymd.month, ymd.day, 1);
+    const dayStartUtc = zonedLocalToUtc(tz, ymd.year, ymd.month, ymd.day, 0, 0);
+    if (dayStartUtc.getTime() >= end) break;
   }
   return slots;
 }

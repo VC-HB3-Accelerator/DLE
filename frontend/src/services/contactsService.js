@@ -86,8 +86,11 @@ export default {
     // legacy alias → фоновый job
     return this.createImportJob(contacts);
   },
-  async createImportJob(contacts) {
-    const res = await api.post('/users/import-jobs', contacts, {
+  async createImportJob(contacts, { addCorpAuthDomains = false } = {}) {
+    const res = await api.post('/users/import-jobs', {
+      contacts,
+      addCorpAuthDomains: Boolean(addCorpAuthDomains)
+    }, {
       timeout: 10 * 60 * 1000
     });
     return res.data;
@@ -116,6 +119,10 @@ export default {
       }
       throw err;
     }
+  },
+  async unlinkContact(id) {
+    const res = await api.post(`/users/${id}/unlink`);
+    return res.data;
   },
   async deleteContactsBulk(ids, { timeout = 5 * 60 * 1000 } = {}) {
     const res = await api.post('/users/bulk-delete', { ids }, { timeout });
@@ -160,6 +167,34 @@ export default {
       userIds,
       tagIds
     });
+    return res.data;
+  },
+  async getMyTagsDictionary() {
+    const res = await api.get('/tags/my/dictionary');
+    return res.data;
+  },
+  async createMyTag({ name, description = '' } = {}) {
+    const res = await api.post('/tags/my/dictionary', { name, description });
+    return res.data?.tag || res.data;
+  },
+  async getMyContactTags(contactId) {
+    const res = await api.get(`/tags/my/contact/${contactId}`);
+    return res.data?.my_tag_ids || [];
+  },
+  async setMyContactTags(contactId, tagIds) {
+    const res = await api.patch(`/tags/my/contact/${contactId}`, { tags: tagIds });
+    return res.data;
+  },
+  async removeMyTagFromContact(contactId, tagId) {
+    const res = await api.delete(`/tags/my/contact/${contactId}/tag/${tagId}`);
+    return res.data;
+  },
+  async addMyTagsToContactsBulk(userIds = [], tagIds = []) {
+    const res = await api.post('/tags/my/contacts/bulk-add', { userIds, tagIds });
+    return res.data;
+  },
+  async removeMyTagsFromContactsBulk(userIds = [], tagIds = []) {
+    const res = await api.post('/tags/my/contacts/bulk-remove', { userIds, tagIds });
     return res.data;
   },
   async uploadContactFile(contactId, file) {

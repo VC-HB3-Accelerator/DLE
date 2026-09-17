@@ -52,7 +52,8 @@ class BroadcastQueueService {
     }
 
     try {
-      await waitForEmailBot();
+      // Не блокируем старт сервера долгим ожиданием SMTP
+      await waitForEmailBot(2000);
       const campaignIds = await broadcastService.listActiveCampaignIds();
 
       if (!campaignIds.length) {
@@ -126,10 +127,10 @@ class BroadcastQueueService {
       }
 
       if (!loggedOutside) {
-        logger.info(
+        logger.warn(
           `[BroadcastQueue] Campaign ${campaignId}: вне окна расписания `
           + `(days=${JSON.stringify(campaign.schedule_days)}, `
-          + `${campaign.schedule_hour_start}-${campaign.schedule_hour_end} ${campaign.schedule_timezone})`
+          + `${campaign.schedule_hour_start}-${campaign.schedule_hour_end} ${campaign.schedule_timezone}) — ждём`
         );
         loggedOutside = true;
       }
@@ -151,24 +152,26 @@ class BroadcastQueueService {
         return;
       }
 
-      if (campaign.status === 'queued' || campaign.status === 'ready') {
-        campaign = await broadcastService.startCampaign({ campaignId });
-      }
-
-      if (!campaign || campaign.status !== 'in_progress') {
+      // Старт ТОЛЬКО с кнопки «Запустить» / resume (HTTP).
+      // Очередь не должна сама переводить ready → in_progress.
+      if (campaign.status !== 'in_progress') {
+        logger.info(
+          `[BroadcastQueue] Кампания ${campaignId}: статус=${campaign.status} — ждём явного старта, не обрабатываем`
+        );
         return;
       }
 
-      const emailReady = await waitForEmailBot();
-      if (!emailReady) {
-        logger.warn(`[BroadcastQueue] Кампания ${campaignId}: Email-бот не готов — ставим на паузу`);
-        await broadcastService.pauseCampaign({
-          campaignId,
-          reason: 'Email-бот не готов, отправка отложена'
-        }).catch((error) => {
-          logger.error(`[BroadcastQueue] Не удалось поставить кампанию ${campaignId} на паузу: ${error.message}`);
-        });
-        return;
+      // Email ждём только если канал email выбран в кампании
+      const channels = broadcastService.normalizeBroadcastChannels(campaign.channels);
+      if (channels.includes('email')) {
+        const emailReady = await waitForEmailBot(5000);
+        if (!emailReady) {
+          logger.warn(
+            `[BroadcastQueue] Кампания ${campaignId}: Email-бот не готов — остальные выбранные каналы (${channels.join(',')}) идут без email`
+          );
+        }
+      } else {
+        logger.info(`[BroadcastQueue] Кампания ${campaignId}: email не выбран — пропускаем ожидание SMTP`);
       }
 
       const recipientIds = broadcastService.getCampaignRecipientIds(campaign);
@@ -224,7 +227,8 @@ class BroadcastQueueService {
             subject: sendSubject,
             content: sendContent,
             attachments,
-            campaignId
+            campaignId,
+            channels: campaign.channels
           });
 
           if (!result.success) {

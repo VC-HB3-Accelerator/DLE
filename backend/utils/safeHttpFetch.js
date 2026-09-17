@@ -281,5 +281,6 @@ module.exports = {
   safeFetchText,
   assertSafeUrl,
   isPrivateOrLocalIp,
+  resolveAndAssertPublic,
   ALLOWED_CONTENT_TYPES
 };

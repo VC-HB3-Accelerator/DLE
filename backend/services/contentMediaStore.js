@@ -18,8 +18,27 @@ const META_COLUMNS = [
   'id', 'page_id', 'file_name', 'mime_type', 'file_size', 'file_hash',
   'media_type', 'alt_text', 'title', 'description', 'author_address',
   'created_at', 'updated_at', 'public_id', 'storage', 'file_path',
-  'upload_id', 'status', 'expires_at'
+  'upload_id', 'status', 'expires_at', 'owner_user_id'
 ].join(', ');
+
+let ownerColumnReady = false;
+
+async function ensureOwnerUserIdColumn() {
+  if (ownerColumnReady) return;
+  try {
+    await db.getQuery()(`
+      ALTER TABLE content_media
+      ADD COLUMN IF NOT EXISTS owner_user_id INTEGER
+    `);
+    await db.getQuery()(`
+      CREATE INDEX IF NOT EXISTS content_media_owner_user_id_idx
+      ON content_media (owner_user_id)
+    `);
+    ownerColumnReady = true;
+  } catch (e) {
+    console.warn('[content-media] owner_user_id column:', e.message);
+  }
+}
 
 function backendRoot() {
   return path.join(__dirname, '..');
@@ -206,12 +225,25 @@ function mimeToMediaType(mimeType, contentType) {
   return 'file';
 }
 
-async function listMedia({ mediaType, pageId, q, limit, offset, scope = 'cms', source } = {}) {
+async function listMedia({
+  mediaType,
+  pageId,
+  q,
+  limit,
+  offset,
+  scope = 'cms',
+  source,
+  ownerUserId = null,
+} = {}) {
+  await ensureOwnerUserIdColumn();
   const take = Math.min(Math.max(parseInt(limit, 10) || 24, 1), 100);
   const skip = Math.max(parseInt(offset, 10) || 0, 0);
   const wantAll = String(scope) === 'all';
   const sourceFilter = source && ['cms', 'chat', 'guest'].includes(String(source))
     ? String(source)
+    : null;
+  const ownerId = ownerUserId != null && Number.isInteger(Number(ownerUserId)) && Number(ownerUserId) > 0
+    ? Number(ownerUserId)
     : null;
 
   // Пикер редактора / явный CMS: только content_media
@@ -223,6 +255,10 @@ async function listMedia({ mediaType, pageId, q, limit, offset, scope = 'cms', s
     if (pageId) {
       where.push(`page_id = $${i++}`);
       params.push(parseInt(pageId, 10));
+    }
+    if (ownerId) {
+      where.push(`owner_user_id = $${i++}`);
+      params.push(ownerId);
     }
     if (mediaType && ['image', 'video', 'audio', 'file'].includes(String(mediaType))) {
       if (mediaType === 'file') {
@@ -543,14 +579,8 @@ function setFileHeaders(res, { mimeType, fileName, fileSize, start, end, statusC
   }
 }
 
-function streamDiskToResponse(req, res, { filePath, mimeType, fileName, fileSize }) {
-  let abs;
-  try {
-    abs = assertSafeMediaAbs(absFromRel(filePath));
-  } catch {
-    return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
-  }
-  if (!fs.existsSync(abs)) {
+function streamAbsToResponse(req, res, { abs, mimeType, fileName, fileSize }) {
+  if (!abs || !fs.existsSync(abs)) {
     return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
   }
   const statSize = Number(fileSize) || fs.statSync(abs).size;
@@ -584,7 +614,59 @@ function streamDiskToResponse(req, res, { filePath, mimeType, fileName, fileSize
   stream.pipe(res);
 }
 
+function streamDiskToResponse(req, res, { filePath, mimeType, fileName, fileSize, absPath = null }) {
+  let abs = absPath || null;
+  if (!abs) {
+    try {
+      abs = assertSafeMediaAbs(absFromRel(filePath));
+    } catch {
+      return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
+    }
+  }
+  return streamAbsToResponse(req, res, { abs, mimeType, fileName, fileSize });
+}
+
+async function maybeWatermarkAndStream(req, res, row) {
+  const mediaWatermarkService = require('./mediaWatermarkService');
+  if (!mediaWatermarkService.wantsWatermark(req)) {
+    return false;
+  }
+  if (!row || row.storage !== 'disk' || !row.file_path) {
+    return false;
+  }
+  if (!mediaWatermarkService.isWatermarkableImage(row.mime_type)) {
+    return false;
+  }
+  try {
+    let sourceAbs;
+    try {
+      sourceAbs = assertSafeMediaAbs(absFromRel(row.file_path));
+    } catch {
+      return false;
+    }
+    const wm = await mediaWatermarkService.resolveWatermarkedDiskFile({
+      sourceAbs,
+      sourceRelPath: row.file_path,
+      fileHash: row.file_hash,
+      mimeType: row.mime_type,
+      fileName: row.file_name,
+    });
+    if (!wm) return false;
+    streamAbsToResponse(req, res, {
+      abs: wm.abs,
+      mimeType: wm.mimeType,
+      fileName: wm.fileName,
+      fileSize: wm.fileSize,
+    });
+    return true;
+  } catch (e) {
+    console.warn('[content-media] watermark skip:', e.message);
+    return false;
+  }
+}
+
 async function loadReadyMetaById(id) {
+  await ensureOwnerUserIdColumn();
   const mediaId = parseInt(id, 10);
   if (!mediaId) return null;
   const { rows } = await db.getQuery()(
@@ -597,6 +679,7 @@ async function loadReadyMetaById(id) {
 }
 
 async function loadReadyMetaByPublicId(publicId) {
+  await ensureOwnerUserIdColumn();
   const pid = String(publicId || '').trim();
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(pid)) return null;
   const { rows } = await db.getQuery()(
@@ -613,6 +696,7 @@ async function sendPublicFile(req, res) {
     const row = await loadReadyMetaByPublicId(req.params.publicId);
     if (!row) return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
     if (row.storage === 'disk' && row.file_path) {
+      if (await maybeWatermarkAndStream(req, res, row)) return;
       return streamDiskToResponse(req, res, {
         filePath: row.file_path,
         mimeType: row.mime_type,
@@ -620,7 +704,8 @@ async function sendPublicFile(req, res) {
         fileSize: parseInt(row.file_size, 10) || 0,
       });
     }
-    return res.redirect(302, `/api/uploads/media/${row.id}/file`);
+    const wmQ = require('./mediaWatermarkService').wantsWatermark(req) ? '?wm=1' : '';
+    return res.redirect(302, `/api/uploads/media/${row.id}/file${wmQ}`);
   } catch (e) {
     console.error('[content-media] /api/v:', e);
     if (!res.headersSent) {
@@ -643,13 +728,18 @@ async function insertDiskRow({
   status = 'ready',
   partsJson = null,
   expiresAt = null,
+  ownerUserId = null,
 }) {
+  await ensureOwnerUserIdColumn();
+  const ownerId = ownerUserId != null && Number.isInteger(Number(ownerUserId)) && Number(ownerUserId) > 0
+    ? Number(ownerUserId)
+    : null;
   const { rows } = await db.getQuery()(
     `INSERT INTO content_media (
        file_data, file_name, mime_type, file_size, file_hash, media_type,
        author_address, page_id, public_id, storage, file_path, upload_id,
-       status, parts_json, expires_at
-     ) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, 'disk', $9, $10, $11, $12, $13)
+       status, parts_json, expires_at, owner_user_id
+     ) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, 'disk', $9, $10, $11, $12, $13, $14)
      RETURNING ${META_COLUMNS}`,
     [
       fileName,
@@ -665,6 +755,7 @@ async function insertDiskRow({
       status,
       partsJson ? JSON.stringify(partsJson) : null,
       expiresAt,
+      ownerId,
     ]
   );
   return rows[0];
@@ -677,17 +768,22 @@ async function ingestOneShotFromPath({
   size,
   authorAddress,
   pageId,
+  ownerUserId = null,
+  purpose = null,
 }) {
+  await ensureOwnerUserIdColumn();
   const kind = limits.isAllowedCmsMime(mimeType, originalName);
   if (!kind) {
     await unlinkQuiet(tmpPath);
     throw httpError(400, 'UNSUPPORTED_TYPE', 'Разрешены изображения, видео и аудио указанных форматов');
   }
   const bytes = Number(size) || 0;
-  const max = limits.maxBytesForKind(kind);
+  const max = limits.maxBytesForKind(kind, { purpose });
   if (bytes <= 0 || bytes > max) {
     await unlinkQuiet(tmpPath);
-    throw httpError(413, 'MEDIA_TOO_LARGE', 'Файл слишком большой');
+    throw httpError(413, 'MEDIA_TOO_LARGE', purpose === 'listing' && kind === 'video'
+      ? 'Видео объявления слишком большое (макс. 80 МБ)'
+      : 'Файл слишком большой');
   }
   if (limits.shouldUseChunked(kind, bytes)) {
     await unlinkQuiet(tmpPath);
@@ -715,6 +811,7 @@ async function ingestOneShotFromPath({
       mediaType: kind,
       authorAddress,
       pageId,
+      ownerUserId,
     });
     return { row, isDuplicate: false };
   } catch (e) {
@@ -731,15 +828,26 @@ function partFileName(partNumber) {
   return `part-${String(partNumber).padStart(4, '0')}`;
 }
 
-async function initChunkedUpload({ fileName, mimeType, size, pageId, authorAddress }) {
+async function initChunkedUpload({
+  fileName,
+  mimeType,
+  size,
+  pageId,
+  authorAddress,
+  ownerUserId = null,
+  purpose = null,
+}) {
+  await ensureOwnerUserIdColumn();
   const kind = limits.isAllowedCmsMime(mimeType, fileName);
   if (!kind) {
     throw httpError(400, 'UNSUPPORTED_TYPE', 'Разрешены изображения, видео и аудио указанных форматов');
   }
   const bytes = Number(size) || 0;
   if (bytes <= 0) throw httpError(400, 'INVALID_SIZE', 'Некорректный размер файла');
-  if (bytes > limits.maxBytesForKind(kind)) {
-    throw httpError(413, 'MEDIA_TOO_LARGE', 'Файл слишком большой');
+  if (bytes > limits.maxBytesForKind(kind, { purpose })) {
+    throw httpError(413, 'MEDIA_TOO_LARGE', purpose === 'listing' && kind === 'video'
+      ? 'Видео объявления слишком большое (макс. 80 МБ)'
+      : 'Файл слишком большой');
   }
   const totalParts = Math.ceil(bytes / limits.PART_SIZE);
   if (totalParts > limits.MAX_PARTS) {
@@ -754,6 +862,7 @@ async function initChunkedUpload({ fileName, mimeType, size, pageId, authorAddre
     size: bytes,
     mimeType,
     fileName: fileName || 'unnamed',
+    purpose: purpose || null,
     received: {},
   };
   await ensureDir(tmpUploadDir(uploadId));
@@ -771,18 +880,21 @@ async function initChunkedUpload({ fileName, mimeType, size, pageId, authorAddre
     status: 'pending',
     partsJson,
     expiresAt,
+    ownerUserId,
   });
   return {
     uploadId,
-    publicId,
+    publicId: row.public_id,
     mediaId: row.id,
     partSize: limits.PART_SIZE,
     totalParts,
+    expiresAt,
     status: 'pending',
   };
 }
 
 async function loadPendingByUploadId(uploadId) {
+  await ensureOwnerUserIdColumn();
   const { rows } = await db.getQuery()(
     `SELECT ${META_COLUMNS}, parts_json FROM content_media WHERE upload_id = $1`,
     [String(uploadId || '')]
@@ -1007,6 +1119,7 @@ module.exports = {
   streamChatAttachmentForEditor,
   mimeToMediaType,
   streamDiskToResponse,
+  maybeWatermarkAndStream,
   loadReadyMetaById,
   loadReadyMetaByPublicId,
   sendPublicFile,

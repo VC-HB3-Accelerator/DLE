@@ -18,8 +18,18 @@
 import { i18n } from '@/locales/index.js';
 
 const t = (key, params) => i18n.global.t(key, params);
-const LOCAL_AGENT_URL = 'http://localhost:3000';
 const API_BASE_PATH = '/api';
+
+export function getWebSshAgentHttpUrl() {
+  if (typeof window === 'undefined') return '/webssh-agent';
+  return `${window.location.origin}/webssh-agent`;
+}
+
+export function getWebSshAgentWsUrl() {
+  if (typeof window === 'undefined') return 'ws://localhost:9000/webssh-agent/';
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}/webssh-agent/`;
+}
 
 const normalizeDomainToAscii = (domain) => {
   if (!domain) return null;
@@ -182,11 +192,8 @@ class WebSshService {
    */
   async checkAgentStatus() {
     try {
-      const response = await fetch(`${LOCAL_AGENT_URL}/health`, {
+      const response = await fetch(`${getWebSshAgentHttpUrl()}/health`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
       });
       
       if (response.ok) {
@@ -282,7 +289,7 @@ class WebSshService {
       // API ключ больше не нужен - агент защищен сетевым доступом
 
       // Отправляем конфигурацию VDS агенту
-      const response = await fetch(`${LOCAL_AGENT_URL}/vds/setup`, {
+      const response = await fetch(`${getWebSshAgentHttpUrl()}/vds/setup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

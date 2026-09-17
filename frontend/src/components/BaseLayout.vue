@@ -17,13 +17,17 @@
       class="main-content"
       :class="{
         'no-right-sidebar': !showWalletSidebar,
+        'has-left-sidebar': showPersonalSidebar && isAuthenticated,
         'main-content--document-scroll': documentScroll,
       }"
     >
       <!-- Шапка сайта -->
-      <Header 
-        :is-sidebar-open="showWalletSidebar" 
-        @toggle-sidebar="toggleWalletSidebar" 
+      <Header
+        :is-sidebar-open="showWalletSidebar"
+        :is-personal-sidebar-open="showPersonalSidebar"
+        :show-personal-toggle="isAuthenticated"
+        @toggle-sidebar="toggleWalletSidebar"
+        @toggle-personal-sidebar="togglePersonalSidebar"
       />
 
       <!-- Основной контент страницы (передается через слот) -->
@@ -31,8 +35,8 @@
     </div>
 
     <!-- Правая панель с информацией о кошельке -->
-    <Sidebar 
-      v-model="showWalletSidebar" 
+    <Sidebar
+      v-model="showWalletSidebar"
       :is-authenticated="isAuthenticated"
       :telegram-auth="telegramAuth"
       :email-auth="emailAuth"
@@ -54,13 +58,14 @@
     />
 
     <!-- Компонент для отображения уведомлений -->
-    <NotificationDisplay :notifications="notifications.value" />
+    <NotificationDisplay :notifications="notifications" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits, provide, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '../composables/useAuth';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
@@ -68,9 +73,11 @@ import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storag
 import { connectWithWallet } from '../services/wallet';
 import api from '../api/axios';
 import eventBus from '../utils/eventBus';
+import { loadListingIntent, clearListingIntent } from '../utils/listingIntent';
 import Header from './Header.vue';
 import Sidebar from './Sidebar.vue';
 import NotificationDisplay from './NotificationDisplay.vue';
+import { usePersonalSidebarState } from '@/composables/usePersonalSidebarState';
 
 // =====================================================================
 // 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES
@@ -78,6 +85,8 @@ import NotificationDisplay from './NotificationDisplay.vue';
 
 const { t } = useI18n();
 const auth = useAuthContext();
+const router = useRouter();
+const route = useRoute();
 const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
 
 const props = defineProps({
@@ -120,11 +129,25 @@ console.log('[BaseLayout] Auth state:', {
   isLoadingTokens: isLoadingTokens.value
 });
 
+function resumeListingIntentAfterAuth() {
+  const intent = loadListingIntent();
+  if (!intent?.page_id) return;
+  if (intent.action === 'call') {
+    clearListingIntent();
+    router.push({ path: '/book-call', query: { page: String(intent.page_id) } });
+    return;
+  }
+  const slug = intent.slug || String(intent.page_id);
+  const targetPath = `/blog/${encodeURIComponent(slug)}`;
+  if (route.path !== targetPath && route.path !== `/blog/${slug}`) {
+    router.push(targetPath);
+  }
+}
+
 // Callback после успешной аутентификации/привязки через Email/Telegram
 const handleAuthFlowSuccess = (authType) => {
-      // console.log(`[BaseLayout] Auth flow success: ${authType}`);
-  // Отправляем событие для обновления данных на страницах
   eventBus.emit('auth-success', { authType });
+  resumeListingIntentAfterAuth();
 };
 
 // Подписываемся на централизованные события очистки и обновления данных
@@ -161,6 +184,7 @@ const {
 // =====================================================================
 
 const showWalletSidebar = ref(false);
+const { showPersonalSidebar, togglePersonalSidebar, setPersonalSidebarOpen } = usePersonalSidebarState();
 const isConnectingWallet = ref(false); // Флаг процесса подключения кошелька
 
 // =====================================================================
@@ -184,6 +208,8 @@ const handleWalletAuth = async () => {
         if (linkResult.success) {
           showSuccessMessage(t('auth.walletConnected'));
           emit('auth-action-completed');
+          eventBus.emit('auth-success', { authType: 'wallet' });
+          resumeListingIntentAfterAuth();
         } else {
           showErrorMessage(linkResult.error || t('auth.walletConnectFailed'));
         }
@@ -192,6 +218,8 @@ const handleWalletAuth = async () => {
         if (authResponse.authenticated && authResponse.authType === 'wallet') {
           showSuccessMessage(t('auth.walletAuthSuccess'));
           emit('auth-action-completed');
+          eventBus.emit('auth-success', { authType: 'wallet' });
+          resumeListingIntentAfterAuth();
         } else {
            showErrorMessage(t('auth.walletAuthFailed'));
         }
@@ -225,6 +253,10 @@ const handleWalletAuth = async () => {
  */
 const disconnectWallet = async () => {
       // console.log('[BaseLayout] Выполняется выход из системы...');
+  // Сразу закрываем обе панели (до location.replace в auth.disconnect)
+  showWalletSidebar.value = false;
+  setToStorage('showWalletSidebar', false);
+  setPersonalSidebarOpen(false);
   try {
     // Используем централизованную функцию disconnect из useAuth
     const result = await auth.disconnect();
@@ -241,16 +273,20 @@ const disconnectWallet = async () => {
 };
 
 /**
- * Переключает отображение боковой панели
+ * Переключает отображение боковой панели ОС (бургер справа)
  */
 const toggleWalletSidebar = () => {
   showWalletSidebar.value = !showWalletSidebar.value;
   setToStorage('showWalletSidebar', showWalletSidebar.value);
 };
 
-// =====================================================================
-// 4. ЖИЗНЕННЫЙ ЦИКЛ
-// =====================================================================
+watch(isAuthenticated, (ok) => {
+  if (!ok) {
+    setPersonalSidebarOpen(false);
+    showWalletSidebar.value = false;
+    setToStorage('showWalletSidebar', false);
+  }
+});
 
 // =====================================================================
 // 4. ЖИЗНЕННЫЙ ЦИКЛ
@@ -262,7 +298,6 @@ let unsubscribeWalletAuth = null;
 onMounted(() => {
   // console.log('[BaseLayout] Компонент загружен');
 
-  // Загружаем сохраненное состояние боковой панели
   const savedSidebarState = getFromStorage('showWalletSidebar');
   if (savedSidebarState !== null) {
     showWalletSidebar.value = savedSidebarState;
@@ -342,11 +377,27 @@ onBeforeUnmount(() => {
   .main-content:not(.no-right-sidebar) {
     max-width: calc(100% - var(--sidebar-panel-width-narrow));
   }
+
+  .main-content.has-left-sidebar {
+    margin-left: var(--sidebar-panel-width-narrow);
+  }
+
+  .main-content.has-left-sidebar:not(.no-right-sidebar) {
+    max-width: calc(100% - var(--sidebar-panel-width-narrow) - var(--sidebar-panel-width-narrow));
+  }
 }
 
 @media (min-width: 1200px) {
   .main-content:not(.no-right-sidebar) {
     max-width: calc(100% - var(--sidebar-panel-width));
+  }
+
+  .main-content.has-left-sidebar {
+    margin-left: var(--sidebar-panel-width);
+  }
+
+  .main-content.has-left-sidebar:not(.no-right-sidebar) {
+    max-width: calc(100% - var(--sidebar-panel-width) - var(--sidebar-panel-width));
   }
 }
 

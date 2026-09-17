@@ -13,7 +13,7 @@
     <div class="store-product-edit page-with-close">
       <PageCloseButton :fallback="{ name: 'content-store' }" />
 
-      <div v-if="!isEditor" class="store-product-edit__forbidden">
+      <div v-if="!canEditProduct" class="store-product-edit__forbidden">
         <h1>{{ pageTitle }}</h1>
         <p>{{ t('store.editor.forbidden') }}</p>
       </div>
@@ -27,8 +27,16 @@
             :disabled="savingProduct || loading"
             @click="onSubmitProduct"
           >
-            {{ savingProduct ? t('store.common.saving') : t('store.editor.saveAndClose') }}
+            {{ savingProduct ? t('store.common.saving') : productSubmitLabel }}
           </button>
+          <template v-if="isEditor && form.moderation_status === 'pending' && editingId">
+            <button type="button" class="btn btn-primary" :disabled="savingProduct" @click="onApproveProduct">
+              {{ t('content.moderation.approve') }}
+            </button>
+            <button type="button" class="btn btn-outline" :disabled="savingProduct" @click="onReturnProduct">
+              {{ t('content.moderation.return') }}
+            </button>
+          </template>
         </header>
 
         <p v-if="loadError" class="store-product-edit__error">{{ loadError }}</p>
@@ -81,8 +89,9 @@
               </select>
             </label>
             <label class="store-product-edit__check">
-              <input v-model="form.published" type="checkbox">
-              <span>{{ t('store.editor.published') }}</span>
+              <input v-if="isEditor" v-model="form.published" type="checkbox">
+              <span v-if="isEditor">{{ t('store.editor.published') }}</span>
+              <span v-else class="store-product-edit__muted">{{ t('content.moderation.willSubmit') }}</span>
             </label>
           </div>
 
@@ -318,21 +327,26 @@ import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import ContentMediaPickerModal from '../../components/content/ContentMediaPickerModal.vue';
 import { usePermissions } from '../../composables/usePermissions';
+import { PERMISSIONS } from '@/shared/permissions.js';
 import { uploadContentMedia } from '../../composables/useChunkedMediaUpload';
 import { isNativePayToken } from '../../utils/storePayTransfer';
 import {
+  approveStoreProduct,
   createStoreProduct,
   fetchStoreProduct,
   fetchStoreSections,
   fetchStoreSettings,
   fetchTreasuryTokens,
   resolveStoreToken,
+  returnStoreProduct,
   updateStoreProduct,
 } from '../../services/storeService';
 import CatalogEntityAttrsEditor from '@/components/catalog/CatalogEntityAttrsEditor.vue';
 import {
   catalogEntityPayloadFromEditor,
+  catalogSelectionFromQuery,
   editorStateFromCatalog,
+  fetchCatalogSections,
 } from '@/services/catalogFiltersService';
 
 defineProps({
@@ -346,7 +360,13 @@ defineEmits(['auth-action-completed']);
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const { isEditor } = usePermissions();
+const { isEditor, hasPermission } = usePermissions();
+const canEditProduct = computed(() =>
+  isEditor.value || hasPermission(PERMISSIONS.CREATE_OWN_ARTICLES)
+);
+const productSubmitLabel = computed(() => (
+  isEditor.value ? t('store.editor.saveAndClose') : t('content.moderation.submitForReview')
+));
 
 const loading = ref(false);
 const loadError = ref('');
@@ -380,6 +400,7 @@ const form = reactive({
   attributes: [],
   kind: 'product',
   published: false,
+  moderation_status: 'draft',
   pay_token_address: '',
   pay_token_symbol: '',
   pay_token_decimals: null,
@@ -603,6 +624,7 @@ function fillForm(p) {
     : [];
   form.kind = p.kind || 'product';
   form.published = Boolean(p.published);
+  form.moderation_status = p.moderation_status || (p.published ? 'published' : 'draft');
   form.pay_token_address = checksumOrEmpty(p.pay_token_address);
   form.pay_token_symbol = form.pay_token_address ? (p.pay_token_symbol || '') : '';
   form.pay_token_decimals = form.pay_token_address ? Number(p.pay_token_decimals || 0) : null;
@@ -701,7 +723,8 @@ function buildPayload() {
     benefit_note: form.benefit_note,
     attributes: form.attributes,
     kind: form.kind,
-    published: form.published,
+    published: isEditor.value ? form.published : false,
+    submit_for_review: !isEditor.value,
     pay_token_address: form.pay_token_address.trim(),
     pay_token_symbol: form.pay_token_symbol.trim(),
     pay_token_decimals: Number(form.pay_token_decimals),
@@ -768,7 +791,19 @@ async function loadPage() {
       const p = await fetchStoreProduct(editingId.value);
       fillForm(p);
     } else {
-      // раздел/атрибуты задаются вручную; query только подсветка витрины
+      const fromQuery = catalogSelectionFromQuery(route.query, { sectionParam: 'catalog_section' });
+      if (fromQuery.section || Object.keys(fromQuery).some((k) => k !== 'section' && fromQuery[k])) {
+        try {
+          const sectionsList = await fetchCatalogSections({ all: 0 });
+          const match = sectionsList.find((s) => s.slug === fromQuery.section || s.id === fromQuery.section);
+          if (match) catalogSectionId.value = match.id;
+          catalogAttrs.value = Object.entries(fromQuery)
+            .filter(([k, v]) => k !== 'section' && v)
+            .map(([key, value]) => ({ key, value }));
+        } catch (_) {
+          /* ignore */
+        }
+      }
     }
   } catch (e) {
     loadError.value = e?.response?.data?.error || e?.message || t('store.common.loadError');
@@ -808,7 +843,34 @@ async function onSubmitProduct() {
     }
     if (editingId.value) await updateStoreProduct(editingId.value, payload);
     else await createStoreProduct(payload);
-    await router.push({ name: 'content-store' });
+    // Не-редактор: карточка ещё не в паблике — не уводим на /store
+    await router.push({ name: isEditor.value ? 'content-store' : 'content-list' });
+  } catch (e) {
+    formError.value = e?.response?.data?.error || e?.message || t('store.common.saveError');
+  } finally {
+    savingProduct.value = false;
+  }
+}
+
+async function onApproveProduct() {
+  if (!editingId.value) return;
+  savingProduct.value = true;
+  try {
+    await approveStoreProduct(editingId.value);
+    await router.push({ name: 'content-moderation' });
+  } catch (e) {
+    formError.value = e?.response?.data?.error || e?.message || t('store.common.saveError');
+  } finally {
+    savingProduct.value = false;
+  }
+}
+
+async function onReturnProduct() {
+  if (!editingId.value) return;
+  savingProduct.value = true;
+  try {
+    await returnStoreProduct(editingId.value);
+    await router.push({ name: 'content-moderation' });
   } catch (e) {
     formError.value = e?.response?.data?.error || e?.message || t('store.common.saveError');
   } finally {
@@ -817,15 +879,19 @@ async function onSubmitProduct() {
 }
 
 onMounted(() => {
-  if (isEditor.value) loadPage();
+  if (canEditProduct.value) loadPage();
 });
 
-watch(isEditor, (ok) => {
+watch(canEditProduct, (ok) => {
   if (ok) loadPage();
 });
 
+watch(isEditor, () => {
+  if (canEditProduct.value) loadPage();
+});
+
 watch(() => route.fullPath, () => {
-  if (isEditor.value) loadPage();
+  if (canEditProduct.value) loadPage();
 });
 </script>
 

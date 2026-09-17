@@ -1665,6 +1665,27 @@ const hasSelectedData = computed(() => {
 // Функции для работы с localStorage
 const STORAGE_KEY = 'dle_form_data';
 
+/** Секреты никогда не пишем в localStorage (XSS → кража ключей деплоя). */
+const LOCAL_STORAGE_SECRET_KEYS = [
+  'unifiedPrivateKey',
+  'privateKeys',
+  'privateKey',
+  'etherscanApiKey',
+  'privateKeyVisibility',
+  'showUnifiedKey',
+  'unifiedScanKeyVisible',
+  'keyValidation',
+];
+
+function stripSecretsFromDraft(data) {
+  if (!data || typeof data !== 'object') return data;
+  const safe = { ...data };
+  for (const key of LOCAL_STORAGE_SECRET_KEYS) {
+    delete safe[key];
+  }
+  return safe;
+}
+
 // Сохранение данных в localStorage с дебаунсом
 const saveFormData = () => {
   // Очищаем предыдущий таймер
@@ -1675,7 +1696,7 @@ const saveFormData = () => {
   // Устанавливаем новый таймер для дебаунса
   saveFormData.timeout = setTimeout(() => {
     try {
-      const dataToSave = {
+      const dataToSave = stripSecretsFromDraft({
         ...dleSettings,
         // Сохраняем также выбранные уровни ОКВЭД / ISIC и ENS
         selectedOkvedLevel1: selectedOkvedLevel1.value,
@@ -1694,18 +1715,12 @@ const saveFormData = () => {
         totalDeployCost: totalDeployCost.value,
         // predictedAddress: predictedAddress.value,
         useSameKeyForAllChains: useSameKeyForAllChains.value,
-        unifiedPrivateKey: unifiedPrivateKey.value,
-        privateKeys: { ...privateKeys },
-        privateKeyVisibility: { ...privateKeyVisibility },
-        keyValidation: { ...keyValidation },
-        showUnifiedKey: showUnifiedKey.value,
-        // Ключи сканов/автоверификация
-        etherscanApiKey: etherscanApiKey.value,
         autoVerifyAfterDeploy: autoVerifyAfterDeploy.value,
-        unifiedScanKeyVisible: unifiedScanKeyVisible.value
-      };
+      });
+      // На случай, если в dleSettings остался устаревший privateKey
+      delete dataToSave.privateKey;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-      console.log('[DleDeployForm] Данные формы сохранены в localStorage');
+      console.log('[DleDeployForm] Данные формы сохранены в localStorage (без секретов)');
       console.log('[DleDeployForm] Coordinates saved:', dataToSave.coordinates);
     } catch (error) {
       // console.error('[DleDeployForm] Ошибка сохранения данных:', error);
@@ -1718,7 +1733,7 @@ const loadFormData = () => {
   try {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
-      const parsedData = JSON.parse(savedData);
+      const parsedData = stripSecretsFromDraft(JSON.parse(savedData));
       
       // Восстанавливаем основные настройки DLE
       Object.assign(dleSettings, {
@@ -1747,9 +1762,9 @@ const loadFormData = () => {
         selectedNetworks: parsedData.selectedNetworks || [],
         tokenStandard: parsedData.tokenStandard || 'ERC20',
         // predictedAddress: parsedData.predictedAddress || '',
-        // Устаревшие поля
+        // Устаревшие поля (privateKey не восстанавливаем)
         deployNetwork: parsedData.deployNetwork || '',
-        privateKey: parsedData.privateKey || ''
+        privateKey: ''
       });
 
       // Восстанавливаем состояние ОКВЭД / ISIC
@@ -1777,18 +1792,24 @@ const loadFormData = () => {
       totalDeployCost.value = parsedData.totalDeployCost || 0;
               // predictedAddress.value = parsedData.predictedAddress || '';
       useSameKeyForAllChains.value = parsedData.useSameKeyForAllChains !== undefined ? parsedData.useSameKeyForAllChains : true;
-      unifiedPrivateKey.value = parsedData.unifiedPrivateKey || '';
-      Object.assign(privateKeys, parsedData.privateKeys || {});
-      Object.assign(privateKeyVisibility, parsedData.privateKeyVisibility || {});
-      Object.assign(keyValidation, parsedData.keyValidation || {});
-      showUnifiedKey.value = parsedData.showUnifiedKey || false;
-
-      // Восстанавливаем ключи сканов/автопараметры
-      etherscanApiKey.value = parsedData.etherscanApiKey || '';
+      // Секреты (private keys, etherscan) — только в памяти сессии, не из localStorage
+      unifiedPrivateKey.value = '';
+      Object.keys(privateKeys).forEach((k) => { delete privateKeys[k]; });
+      Object.keys(privateKeyVisibility).forEach((k) => { delete privateKeyVisibility[k]; });
+      Object.keys(keyValidation).forEach((k) => { delete keyValidation[k]; });
+      showUnifiedKey.value = false;
+      etherscanApiKey.value = '';
       autoVerifyAfterDeploy.value = !!parsedData.autoVerifyAfterDeploy;
-      unifiedScanKeyVisible.value = !!parsedData.unifiedScanKeyVisible;
+      unifiedScanKeyVisible.value = false;
 
-      console.log('[DleDeployForm] Данные формы восстановлены из localStorage');
+      // Перезаписываем черновик без секретов (миграция старых записей)
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+      } catch {
+        /* ignore quota */
+      }
+
+      console.log('[DleDeployForm] Данные формы восстановлены из localStorage (секреты очищены)');
       console.log('[DleDeployForm] Coordinates loaded:', dleSettings.coordinates);
       return true;
     }
