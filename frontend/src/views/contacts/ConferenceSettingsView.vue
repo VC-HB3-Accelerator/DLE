@@ -34,6 +34,7 @@
             :time-zone="calendarTimeZone"
             :can-select-slot="canManageConference"
             :show-schedule-view="canManageConference"
+            :settings-to="scheduleSettingsTo"
             @range-change="onCalendarRangeChange"
             @select-slot="selectCalendarSlot"
             @select-session="onCalendarSelectSession"
@@ -86,6 +87,7 @@
               v-model="form.scheduled_at"
               type="datetime"
               :placeholder="t('contacts.conference.settings.scheduledAtPlaceholder')"
+              :disabled-date="disablePastDate"
               style="width: 100%"
             />
           </el-form-item>
@@ -198,6 +200,7 @@
   import ConferenceAgendaCalendar from '@/components/chat/ConferenceAgendaCalendar.vue';
   import { usePermissions } from '@/composables/usePermissions';
   import { useAuthContext } from '@/composables/useAuth';
+  import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
   import { monthBoundsIso } from '@/utils/voiceCallCalendar';
   import api from '@/api/axios';
 
@@ -211,6 +214,7 @@
   const { isEditor } = usePermissions();
   const { userId: sessionUserId } = useAuthContext();
   const canManageConference = computed(() => isEditor.value);
+  ensureScreenAccessLoaded();
   const formOnly = computed(() => props.formOnly);
 
   const loading = ref(false);
@@ -270,9 +274,16 @@
     () => sessionUserId.value != null && String(sessionUserId.value) === String(contactId.value)
   );
 
-  const upcomingList = computed(() =>
-    (history.value || []).filter((s) => ['draft', 'scheduled', 'live'].includes(s.status))
-  );
+  const scheduleSettingsTo = computed(() => {
+    if (
+      !isOwnContactCard.value ||
+      !isEditor.value ||
+      !canAccessPath('/conferences/schedule')
+    ) {
+      return null;
+    }
+    return { name: 'hub-conference-schedule' };
+  });
 
   const calendarPeerIds = computed(() => {
     const primary = Number(contactId.value);
@@ -299,10 +310,6 @@
     return '';
   });
 
-  const scheduledSessions = computed(() =>
-    upcomingList.value.filter((session) => session.scheduled_at)
-  );
-
   /** Все мероприятия для сетки: история контакта + host-сессии + брони сотрудника. */
   const calendarSessions = computed(() => {
     const byId = new Map();
@@ -311,7 +318,10 @@
       const key = String(session.id);
       if (!byId.has(key)) byId.set(key, session);
     };
-    for (const session of scheduledSessions.value) add(session);
+    for (const session of history.value || []) {
+      if (session?.status === 'cancelled') continue;
+      add(session);
+    }
     for (const session of hostedForCalendar.value) add(session);
     for (const booking of bookingsForCalendar.value) {
       if (!booking?.starts_at) continue;
@@ -441,8 +451,27 @@
     loadCalendar({ from, to });
   }
 
+  function disablePastDate(date) {
+    if (!date) return false;
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return start.getTime() < today.getTime();
+  }
+
+  function isPastSchedule(value) {
+    if (!value) return false;
+    const ts = new Date(value).getTime();
+    return !Number.isNaN(ts) && ts <= Date.now();
+  }
+
   function selectCalendarSlot(iso) {
     if (!iso || !canManageConference.value) return;
+    if (isPastSchedule(iso)) {
+      ElMessage.warning(t('contacts.conference.settings.cannotCreateInPast'));
+      return;
+    }
     const query = { scheduledAt: iso };
     if (route.query.participantIds) {
       query.participantIds = route.query.participantIds;
@@ -730,6 +759,10 @@
   }
 
   async function save(schedule) {
+    if (isPastSchedule(form.scheduled_at) && (schedule || isCreateMode.value)) {
+      ElMessage.warning(t('contacts.conference.settings.cannotCreateInPast'));
+      return;
+    }
     saving.value = true;
     try {
       const payload = {
@@ -1031,8 +1064,8 @@
     .form-row,
     .live-grid,
     .video-stage-split,
-    [class*='-grid'],
-    [class*='Grid'] {
+    [class*='-grid']:not([class*='fc-']),
+    [class*='Grid']:not([class*='fc-']) {
       grid-template-columns: 1fr !important;
     }
     .row,

@@ -6,12 +6,13 @@
 <template>
   <BaseLayout>
     <AdminPageShell
-      :title="$t('chat.voiceCall.bookPageTitle')"
       :show-close="true"
       fallback="/"
       variant="panel"
     >
-      <div class="panel section-card" v-loading="loading">
+      <div class="book-call" v-loading="loading">
+        <h2 class="book-call__title">{{ $t('chat.voiceCall.bookPageTitle') }}</h2>
+
         <template v-if="step === 'form'">
           <p class="section-description">{{ $t('chat.voiceCall.bookFormHint') }}</p>
           <p v-if="selectedSlotLabel" class="selected-hint">
@@ -45,7 +46,7 @@
             <button
               type="button"
               class="btn btn-primary"
-              :disabled="!selectedSlot || busy"
+              :disabled="!canBookSelected || busy"
               @click="confirmBook"
             >
               {{ $t('chat.voiceCall.bookConfirm') }}
@@ -86,7 +87,7 @@
             <button
               type="button"
               class="btn btn-primary"
-              :disabled="!selectedSlot || busy"
+              :disabled="!canBookSelected || busy"
               @click="goToForm"
             >
               {{ $t('chat.voiceCall.book') }}
@@ -111,7 +112,7 @@
   import { usePermissions } from '@/composables/usePermissions';
   import { useAuthContext } from '@/composables/useAuth';
   import { useConferenceAgendaView } from '@/composables/useConferenceAgendaView';
-  import { monthBoundsIso } from '@/utils/voiceCallCalendar';
+  import { isPastSlot, monthBoundsIso } from '@/utils/voiceCallCalendar';
   import {
     buildBookCallReturnUrl,
     clearVoiceCallBookingDraft,
@@ -199,6 +200,23 @@
     }
   });
 
+  const canBookSelected = computed(
+    () => Boolean(selectedSlot.value) && !isPastSlot(selectedSlot.value)
+  );
+
+  function clearPastSelection() {
+    if (!selectedSlot.value || !isPastSlot(selectedSlot.value)) return false;
+    selectedSlot.value = '';
+    if (step.value === 'form') step.value = 'calendar';
+    return true;
+  }
+
+  function rejectPastSlot(iso, { notify = true } = {}) {
+    if (!iso || !isPastSlot(iso)) return false;
+    if (notify) ElMessage.warning(t('chat.voiceCall.cannotBookPast'));
+    return true;
+  }
+
   function persistDraft(extra = {}) {
     setVoiceCallBookingDraft({
       scheduledAt: selectedSlot.value,
@@ -234,9 +252,15 @@
 
     if (qView) viewMode.value = qView;
     if (qSlot && !Number.isNaN(new Date(qSlot).getTime())) {
-      selectedSlot.value = new Date(qSlot).toISOString();
+      const iso = new Date(qSlot).toISOString();
+      if (isPastSlot(iso)) {
+        selectedSlot.value = '';
+        step.value = 'calendar';
+      } else {
+        selectedSlot.value = iso;
+      }
     }
-    if (qStep === 'form' && selectedSlot.value) {
+    if (qStep === 'form' && canBookSelected.value) {
       step.value = 'form';
     }
     persistDraft();
@@ -270,10 +294,11 @@
         params: { from: bounds.from, to: bounds.to },
       });
       const pack = data.data || {};
-      slots.value = pack.slots || [];
+      slots.value = (pack.slots || []).filter((slot) => !isPastSlot(slot));
       timeZone.value = pack.time_zone || pack.booking_hours?.timeZone || timeZone.value;
       bookingHours.value = pack.booking_hours || null;
       slotMinutes.value = Number(pack.slot_minutes) || 30;
+      clearPastSelection();
       await loadScheduled();
     } catch (error) {
       loadError.value = error.response?.data?.error || t('chat.voiceCall.slotsError');
@@ -301,6 +326,12 @@
   }
 
   function onSelectSlot(iso) {
+    if (rejectPastSlot(iso)) {
+      selectedSlot.value = '';
+      persistDraft();
+      syncUrl();
+      return;
+    }
     selectedSlot.value = iso || '';
     needLogin.value = false;
     persistDraft();
@@ -323,7 +354,13 @@
   }
 
   function goToForm() {
-    if (!selectedSlot.value) return;
+    if (!canBookSelected.value) return;
+    if (rejectPastSlot(selectedSlot.value)) {
+      clearPastSelection();
+      persistDraft();
+      syncUrl();
+      return;
+    }
     persistDraft({ step: 'form' });
     if (!requireAuthForBooking()) {
       syncUrl();
@@ -366,7 +403,13 @@
   }
 
   async function confirmBook() {
-    if (!selectedSlot.value) return;
+    if (!canBookSelected.value) return;
+    if (rejectPastSlot(selectedSlot.value)) {
+      clearPastSelection();
+      persistDraft();
+      syncUrl();
+      return;
+    }
     if (!requireAuthForBooking()) return;
 
     busy.value = true;
@@ -400,11 +443,11 @@
   watch(isAuthenticated, (ok) => {
     if (!ok) return;
     const draft = peekVoiceCallBookingDraft();
-    if (draft?.scheduledAt && !selectedSlot.value) {
+    if (draft?.scheduledAt && !selectedSlot.value && !isPastSlot(draft.scheduledAt)) {
       selectedSlot.value = draft.scheduledAt;
     }
     if (draft?.viewMode) viewMode.value = draft.viewMode;
-    if ((route.query.step === 'form' || draft?.step === 'form') && selectedSlot.value) {
+    if ((route.query.step === 'form' || draft?.step === 'form') && canBookSelected.value) {
       step.value = 'form';
       needLogin.value = false;
       persistDraft({ step: 'form' });
@@ -419,8 +462,17 @@
 </script>
 
 <style scoped>
-  .section-card {
-    margin-top: var(--spacing-md);
+  .book-call {
+    width: 100%;
+    max-width: 520px;
+    margin-inline: auto;
+  }
+
+  .book-call__title {
+    margin: 0 0 var(--spacing-lg, 1rem);
+    color: var(--color-dark);
+    font-size: var(--font-size-xl, 1.25rem);
+    font-weight: 600;
   }
 
   .btn-row {

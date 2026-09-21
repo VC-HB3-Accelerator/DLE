@@ -28,7 +28,7 @@ function hostnameOf(hostname) {
   return String(hostname || '').replace(/^www\./i, '').toLowerCase();
 }
 
-function isRuHost(hostname) {
+export function isRuHost(hostname) {
   const host = hostnameOf(hostname);
   return host === 'ru' || host.startsWith('ru.');
 }

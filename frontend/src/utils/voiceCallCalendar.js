@@ -35,6 +35,14 @@ export function dayKey(iso, timeZone) {
   return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
 }
 
+/** Слот уже начался или время невалидно — бронировать нельзя. */
+export function isPastSlot(iso) {
+  if (iso == null || iso === '') return false;
+  const raw = iso?.starts_at || iso;
+  const ts = new Date(raw).getTime();
+  return Number.isNaN(ts) || ts <= Date.now();
+}
+
 export function formatSlotTime(iso, timeZone) {
   const p = partsInZone(new Date(iso), timeZone);
   return `${pad(p.hour)}:${pad(p.minute)}`;
@@ -68,4 +76,36 @@ export function monthBoundsIso(year, month) {
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 12 * 60 * 60 * 1000);
   const to = new Date(Date.UTC(year, month, 1, 12, 0, 0));
   return { from: from.toISOString(), to: to.toISOString() };
+}
+
+export function shiftDayKey(key, days) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + Number(days || 0)));
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+export function weekStartKey(key) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();
+  const offset = dow === 0 ? -6 : 1 - dow;
+  return shiftDayKey(key, offset);
+}
+
+export function weekDayKeys(key) {
+  const start = weekStartKey(key);
+  return Array.from({ length: 7 }, (_, i) => shiftDayKey(start, i));
+}
+
+export function weekBoundsIso(key) {
+  const start = weekStartKey(key);
+  const [y, m, d] = start.split('-').map(Number);
+  const from = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 12 * 60 * 60 * 1000);
+  const to = new Date(Date.UTC(y, m - 1, d + 7, 12, 0, 0));
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+export function shiftMonthParts(year, month, delta) {
+  const dt = new Date(Date.UTC(year, month - 1 + Number(delta || 0), 1));
+  return { year: dt.getUTCFullYear(), month: dt.getUTCMonth() + 1 };
 }

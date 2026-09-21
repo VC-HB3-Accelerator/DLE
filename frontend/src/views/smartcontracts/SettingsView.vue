@@ -54,7 +54,7 @@
 
         <template v-if="activeTab === 'general'">
         <!-- Отображение в футере -->
-        <div v-if="canSetFooterDle" class="footer-card">
+        <div class="footer-card">
           <div class="footer-header">
             <h3>{{ t('smartcontracts.settings.footerDisplay') }}</h3>
           </div>
@@ -73,7 +73,7 @@
                 v-if="!isSelectedForFooter" 
                 @click="setAsFooterDle" 
                 class="btn-primary" 
-                :disabled="isLoading"
+                :disabled="isLoading || !isEditor"
               >
                 <UiGlyph name="eye" />
                 {{ t('smartcontracts.settings.showInFooter') }}
@@ -82,7 +82,7 @@
                 v-if="isSelectedForFooter" 
                 @click="removeFromFooter" 
                 class="btn-danger" 
-                :disabled="isLoading"
+                :disabled="isLoading || !isEditor"
               >
                 <UiGlyph name="trash" />
                 {{ t('smartcontracts.settings.removeFromFooter') }}
@@ -91,7 +91,7 @@
                 v-if="hasFooterDle && !isSelectedForFooter" 
                 @click="removeFromFooter" 
                 class="btn-danger btn-sm" 
-                :disabled="isLoading"
+                :disabled="isLoading || !isEditor"
               >
                 <UiGlyph name="trash" />
                 {{ t('smartcontracts.settings.removeFromFooter') }}
@@ -129,7 +129,7 @@
               v-if="chainActive !== false"
               type="button"
               class="btn-danger"
-              :disabled="isLoading || isDelisting"
+              :disabled="isLoading || isDelisting || !isEditor"
               @click="goDeactivateProposal"
             >
               {{ t('smartcontracts.settings.deactivateProposalBtn') }}
@@ -138,7 +138,7 @@
               v-else
               type="button"
               class="btn-danger"
-              :disabled="isLoading || isDelisting"
+              :disabled="isLoading || isDelisting || !isEditor"
               @click="delistFromOs"
             >
               {{ isDelisting ? t('common.loading') : t('smartcontracts.settings.deleteDleBtn') }}
@@ -175,19 +175,21 @@
                   type="url"
                   autocomplete="off"
                   placeholder="https://"
+                  :disabled="!isEditor"
                 />
                 <button
                   v-if="moduleDeployForm.rpcUrls.length > 1"
                   type="button"
                   class="btn-rpc-remove"
                   :aria-label="t('common.delete')"
+                  :disabled="!isEditor"
                   @click="removeModuleRpcField(rpcIndex)"
                 >
                   ×
                 </button>
               </div>
             </div>
-            <button type="button" class="btn-rpc-add" @click="addModuleRpcField">
+            <button type="button" class="btn-rpc-add" :disabled="!isEditor" @click="addModuleRpcField">
               {{ t('smartcontracts.settings.moduleDeployAddRpc') }}
             </button>
             <div class="form-group">
@@ -198,6 +200,7 @@
                 class="form-control"
                 type="password"
                 autocomplete="new-password"
+                :disabled="!isEditor"
               />
             </div>
             <div class="form-group">
@@ -208,12 +211,13 @@
                 class="form-control"
                 type="password"
                 autocomplete="new-password"
+                :disabled="!isEditor"
               />
             </div>
             <button
               type="button"
               class="btn-primary"
-              :disabled="isSavingModuleDeploy || !canSetFooterDle"
+              :disabled="isSavingModuleDeploy || !isEditor"
               @click="saveModuleDeployer"
             >
               {{ isSavingModuleDeploy ? t('common.loading') : t('smartcontracts.settings.moduleDeploySave') }}
@@ -238,7 +242,6 @@ import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useFooterDle } from '../../composables/useFooterDle';
 import { usePermissions } from '../../composables/usePermissions';
-import { ROLES } from '../../composables/permissions';
 import BaseLayout from '../../components/BaseLayout.vue';
 import PageCloseButton from '@/components/PageCloseButton.vue';
 import api from '../../api/axios';
@@ -291,16 +294,10 @@ const goBackToBlocks = () => {
   }
 };
 
-// Используем composable для проверки прав доступа
-const { currentRole } = usePermissions();
+const { isEditor } = usePermissions();
 
 // Используем composable для выбранного DLE
 const { footerDle, setFooterDle, clearFooterDle } = useFooterDle();
-
-// Проверяем, может ли пользователь устанавливать DLE для футера (только редактор)
-const canSetFooterDle = computed(() => {
-  return currentRole.value === ROLES.EDITOR;
-});
 
 // Проверяем, выбран ли этот DLE для отображения в футере
 const isSelectedForFooter = computed(() => {
@@ -317,7 +314,7 @@ const hasFooterDle = computed(() => {
 // Устанавливает выбранный DLE для отображения в футере
 const setAsFooterDle = async () => {
   // Проверяем права доступа (только редактор может устанавливать DLE для футера)
-  if (!canSetFooterDle.value) {
+  if (!isEditor.value) {
     alert(t('smartcontracts.settings.alerts.editorOnlySetFooter'));
     return;
   }
@@ -344,7 +341,7 @@ const setAsFooterDle = async () => {
 // Удаляет DLE из футера
 const removeFromFooter = async () => {
   // Проверяем права доступа (только редактор может удалять DLE из футера)
-  if (!canSetFooterDle.value) {
+  if (!isEditor.value) {
     alert(t('smartcontracts.settings.alerts.editorOnlyRemoveFooter'));
     return;
   }
@@ -454,16 +451,18 @@ function openModulesTab() {
 }
 
 function addModuleRpcField() {
+  if (!isEditor.value) return;
   moduleDeployForm.value.rpcUrls.push('');
 }
 
 function removeModuleRpcField(index) {
+  if (!isEditor.value) return;
   if (moduleDeployForm.value.rpcUrls.length <= 1) return;
   moduleDeployForm.value.rpcUrls.splice(index, 1);
 }
 
 async function saveModuleDeployer() {
-  if (!canSetFooterDle.value) {
+  if (!isEditor.value) {
     alert(t('smartcontracts.settings.alerts.editorOnlyModuleDeploy'));
     return;
   }
@@ -524,6 +523,10 @@ async function refreshChainActive() {
 }
 
 function goDeactivateProposal() {
+  if (!isEditor.value) {
+    alert(t('smartcontracts.settings.alerts.editorOnlyDeactivate'));
+    return;
+  }
   if (!address) {
     alert(t('smartcontracts.settings.alerts.addressNotFound'));
     return;
@@ -535,6 +538,10 @@ function goDeactivateProposal() {
 }
 
 async function delistFromOs() {
+  if (!isEditor.value) {
+    alert(t('smartcontracts.settings.alerts.editorOnlyDelist'));
+    return;
+  }
   if (!address) {
     alert(t('smartcontracts.settings.alerts.addressNotFound'));
     return;
@@ -860,7 +867,7 @@ async function delistFromOs() {
   color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--color-primary-dark);
   transform: translateY(-1px);
 }
@@ -870,14 +877,29 @@ async function delistFromOs() {
   color: white;
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background: #c53030;
   transform: translateY(-1px);
 }
 
-.btn-primary:active,
-.btn-danger:active {
+.btn-primary:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.btn-primary:disabled,
+.btn-danger:disabled,
+.btn-rpc-add:disabled,
+.btn-rpc-remove:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.form-control:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #f8f9fa;
 }
 
 /* Сообщение если DLE не выбран */

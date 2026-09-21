@@ -73,7 +73,7 @@
         <el-button v-if="canDeleteData" type="danger" @click="deleteSelected">
           {{ t('contacts.delete') }}
         </el-button>
-        <el-button link @click="clearSelection">{{ t('contacts.clearSelection') }}</el-button>
+        <el-button link type="button" @click.prevent="clearSelection">{{ t('contacts.clearSelection') }}</el-button>
       </div>
     </div>
 
@@ -815,6 +815,9 @@ const selectedIds = ref([]);
 const suppressContactsWsReload = ref(false);
 const BULK_DELETE_CHUNK = 500;
 const selectAll = ref(false);
+/** Пользователь явно выбрал все по фильтру (режим «все»). Не восстанавливать после «Снять выбор». */
+const keepAllMatchingSelection = ref(false);
+let selectAllRequestId = 0;
 const selectAllCheckboxRef = ref(null);
 const revealedFields = ref({});
 let searchDebounceTimer = null;
@@ -883,6 +886,7 @@ function onContactCheckboxChange(contact, event) {
     addIdsToSelection([contact.id]);
     cacheContacts([contact]);
   } else {
+    keepAllMatchingSelection.value = false;
     removeIdsFromSelection([contact.id]);
   }
   updateSelectAllState();
@@ -892,6 +896,7 @@ function onSelectAllChange(event) {
   const checked = event.target.checked;
   if (isPageSizeAll.value) {
     if (checked) {
+      keepAllMatchingSelection.value = true;
       selectAllMatchingIds().then(() => {
         updateSelectAllState();
         updateSelectAllIndeterminate();
@@ -903,6 +908,7 @@ function onSelectAllChange(event) {
     }
     return;
   }
+  keepAllMatchingSelection.value = false;
   selectAll.value = checked;
   const pageIds = pageContacts.value.map(c => c.id);
   if (checked) {
@@ -959,6 +965,8 @@ function getFieldTitle(contactId, field, value) {
 }
 
 function clearSelection() {
+  selectAllRequestId += 1;
+  keepAllMatchingSelection.value = false;
   selectedIds.value = [];
   selectAll.value = false;
   updateSelectAllIndeterminate();
@@ -1272,9 +1280,12 @@ function buildIdsFilterParams() {
 }
 
 async function selectAllMatchingIds() {
+  const requestId = ++selectAllRequestId;
   const { ids } = await getContactIds(buildIdsFilterParams());
+  if (requestId !== selectAllRequestId) return;
   selectedIds.value = Array.isArray(ids) ? [...ids] : [];
   selectAll.value = selectedIds.value.length > 0;
+  keepAllMatchingSelection.value = selectedIds.value.length > 0;
 }
 
 function teardownInfiniteScroll() {
@@ -1317,7 +1328,7 @@ async function loadContactsPage(options = {}) {
   }
 
   try {
-    if (isPageSizeAll.value && !append) {
+    if (isPageSizeAll.value && !append && keepAllMatchingSelection.value) {
       await selectAllMatchingIds();
     }
 
@@ -1591,8 +1602,7 @@ watch(isAuthenticated, async (newValue) => {
     filtersHydrated.value = false;
     pageContacts.value = [];
     totalContacts.value = 0;
-    selectedIds.value = [];
-    selectAll.value = false;
+    clearSelection();
     teardownContactsWebSocket();
   }
 });
@@ -1951,8 +1961,7 @@ async function deleteSelected() {
     } else {
       ElMessage.error(t('contacts.deleteConfirm.deleteError'));
     }
-    selectedIds.value = [];
-    selectAll.value = false;
+    clearSelection();
     await loadContactsPage();
   } catch (e) {
     ElMessage.error(e?.response?.data?.error || e?.message || t('contacts.deleteConfirm.deleteError'));
@@ -1986,8 +1995,7 @@ async function deleteMessagesSelected() {
     }
     
     ElMessage.success(t('contacts.deletedMessages', { messages: deletedMessages, conversations: deletedConversations }));
-    selectedIds.value = [];
-    selectAll.value = false;
+    clearSelection();
   } catch (e) {
     // Отмена
   }

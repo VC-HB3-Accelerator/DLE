@@ -6,90 +6,158 @@
 <template>
   <div class="agenda-cal">
     <div v-if="!hideToolbar" class="agenda-cal__toolbar">
-      <label class="agenda-cal__view-label" :for="viewSelectId">
-        {{ t('contacts.conference.calendar.viewLabel') }}
-      </label>
-      <select
-        :id="viewSelectId"
-        v-model="currentView"
-        class="agenda-cal__view-select"
-        @change="onViewSelect"
-      >
-        <option v-for="opt in viewOptions" :key="opt.value" :value="opt.value">
+      <div class="agenda-cal__modes" role="group" :aria-label="t('contacts.conference.calendar.viewLabel')">
+        <button
+          v-for="opt in viewOptions"
+          :key="opt.value"
+          type="button"
+          class="agenda-cal__btn"
+          :class="{ 'is-active': currentView === opt.value }"
+          @click="setView(opt.value)"
+        >
           {{ opt.label }}
-        </option>
-      </select>
+        </button>
+      </div>
       <div class="agenda-cal__nav">
-        <div class="agenda-cal__nav-group">
-          <button
-            type="button"
-            class="agenda-cal__nav-btn"
-            :aria-label="t('common.prev')"
-            @click="goPrev"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            class="agenda-cal__nav-btn"
-            :aria-label="t('common.next')"
-            @click="goNext"
-          >
-            ›
-          </button>
-        </div>
-        <button type="button" class="agenda-cal__nav-btn agenda-cal__nav-btn--today" @click="goToday">
+        <button
+          type="button"
+          class="agenda-cal__btn agenda-cal__btn--icon"
+          :aria-label="t('common.prev')"
+          @click="goPrev"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="agenda-cal__btn agenda-cal__btn--icon"
+          :aria-label="t('common.next')"
+          @click="goNext"
+        >
+          ›
+        </button>
+        <button type="button" class="agenda-cal__btn" @click="goToday">
           {{ t('contacts.conference.calendar.today') }}
         </button>
+        <router-link
+          v-if="settingsTo"
+          :to="settingsTo"
+          class="agenda-cal__btn agenda-cal__btn--icon"
+          :title="t('contacts.conference.nav.availability')"
+          :aria-label="t('contacts.conference.nav.availability')"
+        >
+          <UiGlyph name="settings" :size="18" />
+        </router-link>
       </div>
     </div>
-    <p v-if="hourBandMode" class="agenda-cal__hint">
-      {{ t('contacts.conference.calendar.hourBandHint', { minutes: slotStep }) }}
-    </p>
-    <FullCalendar ref="calendarRef" :options="calendarOptions" />
 
-    <el-dialog
-      v-model="slotPickerOpen"
-      :title="slotPickerTitle"
-      width="380px"
-      append-to-body
-      class="agenda-cal-slot-dialog"
-      @closed="onSlotPickerClosed"
-    >
-      <p class="agenda-cal__picker-hint">
-        {{ t('contacts.conference.calendar.hourPickHint', { minutes: slotStep }) }}
+    <template v-if="isMonthView">
+      <div class="agenda-cal__heading">{{ monthTitle }}</div>
+      <div class="agenda-cal__weekdays">
+        <span v-for="wd in weekdayLabels" :key="wd">{{ wd }}</span>
+      </div>
+      <div class="agenda-cal__days">
+        <div v-for="(cell, idx) in monthCellsList" :key="idx" class="agenda-cal__day-wrap">
+          <button
+            type="button"
+            class="agenda-cal__day"
+            :class="dayCellClass(cell)"
+            :disabled="cell == null"
+            @click="openDay(dayKeyOf(cell))"
+          >
+            <span v-if="cell != null">{{ cell }}</span>
+          </button>
+          <span v-if="cell != null" class="agenda-cal__marks">
+            <i v-if="hasPending(dayKeyOf(cell))" class="agenda-cal__mark agenda-cal__mark--pending" />
+            <i v-if="hasScheduled(dayKeyOf(cell))" class="agenda-cal__mark agenda-cal__mark--event" />
+          </span>
+        </div>
+      </div>
+    </template>
+
+    <template v-else>
+      <div class="agenda-cal__heading">{{ weekTitle }}</div>
+      <div class="agenda-cal__weekstrip">
+        <div v-for="key in weekKeys" :key="key" class="agenda-cal__strip-col">
+          <span class="agenda-cal__strip-wd">{{ weekdayShort(key) }}</span>
+          <button
+            type="button"
+            class="agenda-cal__day agenda-cal__day--strip"
+            :class="stripDayClass(key)"
+            @click="openDay(key, { stayInDay: true })"
+          >
+            {{ dayNumber(key) }}
+          </button>
+          <span class="agenda-cal__marks">
+            <i v-if="hasPending(key)" class="agenda-cal__mark agenda-cal__mark--pending" />
+            <i v-if="hasScheduled(key)" class="agenda-cal__mark agenda-cal__mark--event" />
+          </span>
+        </div>
+      </div>
+      <div class="agenda-cal__day-head">{{ dayTitle }}</div>
+      <p v-if="!dayItems.length" class="agenda-cal__hint">
+        {{
+          isPastKey(focusKey)
+            ? t('contacts.conference.calendar.emptyPastDay')
+            : t('contacts.conference.calendar.emptyDay')
+        }}
       </p>
-      <div class="agenda-cal__slot-list">
+      <div v-else class="agenda-cal__slots">
         <button
-          v-for="iso in slotPickerOptions"
-          :key="iso"
+          v-for="item in dayItems"
+          :key="item.id"
           type="button"
-          class="agenda-cal__slot-btn"
-          :class="{ 'is-selected': selectedIso === iso }"
-          @click="pickSlot(iso)"
+          class="agenda-cal__slot"
+          :class="{
+            'is-selected': item.kind === 'free' && item.iso === selectedIso,
+            'is-session': item.kind === 'session' && item.tone !== 'pending',
+            'is-pending': item.kind === 'session' && item.tone === 'pending',
+            'is-busy': item.kind === 'busy',
+          }"
+          :disabled="
+            item.kind === 'busy' ||
+            (item.kind === 'free' && (!canSelectSlot || isPastKey(focusKey) || isPastSlot(item.iso)))
+          "
+          @click="onDayItemClick(item)"
         >
-          {{ formatSlotTime(iso) }}
+          {{ item.label }}
         </button>
       </div>
-    </el-dialog>
+    </template>
+
+    <ul v-if="showLegend" class="agenda-cal__legend">
+      <li>
+        <i class="agenda-cal__legend-swatch agenda-cal__legend-swatch--free" />
+        {{ t('contacts.conference.calendar.legendFree') }}
+      </li>
+      <li>
+        <i class="agenda-cal__legend-swatch agenda-cal__legend-swatch--event" />
+        {{ t('contacts.conference.calendar.legendScheduled') }}
+      </li>
+      <li>
+        <i class="agenda-cal__legend-swatch agenda-cal__legend-swatch--pending" />
+        {{ t('contacts.conference.calendar.legendPending') }}
+      </li>
+    </ul>
   </div>
 </template>
 
 <script setup>
-  import { computed, reactive, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+  import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
   import { useI18n } from 'vue-i18n';
-  import FullCalendar from '@fullcalendar/vue3';
-  import dayGridPlugin from '@fullcalendar/daygrid';
-  import timeGridPlugin from '@fullcalendar/timegrid';
-  import listPlugin from '@fullcalendar/list';
-  import multiMonthPlugin from '@fullcalendar/multimonth';
-  import interactionPlugin from '@fullcalendar/interaction';
-  import ruLocale from '@fullcalendar/core/locales/ru';
-  import enGbLocale from '@fullcalendar/core/locales/en-gb';
   import { useConferenceAgendaView } from '@/composables/useConferenceAgendaView';
-
-  /** При шаге ≤ этого — в дне/неделе рисуем часовые зоны + список слотов. */
-  const HOUR_BAND_MAX_MINUTES = 15;
+  import UiGlyph from '@/components/UiGlyph.vue';
+  import {
+    dayKey,
+    formatSlotTime,
+    groupSlotsByDay,
+    isPastSlot,
+    monthBoundsIso,
+    monthCells,
+    shiftDayKey,
+    shiftMonthParts,
+    weekBoundsIso,
+    weekDayKeys,
+  } from '@/utils/voiceCallCalendar';
 
   const props = defineProps({
     slots: { type: Array, default: () => [] },
@@ -100,10 +168,9 @@
     timeZone: { type: String, default: 'Europe/Moscow' },
     canSelectSlot: { type: Boolean, default: true },
     selectedSlot: { type: String, default: '' },
-    /** Режим «Расписание» — только владелец календаря (редактор). */
     showScheduleView: { type: Boolean, default: false },
-    /** Селект режима вынесен в строку навигации (Звонки / Планировщик). */
     hideToolbar: { type: Boolean, default: false },
+    settingsTo: { type: [String, Object], default: null },
   });
 
   const emit = defineEmits(['range-change', 'select-slot', 'select-session']);
@@ -111,173 +178,89 @@
   const { t, locale } = useI18n();
   const { viewMode: sharedViewMode, showScheduleView: sharedShowSchedule } =
     useConferenceAgendaView();
-  const calendarRef = ref(null);
-  const viewSelectId = `agenda-view-${Math.random().toString(36).slice(2, 9)}`;
+
   const DEFAULT_VIEW = 'dayGridMonth';
-  const currentView = ref(sharedViewMode.value || DEFAULT_VIEW);
+  const currentView = ref(DEFAULT_VIEW);
   const lastRangeKey = ref('');
-  /** Не сбрасывать выбор слота при программном переходе месяц → день. */
   const keepSelectionOnce = ref(false);
 
-  const slotPickerOpen = ref(false);
-  const slotPickerOptions = ref([]);
-  const slotPickerHourStart = ref(null);
+  const todayKey = computed(() => dayKey(new Date().toISOString(), props.timeZone));
+  const focusKey = ref(todayKey.value);
 
-  const ALLOWED_BASE = ['timeGridDay', 'timeGridWeek', 'dayGridMonth', 'multiMonthYear'];
+  const loc = computed(() => (locale.value === 'en' ? 'en-GB' : 'ru-RU'));
+  const isMonthView = computed(() => currentView.value === DEFAULT_VIEW);
+  const showLegend = computed(() => Boolean(props.showScheduleView));
 
-  const slotStep = computed(() => Math.max(10, Number(props.slotMinutes) || 30));
+  const viewOptions = computed(() => [
+    { value: 'dayGridMonth', label: t('contacts.conference.calendar.views.month') },
+    { value: 'timeGridDay', label: t('contacts.conference.calendar.views.day') },
+  ]);
 
   const selectedIso = computed(() =>
     props.selectedSlot ? new Date(props.selectedSlot).toISOString() : ''
   );
 
-  const hourBandMode = computed(() => {
-    if (slotStep.value > HOUR_BAND_MAX_MINUTES) return false;
-    if (isMonthLikeView(currentView.value)) return false;
-    if (String(currentView.value).startsWith('list')) return false;
-    return true;
+  const viewYear = computed(() => Number(String(focusKey.value).slice(0, 4)));
+  const viewMonth = computed(() => Number(String(focusKey.value).slice(5, 7)));
+
+  const weekdayLabels = computed(() => {
+    const base = new Date(Date.UTC(2026, 7, 17));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base.getTime() + i * 86400000);
+      return new Intl.DateTimeFormat(loc.value, { weekday: 'short' }).format(d);
+    });
   });
 
-  const viewOptions = computed(() => {
-    const opts = [
-      { value: 'timeGridDay', label: t('contacts.conference.calendar.views.day') },
-      { value: 'timeGridWeek', label: t('contacts.conference.calendar.views.week') },
-      { value: 'dayGridMonth', label: t('contacts.conference.calendar.views.month') },
-      { value: 'multiMonthYear', label: t('contacts.conference.calendar.views.year') },
-    ];
-    if (props.showScheduleView) {
-      opts.push({
-        value: 'listWeek',
-        label: t('contacts.conference.calendar.views.schedule'),
-      });
-    }
-    return opts;
+  const monthTitle = computed(() => {
+    const raw = new Intl.DateTimeFormat(loc.value, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(new Date(Date.UTC(viewYear.value, viewMonth.value - 1, 1)));
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   });
 
-  const allowedViews = computed(() => {
-    const set = new Set(ALLOWED_BASE);
-    if (props.showScheduleView) set.add('listWeek');
-    return set;
+  const weekKeys = computed(() => weekDayKeys(focusKey.value));
+
+  const weekTitle = computed(() => {
+    const start = weekKeys.value[0];
+    const end = weekKeys.value[6];
+    const fmt = (key, withYear) => {
+      const [y, m, d] = key.split('-').map(Number);
+      return new Intl.DateTimeFormat(loc.value, {
+        day: 'numeric',
+        month: 'short',
+        ...(withYear ? { year: 'numeric' } : {}),
+        timeZone: 'UTC',
+      }).format(new Date(Date.UTC(y, m - 1, d)));
+    };
+    return `${fmt(start, false)} – ${fmt(end, true)}`;
   });
 
-  const slotPickerTitle = computed(() => {
-    if (!slotPickerHourStart.value) {
-      return t('contacts.conference.calendar.hourPickTitleFallback');
-    }
-    const label = new Intl.DateTimeFormat(locale.value === 'en' ? 'en-GB' : 'ru-RU', {
+  const dayTitle = computed(() => {
+    const [y, m, d] = focusKey.value.split('-').map(Number);
+    const raw = new Intl.DateTimeFormat(loc.value, {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(slotPickerHourStart.value);
-    return t('contacts.conference.calendar.hourPickTitle', { time: label });
+      timeZone: 'UTC',
+    }).format(new Date(Date.UTC(y, m - 1, d)));
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   });
 
-  function pad(n) {
-    return String(n).padStart(2, '0');
-  }
+  const monthCellsList = computed(() => monthCells(viewYear.value, viewMonth.value));
 
-  function addMinutesIso(iso, minutes) {
-    const start = new Date(iso).getTime();
-    if (Number.isNaN(start)) return iso;
-    return new Date(start + minutes * 60 * 1000).toISOString();
-  }
+  const freeByDay = computed(() => groupSlotsByDay(props.slots, props.timeZone));
 
-  function slotEnd(iso) {
-    return addMinutesIso(iso, slotStep.value);
-  }
-
-  function isMonthLikeView(type) {
-    return type === 'dayGridMonth' || String(type || '').startsWith('multiMonth');
-  }
-
-  function isTimeGridView(type) {
-    return String(type || '').startsWith('timeGrid');
-  }
-
-  function normalizeViewType(type) {
-    if (allowedViews.value.has(type)) return type;
-    if (type === 'timeGridSevenDay') return 'timeGridWeek';
-    if (type === 'dayGridDay' || type === 'listDay') return 'timeGridDay';
-    if (type === 'listWeek' && !props.showScheduleView) return DEFAULT_VIEW;
-    return DEFAULT_VIEW;
-  }
-
-  function hourKeyLocal(date) {
-    const d = date instanceof Date ? date : new Date(date);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}`;
-  }
-
-  function hourBoundsLocal(date) {
-    const d = date instanceof Date ? new Date(date) : new Date(date);
-    const start = new Date(d);
-    start.setMinutes(0, 0, 0);
-    const end = new Date(start);
-    end.setHours(start.getHours() + 1);
-    return { start, end };
-  }
-
-  function formatSlotTime(iso) {
-    try {
-      return new Intl.DateTimeFormat(locale.value === 'en' ? 'en-GB' : 'ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(new Date(iso));
-    } catch {
-      return iso;
+  const sessionsByDay = computed(() => {
+    const map = new Map();
+    for (const session of props.sessions || []) {
+      if (!session?.scheduled_at) continue;
+      const key = dayKey(session.scheduled_at, props.timeZone);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(session);
     }
-  }
-
-  function freeSlotIsos() {
-    return (props.slots || [])
-      .map((s) => s?.starts_at || s)
-      .filter(Boolean)
-      .map((iso) => new Date(iso).toISOString())
-      .filter((iso) => !Number.isNaN(new Date(iso).getTime()))
-      .sort();
-  }
-
-  function freeSlotsInHour(dateLike) {
-    const { start, end } = hourBoundsLocal(dateLike);
-    const from = start.getTime();
-    const to = end.getTime();
-    return freeSlotIsos().filter((iso) => {
-      const ts = new Date(iso).getTime();
-      return ts >= from && ts < to;
-    });
-  }
-
-  function openHourPicker(dateLike, options) {
-    const list = options?.length ? options : freeSlotsInHour(dateLike);
-    if (!list.length) return;
-    const { start } = hourBoundsLocal(dateLike);
-    slotPickerHourStart.value = start;
-    slotPickerOptions.value = list;
-    slotPickerOpen.value = true;
-  }
-
-  function pickSlot(iso) {
-    slotPickerOpen.value = false;
-    if (iso) emit('select-slot', iso);
-  }
-
-  function onSlotPickerClosed() {
-    slotPickerOptions.value = [];
-    slotPickerHourStart.value = null;
-  }
-
-  const businessHoursOption = computed(() => {
-    const hours = props.bookingHours;
-    if (!hours || typeof hours !== 'object') return true;
-    const startHour = Number(hours.startHour ?? hours.startUtc ?? 9);
-    const endHour = Number(hours.endHour ?? hours.endUtc ?? 18);
-    const weekdays = Array.isArray(hours.weekdays) ? hours.weekdays : [1, 2, 3, 4, 5];
-    return {
-      daysOfWeek: weekdays,
-      startTime: `${pad(startHour)}:00`,
-      endTime: `${pad(endHour)}:00`,
-    };
+    return map;
   });
 
   const sessionIds = computed(() => {
@@ -288,377 +271,265 @@
     return set;
   });
 
-  const calendarEvents = computed(() => {
-    const events = [];
-    const takenStarts = new Set();
-    const monthLike = isMonthLikeView(currentView.value);
-    const bands = hourBandMode.value;
+  const dayItems = computed(() => {
+    const key = focusKey.value;
+    const past = isPastKey(key);
+    const items = [];
+    const taken = new Set();
 
-    for (const session of props.sessions || []) {
-      if (!session?.scheduled_at) continue;
-      const start = new Date(session.scheduled_at).toISOString();
-      takenStarts.add(start);
-      events.push({
+    for (const session of sessionsByDay.value.get(key) || []) {
+      const iso = new Date(session.scheduled_at).toISOString();
+      taken.add(iso);
+      const tone = sessionTone(session);
+      const title = session.title || t('contacts.conference.live.untitled');
+      let badge = '';
+      if (tone === 'pending') badge = ` · ${t('contacts.conference.calendar.pendingBadge')}`;
+      else if (tone === 'ended') badge = ` · ${t('contacts.conference.status.ended')}`;
+      items.push({
         id: `session-${session.id}`,
-        title: session.title || t('contacts.conference.live.untitled'),
-        start,
-        end: slotEnd(start),
-        display: 'auto',
-        classNames: ['agenda-cal__event--session'],
-        backgroundColor: '#c0392b',
-        borderColor: '#a93226',
-        textColor: '#fff',
-        extendedProps: { kind: 'session', session },
+        kind: 'session',
+        tone,
+        iso,
+        session,
+        label: `${formatSlotTime(iso, props.timeZone)} · ${title}${badge}`,
+        sort: new Date(iso).getTime(),
       });
     }
 
-    for (const item of props.occupied || []) {
-      const startIso = item?.starts_at || item;
-      if (!startIso) continue;
-      const start = new Date(startIso).toISOString();
-      if (takenStarts.has(start)) continue;
-      const confId = item?.conference_id;
-      if (confId != null && sessionIds.value.has(String(confId))) continue;
-      takenStarts.add(start);
-      events.push({
-        id: `busy-${start}`,
-        title: t('contacts.conference.calendar.busySlot'),
-        start,
-        end: slotEnd(start),
-        display: 'auto',
-        classNames: ['agenda-cal__event--busy'],
-        backgroundColor: '#e74c3c',
-        borderColor: '#c0392b',
-        textColor: '#fff',
-        extendedProps: { kind: 'busy' },
-      });
-    }
-
-    const selected = selectedIso.value;
-    if (selected && !takenStarts.has(selected) && !monthLike) {
-      // Выбранный слот — заметный блок даже при 10 мин
-      events.push({
-        id: `selected-${selected}`,
-        title: t('contacts.conference.calendar.selectedSlot'),
-        start: selected,
-        end: slotEnd(selected),
-        display: 'auto',
-        classNames: ['agenda-cal__event--free', 'agenda-cal__event--selected'],
-        backgroundColor: 'rgba(39, 174, 96, 0.7)',
-        borderColor: '#1e8449',
-        textColor: '#fff',
-        extendedProps: { kind: 'free', startsAt: selected },
-      });
-      takenStarts.add(selected);
-    }
-
-    if (bands) {
-      const byHour = new Map();
-      for (const start of freeSlotIsos()) {
-        if (takenStarts.has(start)) continue;
-        const key = hourKeyLocal(start);
-        if (!byHour.has(key)) {
-          const { start: hourStart, end: hourEnd } = hourBoundsLocal(start);
-          byHour.set(key, { hourStart, hourEnd, slots: [] });
-        }
-        byHour.get(key).slots.push(start);
-      }
-      for (const [key, band] of byHour) {
-        const hasSelected = Boolean(selected && band.slots.includes(selected));
-        events.push({
-          id: `hour-${key}`,
-          title: t('contacts.conference.calendar.hourBandCount', { count: band.slots.length }),
-          start: band.hourStart.toISOString(),
-          end: band.hourEnd.toISOString(),
-          display: 'background',
-          classNames: hasSelected
-            ? ['agenda-cal__event--hour', 'agenda-cal__event--hour-selected']
-            : ['agenda-cal__event--hour'],
-          backgroundColor: hasSelected ? 'rgba(39, 174, 96, 0.45)' : 'rgba(46, 204, 113, 0.28)',
-          extendedProps: {
-            kind: 'hour',
-            slots: band.slots,
-            hourStart: band.hourStart.toISOString(),
-          },
+    if (!past) {
+      for (const item of props.occupied || []) {
+        const startIso = item?.starts_at || item;
+        if (!startIso) continue;
+        if (dayKey(startIso, props.timeZone) !== key) continue;
+        const iso = new Date(startIso).toISOString();
+        if (taken.has(iso)) continue;
+        const confId = item?.conference_id;
+        if (confId != null && sessionIds.value.has(String(confId))) continue;
+        taken.add(iso);
+        items.push({
+          id: `busy-${iso}`,
+          kind: 'busy',
+          iso,
+          label: `${formatSlotTime(iso, props.timeZone)} · ${t('contacts.conference.calendar.busySlot')}`,
+          sort: new Date(iso).getTime(),
         });
       }
-      return events;
+
+      for (const raw of freeByDay.value.get(key) || []) {
+        const iso = new Date(raw).toISOString();
+        if (taken.has(iso)) continue;
+        if (isPastSlot(iso)) continue;
+        items.push({
+          id: `free-${iso}`,
+          kind: 'free',
+          iso,
+          label: formatSlotTime(iso, props.timeZone),
+          sort: new Date(iso).getTime(),
+        });
+      }
     }
 
-    for (const start of freeSlotIsos()) {
-      if (takenStarts.has(start)) continue;
-      const isSelected = Boolean(selected && selected === start);
-      const asBackground = monthLike || !isSelected;
-      events.push({
-        id: `free-${start}`,
-        title: isSelected && !monthLike ? t('contacts.conference.calendar.selectedSlot') : '',
-        start,
-        end: slotEnd(start),
-        display: asBackground ? 'background' : 'auto',
-        classNames: isSelected
-          ? ['agenda-cal__event--free', 'agenda-cal__event--selected']
-          : ['agenda-cal__event--free'],
-        backgroundColor: isSelected ? 'rgba(39, 174, 96, 0.55)' : 'rgba(46, 204, 113, 0.35)',
-        borderColor: isSelected ? '#1e8449' : undefined,
-        textColor: '#fff',
-        extendedProps: { kind: 'free', startsAt: start },
-      });
-    }
-
-    return events;
+    return items.sort((a, b) => a.sort - b.sort);
   });
 
-  function getApi() {
-    return calendarRef.value?.getApi?.() || null;
-  }
-
-  function applyGridSizing() {
-    const bands = hourBandMode.value;
-    calendarOptions.slotDuration = bands ? '01:00:00' : '00:30:00';
-    calendarOptions.slotLabelInterval = '01:00:00';
-    calendarOptions.eventMinHeight = 28;
-    calendarOptions.slotMinHeight = bands ? 48 : 28;
-  }
-
-  function onViewSelect() {
-    const api = getApi();
-    if (!api) return;
-    const view = normalizeViewType(currentView.value);
-    currentView.value = view;
-    if (api.view?.type !== view) {
-      api.changeView(view);
+  function normalizeViewType(type) {
+    if (type === 'timeGridDay' || type === 'dayGridDay' || type === 'listDay') {
+      return 'timeGridDay';
     }
+    return DEFAULT_VIEW;
   }
 
-  function goPrev() {
-    getApi()?.prev();
+  function dayKeyOf(day) {
+    if (day == null) return '';
+    return `${viewYear.value}-${String(viewMonth.value).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
-  function goNext() {
-    getApi()?.next();
+  function dayNumber(key) {
+    return Number(String(key).slice(8, 10));
   }
 
-  function goToday() {
-    getApi()?.today();
+  function isPastKey(key) {
+    return Boolean(key) && key < todayKey.value;
   }
 
-  function openDayView(dateInput) {
-    keepSelectionOnce.value = true;
-    currentView.value = 'timeGridDay';
-    const api = getApi();
-    if (!api) return;
-    api.changeView('timeGridDay', dateInput);
+  function isWeekendKey(key) {
+    const [y, m, d] = String(key).split('-').map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    return dow === 0 || dow === 6;
   }
 
-  function handleDatesSet(info) {
-    const rawType = info.view?.type || currentView.value;
-    const nextView = normalizeViewType(rawType);
-
-    if (rawType !== nextView) {
-      nextTick(() => {
-        const api = getApi();
-        if (api && api.view?.type !== nextView) {
-          api.changeView(nextView, info.start);
-        }
-      });
-      currentView.value = nextView;
-      return;
+  function sessionTone(session) {
+    const status = String(session?.status || '').toLowerCase();
+    if (status === 'ended') return 'ended';
+    if (status === 'draft' || String(session?.id || '').startsWith('booking-')) {
+      return 'pending';
     }
+    return 'scheduled';
+  }
 
-    if (nextView !== currentView.value) {
-      currentView.value = nextView;
-    }
+  function hasFreeSlots(key) {
+    if (!key || isPastKey(key)) return false;
+    return (freeByDay.value.get(key) || []).some((iso) => !isPastSlot(iso));
+  }
 
-    applyGridSizing();
+  function hasPending(key) {
+    if (!key) return false;
+    return (sessionsByDay.value.get(key) || []).some((s) => sessionTone(s) === 'pending');
+  }
 
-    const from = info.start?.toISOString?.() || '';
-    const to = info.end?.toISOString?.() || '';
-    const key = `${from}|${to}`;
-    if (!from || !to || key === lastRangeKey.value) return;
+  function hasScheduled(key) {
+    if (!key) return false;
+    return (sessionsByDay.value.get(key) || []).some((s) => sessionTone(s) !== 'pending');
+  }
+
+  function hasAvailability(key) {
+    return hasFreeSlots(key) || hasPending(key) || hasScheduled(key);
+  }
+
+  function weekdayShort(key) {
+    const [y, m, d] = String(key).split('-').map(Number);
+    return new Intl.DateTimeFormat(loc.value, {
+      weekday: 'short',
+      timeZone: 'UTC',
+    }).format(new Date(Date.UTC(y, m - 1, d)));
+  }
+
+  function dayCellClass(cell) {
+    if (cell == null) return { 'is-empty': true };
+    const key = dayKeyOf(cell);
+    return {
+      'is-selected': key === focusKey.value,
+      'is-today': key === todayKey.value,
+      'is-available': hasFreeSlots(key),
+      'is-event': hasScheduled(key),
+      'is-pending': hasPending(key),
+      'is-past': isPastKey(key),
+      'is-muted': (isWeekendKey(key) || isPastKey(key)) && !hasAvailability(key),
+    };
+  }
+
+  function stripDayClass(key) {
+    return {
+      'is-selected': key === focusKey.value,
+      'is-today': key === todayKey.value && key !== focusKey.value,
+      'is-available': hasFreeSlots(key) && key !== focusKey.value,
+      'is-past': isPastKey(key),
+      'is-muted': (isWeekendKey(key) || isPastKey(key)) && key !== focusKey.value,
+    };
+  }
+
+  function emitRange() {
+    const bounds = isMonthView.value
+      ? monthBoundsIso(viewYear.value, viewMonth.value)
+      : weekBoundsIso(focusKey.value);
+    const key = `${bounds.from}|${bounds.to}|${currentView.value}`;
+    if (key === lastRangeKey.value) return;
     lastRangeKey.value = key;
     const preserveSelection = keepSelectionOnce.value;
     keepSelectionOnce.value = false;
-    emit('range-change', { from, to, preserveSelection });
+    emit('range-change', { ...bounds, preserveSelection });
   }
 
-  function handleEventClick(info) {
-    const kind = info.event?.extendedProps?.kind;
-    if (kind === 'hour') {
-      if (!props.canSelectSlot) return;
-      openHourPicker(
-        info.event.extendedProps.hourStart || info.event.start,
-        info.event.extendedProps.slots || []
-      );
-      return;
-    }
-    if (kind === 'free') {
-      if (!props.canSelectSlot) return;
-      const viewType = info.view?.type || currentView.value;
-      if (isMonthLikeView(viewType)) {
-        openDayView(info.event.start || info.event.extendedProps.startsAt);
-        return;
-      }
-      if (hourBandMode.value) {
-        openHourPicker(info.event.extendedProps.startsAt || info.event.start);
-        return;
-      }
-      const startsAt = info.event.extendedProps.startsAt || info.event.start?.toISOString?.();
-      if (startsAt) emit('select-slot', startsAt);
-      return;
-    }
-    if (kind === 'session') {
-      const session = info.event.extendedProps.session;
-      if (session) emit('select-session', session);
-    }
+  function setView(view) {
+    currentView.value = normalizeViewType(view);
+    emitRange();
   }
 
-  function handleDateClick(info) {
-    if (!info.date) return;
-    const viewType = info.view?.type || currentView.value;
-
-    if (isMonthLikeView(viewType)) {
-      openDayView(info.date);
-      return;
-    }
-
-    if (!props.canSelectSlot) return;
-
-    if (hourBandMode.value && isTimeGridView(viewType)) {
-      openHourPicker(info.date);
-      return;
-    }
-
-    const dayStart = info.date.valueOf();
-    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
-    const free = freeSlotIsos()
-      .map((iso) => new Date(iso).getTime())
-      .filter((ts) => ts >= dayStart && ts < dayEnd)
-      .sort((a, b) => a - b);
-    if (!free.length) return;
-    emit('select-slot', new Date(free[0]).toISOString());
+  function clampMonthDay(year, month, day) {
+    const max = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const d = Math.min(Math.max(1, Number(day) || 1), max);
+    return `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   }
 
-  const calendarOptions = reactive({
-    plugins: [dayGridPlugin, timeGridPlugin, listPlugin, multiMonthPlugin, interactionPlugin],
-    initialView: DEFAULT_VIEW,
-    headerToolbar: {
-      left: props.hideToolbar ? 'prev,next today' : '',
-      center: 'title',
-      right: '',
-    },
-    height: 620,
-    expandRows: true,
-    nowIndicator: true,
-    allDaySlot: false,
-    slotMinTime: '06:00:00',
-    slotMaxTime: '22:00:00',
-    slotDuration: '00:30:00',
-    slotLabelInterval: '01:00:00',
-    slotMinHeight: 28,
-    eventMinHeight: 28,
-    firstDay: 1,
-    weekends: true,
-    navLinks: false,
-    editable: false,
-    selectable: false,
-    dayMaxEvents: 3,
-    eventDisplay: 'auto',
-    locales: [ruLocale, enGbLocale],
-    locale: locale.value === 'en' ? 'en-gb' : 'ru',
-    timeZone: 'local',
-    businessHours: businessHoursOption.value,
-    events: calendarEvents.value,
-    views: {
-      listWeek: {
-        type: 'list',
-        duration: { days: 7 },
-        noEventsContent: () => t('contacts.conference.calendar.noEvents'),
-      },
-    },
-    datesSet: handleDatesSet,
-    eventClick: handleEventClick,
-    dateClick: handleDateClick,
-  });
-
-  watch(
-    () => locale.value,
-    (val) => {
-      calendarOptions.locale = val === 'en' ? 'en-gb' : 'ru';
+  function goPrev() {
+    if (isMonthView.value) {
+      const next = shiftMonthParts(viewYear.value, viewMonth.value, -1);
+      focusKey.value = clampMonthDay(next.year, next.month, dayNumber(focusKey.value));
+    } else {
+      focusKey.value = shiftDayKey(focusKey.value, -7);
     }
-  );
+    emitRange();
+  }
 
-  watch(
-    () => props.timeZone,
-    () => {
-      calendarOptions.timeZone = 'local';
+  function goNext() {
+    if (isMonthView.value) {
+      const next = shiftMonthParts(viewYear.value, viewMonth.value, 1);
+      focusKey.value = clampMonthDay(next.year, next.month, dayNumber(focusKey.value));
+    } else {
+      focusKey.value = shiftDayKey(focusKey.value, 7);
     }
-  );
+    emitRange();
+  }
 
-  watch(
-    businessHoursOption,
-    (val) => {
-      calendarOptions.businessHours = val;
-    },
-    { deep: true }
-  );
+  function openDay(key, options = {}) {
+    if (!key) return;
+    keepSelectionOnce.value = true;
+    focusKey.value = key;
+    if (!options.stayInDay) {
+      currentView.value = 'timeGridDay';
+    }
+    emitRange();
+  }
 
-  watch(
-    calendarEvents,
-    (val) => {
-      calendarOptions.events = val;
-    },
-    { deep: true }
-  );
+  function goToday() {
+    focusKey.value = todayKey.value;
+    emitRange();
+  }
 
-  watch(hourBandMode, () => {
-    applyGridSizing();
-    nextTick(() => getApi()?.updateSize?.());
-  });
-
-  watch(
-    () => props.showScheduleView,
-    (allowed) => {
-      sharedShowSchedule.value = Boolean(allowed);
-      if (!allowed && currentView.value === 'listWeek') {
-        currentView.value = DEFAULT_VIEW;
-        nextTick(() => getApi()?.changeView(DEFAULT_VIEW));
-      }
-    },
-    { immediate: true }
-  );
+  function onDayItemClick(item) {
+    if (!item) return;
+    if (item.kind === 'session' && item.session) {
+      emit('select-session', item.session);
+      return;
+    }
+    if (
+      item.kind === 'free' &&
+      props.canSelectSlot &&
+      item.iso &&
+      !isPastKey(focusKey.value) &&
+      !isPastSlot(item.iso)
+    ) {
+      emit('select-slot', item.iso);
+    }
+  }
 
   watch(currentView, (val) => {
-    if (sharedViewMode.value !== val) {
-      sharedViewMode.value = val;
-    }
+    if (sharedViewMode.value !== val) sharedViewMode.value = val;
   });
 
   watch(sharedViewMode, (val) => {
     const next = normalizeViewType(val);
     if (currentView.value === next) return;
     currentView.value = next;
-    nextTick(() => {
-      const api = getApi();
-      if (api && api.view?.type !== next) api.changeView(next);
-    });
+    emitRange();
   });
+
+  watch(
+    () => props.showScheduleView,
+    (allowed) => {
+      sharedShowSchedule.value = Boolean(allowed);
+    },
+    { immediate: true }
+  );
+
+  watch(
+    () => props.selectedSlot,
+    (iso) => {
+      if (!iso) return;
+      const key = dayKey(iso, props.timeZone);
+      if (key && currentView.value === 'timeGridDay') {
+        focusKey.value = key;
+      }
+    }
+  );
 
   onMounted(() => {
     sharedShowSchedule.value = Boolean(props.showScheduleView);
-    // Календарь контакта (hideToolbar): всегда стартуем с месяца, чтобы селект
-    // не показывал «День» при сетке месяца после клика по ячейке.
-    const next = props.hideToolbar
-      ? DEFAULT_VIEW
-      : normalizeViewType(sharedViewMode.value || currentView.value);
-    currentView.value = next;
-    sharedViewMode.value = next;
-    applyGridSizing();
-    nextTick(() => {
-      const api = getApi();
-      if (api && api.view?.type !== next) {
-        api.changeView(next);
-      }
-    });
+    const fromSlot = props.selectedSlot ? dayKey(props.selectedSlot, props.timeZone) : '';
+    focusKey.value = fromSlot || todayKey.value;
+    currentView.value = normalizeViewType(sharedViewMode.value || DEFAULT_VIEW);
+    sharedViewMode.value = currentView.value;
+    emitRange();
   });
 
   onUnmounted(() => {
@@ -672,170 +543,297 @@
   .agenda-cal {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    min-height: 520px;
+    gap: var(--spacing-md);
+    width: 100%;
+    max-width: 520px;
+    min-width: 0;
+    margin-inline: auto;
   }
 
   .agenda-cal__toolbar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 8px;
     flex-wrap: wrap;
   }
 
-  .agenda-cal__view-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .agenda-cal__view-select {
-    min-width: 160px;
-    padding: 6px 10px;
-    border: 1px solid var(--color-border, #d0d5dd);
-    border-radius: 6px;
-    background: var(--color-surface, #fff);
-    color: inherit;
-    font: inherit;
-  }
-
+  .agenda-cal__modes,
   .agenda-cal__nav {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: auto;
   }
 
-  .agenda-cal__nav-group {
+  .agenda-cal__btn {
+    box-sizing: border-box;
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    min-height: 40px;
+    min-width: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-white);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    cursor: pointer;
+    text-decoration: none;
   }
 
-  .agenda-cal__nav-btn {
-    min-width: 36px;
-    padding: 6px 12px;
-    border: 1px solid var(--color-border, #d0d5dd);
-    background: var(--color-surface, #fff);
-    color: inherit;
+  .agenda-cal__btn--icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    width: 40px;
+    font-size: 1.25rem;
+    text-decoration: none;
+  }
+
+  .agenda-cal__btn:hover,
+  .agenda-cal__btn:focus {
+    background: var(--color-light);
+  }
+
+  .agenda-cal__btn.is-active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-white);
+  }
+
+  .agenda-cal__heading {
+    margin: 4px 0 0;
+    text-align: center;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .agenda-cal__weekdays,
+  .agenda-cal__days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    justify-items: center;
+  }
+
+  .agenda-cal__day-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-height: 48px;
+  }
+
+  .agenda-cal__marks {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    min-height: 6px;
+  }
+
+  .agenda-cal__mark {
+    display: block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  .agenda-cal__mark--event {
+    background: var(--color-primary);
+  }
+
+  .agenda-cal__mark--pending {
+    background: var(--color-warning);
+  }
+
+  .agenda-cal__weekdays span {
+    font-size: var(--font-size-sm);
+    color: var(--color-grey);
+    text-align: center;
+  }
+
+  .agenda-cal__day {
+    box-sizing: border-box;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text);
     font: inherit;
-    line-height: 1.2;
+    font-size: var(--font-size-md);
     cursor: pointer;
   }
 
-  .agenda-cal__nav-group .agenda-cal__nav-btn:first-child {
-    border-radius: 6px 0 0 6px;
+  .agenda-cal__day.is-empty,
+  .agenda-cal__day:disabled {
+    background: transparent;
+    color: var(--color-grey);
+    cursor: default;
+    opacity: 0.45;
   }
 
-  .agenda-cal__nav-group .agenda-cal__nav-btn:last-child {
-    border-radius: 0 6px 6px 0;
-    margin-left: -1px;
+  .agenda-cal__day.is-available {
+    background: var(--color-light);
   }
 
-  .agenda-cal__nav-btn--today {
-    border-radius: 6px;
+  .agenda-cal__day.is-muted {
+    color: var(--color-grey);
   }
 
-  .agenda-cal__nav-btn:hover,
-  .agenda-cal__nav-btn:focus {
-    background: var(--color-neutral-bg, #f3f4f6);
+  .agenda-cal__day.is-past:not(.is-selected) {
+    opacity: 0.62;
+  }
+
+  .agenda-cal__day.is-today:not(.is-selected) {
+    box-shadow: inset 0 0 0 1px var(--color-primary);
+  }
+
+  .agenda-cal__day.is-selected {
+    background: var(--color-primary);
+    color: var(--color-white);
+    opacity: 1;
+  }
+
+  .agenda-cal__weekstrip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .agenda-cal__strip-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .agenda-cal__strip-wd {
+    font-size: var(--font-size-xs);
+    color: var(--color-grey);
+  }
+
+  .agenda-cal__day-head {
+    font-weight: 600;
+    font-size: var(--font-size-md);
   }
 
   .agenda-cal__hint {
     margin: 0;
-    font-size: 0.85rem;
-    color: var(--color-grey, #666);
+    color: var(--color-grey);
+    font-size: var(--font-size-sm);
   }
 
-  .agenda-cal__picker-hint {
-    margin: 0 0 12px;
-    font-size: 0.9rem;
-    color: var(--color-grey, #666);
+  .agenda-cal__slots {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .agenda-cal__slot-list {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    max-height: 320px;
-    overflow: auto;
-  }
-
-  .agenda-cal__slot-btn {
-    padding: 10px 8px;
-    border: 1px solid var(--color-border, #d0d5dd);
-    border-radius: 8px;
-    background: var(--color-surface, #fff);
-    color: inherit;
+  .agenda-cal__slot {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-white);
+    color: var(--color-text);
     font: inherit;
-    font-size: 0.95rem;
+    font-size: var(--font-size-md);
     cursor: pointer;
   }
 
-  .agenda-cal__slot-btn:hover {
-    border-color: #27ae60;
-    background: rgba(46, 204, 113, 0.12);
+  .agenda-cal__slot:hover:not(:disabled) {
+    border-color: var(--color-primary);
   }
 
-  .agenda-cal__slot-btn.is-selected {
-    border-color: #1e8449;
-    background: rgba(39, 174, 96, 0.28);
+  .agenda-cal__slot.is-selected {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-white);
     font-weight: 600;
   }
 
-  .agenda-cal :deep(.fc) {
-    --fc-border-color: var(--color-border, #e5e7eb);
-    --fc-page-bg-color: transparent;
-    --fc-neutral-bg-color: rgba(0, 0, 0, 0.03);
-    --fc-today-bg-color: rgba(59, 130, 246, 0.08);
-    --fc-business-hours-color: rgba(46, 204, 113, 0.06);
-    font-size: 0.9rem;
-  }
-
-  .agenda-cal :deep(.fc .fc-toolbar-title) {
-    font-size: 1.15rem;
-  }
-
-  .agenda-cal :deep(.fc .fc-button) {
-    background: var(--color-surface, #fff);
-    border-color: var(--color-border, #d0d5dd);
-    color: inherit;
-    text-transform: none;
-    box-shadow: none;
-  }
-
-  .agenda-cal :deep(.fc .fc-button:hover),
-  .agenda-cal :deep(.fc .fc-button:focus) {
-    background: var(--color-neutral-bg, #f3f4f6);
-    border-color: var(--color-border, #d0d5dd);
-    color: inherit;
-  }
-
-  .agenda-cal :deep(.fc .fc-button-primary:not(:disabled).fc-button-active) {
-    background: var(--color-primary, #2563eb);
-    border-color: var(--color-primary, #2563eb);
-    color: #fff;
-  }
-
-  .agenda-cal :deep(.agenda-cal__event--free),
-  .agenda-cal :deep(.fc-bg-event.agenda-cal__event--free),
-  .agenda-cal :deep(.fc-bg-event.agenda-cal__event--hour) {
-    cursor: pointer;
-  }
-
-  .agenda-cal :deep(.agenda-cal__event--session),
-  .agenda-cal :deep(.agenda-cal__event--busy) {
-    cursor: pointer;
-  }
-
-  .agenda-cal :deep(.fc-timegrid-event.agenda-cal__event--selected),
-  .agenda-cal :deep(.fc-timegrid-event.agenda-cal__event--session),
-  .agenda-cal :deep(.fc-timegrid-event.agenda-cal__event--busy) {
+  .agenda-cal__slot.is-session {
+    border-color: var(--color-primary);
     font-weight: 600;
-    overflow: hidden;
+  }
+
+  .agenda-cal__slot.is-pending {
+    border-color: var(--color-warning);
+  }
+
+  .agenda-cal__slot.is-busy,
+  .agenda-cal__slot:disabled {
+    cursor: default;
+    color: var(--color-grey);
+    background: var(--color-light);
+  }
+
+  .agenda-cal__legend {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    font-size: var(--font-size-sm);
+    color: var(--color-grey);
+  }
+
+  .agenda-cal__legend li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .agenda-cal__legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+
+  .agenda-cal__legend-swatch--free {
+    background: var(--color-light);
+    box-shadow: inset 0 0 0 1px var(--color-border);
+  }
+
+  .agenda-cal__legend-swatch--event {
+    background: var(--color-primary);
+  }
+
+  .agenda-cal__legend-swatch--pending {
+    background: var(--color-warning);
+  }
+
+  @media (max-width: 768px) {
+    .agenda-cal {
+      max-width: 100%;
+    }
+
+    .agenda-cal__toolbar {
+      flex-wrap: nowrap;
+    }
+
+    .agenda-cal__btn {
+      flex: 0 0 auto;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .agenda-cal__toolbar {
+      flex-wrap: wrap;
+    }
   }
 </style>

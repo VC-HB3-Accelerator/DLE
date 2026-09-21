@@ -20,41 +20,10 @@
 <script setup>
   import { computed } from 'vue';
   import { useI18n } from 'vue-i18n';
-  import { useRoute } from 'vue-router';
-  import { usePermissions } from '@/composables/usePermissions';
-  import { useAuthContext } from '@/composables/useAuth';
-  import { canAccessPath, ensureScreenAccessLoaded } from '@/composables/useScreenAccess.js';
 
   const { t } = useI18n();
-  const route = useRoute();
-  const { isEditor } = usePermissions();
-  const { userId } = useAuthContext();
-  ensureScreenAccessLoaded();
-
-  const contactId = computed(() => route.params.id);
-  const isOwnCard = computed(
-    () =>
-      contactId.value != null &&
-      userId.value != null &&
-      String(contactId.value) === String(userId.value)
-  );
-
-  const visibleNavItems = computed(() => {
-    const items = [];
-    // Часы приёма / слоты — только на своей карточке
-    if (
-      isOwnCard.value &&
-      isEditor.value &&
-      canAccessPath('/conferences/schedule')
-    ) {
-      items.push({
-        key: 'availability',
-        labelKey: 'contacts.conference.nav.availability',
-        to: { name: 'hub-conference-schedule' },
-      });
-    }
-    return items;
-  });
+  /** Ссылка «Настройки» перенесена в календарь (иконка шестерёнки). */
+  const visibleNavItems = computed(() => []);
 </script>
 
 <style scoped>
