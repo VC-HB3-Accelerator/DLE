@@ -28,7 +28,7 @@
     </el-alert>
 
     <el-alert
-      v-if="form.provider !== 'openai'"
+      v-if="form.provider === 'deepseek'"
       type="info"
       :closable="false"
       show-icon

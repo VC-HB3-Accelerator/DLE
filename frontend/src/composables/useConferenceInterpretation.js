@@ -30,8 +30,33 @@ function downsample(buffer, inRate, outRate = 16000) {
   return result;
 }
 
+function rmsLevel(buffer) {
+  if (!buffer?.length) return 0;
+  let sum = 0;
+  for (let i = 0; i < buffer.length; i += 1) {
+    const v = buffer[i];
+    sum += v * v;
+  }
+  return Math.sqrt(sum / buffer.length);
+}
+
+/**
+ * После речи обязательно отправляем тишину: серверный VAD Qwen завершает реплику
+ * только когда получает silence_duration_ms аудио без речи.
+ */
+const MIC_RMS_GATE = 0.01;
+const MIC_SILENCE_TAIL_MS = 1400;
+const POST_PLAYBACK_MUTE_MS = 800;
+
 export function createConferenceInterpretationController(options = {}) {
-  const { onStatus, onError, onInterpretLine } = options;
+  const {
+    onStatus,
+    onError,
+    onInterpretLine,
+    onSessionEnded,
+    onStopped,
+    onPlaybackChange
+  } = options;
 
   let ws = null;
   let audioCtx = null;
@@ -42,9 +67,40 @@ export function createConferenceInterpretationController(options = {}) {
   let interpretPlaying = false;
   let connected = false;
   let conferenceId = null;
+  let inputMuted = false;
+  let postPlaybackMuteUntil = 0;
+  let speechTailUntil = 0;
+  let previousPcm = null;
 
   function setStatus(status) {
     onStatus?.(status);
+  }
+
+  function markPlayback(active) {
+    interpretPlaying = Boolean(active);
+    if (!active) {
+      postPlaybackMuteUntil = Date.now() + POST_PLAYBACK_MUTE_MS;
+    }
+    onPlaybackChange?.(interpretPlaying);
+  }
+
+  async function preparePlayback() {
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume().catch(() => {});
+    }
+  }
+
+  function playInterpretFile(b64, mime) {
+    try {
+      const audio = new Audio(`data:${mime || 'audio/mpeg'};base64,${b64}`);
+      markPlayback(true);
+      audio.onended = () => markPlayback(false);
+      audio.onerror = () => markPlayback(false);
+      audio.play().catch(() => markPlayback(false));
+    } catch {
+      markPlayback(false);
+    }
   }
 
   function enqueueInterpretPlayback(b64) {
@@ -65,10 +121,10 @@ export function createConferenceInterpretationController(options = {}) {
     }
     const chunk = interpretQueue.shift();
     if (!chunk) {
-      interpretPlaying = false;
+      markPlayback(false);
       return;
     }
-    interpretPlaying = true;
+    markPlayback(true);
     const buffer = audioCtx.createBuffer(1, chunk.length, 24000);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < chunk.length; i += 1) data[i] = chunk[i] / 0x8000;
@@ -86,14 +142,43 @@ export function createConferenceInterpretationController(options = {}) {
     micSourceNode = audioCtx.createMediaStreamSource(localStream);
     processor = audioCtx.createScriptProcessor(4096, 1, 1);
     processor.onaudioprocess = (e) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      // Не кормим переводчика его же голосом из динамиков.
+      if (
+        !ws
+        || ws.readyState !== WebSocket.OPEN
+        || interpretPlaying
+        || inputMuted
+        || Date.now() < postPlaybackMuteUntil
+      ) {
+        speechTailUntil = 0;
+        previousPcm = null;
+        return;
+      }
       const input = e.inputBuffer.getChannelData(0);
       const resampled = downsample(input, audioCtx.sampleRate, 16000);
       const pcm = floatTo16BitPCM(resampled);
       const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
       let bin = '';
       for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
-      ws.send(JSON.stringify({ type: 'audio', pcm: btoa(bin) }));
+      const encoded = btoa(bin);
+      const now = Date.now();
+      const hasSpeech = rmsLevel(input) >= MIC_RMS_GATE;
+
+      if (hasSpeech) {
+        if (!speechTailUntil && previousPcm) {
+          ws.send(JSON.stringify({ type: 'audio', pcm: previousPcm }));
+        }
+        speechTailUntil = now + MIC_SILENCE_TAIL_MS;
+      }
+
+      if (hasSpeech || now < speechTailUntil) {
+        ws.send(JSON.stringify({ type: 'audio', pcm: encoded }));
+        previousPcm = null;
+        return;
+      }
+
+      speechTailUntil = 0;
+      previousPcm = encoded;
     };
     const keepAlive = audioCtx.createGain();
     keepAlive.gain.value = 0;
@@ -117,16 +202,35 @@ export function createConferenceInterpretationController(options = {}) {
     micSourceNode = null;
     localStream?.getTracks?.().forEach((t) => t.stop());
     localStream = null;
+    speechTailUntil = 0;
+    previousPcm = null;
   }
 
-  async function connect(id, session) {
+  async function connect(id, session, existingStream = null) {
     if (connected) return;
     conferenceId = id;
     setStatus('connecting');
 
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localStream = existingStream || await navigator.mediaDevices.getUserMedia({ audio: true });
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        fail(new Error('Interpretation connection timeout'));
+      }, 20000);
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      };
+      const fail = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+        disconnect();
+      };
       ws = new WebSocket(wsUrl(session.ws_path));
       ws.onopen = () => setStatus('connecting');
       ws.onmessage = (ev) => {
@@ -140,27 +244,48 @@ export function createConferenceInterpretationController(options = {}) {
           connected = true;
           setStatus('connected');
           startMicStream();
-          resolve();
+          succeed();
         }
         if (msg.type === 'interpret_audio' && msg.pcm) {
           enqueueInterpretPlayback(msg.pcm);
         }
+        if (msg.type === 'interpret_audio_file' && msg.data) {
+          playInterpretFile(msg.data, msg.mime);
+        }
         if (msg.type === 'interpret_line') {
           onInterpretLine?.(msg);
+        }
+        if (msg.type === 'session_ended') {
+          onSessionEnded?.();
+          disconnect();
+          return;
+        }
+        if (msg.type === 'interpretation_stopped') {
+          onStopped?.();
+          disconnect();
+          return;
         }
         if (msg.type === 'error') {
           const err = new Error(msg.message || 'Interpretation error');
           onError?.(err);
-          reject(err);
+          if (settled) {
+            disconnect();
+          } else {
+            fail(err);
+          }
         }
       };
       ws.onerror = () => {
         const err = new Error('Interpretation WebSocket failed');
         onError?.(err);
-        reject(err);
+        fail(err);
       };
       ws.onclose = () => {
-        if (connected) disconnect();
+        if (connected) {
+          disconnect();
+        } else {
+          fail(new Error('Interpretation WebSocket closed before ready'));
+        }
       };
     });
   }
@@ -180,13 +305,23 @@ export function createConferenceInterpretationController(options = {}) {
     stopMicStream();
     interpretQueue = [];
     interpretPlaying = false;
+    postPlaybackMuteUntil = 0;
+    speechTailUntil = 0;
+    previousPcm = null;
+    onPlaybackChange?.(false);
     connected = false;
     setStatus('disconnected');
+  }
+
+  function setInputMuted(next) {
+    inputMuted = Boolean(next);
   }
 
   return {
     connect,
     disconnect,
+    preparePlayback,
+    setInputMuted,
     get connected() {
       return connected;
     }

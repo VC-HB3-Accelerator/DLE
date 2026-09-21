@@ -6,8 +6,11 @@
 import api from '@/api/axios';
 
 export default {
-  async getContactSession(contactId) {
-    const { data } = await api.get(`/conference/contact/${contactId}`, { withCredentials: true });
+  async getContactSession(contactId, { historyLimit } = {}) {
+    const { data } = await api.get(`/conference/contact/${contactId}`, {
+      withCredentials: true,
+      params: historyLimit ? { history_limit: historyLimit } : undefined,
+    });
     return data;
   },
   async saveContactSession(contactId, payload) {
@@ -124,6 +127,14 @@ export default {
     const { data } = await api.post(`/conference/${id}/interpretation/session`, {}, { withCredentials: true });
     return data;
   },
+  async startInterpretation(id) {
+    const { data } = await api.post(`/conference/${id}/interpretation/start`, {}, { withCredentials: true });
+    return data;
+  },
+  async stopInterpretation(id) {
+    const { data } = await api.post(`/conference/${id}/interpretation/stop`, {}, { withCredentials: true });
+    return data;
+  },
   async startAgent(id) {
     const { data } = await api.post(`/conference/${id}/agent/start`, {}, { withCredentials: true });
     return data;
@@ -180,6 +191,10 @@ export default {
   },
   async notifyMulti(id) {
     const { data } = await api.post(`/conference/${id}/notify`, {}, { withCredentials: true });
+    return data;
+  },
+  async confirmNotify(id) {
+    const { data } = await api.post(`/conference/${id}/confirm-notify`, {}, { withCredentials: true });
     return data;
   }
 };

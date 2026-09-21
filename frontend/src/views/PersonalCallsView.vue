@@ -128,10 +128,10 @@ async function openCall(call) {
         });
         return;
       }
-      const contactId = call.contact_user_id || call.peer_id;
+      // Не contact-conference-live: у роли user чужая карточка режется матрицей → /
       await router.push({
-        name: 'contact-conference-live',
-        params: { id: String(contactId), sessionId: String(call.id) }
+        name: 'conference-participant-live',
+        params: { sessionId: String(call.id) }
       });
       return;
     }

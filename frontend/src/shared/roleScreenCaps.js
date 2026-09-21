@@ -12,7 +12,14 @@ export const EDITOR_LOCKED_SCREENS = Object.freeze(['/settings/security/roles'])
 export const SCREEN_GROUPS = Object.freeze([
   {
     id: 'nav',
-    keys: Object.freeze(['/', '/blog', '/blog/feed-settings', '/blog/my-subscriptions', '/management', '/store'])
+    keys: Object.freeze([
+      '/',
+      '/blog',
+      '/blog/feed-settings',
+      '/blog/my-subscriptions',
+      '/management',
+      '/store',
+    ]),
   },
   {
     id: 'management',
@@ -30,19 +37,12 @@ export const SCREEN_GROUPS = Object.freeze([
       '/management/transfer-tokens',
       '/management/module-bridge-op',
       '/management/treasury-bridge-op',
-      '/management/dle-core-op'
-    ])
+      '/management/dle-core-op',
+    ]),
   },
   {
     id: 'crm_hub',
-    keys: Object.freeze([
-      '/contacts-list',
-      '/content',
-      '/vds',
-      '/tables',
-      '/groups',
-      '/crm/store'
-    ])
+    keys: Object.freeze(['/contacts-list', '/content', '/vds', '/tables', '/groups', '/crm/store']),
   },
   {
     id: 'contacts',
@@ -57,6 +57,7 @@ export const SCREEN_GROUPS = Object.freeze([
       '/contacts/:id/orders',
       '/contacts/:id/cart',
       '/contacts/:id/conference',
+      '/contacts/:id/conference/create',
       '/contacts/:id/conference/agent',
       '/contacts/:id/conference/live/:sessionId',
       '/contacts/:id/delete',
@@ -71,8 +72,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/contacts-list/calls/calendar',
       '/book-call',
       '/conference/join',
-      '/conference/live/:sessionId'
-    ])
+      '/conference/live/:sessionId',
+    ]),
   },
   {
     id: 'content',
@@ -94,8 +95,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/content/store/product/new',
       '/content/store/product/:id',
       '/content/page/:id',
-      '/public/page/:id'
-    ])
+      '/public/page/:id',
+    ]),
   },
   {
     id: 'tables',
@@ -103,8 +104,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/tables/create',
       '/tables/:id',
       '/tables/:id/edit',
-      '/tables/:id/delete'
-    ])
+      '/tables/:id/delete',
+    ]),
   },
   {
     id: 'settings_hub',
@@ -112,8 +113,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/ai',
       '/settings/security',
       '/settings/sidebar',
-      '/settings/updates'
-    ])
+      '/settings/updates',
+    ]),
   },
   {
     id: 'settings_security',
@@ -122,8 +123,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/dle-v2-deploy',
       '/settings/security/auth',
       '/settings/security/database',
-      '/settings/security/roles'
-    ])
+      '/settings/security/roles',
+    ]),
   },
   {
     id: 'settings_sidebar',
@@ -132,8 +133,8 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/sidebar/languages',
       '/settings/sidebar/auth',
       '/settings/sidebar/buttons',
-      '/settings/sidebar/regions'
-    ])
+      '/settings/sidebar/regions',
+    ]),
   },
   {
     id: 'settings_ai',
@@ -141,6 +142,7 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/ai/openai',
       '/settings/ai/deepseek',
       '/settings/ai/qwencloud',
+      '/settings/ai/translation',
       '/settings/ai/vpn',
       '/settings/ai/ollama',
       '/settings/ai/telegram',
@@ -148,34 +150,29 @@ export const SCREEN_GROUPS = Object.freeze([
       '/settings/ai/rag',
       '/settings/ai/agent-access',
       '/settings/ai/voice-call',
-      '/settings/ai/assistant'
-    ])
+      '/settings/ai/assistant',
+    ]),
   },
   {
     id: 'settings_server',
-    keys: Object.freeze(['/settings/interface/webssh'])
+    keys: Object.freeze(['/settings/interface/webssh']),
   },
   {
     id: 'store',
-    keys: Object.freeze([
-      '/store/cart',
-      '/store/pay/:id',
-      '/store/s/:slug',
-      '/store/:id'
-    ])
+    keys: Object.freeze(['/store/cart', '/store/pay/:id', '/store/s/:slug', '/store/:id']),
   },
   {
     id: 'other',
-    keys: Object.freeze(['/blog/:slug', '/connect-wallet'])
-  }
+    keys: Object.freeze(['/blog/:slug', '/connect-wallet']),
+  },
 ]);
 
-export const SCREEN_KEYS = Object.freeze(
-  SCREEN_GROUPS.flatMap((g) => g.keys)
-);
+export const SCREEN_KEYS = Object.freeze(SCREEN_GROUPS.flatMap((g) => g.keys));
 
 export function normalizePath(path) {
-  const raw = String(path || '').split('?')[0].split('#')[0];
+  const raw = String(path || '')
+    .split('?')[0]
+    .split('#')[0];
   if (!raw) return '/';
   const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
   if (withSlash.length > 1 && withSlash.endsWith('/')) return withSlash.slice(0, -1);
@@ -183,7 +180,9 @@ export function normalizePath(path) {
 }
 
 export function roleKeyForScreens(role) {
-  const r = String(role || '').trim().toLowerCase();
+  const r = String(role || '')
+    .trim()
+    .toLowerCase();
   if (r === 'user') return 'user';
   if (r === 'readonly') return 'readonly';
   if (r === 'editor') return 'editor';
@@ -257,7 +256,7 @@ function defaultGuestScreens() {
     '/management/dle-core-op',
     '/settings/security',
     '/settings/ai',
-    '/content'
+    '/content',
   ];
   for (const key of allowExactOrUnder) {
     if (Object.prototype.hasOwnProperty.call(out, key)) out[key] = true;
@@ -297,7 +296,7 @@ function defaultUserScreens() {
     '/tables/:id/delete',
     '/content/create',
     '/content/store/product/new',
-    '/content/store/product/:id'
+    '/content/store/product/:id',
   ];
   for (const key of extra) {
     if (Object.prototype.hasOwnProperty.call(out, key)) out[key] = true;
@@ -317,8 +316,8 @@ export function normalizeScreensMap(rowScreens, role) {
   if (!rowScreens || typeof rowScreens !== 'object') return base;
   const migrated = { ...rowScreens };
   if (
-    Object.prototype.hasOwnProperty.call(migrated, '/settings/ai/database')
-    && !Object.prototype.hasOwnProperty.call(migrated, '/settings/security/database')
+    Object.prototype.hasOwnProperty.call(migrated, '/settings/ai/database') &&
+    !Object.prototype.hasOwnProperty.call(migrated, '/settings/security/database')
   ) {
     migrated['/settings/security/database'] = migrated['/settings/ai/database'];
   }
@@ -373,6 +372,6 @@ export function buildDefaultMatrix() {
     guest: cloneDefaultScreens('guest'),
     user: cloneDefaultScreens('user'),
     readonly: cloneDefaultScreens('readonly'),
-    editor: cloneDefaultScreens('editor')
+    editor: cloneDefaultScreens('editor'),
   };
 }

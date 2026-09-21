@@ -237,7 +237,10 @@ router.get(
   async (req, res) => {
     try {
       const data = await conferenceService.getEditableSessionForContact(req.params.contactId);
-      const history = await conferenceService.listSessionsForContact(req.params.contactId, { limit: 10 });
+      const historyLimit = Math.min(Math.max(Number(req.query.history_limit) || 80, 1), 200);
+      const history = await conferenceService.listSessionsForContact(req.params.contactId, {
+        limit: historyLimit
+      });
       res.json({ success: true, ...data, history });
     } catch (error) {
       logger.error('[conference] get contact session:', error);
@@ -478,6 +481,29 @@ router.post(
   }
 );
 
+/** Live: «Подтвердить» — уведомление в личку участникам */
+router.post(
+  '/:id/confirm-notify',
+  requireAuth,
+  requireConferenceSession,
+  async (req, res) => {
+    try {
+      const data = await conferenceMagicLinkService.notifyCallConfirm(
+        req.params.id,
+        actorId(req)
+      );
+      res.json({ success: true, ...data });
+    } catch (error) {
+      logger.error('[conference] confirm-notify:', error);
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.message,
+        code: error.code || null
+      });
+    }
+  }
+);
+
 router.put(
   '/:id/settings',
   requireAuth,
@@ -636,10 +662,30 @@ router.post(
   requireAuth,
   requireConferenceSession,
   async (req, res) => {
+    conferenceRealtimeService.markConferenceClosed(req.params.id);
     try {
       const data = await conferenceService.endSession(req.params.id, actorId(req));
+      try {
+        const interpretationHub = require('../services/conferenceInterpretationHub');
+        interpretationHub.closeRoom(req.params.id, { type: 'session_ended' });
+      } catch (e) {
+        logger.warn('[conference] end interpret hub:', e.message);
+      }
+      try {
+        const { closeConferenceMedia } = require('../services/conferenceMediaProxy');
+        closeConferenceMedia(req.params.id, 'ended');
+      } catch (e) {
+        logger.warn('[conference] end omni:', e.message);
+      }
+      try {
+        await conferenceLivekitService.deleteConferenceRoom(req.params.id);
+      } catch (e) {
+        logger.warn('[conference] end livekit:', e.message);
+      }
+      conferenceRealtimeService.clearLiveState(req.params.id);
       res.json({ success: true, ...data });
     } catch (error) {
+      conferenceRealtimeService.unmarkConferenceClosed(req.params.id);
       logger.error('[conference] end session:', error);
       res.status(error.status || 500).json({
         success: false,
@@ -844,6 +890,44 @@ router.post('/:id/interpretation/session', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/:id/interpretation/start', requireAuth, async (req, res) => {
+  try {
+    const live = await conferenceRealtimeService.setInterpretationRunning(
+      req.params.id,
+      true,
+      actorId(req)
+    );
+    res.json({ success: true, ...live });
+  } catch (error) {
+    logger.error('[conference] interpretation start:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+router.post('/:id/interpretation/stop', requireAuth, async (req, res) => {
+  try {
+    const live = await conferenceRealtimeService.setInterpretationRunning(
+      req.params.id,
+      false,
+      actorId(req)
+    );
+    const interpretationHub = require('../services/conferenceInterpretationHub');
+    interpretationHub.closeRoom(req.params.id, { type: 'interpretation_stopped' });
+    res.json({ success: true, ...live });
+  } catch (error) {
+    logger.error('[conference] interpretation stop:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
 router.post(
   '/:id/agent/start',
   requireAuth,
@@ -899,7 +983,8 @@ router.post(
         actorId(req)
       );
       const live = await conferenceRealtimeService.getLiveSnapshot(req.params.id, {
-        includeCoach: true
+        includeCoach: true,
+        actorId: actorId(req)
       });
       res.json({ success: true, rule, ...live });
     } catch (error) {
@@ -955,9 +1040,7 @@ router.post('/:id/transcript', requireAuth, async (req, res) => {
       actorId(req)
     );
     let role = 'participant';
-    if (req.body?.role === 'agent') {
-      role = 'agent';
-    } else if (membership.isHost || membership.role === 'host') {
+    if (membership.isHost || membership.role === 'host') {
       role = req.body?.role === 'host_coach' ? 'participant' : 'host';
     }
     // host_coach только через /coach

@@ -41,7 +41,7 @@ function downsample(buffer, inRate, outRate = 16000) {
 }
 
 export function createConferenceRealtimeController(options = {}) {
-  const { onTranscript, onStatus, onError } = options;
+  const { onTranscript, onStatus, onError, onPlaybackChange } = options;
 
   let mode = null;
   let pc = null;
@@ -59,10 +59,18 @@ export function createConferenceRealtimeController(options = {}) {
   let conferenceId = null;
   let connected = false;
   let muted = false;
+  let inputMuted = false;
   const handledCallIds = new Set();
 
   function setStatus(status) {
     onStatus?.(status);
+  }
+
+  async function preparePlayback() {
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume().catch(() => {});
+    }
   }
 
   function sendWs(obj) {
@@ -152,16 +160,6 @@ export function createConferenceRealtimeController(options = {}) {
       event.transcript
     ) {
       onTranscript?.({ role: 'agent', text: event.transcript });
-      if (conferenceId) {
-        try {
-          await conferenceService.appendTranscript(conferenceId, {
-            role: 'agent',
-            text: event.transcript
-          });
-        } catch {
-          /* ignore */
-        }
-      }
     }
 
     if (event.type === 'conversation.item.input_audio_transcription.completed' && event.transcript) {
@@ -238,9 +236,11 @@ export function createConferenceRealtimeController(options = {}) {
     const chunk = playQueue.shift();
     if (!chunk) {
       playing = false;
+      onPlaybackChange?.(false);
       return;
     }
     playing = true;
+    onPlaybackChange?.(true);
     const buffer = audioCtx.createBuffer(1, chunk.length, 24000);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < chunk.length; i += 1) data[i] = chunk[i] / 0x8000;
@@ -258,7 +258,7 @@ export function createConferenceRealtimeController(options = {}) {
     micSourceNode = audioCtx.createMediaStreamSource(localStream);
     processor = audioCtx.createScriptProcessor(4096, 1, 1);
     processor.onaudioprocess = (e) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN || muted) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN || muted || playing || inputMuted) return;
       const input = e.inputBuffer.getChannelData(0);
       const resampled = downsample(input, audioCtx.sampleRate, 16000);
       const pcm = floatTo16BitPCM(resampled);
@@ -291,12 +291,18 @@ export function createConferenceRealtimeController(options = {}) {
     localStream = null;
   }
 
-  async function connectQwenWs(id, session) {
+  async function connectQwenWs(id, session, existingStream = null) {
     conferenceId = id;
     mode = 'qwen_ws';
     setStatus('connecting');
 
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localStream = existingStream || await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
 
     return new Promise((resolve, reject) => {
       let micSent = false;
@@ -387,7 +393,7 @@ export function createConferenceRealtimeController(options = {}) {
     });
   }
 
-  async function connectOpenAi(id, session) {
+  async function connectOpenAi(id, session, existingStream = null) {
     conferenceId = id;
     mode = 'openai_webrtc';
     setStatus('connecting');
@@ -400,12 +406,21 @@ export function createConferenceRealtimeController(options = {}) {
     pc = new RTCPeerConnection();
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
+    audioEl.onplaying = () => onPlaybackChange?.(true);
+    audioEl.onended = () => onPlaybackChange?.(false);
+    audioEl.onpause = () => onPlaybackChange?.(false);
     pc.ontrack = (e) => {
       audioEl.srcObject = e.streams[0];
       if (muted) audioEl.muted = true;
     };
 
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localStream = existingStream || await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
     localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 
     dc = pc.createDataChannel('oai-events');
@@ -439,16 +454,16 @@ export function createConferenceRealtimeController(options = {}) {
     await pc.setRemoteDescription(answer);
   }
 
-  async function connect(id) {
+  async function connect(id, existingStream = null) {
     if (connected) return;
     const session = await conferenceService.createRealtimeSession(id);
     const sessionMode = session.mode || (session.client_secret ? 'openai_webrtc' : null);
 
     if (sessionMode === 'qwen_ws' && session.ws_path) {
-      await connectQwenWs(id, session);
+      await connectQwenWs(id, session, existingStream);
       return;
     }
-    await connectOpenAi(id, session);
+    await connectOpenAi(id, session, existingStream);
   }
 
   function startPresentation(text) {
@@ -507,6 +522,15 @@ export function createConferenceRealtimeController(options = {}) {
     }
   }
 
+  function setInputMuted(next) {
+    inputMuted = Boolean(next);
+    if (mode === 'openai_webrtc') {
+      localStream?.getAudioTracks?.().forEach((track) => {
+        track.enabled = !inputMuted;
+      });
+    }
+  }
+
   function disconnect() {
     if (mode === 'qwen_ws') {
       try {
@@ -523,6 +547,7 @@ export function createConferenceRealtimeController(options = {}) {
       stopMicStream();
       playQueue = [];
       playing = false;
+      onPlaybackChange?.(false);
     } else {
       try {
         dc?.close();
@@ -539,6 +564,7 @@ export function createConferenceRealtimeController(options = {}) {
       pc = null;
       localStream = null;
       audioEl = null;
+      onPlaybackChange?.(false);
     }
     connected = false;
     mode = null;
@@ -548,9 +574,11 @@ export function createConferenceRealtimeController(options = {}) {
   return {
     connect,
     disconnect,
+    preparePlayback,
     startPresentation,
     applyCoach,
     setMuted,
+    setInputMuted,
     sendEvent,
     get connected() {
       return connected;

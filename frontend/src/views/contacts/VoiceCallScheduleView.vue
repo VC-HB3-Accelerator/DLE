@@ -4,36 +4,10 @@
 -->
 
 <template>
-  <div class="schedule" v-loading="loading">
+  <div v-loading="loading" class="schedule">
     <p class="hint">{{ t('contacts.conference.schedule.hint') }}</p>
     <p v-if="!form.editor_user_id" class="hint">{{ t('contacts.conference.schedule.noEditor') }}</p>
     <p v-if="errorText" class="error">{{ errorText }}</p>
-
-    <section class="panel hosted" v-if="hostedSessions.length">
-      <h3>{{ t('contacts.conference.schedule.hostedTitle') }}</h3>
-      <p class="hint">{{ t('contacts.conference.schedule.hostedHint') }}</p>
-      <ul class="hosted-list">
-        <li v-for="item in hostedSessions" :key="item.id" class="hosted-row">
-          <div class="hosted-main">
-            <strong>{{ item.title || t('contacts.conference.live.untitled') }}</strong>
-            <span class="hosted-meta">
-              #{{ item.id }}
-              · {{ t(`contacts.conference.status.${item.status}`) }}
-              <template v-if="item.scheduled_at"> · {{ formatDate(item.scheduled_at) }}</template>
-            </span>
-            <span v-if="guestLabel(item)" class="hosted-guest">{{ guestLabel(item) }}</span>
-          </div>
-          <button
-            type="button"
-            class="btn btn-primary btn-sm"
-            :disabled="connectingId === item.id"
-            @click="connectHosted(item)"
-          >
-            {{ t('contacts.conference.actions.connect') }}
-          </button>
-        </li>
-      </ul>
-    </section>
 
     <form class="panel form" @submit.prevent="save">
       <label class="form-label">{{ t('contacts.conference.schedule.timeZone') }}</label>
@@ -44,328 +18,173 @@
       <div class="hours-row">
         <div>
           <label class="form-label">{{ t('contacts.conference.schedule.startHour') }}</label>
-          <input v-model.number="form.booking_hours.startHour" type="number" min="0" max="23" class="form-control">
+          <input
+            v-model.number="form.booking_hours.startHour"
+            type="number"
+            min="0"
+            max="23"
+            class="form-control"
+          />
         </div>
         <div>
           <label class="form-label">{{ t('contacts.conference.schedule.endHour') }}</label>
-          <input v-model.number="form.booking_hours.endHour" type="number" min="1" max="24" class="form-control">
+          <input
+            v-model.number="form.booking_hours.endHour"
+            type="number"
+            min="1"
+            max="24"
+            class="form-control"
+          />
         </div>
         <div>
           <label class="form-label">{{ t('settings.ai.voiceCall.slotMinutes') }}</label>
-          <input v-model.number="form.slot_minutes" type="number" min="10" max="180" class="form-control">
+          <input
+            v-model.number="form.slot_minutes"
+            type="number"
+            min="10"
+            max="180"
+            class="form-control"
+          />
         </div>
       </div>
 
       <p class="form-label">{{ t('contacts.conference.schedule.weekdays') }}</p>
       <div class="weekdays">
         <label v-for="(label, idx) in weekdayLabels" :key="idx" class="check">
-          <input v-model="form.booking_hours.weekdays" type="checkbox" :value="idx">
+          <input v-model="form.booking_hours.weekdays" type="checkbox" :value="idx" />
           <span>{{ label }}</span>
         </label>
       </div>
 
-      <button type="submit" class="btn btn-primary" :disabled="saving">{{ t('common.save') }}</button>
+      <button type="submit" class="btn btn-primary" :disabled="saving">
+        {{ t('common.save') }}
+      </button>
     </form>
-
-    <section class="panel preview">
-      <h3>{{ t('contacts.conference.schedule.preview') }}</h3>
-      <VoiceCallCalendar
-        v-model="previewSlot"
-        :slots="freeSlots"
-        :occupied="bookings"
-        :time-zone="form.booking_hours.timeZone"
-        :empty-day-text="t('chat.voiceCall.noSlotsDay')"
-        @month-change="onMonthChange"
-        @day-change="selectedDay = $event"
-      />
-      <p v-if="dayBookings.length" class="booked-title">{{ t('contacts.conference.schedule.bookedDay') }}</p>
-      <ul v-if="dayBookings.length" class="booked-list">
-        <li v-for="item in dayBookings" :key="item.id" class="booked-row">
-          <div class="booked-main">
-            <span>
-              {{ formatSlotTime(item.starts_at, form.booking_hours.timeZone) }}
-              · {{ item.minutes }} {{ t('chat.voiceCall.min') }}
-            </span>
-            <span v-if="bookingGuestLabel(item)" class="hosted-guest">{{ bookingGuestLabel(item) }}</span>
-          </div>
-          <button
-            v-if="item.conference_id && item.guest_user_id"
-            type="button"
-            class="btn btn-primary btn-sm"
-            :disabled="connectingId === item.conference_id"
-            @click="connectBooking(item)"
-          >
-            {{ t('contacts.conference.actions.connect') }}
-          </button>
-        </li>
-      </ul>
-    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import api from '@/api/axios';
-import conferenceService from '@/services/conferenceService';
-import VoiceCallCalendar from '@/components/chat/VoiceCallCalendar.vue';
-import { dayKey, formatSlotTime, monthBoundsIso } from '@/utils/voiceCallCalendar';
+  import { computed, onMounted, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
+  import { ElMessage } from 'element-plus';
+  import api from '@/api/axios';
 
-const { t, locale } = useI18n();
-const router = useRouter();
-const loading = ref(false);
-const saving = ref(false);
-const errorText = ref('');
-const previewSlot = ref('');
-const selectedDay = ref('');
-const freeSlots = ref([]);
-const bookings = ref([]);
-const hostedSessions = ref([]);
-const connectingId = ref(null);
-const timeZones = ref(['Europe/Moscow', 'UTC']);
-const form = ref({
-  editor_user_id: null,
-  slot_minutes: 30,
-  booking_hours: {
-    startHour: 9,
-    endHour: 18,
-    timeZone: 'Europe/Moscow',
-    weekdays: [1, 2, 3, 4, 5]
-  }
-});
-const year = ref(new Date().getFullYear());
-const month = ref(new Date().getMonth() + 1);
-
-const weekdayLabels = computed(() => {
-  const base = new Date(Date.UTC(2026, 7, 16));
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(base.getTime() + i * 86400000);
-    return new Intl.DateTimeFormat(locale.value === 'en' ? 'en-GB' : 'ru-RU', { weekday: 'short' }).format(d);
+  const { t, locale } = useI18n();
+  const loading = ref(false);
+  const saving = ref(false);
+  const errorText = ref('');
+  const timeZones = ref(['Europe/Moscow', 'UTC']);
+  const form = ref({
+    editor_user_id: null,
+    slot_minutes: 30,
+    booking_hours: {
+      startHour: 9,
+      endHour: 18,
+      timeZone: 'Europe/Moscow',
+      weekdays: [1, 2, 3, 4, 5],
+    },
   });
-});
 
-const dayBookings = computed(() => {
-  const key = selectedDay.value || (previewSlot.value
-    ? dayKey(previewSlot.value, form.value.booking_hours.timeZone)
-    : '');
-  if (!key) return [];
-  return bookings.value.filter((b) => dayKey(b.starts_at, form.value.booking_hours.timeZone) === key);
-});
+  const weekdayLabels = computed(() => {
+    const base = new Date(Date.UTC(2026, 7, 16));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base.getTime() + i * 86400000);
+      return new Intl.DateTimeFormat(locale.value === 'en' ? 'en-GB' : 'ru-RU', {
+        weekday: 'short',
+      }).format(d);
+    });
+  });
 
-function formatDate(value) {
-  if (!value) return '';
-  try {
-    return new Intl.DateTimeFormat(locale.value || 'ru', {
-      dateStyle: 'short',
-      timeStyle: 'short'
-    }).format(new Date(value));
-  } catch {
-    return String(value);
-  }
-}
-
-function guestLabel(item) {
-  const c = item.contact;
-  if (!c) return item.contact_user_id ? `#${item.contact_user_id}` : '';
-  return c.name || c.email || (c.id ? `#${c.id}` : '');
-}
-
-function bookingGuestLabel(item) {
-  return item.guest_name || item.guest_email || (item.guest_user_id ? `#${item.guest_user_id}` : '');
-}
-
-async function goLive(sessionId, contactUserId) {
-  connectingId.value = sessionId;
-  try {
-    const data = await conferenceService.startSession(sessionId);
-    const liveId = data.session?.id || sessionId;
-    ElMessage.success(t('contacts.conference.actions.connected'));
-    router.push({
-      name: 'contact-conference-live',
-      params: {
-        id: String(contactUserId),
-        sessionId: String(liveId)
+  async function load() {
+    loading.value = true;
+    errorText.value = '';
+    try {
+      const { data } = await api.get('/ai-calls/booking/schedule');
+      const pack = data.data || {};
+      form.value.editor_user_id = pack.editor_user_id;
+      form.value.slot_minutes = pack.slot_minutes || 30;
+      form.value.booking_hours = {
+        startHour: pack.booking_hours?.startHour ?? 9,
+        endHour: pack.booking_hours?.endHour ?? 18,
+        timeZone: pack.booking_hours?.timeZone || 'Europe/Moscow',
+        weekdays: [...(pack.booking_hours?.weekdays || [1, 2, 3, 4, 5])],
+      };
+      timeZones.value = pack.time_zones?.length ? pack.time_zones : timeZones.value;
+      if (!timeZones.value.includes(form.value.booking_hours.timeZone)) {
+        timeZones.value = [form.value.booking_hours.timeZone, ...timeZones.value];
       }
-    });
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.error || t('contacts.conference.actions.connectError'));
-  } finally {
-    connectingId.value = null;
-  }
-}
-
-function connectHosted(item) {
-  if (!item?.id || !item.contact_user_id) return;
-  return goLive(item.id, item.contact_user_id);
-}
-
-function connectBooking(item) {
-  if (!item?.conference_id || !item.guest_user_id) return;
-  return goLive(item.conference_id, item.guest_user_id);
-}
-
-async function loadPreview() {
-  try {
-    const { from, to } = monthBoundsIso(year.value, month.value);
-    const { data } = await api.get('/ai-calls/booking/slots', { params: { from, to } });
-    freeSlots.value = data.data?.slots || [];
-  } catch (_) {
-    freeSlots.value = [];
-  }
-}
-
-async function loadHosted() {
-  try {
-    const data = await conferenceService.listHostedSessions();
-    hostedSessions.value = data.sessions || [];
-  } catch (_) {
-    hostedSessions.value = [];
-  }
-}
-
-async function load() {
-  loading.value = true;
-  errorText.value = '';
-  try {
-    const { data } = await api.get('/ai-calls/booking/schedule');
-    const pack = data.data || {};
-    form.value.editor_user_id = pack.editor_user_id;
-    form.value.slot_minutes = pack.slot_minutes || 30;
-    form.value.booking_hours = {
-      startHour: pack.booking_hours?.startHour ?? 9,
-      endHour: pack.booking_hours?.endHour ?? 18,
-      timeZone: pack.booking_hours?.timeZone || 'Europe/Moscow',
-      weekdays: [...(pack.booking_hours?.weekdays || [1, 2, 3, 4, 5])]
-    };
-    timeZones.value = pack.time_zones?.length ? pack.time_zones : timeZones.value;
-    if (!timeZones.value.includes(form.value.booking_hours.timeZone)) {
-      timeZones.value = [form.value.booking_hours.timeZone, ...timeZones.value];
+    } catch (error) {
+      errorText.value = error.response?.data?.error || t('contacts.conference.schedule.loadFailed');
+    } finally {
+      loading.value = false;
     }
-    bookings.value = pack.bookings || [];
-    await Promise.all([loadPreview(), loadHosted()]);
-  } catch (error) {
-    errorText.value = error.response?.data?.error || t('contacts.conference.schedule.loadFailed');
-  } finally {
-    loading.value = false;
   }
-}
 
-function onMonthChange({ year: y, month: m }) {
-  year.value = y;
-  month.value = m;
-  loadPreview();
-}
-
-async function save() {
-  saving.value = true;
-  errorText.value = '';
-  try {
-    const { data } = await api.put('/ai-calls/booking/schedule', {
-      booking_slot_minutes: form.value.slot_minutes,
-      booking_hours: form.value.booking_hours
-    });
-    form.value.booking_hours = {
-      startHour: data.data?.booking_hours?.startHour ?? form.value.booking_hours.startHour,
-      endHour: data.data?.booking_hours?.endHour ?? form.value.booking_hours.endHour,
-      timeZone: data.data?.booking_hours?.timeZone || form.value.booking_hours.timeZone,
-      weekdays: [...(data.data?.booking_hours?.weekdays || form.value.booking_hours.weekdays)]
-    };
-    ElMessage.success(t('contacts.conference.schedule.saved'));
-    await loadPreview();
-  } catch (error) {
-    errorText.value = error.response?.data?.error || t('contacts.conference.schedule.saveFailed');
-  } finally {
-    saving.value = false;
+  async function save() {
+    saving.value = true;
+    errorText.value = '';
+    try {
+      const { data } = await api.put('/ai-calls/booking/schedule', {
+        booking_slot_minutes: form.value.slot_minutes,
+        booking_hours: form.value.booking_hours,
+      });
+      form.value.booking_hours = {
+        startHour: data.data?.booking_hours?.startHour ?? form.value.booking_hours.startHour,
+        endHour: data.data?.booking_hours?.endHour ?? form.value.booking_hours.endHour,
+        timeZone: data.data?.booking_hours?.timeZone || form.value.booking_hours.timeZone,
+        weekdays: [...(data.data?.booking_hours?.weekdays || form.value.booking_hours.weekdays)],
+      };
+      ElMessage.success(t('contacts.conference.schedule.saved'));
+    } catch (error) {
+      errorText.value = error.response?.data?.error || t('contacts.conference.schedule.saveFailed');
+    } finally {
+      saving.value = false;
+    }
   }
-}
 
-onMounted(load);
+  onMounted(load);
 </script>
 
 <style scoped>
-.hint {
-  margin: 0 0 12px;
-  color: var(--color-grey);
-  font-size: var(--font-size-sm);
-}
-.error {
-  color: var(--color-danger, #b42318);
-}
-.form,
-.preview,
-.hosted {
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--block-radius);
-  background: var(--color-white);
-}
-.form-label {
-  display: block;
-  margin-top: 12px;
-  margin-bottom: 4px;
-}
-.hours-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.weekdays {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 8px 0 16px;
-}
-.check {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.booked-title {
-  margin: 16px 0 8px;
-  font-weight: 600;
-}
-.booked-list,
-.hosted-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.booked-row,
-.hosted-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-.booked-row:last-child,
-.hosted-row:last-child {
-  border-bottom: none;
-}
-.hosted-main,
-.booked-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.hosted-meta,
-.hosted-guest {
-  color: var(--color-grey);
-  font-size: var(--font-size-sm);
-}
-@media (max-width: 768px) {
+  .hint {
+    margin: 0 0 12px;
+    color: var(--color-grey);
+    font-size: var(--font-size-sm);
+  }
+  .error {
+    color: var(--color-danger, #b42318);
+  }
+  .form {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--block-radius);
+    background: var(--color-white);
+  }
+  .form-label {
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 4px;
+  }
   .hours-row {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
   }
-  .booked-row,
-  .hosted-row {
-    flex-direction: column;
-    align-items: stretch;
+  .weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0 16px;
   }
-}
+  .check {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  @media (max-width: 768px) {
+    .hours-row {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

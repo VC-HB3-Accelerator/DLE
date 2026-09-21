@@ -46,6 +46,7 @@ async function buildAgentInstructions(conf, { coachRules = null } = {}) {
 
   const guest = conf.guest_language || 'en';
   const host = conf.host_language || 'ru';
+  const agentLanguage = conf._agentLanguage || guest;
 
   const ragPolicy = settings.generate_if_no_rag
     ? 'Если RAG пуст — можно ответить общими словами осторожно.'
@@ -55,11 +56,10 @@ async function buildAgentInstructions(conf, { coachRules = null } = {}) {
     ? 'Для фактов о компании СНАЧАЛА используйте контекст RAG из инструкций или уточняющий поиск.'
     : 'RAG доступен по необходимости; не обязан искать на каждую реплику.';
 
-  const translationBlock = [
-    'LIVE INTERPRETATION:',
-    `- Говорите клиенту на языке guest_language (${guest}).`,
-    `- Если участник говорит не на ${guest}, кратко перескажите смысл на ${guest} и ответьте.`,
-    `- Транскрипт для редактора: оригинал на языке участника, перевод для host (${host}).`,
+  const languageBlock = [
+    'CONFERENCE AGENT LANGUAGE:',
+    `- Отвечайте только на языке текущего слушателя (${agentLanguage}).`,
+    '- Вы не переводчик речи участников. Лайв-перевод работает отдельным каналом.',
     '- Coach-инструкции редактора не озвучивайте.'
   ].join('\n');
 
@@ -67,7 +67,8 @@ async function buildAgentInstructions(conf, { coachRules = null } = {}) {
     settings.system_prompt || conferenceAiAgentService.DEFAULTS.system_prompt,
     `guest_language=${guest}`,
     `host_language=${host}`,
-    translationBlock,
+    `agent_language=${agentLanguage}`,
+    languageBlock,
     ragPolicy,
     ragFirst,
     outline,
@@ -76,7 +77,7 @@ async function buildAgentInstructions(conf, { coachRules = null } = {}) {
 }
 
 function buildOmniSession(instructions, conf) {
-  const guest = String(conf?.guest_language || 'en').slice(0, 2);
+  const guest = String(conf?._agentLanguage || conf?.guest_language || 'en').slice(0, 2);
   return voiceKnowledge.buildOmniSession(instructions, {
     transcribe: true,
     locale: guest || 'en'
@@ -86,7 +87,7 @@ function buildOmniSession(instructions, conf) {
 function presentationTurnEvents(text) {
   const prompt =
     text ||
-    'Start the audio presentation for the client now. Speak in guest_language. Use RAG facts only.';
+    'Start the audio presentation now. Speak only in agent_language. Use RAG facts only.';
   return [
     {
       type: 'conversation.item.create',

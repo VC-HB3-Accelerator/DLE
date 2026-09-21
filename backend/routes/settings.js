@@ -20,6 +20,7 @@ const { ethers } = require('ethers');
 const db = require('../db');
 const rpcProviderService = require('../services/rpcProviderService');
 const encryptedDb = require('../services/encryptedDatabaseService');
+const conferenceInterpretationSettingsService = require('../services/conferenceInterpretationSettingsService');
 
 function loadAcceptInput() {
   try {
@@ -661,6 +662,33 @@ router.post('/rpc-test', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTI
       success: false, 
       error: error.message || 'Неизвестная ошибка сервера'
     });
+  }
+});
+
+router.get('/ai-translation-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res, next) => {
+  try {
+    const settings = await conferenceInterpretationSettingsService.getSettings();
+    res.json({ success: true, settings });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/ai-translation-settings/models', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  try {
+    const models = await conferenceInterpretationSettingsService.getAvailableModels();
+    res.json({ success: true, models });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/ai-translation-settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  try {
+    const settings = await conferenceInterpretationSettingsService.saveSettings(req.body);
+    res.json({ success: true, settings });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.message });
   }
 });
 

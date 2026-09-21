@@ -8,7 +8,6 @@
     <Teleport v-if="mediaRail && mediaRailTargetReady" to="#blog-article-media-rail">
       <BlogMediaRail
         show-subscribe
-        expand-overflow
         :subscribe-active="showSubscribeForm"
         :counts="engagement.reactions"
         :my-reaction="engagement.myReaction"
@@ -20,9 +19,8 @@
         :is-authenticated="isAuthenticated"
         :article-url="shareUrl"
         :page-title="pageTitle"
-        show-author
+        :show-comments="false"
         @select="handleReaction"
-        @comments="scrollToComments"
         @subscribe="openSubscribe"
       />
     </Teleport>

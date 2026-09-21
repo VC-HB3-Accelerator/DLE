@@ -93,6 +93,7 @@ function isNavActive(name) {
   if (name === 'contact-conference') {
     return (
       route.name === 'contact-conference' ||
+      route.name === 'contact-conference-create' ||
       route.name === 'contact-conference-agent' ||
       route.name === 'contact-conference-live'
     );

@@ -19,10 +19,22 @@ const conferenceRealtimeService = require('./conferenceRealtimeService');
 const conferenceTranslateService = require('./conferenceTranslateService');
 const conferenceAiAgentService = require('./conferenceAiAgentService');
 const knowledge = require('./conferenceKnowledgeService');
-const conferenceInterpretationHub = require('./conferenceInterpretationHub');
-const interpretation = require('./conferenceInterpretationService');
 
 const RAG_MIN_QUERY = 8;
+const mediaClosers = new Map();
+const closedConferences = new Set();
+
+function closeConferenceMedia(conferenceId, reason = 'ended') {
+  const id = Number(conferenceId);
+  closedConferences.add(id);
+  const closers = mediaClosers.get(id);
+  if (!closers) return;
+  for (const close of [...closers]) close(reason);
+}
+
+function openConferenceMedia(conferenceId) {
+  closedConferences.delete(Number(conferenceId));
+}
 
 function sendJson(ws, obj) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -49,20 +61,17 @@ async function handleParticipantTranscript({
   conf,
   actorId,
   userText,
+  speakerRole = 'participant',
   ragHelpers
 }) {
   sendJson(clientWs, { type: 'user_transcript', text: userText });
 
-  const confFull = await interpretation.loadConf(conferenceId);
-
-  if (interpretation.isInterpretationEnabled(confFull)) {
-    await interpretation.handleParticipantUtterance(conferenceId, confFull, userText, actorId);
-  } else {
+  if (!conferenceRealtimeService.isInterpretationRunning(conferenceId)) {
     let translated = null;
     try {
       translated = await conferenceTranslateService.translateForConferenceRoles(
         userText,
-        'participant',
+        speakerRole,
         conf
       );
     } catch (e) {
@@ -72,15 +81,17 @@ async function handleParticipantTranscript({
     if (translated) {
       sendJson(clientWs, {
         type: 'translation',
-        role: 'participant',
+        role: speakerRole,
         original: userText,
         translated,
-        target_lang: conf.host_language || 'ru'
+        target_lang: speakerRole === 'host'
+          ? (conf.guest_language || 'en')
+          : (conf.host_language || 'ru')
       });
     }
 
     try {
-      await conferenceRealtimeService.appendTranscript(conferenceId, 'participant', userText, {
+      await conferenceRealtimeService.appendTranscript(conferenceId, speakerRole, userText, {
         translatedText: translated
       });
     } catch (e) {
@@ -136,6 +147,11 @@ async function handleConferenceSocket(clientWs, ticket) {
 
   const conferenceId = entry.conferenceId;
   const actorId = entry.userId;
+  if (closedConferences.has(Number(conferenceId))) {
+    sendJson(clientWs, { type: 'error', message: 'Конференция завершена' });
+    clientWs.close();
+    return;
+  }
 
   let membership;
   try {
@@ -151,8 +167,11 @@ async function handleConferenceSocket(clientWs, ticket) {
   }
 
   const conf = membership.session;
-  const confFull = await interpretation.loadConf(conferenceId);
-  conferenceInterpretationHub.registerClient(conferenceId, 'primary', clientWs);
+  const speakerRole = membership.isHost || membership.role === 'host' ? 'host' : 'participant';
+  const agentLanguage = speakerRole === 'host'
+    ? (conf.host_language || 'ru')
+    : (conf.guest_language || 'en');
+  const agentConf = { ...conf, _agentLanguage: agentLanguage, _agentRole: speakerRole };
   const settings = await conferenceAiAgentService.getSettings();
   const providerSettings = await aiProviderSettingsService.getProviderSettings('qwencloud');
   if (!providerSettings?.api_key) {
@@ -177,8 +196,11 @@ async function handleConferenceSocket(clientWs, ticket) {
   let responseOpen = false;
   let agentMuted = false;
   let transcribe = true;
-  let lastInstructions = await knowledge.buildAgentInstructions(conf);
+  let lastInstructions = await knowledge.buildAgentInstructions(agentConf);
   let lastRagQuery = '';
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
+  let pendingPresentationText = null;
 
   const getInstructions = () => lastInstructions;
   const setInstructions = (v) => {
@@ -190,7 +212,7 @@ async function handleConferenceSocket(clientWs, ticket) {
     if (gateAudio) omniReady = false;
     upstream.send(JSON.stringify({
       type: 'session.update',
-      session: knowledge.buildOmniSession(instructions, conf)
+      session: knowledge.buildOmniSession(instructions, agentConf)
     }));
   };
 
@@ -208,6 +230,10 @@ async function handleConferenceSocket(clientWs, ticket) {
   const closeAll = (reason) => {
     if (closed) return;
     closed = true;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     cancelUpstreamResponse();
     upstreamGen += 1;
     try {
@@ -273,7 +299,15 @@ async function handleConferenceSocket(clientWs, ticket) {
 
       if (t === 'session.updated') {
         omniReady = true;
+        reconnectAttempts = 0;
         sendJson(clientWs, { type: 'session', state: 'live', model });
+        if (pendingPresentationText && upstream && upstream.readyState === WebSocket.OPEN) {
+          const text = pendingPresentationText;
+          pendingPresentationText = null;
+          for (const ev of knowledge.presentationTurnEvents(text)) {
+            upstream.send(JSON.stringify(ev));
+          }
+        }
       }
       if (t === 'response.created') responseOpen = true;
       if (t === 'response.done') responseOpen = false;
@@ -327,6 +361,7 @@ async function handleConferenceSocket(clientWs, ticket) {
           conf,
           actorId,
           userText,
+          speakerRole,
           ragHelpers
         });
       }
@@ -334,7 +369,29 @@ async function handleConferenceSocket(clientWs, ticket) {
 
     upstream.on('close', () => {
       if (closed || gen !== upstreamGen) return;
+      omniReady = false;
       logger.warn(`[conferenceMedia] upstream closed conference=${conferenceId}`);
+      if (reconnectAttempts >= 12) {
+        sendJson(clientWs, {
+          type: 'error',
+          code: 'QWEN_REALTIME_CLOSED',
+          message: 'Облако голоса отключилось'
+        });
+        return;
+      }
+      reconnectAttempts += 1;
+      const delay = Math.min(10000, 600 * (2 ** Math.min(reconnectAttempts - 1, 4)));
+      sendJson(clientWs, { type: 'session', state: 'connecting', model });
+      logger.info(
+        `[conferenceMedia] reconnect conference=${conferenceId} attempt=${reconnectAttempts} delay=${delay}`
+      );
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (closed) return;
+        openUpstream().catch((err) => {
+          logger.warn('[conferenceMedia] reconnect:', err?.message || err);
+        });
+      }, delay);
     });
 
     upstream.on('error', (err) => {
@@ -363,7 +420,13 @@ async function handleConferenceSocket(clientWs, ticket) {
     }
 
     if (type === 'presentation_start') {
-      if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
+      if (!omniReady || !upstream || upstream.readyState !== WebSocket.OPEN) {
+        pendingPresentationText = msg.text;
+        if (!upstream || upstream.readyState !== WebSocket.OPEN) {
+          await openUpstream();
+        }
+        return;
+      }
       for (const ev of knowledge.presentationTurnEvents(msg.text)) {
         upstream.send(JSON.stringify(ev));
       }
@@ -423,7 +486,17 @@ async function handleConferenceSocket(clientWs, ticket) {
   const queued = pending.splice(0, pending.length);
   for (const raw of queued) onClientMessage(raw);
 
+  const conferenceKey = Number(conferenceId);
+  if (closedConferences.has(conferenceKey)) {
+    closeAll('conference_ended');
+    return;
+  }
+  if (!mediaClosers.has(conferenceKey)) mediaClosers.set(conferenceKey, new Set());
+  mediaClosers.get(conferenceKey).add(closeAll);
   clientWs.on('close', () => {
+    const closers = mediaClosers.get(conferenceKey);
+    closers?.delete(closeAll);
+    if (closers && closers.size === 0) mediaClosers.delete(conferenceKey);
     closeAll('client_close');
   });
 
@@ -439,5 +512,7 @@ async function handleConferenceSocket(clientWs, ticket) {
 }
 
 module.exports = {
-  handleConferenceSocket
+  handleConferenceSocket,
+  closeConferenceMedia,
+  openConferenceMedia
 };

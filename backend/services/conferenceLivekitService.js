@@ -100,9 +100,39 @@ async function createParticipantToken(conferenceId, actorId) {
   };
 }
 
+function roomServiceHost() {
+  const explicit = process.env.LIVEKIT_API_URL || process.env.LIVEKIT_HOST || '';
+  if (explicit) return String(explicit).replace(/^ws/i, 'http');
+  return 'http://dapp-livekit:7880';
+}
+
+async function deleteConferenceRoom(conferenceId) {
+  const cfg = getConfig();
+  let RoomServiceClient;
+  try {
+    ({ RoomServiceClient } = require('livekit-server-sdk'));
+  } catch (e) {
+    logger.warn('[conferenceLivekit] sdk:', e.message);
+    return;
+  }
+  if (typeof RoomServiceClient !== 'function') {
+    logger.warn('[conferenceLivekit] RoomServiceClient missing');
+    return;
+  }
+  const roomName = roomNameForConference(conferenceId);
+  try {
+    const svc = new RoomServiceClient(roomServiceHost(), cfg.apiKey, cfg.apiSecret);
+    await svc.deleteRoom(roomName);
+    logger.info(`[conferenceLivekit] room deleted ${roomName}`);
+  } catch (e) {
+    logger.warn(`[conferenceLivekit] deleteRoom ${roomName}:`, e?.message || e);
+  }
+}
+
 module.exports = {
   getConfig,
   createParticipantToken,
   ensureRoomId,
-  roomNameForConference
+  roomNameForConference,
+  deleteConferenceRoom
 };

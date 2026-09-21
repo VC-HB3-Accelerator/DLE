@@ -36,6 +36,12 @@
         @open="goTo('/settings/ai/qwencloud')"
       />
       <HubCard
+        v-if="canAccessPath('/settings/ai/translation')"
+        :title="t('settings.ai.translation.title')"
+        :description="t('settings.ai.translation.cardDescription')"
+        @open="goTo('/settings/ai/translation')"
+      />
+      <HubCard
         v-if="canAccessPath('/settings/ai/vpn')"
         :title="t('settings.ai.vpn.title')"
         :description="t('settings.ai.vpn.cardDescription')"

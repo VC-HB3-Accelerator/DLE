@@ -2,12 +2,14 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * ASR для буфера PCM 16 kHz (речь host в режиме синхрона).
+ * Распознавание речи синхрона: qwen3-asr-flash через chat.completions
+ * (input_audio). Совместимый /audio/transcriptions у Qwen нет — не вызываем.
  */
 
-const OpenAI = require('openai');
 const logger = require('../utils/logger');
 const aiProviderSettingsService = require('./aiProviderSettingsService');
+
+const QWEN_ASR_MODEL = 'qwen3-asr-flash';
 
 function pcm16ToWav(pcmBuffer, sampleRate = 16000) {
   const data = Buffer.isBuffer(pcmBuffer) ? pcmBuffer : Buffer.from(pcmBuffer);
@@ -31,45 +33,41 @@ function pcm16ToWav(pcmBuffer, sampleRate = 16000) {
 
 async function transcribePcm16Buffer(pcmBuffer, { languageHint = 'ru' } = {}) {
   const settings = await aiProviderSettingsService.getProviderSettings('qwencloud');
-  if (!settings?.api_key) return '';
+  if (!settings?.api_key) {
+    logger.warn('[conferenceInterpretationAsr] no qwencloud key');
+    return '';
+  }
 
   const wav = pcm16ToWav(pcmBuffer);
-  const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
-  const client = new OpenAI({
-    apiKey: settings.api_key,
-    baseURL: baseUrl || undefined
-  });
+  const client = aiProviderSettingsService.createQwenCloudClient(settings);
+  const dataUrl = `data:audio/wav;base64,${wav.toString('base64')}`;
+  const lang = String(languageHint || '').slice(0, 2);
 
   try {
-    const file = await OpenAI.toFile(wav, 'utterance.wav', { type: 'audio/wav' });
-    const result = await client.audio.transcriptions.create({
-      file,
-      model: 'whisper-1',
-      language: String(languageHint || '').slice(0, 2) || undefined
+    const completion = await client.chat.completions.create({
+      model: QWEN_ASR_MODEL,
+      messages: [{
+        role: 'user',
+        content: [{ type: 'input_audio', input_audio: { data: dataUrl } }]
+      }],
+      max_tokens: 1024,
+      temperature: 0
     });
-    return String(result?.text || '').trim();
-  } catch (e) {
-    logger.warn('[conferenceInterpretationAsr] whisper failed:', e?.message || e);
-    try {
-      const dataUrl = `data:audio/wav;base64,${wav.toString('base64')}`;
-      const completion = await client.chat.completions.create({
-        model: 'qwen3-asr-flash',
-        messages: [{
-          role: 'user',
-          content: [{ type: 'input_audio', input_audio: { data: dataUrl } }]
-        }],
-        max_tokens: 1024,
-        temperature: 0
-      });
-      return String(completion?.choices?.[0]?.message?.content || '').trim();
-    } catch (e2) {
-      logger.warn('[conferenceInterpretationAsr] qwen asr failed:', e2?.message || e2);
-      return '';
+    const text = String(completion?.choices?.[0]?.message?.content || '').trim();
+    if (!text) {
+      logger.warn(`[conferenceInterpretationAsr] empty lang=${lang}`);
+    } else {
+      logger.info(`[conferenceInterpretationAsr] chars=${text.length} lang=${lang}`);
     }
+    return text;
+  } catch (e) {
+    logger.warn('[conferenceInterpretationAsr] failed:', e?.message || e);
+    return '';
   }
 }
 
 module.exports = {
   pcm16ToWav,
-  transcribePcm16Buffer
+  transcribePcm16Buffer,
+  QWEN_ASR_MODEL
 };

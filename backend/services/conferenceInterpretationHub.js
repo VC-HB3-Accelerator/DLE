@@ -9,6 +9,7 @@ const WebSocket = require('ws');
 
 /** conferenceId → { primary: WebSocket|null, host: WebSocket|null } */
 const rooms = new Map();
+const closedRooms = new Set();
 
 function roomFor(conferenceId) {
   const id = Number(conferenceId);
@@ -19,8 +20,25 @@ function roomFor(conferenceId) {
 }
 
 function registerClient(conferenceId, role, ws) {
-  const room = roomFor(conferenceId);
+  const id = Number(conferenceId);
+  if (closedRooms.has(id)) {
+    try {
+      ws.close();
+    } catch (_) {
+      /* ignore */
+    }
+    return false;
+  }
+  const room = roomFor(id);
   const key = role === 'host' ? 'host' : 'primary';
+  const previous = room[key];
+  if (previous && previous !== ws) {
+    try {
+      previous.close();
+    } catch (_) {
+      /* ignore */
+    }
+  }
   room[key] = ws;
   const onClose = () => {
     const r = rooms.get(Number(conferenceId));
@@ -39,6 +57,10 @@ function registerClient(conferenceId, role, ws) {
   };
 }
 
+function openRoom(conferenceId) {
+  closedRooms.delete(Number(conferenceId));
+}
+
 function sendJsonToRole(conferenceId, role, payload) {
   const room = rooms.get(Number(conferenceId));
   const key = role === 'host' ? 'host' : 'primary';
@@ -48,12 +70,38 @@ function sendJsonToRole(conferenceId, role, payload) {
   return true;
 }
 
+function closeRoom(conferenceId, payload = { type: 'session_ended' }) {
+  const id = Number(conferenceId);
+  closedRooms.add(id);
+  const room = rooms.get(id);
+  if (!room) return;
+  for (const key of ['host', 'primary']) {
+    const ws = room[key];
+    if (!ws) continue;
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      ws.close();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  rooms.delete(id);
+}
+
 function clearRoom(conferenceId) {
   rooms.delete(Number(conferenceId));
 }
 
 module.exports = {
   registerClient,
+  openRoom,
   sendJsonToRole,
+  closeRoom,
   clearRoom
 };

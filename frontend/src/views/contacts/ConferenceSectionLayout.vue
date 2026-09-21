@@ -7,21 +7,25 @@
 
 <template>
   <div class="conference-section-wrap">
-    <p v-if="!isLive" class="conference-1to1-hint">{{ t('contacts.conference.oneToOneHint') }}</p>
-    <ConferenceNav v-if="!isLive" />
+    <ConferenceNav v-if="showSubNav" />
     <router-view />
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import ConferenceNav from './ConferenceNav.vue';
 
-const { t } = useI18n();
 const route = useRoute();
 const isLive = computed(() => route.name === 'contact-conference-live');
+/** На create/agent — без «Планировщик» и селекта режима. */
+const showSubNav = computed(
+  () =>
+    !isLive.value &&
+    route.name !== 'contact-conference-create' &&
+    route.name !== 'contact-conference-agent'
+);
 </script>
 
 <style scoped>
@@ -29,12 +33,6 @@ const isLive = computed(() => route.name === 'contact-conference-live');
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-.conference-1to1-hint {
-  margin: 0;
-  color: var(--color-grey);
-  font-size: var(--font-size-sm);
 }
 
 /* TZ package C */

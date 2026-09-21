@@ -6,53 +6,22 @@
 <template>
   <div class="conference-live page-with-close" v-loading="loading">
     <PageCloseButton v-if="showLocalClose" :on-navigate="leaveRoom" />
-    <el-alert
-      :type="realtimeStatus === 'connected' ? 'success' : 'info'"
-      :closable="false"
-      show-icon
-      class="live-alert"
-    >
-      <template #title>
-        {{ t('contacts.conference.live.roomTitle') }}
-      </template>
-      <p>{{ realtimeHint }}</p>
-    </el-alert>
 
     <div v-if="session" class="live-meta">
       <h2>{{ session.title || t('contacts.conference.live.untitled') }}</h2>
-      <p>
-        <el-tag type="success">{{ t(`contacts.conference.status.${session.status}`) }}</el-tag>
-        <span class="live-id">#{{ session.id }}</span>
-        <span class="live-langs">{{ session.guest_language }} / {{ session.host_language }}</span>
-      </p>
-      <div v-if="canPickListenLanguage" class="live-lang-pick">
-        <label class="live-lang-label">{{ t('contacts.conference.live.listenLanguage') }}</label>
-        <el-select
-          :model-value="myListenLanguage"
-          filterable
-          size="small"
-          style="width: 220px"
-          :loading="langSaving"
-          @change="onListenLanguageChange"
-        >
-          <el-option
-            v-for="lang in speechLanguages"
-            :key="lang.value"
-            :label="lang.label"
-            :value="lang.value"
-          />
-        </el-select>
-        <span class="live-lang-hint">{{ t('contacts.conference.live.listenLanguageHint') }}</span>
-      </div>
     </div>
 
-    <div class="live-grid">
-      <section ref="videoPanelRef" class="live-panel video-panel" :class="{ 'is-fullscreen': videoFullscreen }">
+    <div class="live-layout">
+      <section
+        ref="videoPanelRef"
+        class="live-panel video-panel"
+        :class="{ 'is-fullscreen': videoFullscreen, 'has-chat-open': chatVisible }"
+      >
         <div class="video-panel-head">
           <h3>{{ t('contacts.conference.live.videoTitle') }}</h3>
           <div class="video-panel-head-actions">
             <el-button
-              v-if="videoFullscreen && isEditor"
+              v-if="videoFullscreen && isConferenceHost"
               size="small"
               type="danger"
               plain
@@ -61,17 +30,15 @@
             >
               {{ t('contacts.conference.live.end') }}
             </el-button>
-            <el-button
-              v-if="videoFullscreen"
-              size="small"
-              @click="leaveRoom"
-            >
+            <el-button v-if="videoFullscreen" size="small" @click="leaveRoom">
               {{ t('contacts.conference.live.leave') }}
             </el-button>
             <el-button size="small" @click="toggleVideoFullscreen">
-              {{ videoFullscreen
-                ? t('contacts.conference.live.videoFullscreenExit')
-                : t('contacts.conference.live.videoFullscreen') }}
+              {{
+                videoFullscreen
+                  ? t('contacts.conference.live.videoFullscreenExit')
+                  : t('contacts.conference.live.videoFullscreen')
+              }}
             </el-button>
           </div>
         </div>
@@ -96,14 +63,15 @@
               <div v-if="livekitStatus !== 'connected'" class="video-placeholder small">
                 {{ livekitHint }}
               </div>
-              <div
-                v-else-if="!hasRemoteVideo"
-                class="video-placeholder small"
-              >
+              <div v-else-if="!hasRemoteVideo" class="video-placeholder small">
                 {{ t('contacts.conference.live.videoWaitingPeer') }}
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="interpretCaption" class="interpret-caption">
+          <span class="interpret-caption-label">{{ t('contacts.conference.live.interpretCaption') }}</span>
+          <span>{{ interpretCaption }}</span>
         </div>
         <div class="video-actions">
           <el-button
@@ -112,20 +80,24 @@
             :type="livekitStatus === 'connected' ? 'success' : 'primary'"
             @click="onConnectRoomClick"
           >
-            {{ livekitStatus === 'connected'
-              ? t('contacts.conference.live.videoRoomOn')
-              : t('contacts.conference.live.videoRoomConnect') }}
+            {{
+              livekitStatus === 'connected'
+                ? t('contacts.conference.live.videoRoomOn')
+                : t('contacts.conference.live.videoRoomConnect')
+            }}
           </el-button>
           <el-button
             size="small"
             :loading="mediaBusy"
-            :disabled="livekitConnecting"
+            :disabled="livekitConnecting || interpretationRunning"
             :type="micOn ? 'primary' : 'default'"
             @click="toggleMic"
           >
-            {{ micOn
-              ? t('contacts.conference.live.videoMicOff')
-              : t('contacts.conference.live.videoMicOn') }}
+            {{
+              micOn
+                ? t('contacts.conference.live.videoMicOff')
+                : t('contacts.conference.live.videoMicOn')
+            }}
           </el-button>
           <el-button
             size="small"
@@ -134,9 +106,11 @@
             :type="cameraOn ? 'primary' : 'default'"
             @click="toggleCamera"
           >
-            {{ cameraOn
-              ? t('contacts.conference.live.videoCameraOff')
-              : t('contacts.conference.live.videoCameraOn') }}
+            {{
+              cameraOn
+                ? t('contacts.conference.live.videoCameraOff')
+                : t('contacts.conference.live.videoCameraOn')
+            }}
           </el-button>
           <el-button
             v-if="isEditor"
@@ -146,14 +120,83 @@
             :type="screenOn ? 'primary' : 'default'"
             @click="toggleScreen"
           >
-            {{ screenOn
-              ? t('contacts.conference.live.videoScreenOff')
-              : t('contacts.conference.live.videoScreenOn') }}
+            {{
+              screenOn
+                ? t('contacts.conference.live.videoScreenOff')
+                : t('contacts.conference.live.videoScreenOn')
+            }}
           </el-button>
           <el-button size="small" @click="toggleVideoFullscreen">
-            {{ videoFullscreen
-              ? t('contacts.conference.live.videoFullscreenExit')
-              : t('contacts.conference.live.videoFullscreen') }}
+            {{
+              videoFullscreen
+                ? t('contacts.conference.live.videoFullscreenExit')
+                : t('contacts.conference.live.videoFullscreen')
+            }}
+          </el-button>
+          <el-button
+            size="small"
+            :type="chatVisible ? 'primary' : 'default'"
+            @click="toggleChatPanel"
+          >
+            {{
+              chatVisible
+                ? t('contacts.conference.live.chatHide')
+                : t('contacts.conference.live.chatShow')
+            }}
+          </el-button>
+          <template v-if="canPickListenLanguage">
+            <label class="video-lang-label">{{ t('contacts.conference.live.listenLanguage') }}</label>
+            <el-select
+              :model-value="myListenLanguage"
+              filterable
+              size="small"
+              class="video-lang-select"
+              :loading="langSaving"
+              @change="onListenLanguageChange"
+            >
+              <el-option
+                v-for="lang in speechLanguages"
+                :key="lang.value"
+                :label="lang.label"
+                :value="lang.value"
+              />
+            </el-select>
+          </template>
+          <el-button
+            v-if="canUseInterpretation"
+            size="small"
+            :type="interpretationRunning ? 'warning' : 'success'"
+            :loading="interpretationToggling"
+            :disabled="livekitStatus !== 'connected'"
+            @click="toggleInterpretation"
+          >
+            {{
+              interpretationRunning && interpretStatus === 'connected'
+                ? t('contacts.conference.live.stopInterpretation')
+                : t('contacts.conference.live.startInterpretation')
+            }}
+          </el-button>
+          <el-button
+            v-if="isConferenceHost"
+            size="small"
+            type="success"
+            :loading="confirmNotifying"
+            @click="confirmCallNotify"
+          >
+            {{ t('contacts.conference.live.confirmCall') }}
+          </el-button>
+          <el-button
+            v-if="isConferenceHost"
+            size="small"
+            type="danger"
+            plain
+            :loading="ending"
+            @click="endConference"
+          >
+            {{ t('contacts.conference.live.end') }}
+          </el-button>
+          <el-button size="small" type="danger" @click="leaveRoom">
+            {{ t('contacts.conference.live.leave') }}
           </el-button>
         </div>
         <p v-if="livekitStatus !== 'connected'" class="video-hint">
@@ -162,41 +205,12 @@
         <p v-else-if="!cameraOn && !screenOn" class="video-hint">
           {{ t('contacts.conference.live.videoEnableHint') }}
         </p>
-        <p class="video-note">{{ t('contacts.conference.live.videoLivekitNote') }}</p>
       </section>
 
-      <section class="live-panel chat-panel">
-        <h3>{{ t('contacts.conference.live.chatTitle') }}</h3>
-        <div class="chat-log">
-          <el-empty
-            v-if="!visibleChatItems.length"
-            :description="t('contacts.conference.live.chatEmpty')"
-          />
-          <div
-            v-for="item in visibleChatItems"
-            :key="item.id || item._key"
-            class="chat-line"
-          >
-            <span class="chat-role">{{ roleLabel(item.role) }}</span>
-            <div class="chat-texts">
-              <span>{{ displayChatText(item) }}</span>
-              <span v-if="chatSubtitle(item)" class="chat-original">{{ chatSubtitle(item) }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="chat-compose">
-          <el-input
-            v-model="chatDraft"
-            :placeholder="t('contacts.conference.live.chatPlaceholder')"
-            @keyup.enter="sendChat"
-          />
-          <el-button type="primary" :disabled="!chatDraft.trim()" @click="sendChat">
-            {{ t('common.send') }}
-          </el-button>
-        </div>
-      </section>
-
-      <section class="live-panel transcript-panel">
+      <section
+        v-if="interpretationRunning"
+        class="live-panel transcript-panel"
+      >
         <h3>{{ t('contacts.conference.live.transcriptTitle') }}</h3>
         <div class="transcript-log">
           <el-empty
@@ -215,56 +229,51 @@
         </div>
       </section>
 
-      <section v-if="isEditor" class="live-panel coach-panel">
-        <h3>{{ t('contacts.conference.live.coachTitle') }}</h3>
-        <p class="coach-hint">{{ t('contacts.conference.live.coachHint') }}</p>
-        <el-input
-          v-model="coachDraft"
-          type="textarea"
-          :rows="3"
-          :placeholder="t('contacts.conference.live.coachPlaceholder')"
-        />
-        <div class="coach-actions">
-          <el-button
-            type="primary"
-            :loading="coachSaving"
-            :disabled="!coachDraft.trim()"
-            @click="sendCoach"
-          >
-            {{ t('contacts.conference.live.coachSend') }}
-          </el-button>
-          <el-button
-            :type="pttListening ? 'danger' : 'default'"
-            @mousedown.prevent="startPtt"
-            @mouseup.prevent="stopPtt"
-            @mouseleave="stopPtt"
-            @touchstart.prevent="startPtt"
-            @touchend.prevent="stopPtt"
-          >
-            {{ pttListening
-              ? t('contacts.conference.live.pttHold')
-              : t('contacts.conference.live.ptt') }}
+      <section v-if="chatVisible" class="live-panel chat-panel">
+        <div class="chat-compose">
+          <el-input
+            v-model="chatDraft"
+            :placeholder="t('contacts.conference.live.chatPlaceholder')"
+            @keyup.enter="sendChat"
+          />
+          <el-button type="primary" :disabled="!chatDraft.trim()" @click="sendChat">
+            {{ t('common.send') }}
           </el-button>
         </div>
-        <ul v-if="coachRules.length" class="coach-list">
-          <li v-for="rule in coachRules" :key="rule.id">{{ rule.body }}</li>
-        </ul>
+        <div class="chat-log">
+          <el-empty
+            v-if="!visibleChatItems.length"
+            :description="t('contacts.conference.live.chatEmpty')"
+          />
+          <div
+            v-for="item in visibleChatItems"
+            :key="item.id || item._key"
+            class="chat-line"
+          >
+            <span class="chat-role">{{ roleLabel(item.role) }}</span>
+            <div class="chat-texts">
+              <span>{{ displayChatText(item) }}</span>
+              <span v-if="chatSubtitle(item)" class="chat-original">{{ chatSubtitle(item) }}</span>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
 
-    <div class="live-actions">
-      <div v-if="isEditor" class="live-actions-agent">
-        <el-tag
-          size="small"
-          :type="agentRunning ? (agentMuted ? 'info' : 'success') : 'info'"
-          effect="plain"
-        >
-          {{ agentStatusLabel }}
-        </el-tag>
+    <div v-if="isEditor" class="live-actions">
+      <div class="live-actions-agent">
         <el-button
-          v-if="!agentRunning"
+          v-if="!agentEnabled"
+          plain
+          @click="goAgent"
+        >
+          {{ t('contacts.conference.live.agentEnableInSettings') }}
+        </el-button>
+        <el-button
+          v-else-if="!agentRunning"
           type="primary"
           :loading="agentStarting"
+          :disabled="livekitStatus !== 'connected'"
           @click="startAgent"
         >
           {{ t('contacts.conference.live.startAgent') }}
@@ -283,21 +292,43 @@
           {{ t('contacts.conference.live.openAgentSettings') }}
         </el-button>
       </div>
-      <div class="live-actions-room">
+    </div>
+
+    <section v-if="isEditor" class="live-panel coach-panel">
+      <h3>{{ t('contacts.conference.live.coachTitle') }}</h3>
+      <p class="coach-hint">{{ t('contacts.conference.live.coachHint') }}</p>
+      <el-input
+        v-model="coachDraft"
+        type="textarea"
+        :rows="3"
+        :placeholder="t('contacts.conference.live.coachPlaceholder')"
+      />
+      <div class="coach-actions">
         <el-button
-          v-if="isEditor"
-          type="danger"
-          plain
-          :loading="ending"
-          @click="endConference"
+          type="primary"
+          :loading="coachSaving"
+          :disabled="!coachDraft.trim()"
+          @click="sendCoach"
         >
-          {{ t('contacts.conference.live.end') }}
+          {{ t('contacts.conference.live.coachSend') }}
         </el-button>
-        <el-button type="danger" @click="leaveRoom">
-          {{ t('contacts.conference.live.leave') }}
+        <el-button
+          :type="pttListening ? 'danger' : 'default'"
+          @mousedown.prevent="startPtt"
+          @mouseup.prevent="stopPtt"
+          @mouseleave="stopPtt"
+          @touchstart.prevent="startPtt"
+          @touchend.prevent="stopPtt"
+        >
+          {{ pttListening
+            ? t('contacts.conference.live.pttHold')
+            : t('contacts.conference.live.ptt') }}
         </el-button>
       </div>
-    </div>
+      <ul v-if="coachRules.length" class="coach-list">
+        <li v-for="rule in coachRules" :key="rule.id">{{ rule.body }}</li>
+      </ul>
+    </section>
   </div>
 </template>
 
@@ -311,7 +342,12 @@ import conferenceService from '@/services/conferenceService';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import { createConferenceRealtimeController } from '@/composables/useConferenceRealtime';
-import { createConferenceLivekitController } from '@/composables/useConferenceLivekit';
+import {
+  createConferenceLivekitController,
+  captureConferenceCameraTrack,
+  captureConferenceMedia,
+  attachCapturedPreview
+} from '@/composables/useConferenceLivekit';
 import { createConferenceInterpretationController } from '@/composables/useConferenceInterpretation';
 import {
   displayTextForViewer,
@@ -335,15 +371,18 @@ const showLocalClose = !registerPageCloseHandler;
 const loading = ref(false);
 const session = ref(null);
 const chatDraft = ref('');
+const chatVisible = ref(false);
 const coachDraft = ref('');
 const transcriptItems = ref([]);
 const coachRules = ref([]);
 const agentRunning = ref(false);
+const agentEnabled = ref(false);
 const agentMuted = ref(false);
 const agentStarting = ref(false);
 const muteSaving = ref(false);
 const coachSaving = ref(false);
 const ending = ref(false);
+const confirmNotifying = ref(false);
 const realtimeStatus = ref('disconnected');
 const hostId = ref(null);
 const pttListening = ref(false);
@@ -358,6 +397,10 @@ const livekitStatus = ref('disconnected');
 const livekitConnecting = ref(false);
 const mediaBusy = ref(false);
 const hasRemoteVideo = ref(false);
+const lastInterpretLine = ref(null);
+const interpretStatus = ref('disconnected');
+const interpretationRunning = ref(false);
+const interpretationToggling = ref(false);
 
 let realtime = null;
 let interpretation = null;
@@ -365,6 +408,24 @@ let livekit = null;
 let pollTimer = null;
 let recognition = null;
 let liveViewActive = false;
+let sharedMicStream = null;
+let remoteEndedHandled = false;
+let interpretationSyncPromise = null;
+let interpretationLocallyEnabled = false;
+let commandQueue = Promise.resolve();
+let agentPlaybackActive = false;
+let interpretationPlaybackActive = false;
+let interpretReconnectAttempts = 0;
+let interpretReconnectTimer = null;
+let lastInterpretErrorMsg = '';
+const INTERPRET_RECONNECT_MAX = 3;
+
+function syncModelInputGates() {
+  // Пока играет перевод — глушим и агента, и вход переводчика (эхо с динамиков).
+  const gate = interpretationPlaybackActive || agentPlaybackActive;
+  realtime?.setInputMuted(gate);
+  interpretation?.setInputMuted(gate);
+}
 
 const livekitHint = computed(() => {
   if (livekitStatus.value === 'connecting') return t('contacts.conference.live.videoConnecting');
@@ -384,6 +445,14 @@ function resolveConferenceId() {
   return null;
 }
 
+/** Ведущий сессии по книге (created_by), не по роли editor в матрице. */
+const isConferenceHost = computed(() => {
+  const uid = userId.value;
+  const createdBy = session.value?.created_by;
+  if (uid == null || createdBy == null) return false;
+  return Number(createdBy) === Number(uid);
+});
+
 /** Primary participant = владелец Realtime по ТЗ (contact_user_id). */
 const isRealtimePrimary = computed(() => {
   const contactId = session.value?.contact_user_id;
@@ -397,26 +466,37 @@ const isRealtimePrimary = computed(() => {
  * В обычном 2-browser режиме host только шлёт команды primary.
  */
 const isSoloHostRealtime = computed(
-  () =>
-    Boolean(isEditor.value)
-    && !isParticipantRoute.value
-    && String(route.query.solo || '') === '1'
+  () => isConferenceHost.value && String(route.query.solo || '') === '1'
 );
 
-const isRealtimeOwner = computed(() => isRealtimePrimary.value || isSoloHostRealtime.value);
+const isHostViewer = computed(() => isConferenceHost.value);
 
-const isHostViewer = computed(
-  () => isEditor.value && !isParticipantRoute.value
+const canUseAgentRealtime = computed(
+  () => isRealtimePrimary.value || isHostViewer.value || isSoloHostRealtime.value
 );
 
 const interpretationEnabled = computed(
   () => Boolean(session.value?.interpretation_enabled)
 );
 
-const agentStatusLabel = computed(() => {
-  if (!agentRunning.value) return t('contacts.conference.live.agentStatusOff');
-  if (agentMuted.value) return t('contacts.conference.live.agentStatusMuted');
-  return t('contacts.conference.live.agentStatusOn');
+const canUseInterpretation = computed(
+  () => interpretationEnabled.value && (isHostViewer.value || isRealtimePrimary.value)
+);
+
+const interpretCaption = computed(() => {
+  const line = lastInterpretLine.value;
+  if (!line) return '';
+  return displayTextForViewer(
+    {
+      role: line.role,
+      text: line.original,
+      text_translated: line.translated
+    },
+    {
+      isHostViewer: isHostViewer.value,
+      isPrimaryViewer: isRealtimePrimary.value
+    }
+  );
 });
 
 /** Host (created_by) → host_language; primary → guest_language */
@@ -440,6 +520,8 @@ const myListenLanguage = computed(() => {
 async function onListenLanguageChange(code) {
   const id = resolveConferenceId();
   if (!id || !code || userId.value == null) return;
+  const previousGuestLanguage = session.value?.guest_language;
+  const previousHostLanguage = session.value?.host_language;
   langSaving.value = true;
   try {
     const isHostActor = Number(session.value?.created_by) === Number(userId.value);
@@ -449,7 +531,14 @@ async function onListenLanguageChange(code) {
     const data = await conferenceService.updateLanguages(id, payload);
     if (data.session) {
       session.value = { ...session.value, ...data.session };
+      const languageChanged = previousGuestLanguage !== session.value.guest_language
+        || previousHostLanguage !== session.value.host_language;
+      if (languageChanged && interpretationRunning.value && liveViewActive) {
+        interpretation?.disconnect();
+        await syncInterpretationRuntime();
+      }
     }
+    if (!liveViewActive) return;
     ElMessage.success(t('contacts.conference.live.listenLanguageSaved'));
   } catch (e) {
     ElMessage.error(
@@ -462,43 +551,36 @@ async function onListenLanguageChange(code) {
 
 /** Чат: все роли кроме coach (клиент coach не видит) */
 const visibleChatItems = computed(() =>
-  (transcriptItems.value || []).filter((i) => i.role !== 'host_coach')
+  (transcriptItems.value || []).filter(
+    (i) => i.role !== 'host_coach' && Boolean(displayChatText(i))
+  )
 );
 
 /** Голосовой транскрипт: agent + participant + host (синхрон) */
 const voiceTranscriptItems = computed(() =>
   (transcriptItems.value || []).filter((i) => {
     if (i.role === 'agent' || i.role === 'participant') return true;
+    if (i.role === 'interpret_to_host') return isHostViewer.value;
+    if (i.role === 'interpret_to_primary') return isRealtimePrimary.value;
     return interpretationEnabled.value && i.role === 'host';
   })
 );
-
-const realtimeHint = computed(() => {
-  if (realtimeStatus.value === 'connected') {
-    return t('contacts.conference.live.realtimeConnected');
-  }
-  if (realtimeStatus.value === 'connecting') {
-    return t('contacts.conference.live.realtimeConnecting');
-  }
-  if (isSoloHostRealtime.value) {
-    return t('contacts.conference.live.soloHint');
-  }
-  if (!isRealtimeOwner.value && isEditor.value) {
-    return t('contacts.conference.live.hostWaitingPrimary');
-  }
-  return t('contacts.conference.live.stubBody');
-});
 
 function roleLabel(role) {
   if (role === 'agent') return t('contacts.conference.live.roleAgent');
   if (role === 'host_coach') return t('contacts.conference.live.roleCoach');
   if (role === 'host') return t('contacts.conference.live.roleHost');
+  if (role === 'interpret_to_host') return t('contacts.conference.live.roleParticipant');
+  if (role === 'interpret_to_primary') return t('contacts.conference.live.roleHost');
   if (role === 'participant') return t('contacts.conference.live.roleParticipant');
   return t('contacts.conference.live.roleHost');
 }
 
 function displayChatText(item) {
-  return displayTextForViewer(item, { isHostViewer: isHostViewer.value });
+  return displayTextForViewer(item, {
+    isHostViewer: isHostViewer.value,
+    isPrimaryViewer: isRealtimePrimary.value
+  });
 }
 
 function chatSubtitle(item) {
@@ -508,7 +590,10 @@ function chatSubtitle(item) {
 }
 
 function displayVoiceText(item) {
-  return displayTextForViewer(item, { isHostViewer: isHostViewer.value });
+  return displayTextForViewer(item, {
+    isHostViewer: isHostViewer.value,
+    isPrimaryViewer: isRealtimePrimary.value
+  });
 }
 
 function voiceSubtitle(item) {
@@ -519,10 +604,46 @@ function voiceSubtitle(item) {
 
 function applyLive(data) {
   if (!liveViewActive || !data) return;
+  const previousGuestLanguage = session.value?.guest_language;
+  const previousHostLanguage = session.value?.host_language;
   if (data.session) session.value = data.session;
   if (data.session?.created_by) hostId.value = data.session.created_by;
+  const st = String(data.session?.status || '');
+  if (st === 'ended' || st === 'cancelled') {
+    handleRemoteEnded();
+    return;
+  }
+  if (data.agentEnabled !== undefined) agentEnabled.value = Boolean(data.agentEnabled);
   agentRunning.value = Boolean(data.agentRunning);
   agentMuted.value = Boolean(data.agentMuted);
+  if (data.interpretationRunning !== undefined) {
+    const previous = interpretationRunning.value;
+    interpretationRunning.value = Boolean(data.interpretationRunning);
+    if (
+      previous !== interpretationRunning.value
+      && interpretationLocallyEnabled
+      && !interpretationToggling.value
+    ) {
+      syncInterpretationRuntime().catch(() => {});
+    }
+  }
+  const languageChanged = Boolean(
+    data.session
+    && previousGuestLanguage
+    && previousHostLanguage
+    && (
+      previousGuestLanguage !== data.session.guest_language
+      || previousHostLanguage !== data.session.host_language
+    )
+  );
+  if (
+    languageChanged
+    && interpretationRunning.value
+    && interpretationLocallyEnabled
+  ) {
+    interpretation?.disconnect();
+    syncInterpretationRuntime().catch(() => {});
+  }
   if (Array.isArray(data.coachRules)) {
     coachRules.value = data.coachRules;
   }
@@ -530,18 +651,30 @@ function applyLive(data) {
     transcriptItems.value = data.transcript;
   }
   // Команды Realtime обрабатывает только владелец (primary / solo host)
-  if (isRealtimeOwner.value) {
+  if (canUseAgentRealtime.value) {
     for (const cmd of data.pendingCommands || []) {
-      handleCommand(cmd);
+      commandQueue = commandQueue
+        .then(() => handleCommand(cmd))
+        .catch((error) => {
+          ElMessage.error(
+            error?.response?.data?.error
+            || error?.message
+            || t('contacts.conference.live.realtimeError')
+          );
+        });
     }
   }
 }
 
 async function handleCommand(cmd) {
-  if (!cmd?.type) return;
+  if (!cmd?.type || !liveViewActive) return;
   if (cmd.type === 'start_presentation' || cmd.type === 'coach' || cmd.type === 'mute' || cmd.type === 'unmute') {
     try {
       await ensureRealtime();
+      if (!liveViewActive) {
+        realtime?.disconnect();
+        return;
+      }
     } catch (e) {
       ElMessage.error(e?.response?.data?.error || e?.message || t('contacts.conference.live.realtimeError'));
       return;
@@ -559,7 +692,28 @@ async function handleCommand(cmd) {
   }
 }
 
-async function ensureRealtime() {
+function cloneAudioStream(stream) {
+  const track = stream?.getAudioTracks?.()[0];
+  return track ? new MediaStream([track.clone()]) : null;
+}
+
+async function ensureSharedMic({ allowCapture = false } = {}) {
+  const current = sharedMicStream?.getAudioTracks?.()[0];
+  if (current && current.readyState === 'live') return sharedMicStream;
+  sharedMicStream?.getTracks?.().forEach((track) => track.stop());
+  sharedMicStream = null;
+  if (!allowCapture) return null;
+  sharedMicStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    }
+  });
+  return sharedMicStream;
+}
+
+function getRealtimeController() {
   if (!realtime) {
     realtime = createConferenceRealtimeController({
       onStatus: (s) => {
@@ -575,11 +729,26 @@ async function ensureRealtime() {
       },
       onError: (err) => {
         ElMessage.error(err?.message || t('contacts.conference.live.realtimeError'));
+      },
+      onPlaybackChange: (playing) => {
+        agentPlaybackActive = Boolean(playing);
+        syncModelInputGates();
       }
     });
   }
+  return realtime;
+}
+
+async function ensureRealtime(existingStream = null, { allowCapture = false } = {}) {
+  getRealtimeController();
   if (!realtime.connected) {
-    await realtime.connect(sessionId.value);
+    const source = existingStream
+      || cloneAudioStream(await ensureSharedMic({ allowCapture }));
+    if (!source) {
+      throw new Error(t('contacts.conference.live.videoMicError'));
+    }
+    await realtime.preparePlayback();
+    await realtime.connect(sessionId.value, source);
   }
 }
 
@@ -615,7 +784,7 @@ async function sendChat() {
   const text = chatDraft.value.trim();
   if (!text) return;
   chatDraft.value = '';
-  const role = isEditor.value && !isParticipantRoute.value ? 'host' : 'participant';
+  const role = isConferenceHost.value ? 'host' : 'participant';
   try {
     const data = await conferenceService.appendTranscript(sessionId.value, { role, text });
     if (data.item) {
@@ -626,7 +795,7 @@ async function sendChat() {
     return;
   }
   // В Realtime чат уходит только у владельца Realtime (primary / solo)
-  if (isRealtimeOwner.value && realtime?.connected) {
+  if (canUseAgentRealtime.value && realtime?.connected) {
     realtime.sendEvent({
       type: 'conversation.item.create',
       item: {
@@ -648,7 +817,7 @@ async function sendCoach() {
     coachDraft.value = '';
     applyLive(data);
     // Локальный apply только у владельца Realtime; иначе команда уйдёт primary через poll
-    if (isRealtimeOwner.value && realtime?.connected) {
+    if (canUseAgentRealtime.value && realtime?.connected) {
       realtime.applyCoach(text);
     }
     ElMessage.success(t('contacts.conference.live.coachSaved'));
@@ -663,31 +832,206 @@ function stopLocalMedia() {
   cameraOn.value = false;
   micOn.value = false;
   screenOn.value = false;
+  sharedMicStream?.getTracks?.().forEach((track) => track.stop());
+  sharedMicStream = null;
 }
 
-async function ensureInterpretation() {
-  if (!interpretationEnabled.value || !isHostViewer.value) return;
-  const id = resolveConferenceId();
-  if (!id) return;
+function getInterpretationController() {
   if (!interpretation) {
     interpretation = createConferenceInterpretationController({
-      onStatus: () => {},
+      onStatus: (s) => {
+        interpretStatus.value = s;
+        if (s === 'connected') {
+          interpretReconnectAttempts = 0;
+          lastInterpretErrorMsg = '';
+          return;
+        }
+        if (
+          s === 'disconnected'
+          && interpretationRunning.value
+          && interpretationLocallyEnabled
+          && livekitStatus.value === 'connected'
+          && liveViewActive
+          && !interpretationToggling.value
+        ) {
+          if (interpretReconnectTimer) clearTimeout(interpretReconnectTimer);
+          interpretReconnectTimer = setTimeout(async () => {
+            interpretReconnectTimer = null;
+            if (!interpretationRunning.value || !liveViewActive) return;
+            interpretReconnectAttempts += 1;
+            try {
+              await syncInterpretationRuntime();
+              if (interpretation?.connected) {
+                interpretReconnectAttempts = 0;
+                lastInterpretErrorMsg = '';
+                return;
+              }
+            } catch {
+              /* ниже — тост только после серии неудач */
+            }
+            if (interpretReconnectAttempts >= INTERPRET_RECONNECT_MAX) {
+              ElMessage.error(
+                lastInterpretErrorMsg || t('contacts.conference.live.interpretError')
+              );
+              interpretReconnectAttempts = 0;
+            }
+          }, 1000);
+        }
+      },
       onError: (err) => {
-        ElMessage.error(err?.message || t('contacts.conference.live.interpretError'));
+        lastInterpretErrorMsg =
+          err?.message || t('contacts.conference.live.interpretError');
+        const willAutoReconnect =
+          interpretationRunning.value
+          && interpretationLocallyEnabled
+          && livekitStatus.value === 'connected'
+          && liveViewActive
+          && !interpretationToggling.value;
+        // Краткий обрыв + автопереподключение — без красного тоста.
+        if (!willAutoReconnect) {
+          ElMessage.error(lastInterpretErrorMsg);
+        }
+      },
+      onSessionEnded: () => {
+        handleRemoteEnded();
+      },
+      onStopped: () => {
+        interpretationLocallyEnabled = false;
+        interpretationRunning.value = false;
+        livekit?.setRemoteAudioMuted(false);
       },
       onInterpretLine: (line) => {
+        lastInterpretLine.value = line;
         transcriptItems.value.push({
           _key: `${Date.now()}-${Math.random()}`,
           role: line.role,
           text: line.original,
           text_translated: line.translated || null
         });
+      },
+      onPlaybackChange: (playing) => {
+        interpretationPlaybackActive = Boolean(playing);
+        syncModelInputGates();
       }
     });
   }
+  return interpretation;
+}
+
+async function ensureInterpretation(existingStream = null, { allowCapture = false } = {}) {
+  if (
+    !canUseInterpretation.value
+    || !interpretationRunning.value
+    || !interpretationLocallyEnabled
+  ) {
+    return false;
+  }
+  const id = resolveConferenceId();
+  if (!id) return false;
+  getInterpretationController();
+  if (interpretation.connected) {
+    existingStream?.getTracks?.().forEach((t) => {
+      try {
+        t.stop();
+      } catch {
+        /* ignore */
+      }
+    });
+    return true;
+  }
   if (!interpretation.connected) {
+    const stream = existingStream
+      || cloneAudioStream(await ensureSharedMic({ allowCapture }));
+    if (!stream) return false;
     const sess = await conferenceService.createInterpretationSession(id);
-    await interpretation.connect(id, sess);
+    await interpretation.preparePlayback();
+    await interpretation.connect(id, sess, stream);
+  }
+  return interpretation.connected;
+}
+
+async function syncInterpretationRuntime({ allowCapture = false } = {}) {
+  if (interpretationSyncPromise) return interpretationSyncPromise;
+  interpretationSyncPromise = (async () => {
+    if (!interpretationRunning.value) {
+      interpretationLocallyEnabled = false;
+      interpretation?.disconnect();
+      livekit?.setRemoteAudioMuted(false);
+      return;
+    }
+    if (
+      !interpretationLocallyEnabled
+      || livekitStatus.value !== 'connected'
+      || !canUseInterpretation.value
+    ) {
+      livekit?.setRemoteAudioMuted(false);
+      return;
+    }
+    const connected = await ensureInterpretation(null, { allowCapture });
+    if (!connected) {
+      livekit?.setRemoteAudioMuted(false);
+      return;
+    }
+    livekit?.setRemoteAudioMuted(true);
+    if (micOn.value && livekit?.connected) {
+      await livekit?.setMicrophoneEnabled(false);
+      micOn.value = false;
+    }
+  })();
+  try {
+    await interpretationSyncPromise;
+  } finally {
+    interpretationSyncPromise = null;
+    if (!interpretationRunning.value && interpretation?.connected) {
+      interpretation.disconnect();
+      livekit?.setRemoteAudioMuted(false);
+    }
+  }
+}
+
+async function toggleInterpretation() {
+  const id = resolveConferenceId();
+  if (!id || interpretationToggling.value) return;
+  if (livekitStatus.value !== 'connected') {
+    ElMessage.warning(t('contacts.conference.live.interpretJoinRoomFirst'));
+    return;
+  }
+  interpretationToggling.value = true;
+  try {
+    // Разблокируем звук непосредственно внутри жеста пользователя.
+    // После сетевого await Brave/Samsung может уже запретить запуск AudioContext.
+    if (!interpretationRunning.value || !interpretation?.connected) {
+      await getInterpretationController().preparePlayback();
+    }
+    if (interpretationRunning.value && !interpretation?.connected) {
+      interpretationLocallyEnabled = true;
+      await syncInterpretationRuntime({ allowCapture: true });
+      if (!interpretation?.connected) {
+        throw new Error(t('contacts.conference.live.interpretError'));
+      }
+      ElMessage.success(t('contacts.conference.live.interpretStarted'));
+      return;
+    }
+
+    const stopping = interpretationRunning.value;
+    if (!stopping) interpretationLocallyEnabled = true;
+    const data = stopping
+      ? await conferenceService.stopInterpretation(id)
+      : await conferenceService.startInterpretation(id);
+    if (stopping) interpretationLocallyEnabled = false;
+    applyLive(data);
+    await syncInterpretationRuntime({ allowCapture: !stopping });
+    ElMessage.success(
+      interpretationRunning.value
+        ? t('contacts.conference.live.interpretStarted')
+        : t('contacts.conference.live.interpretStopped')
+    );
+  } catch (e) {
+    ElMessage.error(
+      e?.response?.data?.error || e?.message || t('contacts.conference.live.interpretError')
+    );
+  } finally {
+    interpretationToggling.value = false;
   }
 }
 
@@ -714,40 +1058,35 @@ async function ensureLivekit() {
   if (!livekit.connected) {
     await livekit.connect(sessionId.value);
   }
-  if (interpretationEnabled.value && isHostViewer.value) {
-    try {
-      await ensureInterpretation();
-    } catch (e) {
-      ElMessage.warning(
-        e?.response?.data?.error || e?.message || t('contacts.conference.live.interpretError')
-      );
-    }
-  }
+  livekit.setRemoteAudioMuted(
+    interpretationRunning.value && Boolean(interpretation?.connected)
+  );
 }
 
-async function connectLivekit({ silent = false, withCamera = false } = {}) {
+function cameraErrorMessage(e) {
+  const name = String(e?.name || e?.reason || e?.code || '');
+  if (/NotAllowed|PermissionDenied/i.test(name)) {
+    return t('contacts.conference.live.videoCameraDenied');
+  }
+  if (/NotReadable|TrackStart|DeviceInUse/i.test(name)) {
+    return t('contacts.conference.live.videoCameraBusy');
+  }
+  if (/NotFound|DevicesNotFound/i.test(name)) {
+    return t('contacts.conference.live.videoCameraMissing');
+  }
+  return e?.response?.data?.error || e?.message || t('contacts.conference.live.videoCameraError');
+}
+
+async function connectLivekit({ silent = false } = {}) {
   if (livekit?.connected) {
     if (!silent) ElMessage.success(t('contacts.conference.live.videoRoomReady'));
-    if (withCamera && !cameraOn.value) {
-      await toggleCamera();
-    }
-    return;
+    return true;
   }
   livekitConnecting.value = true;
   try {
     await ensureLivekit();
     if (!silent) ElMessage.success(t('contacts.conference.live.videoRoomReady'));
-    // Жест пользователя (клик «В комнату») — сразу запросить камеру
-    if (withCamera) {
-      try {
-        await livekit.setCameraEnabled(true);
-        cameraOn.value = true;
-      } catch (camErr) {
-        ElMessage.warning(
-          camErr?.message || t('contacts.conference.live.videoCameraError')
-        );
-      }
-    }
+    return true;
   } catch (e) {
     const raw = e?.response?.data?.error || e?.message || '';
     const isPc =
@@ -762,18 +1101,110 @@ async function connectLivekit({ silent = false, withCamera = false } = {}) {
     } else {
       ElMessage.error(msg);
     }
+    return false;
   } finally {
     livekitConnecting.value = false;
   }
 }
 
-/** Клик по «Подключить» — с user gesture включаем камеру. */
+/** Камеру берём в этом же клике, до сети — иначе телефон блокирует доступ. */
+async function enableCameraFromGesture() {
+  const captured = await captureConferenceCameraTrack();
+  attachCapturedPreview(captured, localVideoMount.value);
+  cameraOn.value = true;
+  try {
+    if (screenOn.value && livekit?.connected) {
+      await livekit.setScreenEnabled(false);
+      screenOn.value = false;
+    }
+    await ensureLivekit();
+    const media = captured?.mediaStreamTrack;
+    if (!media || media.readyState !== 'live') {
+      throw new Error(t('contacts.conference.live.videoCameraError'));
+    }
+    await livekit.setCameraEnabled(true, captured);
+  } catch (e) {
+    cameraOn.value = false;
+    try {
+      captured.stop();
+    } catch {
+      /* ignore */
+    }
+    throw e;
+  }
+}
+
+/** Клик по «Подключить» — с user gesture включаем камеру и сразу публикуем. */
 async function onConnectRoomClick() {
   if (livekit?.connected) {
     if (!cameraOn.value) await toggleCamera();
     return;
   }
-  await connectLivekit({ silent: false, withCamera: true });
+  mediaBusy.value = true;
+  let captured = null;
+  try {
+    const media = await captureConferenceMedia({ withAudio: true });
+    captured = media.videoTrack || null;
+    sharedMicStream?.getTracks?.().forEach((track) => track.stop());
+    sharedMicStream = media.audioStream || null;
+
+    if (captured) {
+      attachCapturedPreview(captured, localVideoMount.value);
+      cameraOn.value = true;
+    } else {
+      ElMessage.error(t('contacts.conference.live.videoCameraError'));
+    }
+
+    // Сначала комната + публикация камеры/мика — до Realtime/перевода.
+    // Иначе на Android трек успевает умереть за лишними await.
+    const roomConnected = await connectLivekit({ silent: false });
+    if (!roomConnected) {
+      cameraOn.value = false;
+      return;
+    }
+    if (captured && livekit?.connected) {
+      const mediaTrack = captured.mediaStreamTrack;
+      if (!mediaTrack || mediaTrack.readyState !== 'live') {
+        throw new Error(t('contacts.conference.live.videoCameraError'));
+      }
+      await livekit.setCameraEnabled(true, captured);
+      captured = null;
+    }
+
+    if (sharedMicStream && livekit?.connected) {
+      const micTrack = sharedMicStream.getAudioTracks()[0];
+      if (micTrack && micTrack.readyState === 'live') {
+        try {
+          await livekit.publishMicrophoneTrack(micTrack.clone());
+          micOn.value = true;
+        } catch {
+          /* мик отдельно — камера важнее */
+        }
+      }
+    }
+
+    if (canUseAgentRealtime.value && agentEnabled.value) {
+      await getRealtimeController().preparePlayback();
+    }
+    if (canUseInterpretation.value) {
+      await getInterpretationController().preparePlayback();
+    }
+    if (interpretationRunning.value) {
+      await syncInterpretationRuntime();
+    }
+  } catch (e) {
+    cameraOn.value = false;
+    ElMessage.error(cameraErrorMessage(e));
+  } finally {
+    if (captured) {
+      try {
+        captured.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    mediaBusy.value = false;
+  }
 }
 
 async function toggleMic() {
@@ -781,7 +1212,14 @@ async function toggleMic() {
   try {
     await ensureLivekit();
     const next = !micOn.value;
-    await livekit.setMicrophoneEnabled(next);
+    if (next) {
+      const stream = await ensureSharedMic({ allowCapture: true });
+      const track = stream.getAudioTracks()[0]?.clone();
+      if (!track) throw new Error(t('contacts.conference.live.videoMicError'));
+      await livekit.publishMicrophoneTrack(track);
+    } else {
+      await livekit.setMicrophoneEnabled(false);
+    }
     micOn.value = next;
   } catch (e) {
     ElMessage.error(e?.response?.data?.error || t('contacts.conference.live.videoMicError'));
@@ -793,16 +1231,16 @@ async function toggleMic() {
 async function toggleCamera() {
   mediaBusy.value = true;
   try {
-    await ensureLivekit();
     const next = !cameraOn.value;
-    if (next && screenOn.value) {
-      await livekit.setScreenEnabled(false);
-      screenOn.value = false;
+    if (next) {
+      await enableCameraFromGesture();
+      return;
     }
-    await livekit.setCameraEnabled(next);
-    cameraOn.value = next;
+    await ensureLivekit();
+    await livekit.setCameraEnabled(false);
+    cameraOn.value = false;
   } catch (e) {
-    ElMessage.error(e?.response?.data?.error || t('contacts.conference.live.videoCameraError'));
+    ElMessage.error(cameraErrorMessage(e));
   } finally {
     mediaBusy.value = false;
   }
@@ -842,6 +1280,18 @@ async function exitVideoFullscreen() {
     /* ignore */
   }
   videoFullscreen.value = false;
+}
+
+/** Чат снаружи video-panel: в native fullscreen его не видно — сначала свернуть. */
+async function toggleChatPanel() {
+  if (chatVisible.value) {
+    chatVisible.value = false;
+    return;
+  }
+  if (document.fullscreenElement || videoFullscreen.value) {
+    await exitVideoFullscreen();
+  }
+  chatVisible.value = true;
 }
 
 async function toggleVideoFullscreen() {
@@ -924,16 +1374,21 @@ function stopPtt() {
  * Host шлёт команду primary (владелец Realtime).
  * Локальный Realtime у host — только ?solo=1 (тест в одном браузере).
  */
-async function startAgent() {
+async function startAgent({ silent = false } = {}) {
   agentStarting.value = true;
   try {
     const data = await conferenceService.startAgent(sessionId.value);
+    if (!liveViewActive) return;
     applyLive(data);
-    if (isRealtimeOwner.value) {
-      await ensureRealtime();
+    if (canUseAgentRealtime.value) {
+      await ensureRealtime(null, { allowCapture: true });
+      if (!liveViewActive) {
+        realtime?.disconnect();
+        return;
+      }
       realtime.startPresentation();
-      ElMessage.success(t('contacts.conference.live.agentStarted'));
-    } else {
+      if (!silent) ElMessage.success(t('contacts.conference.live.agentStarted'));
+    } else if (!silent) {
       ElMessage.success(t('contacts.conference.live.agentSignaled'));
     }
   } catch (e) {
@@ -949,7 +1404,7 @@ async function toggleMute() {
   try {
     const data = await conferenceService.muteAgent(sessionId.value, next);
     applyLive(data);
-    if (isRealtimeOwner.value) {
+    if (canUseAgentRealtime.value) {
       realtime?.setMuted(next);
     }
     ElMessage.success(
@@ -959,6 +1414,29 @@ async function toggleMute() {
     ElMessage.error(e?.response?.data?.error || t('contacts.conference.live.muteError'));
   } finally {
     muteSaving.value = false;
+  }
+}
+
+async function confirmCallNotify() {
+  const id = resolveConferenceId();
+  if (!id || !isConferenceHost.value) {
+    ElMessage.warning(t('contacts.conference.live.confirmCallError'));
+    return;
+  }
+  if (confirmNotifying.value) return;
+  confirmNotifying.value = true;
+  try {
+    const data = await conferenceService.confirmNotify(id);
+    const n = Number(data.notified) || 0;
+    if (n > 0) {
+      ElMessage.success(t('contacts.conference.live.confirmCallSent', { count: n }));
+    } else {
+      ElMessage.warning(t('contacts.conference.live.confirmCallNone'));
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.conference.live.confirmCallError'));
+  } finally {
+    confirmNotifying.value = false;
   }
 }
 
@@ -1014,7 +1492,6 @@ function goBack(nav = {}) {
   const name = nav.routeName || route.name;
   const sid = nav.sessionId != null ? nav.sessionId : sessionId.value;
   const contactId = nav.contactId != null ? nav.contactId : route.params.id;
-  const hid = nav.hostId != null ? nav.hostId : hostId.value;
 
   if (name === 'hub-conference-live') {
     if (sid) {
@@ -1025,15 +1502,18 @@ function goBack(nav = {}) {
     return;
   }
   if (name === 'conference-participant-live') {
-    if (hid) {
-      router.push({
-        name: 'admin-chat',
-        params: { adminId: String(hid) },
-        query: sid ? { conference: String(sid) } : {}
-      });
+    // Своя карточка /contacts/:me/conference (не admin-chat host и не чужой контакт)
+    const me = userId.value;
+    if (me != null && me !== '') {
+      router.push({ name: 'contact-conference', params: { id: String(me) } });
       return;
     }
-    router.push({ name: 'personal-messages' });
+    const cid = session.value?.contact_user_id;
+    if (cid != null && cid !== '') {
+      router.push({ name: 'contact-conference', params: { id: String(cid) } });
+      return;
+    }
+    router.push({ name: 'contacts-list' });
     return;
   }
   if (contactId != null && contactId !== '') {
@@ -1054,7 +1534,15 @@ async function leaveRoom() {
   stopLocalMedia();
   livekit?.disconnect();
   realtime?.disconnect();
+  interpretation?.disconnect();
   goBack(nav);
+}
+
+async function handleRemoteEnded() {
+  if (remoteEndedHandled || ending.value || !liveViewActive) return;
+  remoteEndedHandled = true;
+  ElMessage.info(t('contacts.conference.live.endedRemote'));
+  await leaveRoom();
 }
 
 function goAgent() {
@@ -1074,22 +1562,15 @@ onMounted(async () => {
   await load();
   if (!liveViewActive) return;
   pollTimer = setInterval(pollLive, 3000);
-  // LiveKit только по клику «В комнату»: иначе Chrome блокирует AudioContext
-  // (autoplay policy) и сыпятся предупреждения без user gesture.
-  if (isRealtimeOwner.value) {
-    try {
-      await ensureRealtime();
-    } catch (e) {
-      if (!liveViewActive) return;
-      ElMessage.warning(
-        e?.response?.data?.error || t('contacts.conference.live.realtimeReadyHint')
-      );
-    }
-  }
+  // Камера, микрофон, перевод и презентация запускаются только кнопками.
 });
 
 onBeforeUnmount(() => {
   liveViewActive = false;
+  if (interpretReconnectTimer) {
+    clearTimeout(interpretReconnectTimer);
+    interpretReconnectTimer = null;
+  }
   unregisterPageCloseHandler?.();
   document.removeEventListener('fullscreenchange', syncFullscreenState);
   if (document.fullscreenElement && videoPanelRef.value
@@ -1109,45 +1590,27 @@ onBeforeUnmount(() => {
 <style scoped>
 .conference-live.page-with-close {
   position: relative;
-}
-
-.live-alert {
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  /* Шапка ~64px — видео занимает оставшуюся высоту экрана */
+  min-height: calc(100dvh - 72px);
 }
 
 .live-meta h2 {
   margin: 0 0 8px;
 }
 
-.live-id,
-.live-langs {
-  margin-left: 10px;
-  color: var(--color-grey);
-}
-
-.live-lang-pick {
+.live-layout {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin-top: 10px;
-}
-
-.live-lang-label {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-
-.live-lang-hint {
-  color: var(--color-grey);
-  font-size: var(--font-size-sm);
-}
-
-.live-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  flex-direction: column;
   gap: 14px;
-  margin-top: 16px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
 }
 
 .live-panel {
@@ -1155,6 +1618,48 @@ onBeforeUnmount(() => {
   border-radius: var(--block-radius);
   padding: 12px 14px;
   background: var(--color-white);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.chat-panel .chat-compose {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  flex: 0 0 auto;
+}
+
+.chat-panel .chat-compose .el-input {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+
+.chat-panel .chat-log {
+  flex: 0 1 auto;
+  min-height: 100px;
+  max-height: 220px;
+  margin-bottom: 0;
+}
+
+.transcript-panel {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.coach-panel {
+  width: 100%;
+  margin-top: 8px;
+  flex: 0 0 auto;
 }
 
 .live-panel h3 {
@@ -1168,11 +1673,40 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
+  flex: 0 0 auto;
+}
+
+.video-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Чат открыт — видео не растягивается на весь экран и не наезжает на кнопки */
+.video-panel.has-chat-open {
+  flex: 0 1 auto;
+}
+
+.video-panel.has-chat-open .video-stage,
+.video-panel.has-chat-open .video-stage-split {
+  flex: 0 1 auto;
+  min-height: 200px;
+  height: auto;
+}
+
+.video-panel.has-chat-open .video-mount-wrap,
+.video-panel.has-chat-open .video-mount {
+  min-height: 180px;
+  height: 180px;
 }
 
 .video-stage {
   position: relative;
-  min-height: 180px;
+  flex: 1 1 auto;
+  min-height: 42vh;
   border-radius: 6px;
   overflow: hidden;
   background: #1a1f2b;
@@ -1183,16 +1717,19 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   padding: 8px;
-  min-height: 200px;
+  height: 100%;
+  min-height: 42vh;
 }
 
 .video-tile {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
 }
 
 .video-tile-label {
+  flex: 0 0 auto;
   font-size: 0.75rem;
   color: #c0c4cc;
   margin-bottom: 4px;
@@ -1200,8 +1737,9 @@ onBeforeUnmount(() => {
 
 .video-mount-wrap {
   position: relative;
-  flex: 1;
-  min-height: 160px;
+  flex: 1 1 auto;
+  min-height: 280px;
+  height: auto;
   border-radius: 6px;
   overflow: hidden;
   background: #111;
@@ -1210,7 +1748,7 @@ onBeforeUnmount(() => {
 .video-mount {
   width: 100%;
   height: 100%;
-  min-height: 160px;
+  min-height: 280px;
   background: #111;
   position: relative;
   z-index: 1;
@@ -1242,10 +1780,9 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-/* Native Fullscreen: height:100% часто схлопывается до контента → белая пустота.
-   Явно 100dvh + селектор :fullscreen. Без position:fixed (ломает вкладки/Завершить). */
-.video-panel:fullscreen,
-.video-panel.is-fullscreen {
+/* Native Fullscreen: только :fullscreen. Класс .is-fullscreen — для UI-флагов,
+   без height:100dvh (иначе после выхода из FS панель остаётся гигантской и кнопки «пропадают»). */
+.video-panel:fullscreen {
   margin: 0;
   border: none;
   border-radius: 0;
@@ -1264,37 +1801,30 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
-.video-panel:fullscreen .video-stage-split,
-.video-panel.is-fullscreen .video-stage-split {
+.video-panel:fullscreen .video-stage-split {
   flex: 1 1 auto;
   min-height: 0;
   height: auto;
   grid-template-rows: 1fr;
 }
 
-.video-panel:fullscreen .video-mount-wrap,
-.video-panel.is-fullscreen .video-mount-wrap {
+.video-panel:fullscreen .video-mount-wrap {
   min-height: 0;
   height: 100%;
 }
 
-.video-panel:fullscreen .video-mount,
-.video-panel.is-fullscreen .video-mount {
+.video-panel:fullscreen .video-mount {
   min-height: 0;
   height: 100%;
 }
 
-.video-panel:fullscreen .video-mount :deep(video),
-.video-panel.is-fullscreen .video-mount :deep(video) {
+.video-panel:fullscreen .video-mount :deep(video) {
   min-height: 0;
   height: 100%;
   object-fit: contain;
 }
 
-.video-panel:fullscreen .video-note,
-.video-panel.is-fullscreen .video-note,
-.video-panel:fullscreen .video-hint,
-.video-panel.is-fullscreen .video-hint {
+.video-panel:fullscreen .video-hint {
   color: #c0c4cc;
 }
 
@@ -1310,27 +1840,54 @@ onBeforeUnmount(() => {
 }
 
 .video-placeholder.small {
-  min-height: 160px;
+  min-height: 100%;
   font-size: 0.85rem;
 }
 
 .video-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 10px;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.video-lang-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.video-lang-select {
+  width: 180px;
 }
 
 .video-hint {
   margin: 8px 0 0;
   font-size: var(--font-size-xs);
   color: var(--color-warning);
+  flex: 0 0 auto;
 }
 
-.video-note {
-  margin: 8px 0 0;
+.interpret-caption {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.interpret-caption-label {
+  display: block;
+  margin-bottom: 2px;
   font-size: var(--font-size-xs);
-  color: var(--color-text-light);
+  opacity: 0.75;
 }
 
 @media (max-width: 768px) {
@@ -1387,8 +1944,10 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   margin-top: 18px;
+  flex: 0 0 auto;
 }
 
+.live-actions-interpretation,
 .live-actions-agent,
 .live-actions-room {
   display: flex;
@@ -1409,10 +1968,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .live-grid {
-    grid-template-columns: 1fr;
-  }
-
   .live-actions {
     flex-direction: column;
     align-items: stretch;

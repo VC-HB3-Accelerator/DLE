@@ -14,34 +14,34 @@
           <h1 class="hub-title">{{ pageTitle }}</h1>
           <p class="hub-subtitle">{{ pageSubtitle }}</p>
           <nav v-if="!isLive" class="hub-nav">
-            <router-link
-              :to="{ name: 'hub-conferences' }"
-              class="hub-nav-link"
-              :class="{ 'is-active': route.name === 'hub-conferences' }"
-            >
-              {{ t('contacts.conference.nav.rooms') }}
-            </router-link>
-            <router-link
-              :to="{ name: 'hub-conference-schedule' }"
-              class="hub-nav-link"
-              :class="{ 'is-active': isSchedule }"
-            >
-              {{ t('contacts.conference.nav.schedule') }}
-            </router-link>
-            <template v-if="sessionId">
+            <template v-if="isSchedule">
               <router-link
-                :to="{ name: 'hub-conference', params: { sessionId } }"
+                v-if="userId"
+                :to="{ name: 'contact-conference-agent', params: { id: String(userId) } }"
                 class="hub-nav-link"
-                active-class="is-active"
-              >
-                {{ t('contacts.conference.nav.settings') }}
-              </router-link>
-              <router-link
-                :to="{ name: 'hub-conference-agent', params: { sessionId } }"
-                class="hub-nav-link"
-                active-class="is-active"
               >
                 {{ t('contacts.conference.nav.agent') }}
+              </router-link>
+              <router-link :to="{ name: 'hub-conference-schedule' }" class="hub-nav-link is-active">
+                {{ t('contacts.conference.nav.schedule') }}
+              </router-link>
+              <router-link :to="{ name: 'ai-translation-settings' }" class="hub-nav-link">
+                {{ t('contacts.conference.nav.translation') }}
+              </router-link>
+            </template>
+            <template v-else>
+              <router-link
+                :to="{ name: 'hub-conferences' }"
+                class="hub-nav-link"
+                :class="{ 'is-active': route.name === 'hub-conferences' }"
+              >
+                {{ t('contacts.conference.nav.calls') }}
+              </router-link>
+              <router-link :to="{ name: 'hub-conference-schedule' }" class="hub-nav-link">
+                {{ t('contacts.conference.nav.schedule') }}
+              </router-link>
+              <router-link :to="{ name: 'contacts-list' }" class="hub-nav-link">
+                {{ t('contacts.conference.actions.create') }}
               </router-link>
             </template>
           </nav>
@@ -53,116 +53,120 @@
 </template>
 
 <script setup>
-import { computed, provide, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
-import BaseLayout from '@/components/BaseLayout.vue';
-import PageCloseButton from '@/components/PageCloseButton.vue';
+  import { computed, provide, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
+  import { useRoute, useRouter } from 'vue-router';
+  import BaseLayout from '@/components/BaseLayout.vue';
+  import PageCloseButton from '@/components/PageCloseButton.vue';
+  import { useAuthContext } from '@/composables/useAuth';
 
-const { t } = useI18n();
-const route = useRoute();
-const router = useRouter();
+  const { t } = useI18n();
+  const route = useRoute();
+  const router = useRouter();
+  const { userId } = useAuthContext();
 
-const sessionId = computed(() => route.params.sessionId || null);
-const isLive = computed(() => route.name === 'hub-conference-live');
-const isSchedule = computed(() => route.name === 'hub-conference-schedule');
-const pageTitle = computed(() => (
-  isSchedule.value ? t('contacts.conference.schedule.title') : t('contacts.conference.hub.title')
-));
-const pageSubtitle = computed(() => (
-  isSchedule.value ? t('contacts.conference.schedule.subtitle') : t('contacts.conference.hub.subtitle')
-));
+  const sessionId = computed(() => route.params.sessionId || null);
+  const isLive = computed(() => route.name === 'hub-conference-live');
+  const isSchedule = computed(() => route.name === 'hub-conference-schedule');
+  const pageTitle = computed(() =>
+    isSchedule.value ? t('contacts.conference.schedule.title') : t('contacts.conference.hub.title')
+  );
+  const pageSubtitle = computed(() =>
+    isSchedule.value
+      ? t('contacts.conference.schedule.subtitle')
+      : t('contacts.conference.hub.subtitle')
+  );
 
-const pageCloseHandler = ref(null);
-provide('registerPageCloseHandler', (fn) => {
-  pageCloseHandler.value = fn;
-});
-provide('unregisterPageCloseHandler', () => {
-  pageCloseHandler.value = null;
-});
+  const pageCloseHandler = ref(null);
+  provide('registerPageCloseHandler', (fn) => {
+    pageCloseHandler.value = fn;
+  });
+  provide('unregisterPageCloseHandler', () => {
+    pageCloseHandler.value = null;
+  });
 
-function goBack() {
-  if (route.name === 'hub-conferences' || !sessionId.value) {
-    router.push({ name: 'contacts-list' });
-    return;
+  function goBack() {
+    if (route.name === 'hub-conferences' || !sessionId.value) {
+      router.push({ name: 'contacts-list' });
+      return;
+    }
+    router.push({ name: 'hub-conferences' });
   }
-  router.push({ name: 'hub-conferences' });
-}
 
-function handlePageClose() {
-  if (typeof pageCloseHandler.value === 'function') {
-    pageCloseHandler.value();
-    return;
+  function handlePageClose() {
+    if (typeof pageCloseHandler.value === 'function') {
+      pageCloseHandler.value();
+      return;
+    }
+    goBack();
   }
-  goBack();
-}
 </script>
 
 <style scoped>
-.hub-page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px;
-  position: relative;
-}
-
-.hub-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.hub-topbar-left {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.hub-title {
-  margin: 0;
-  font-size: 1.5rem;
-}
-
-.hub-subtitle {
-  margin: 0;
-  color: var(--color-grey);
-  font-size: var(--font-size-sm);
-}
-
-.hub-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.hub-nav-link {
-  padding: 6px 12px;
-  border-radius: var(--block-radius);
-  text-decoration: none;
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-
-.hub-nav-link.is-active {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
-@media (max-width: 768px) {
   .hub-page {
-    padding: 12px;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px;
+    position: relative;
   }
 
   .hub-topbar {
-    flex-direction: column;
-    align-items: stretch;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
   }
-}
 
-/* TZ package C: bp normalized */
+  .hub-topbar-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .hub-title {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+
+  .hub-subtitle {
+    margin: 0;
+    color: var(--color-grey);
+    font-size: var(--font-size-sm);
+  }
+
+  .hub-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .hub-nav-link {
+    padding: 6px 12px;
+    border-radius: var(--block-radius);
+    text-decoration: none;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+  }
+
+  .hub-nav-link.is-active {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  @media (max-width: 768px) {
+    .hub-page {
+      padding: 12px;
+    }
+
+    .hub-topbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  /* TZ package C: bp normalized */
 </style>

@@ -12,6 +12,11 @@ const logger = require('../utils/logger');
 
 /** DashScope intl: HTTP Omni = `qwen3.5-omni-*`; WS = `*-realtime`. Старый MaaS `qwen-audio-3.0-realtime-plus` на новом ключе 404. */
 const QWEN_AUDIO_REALTIME_MODEL = process.env.QWEN_AUDIO_REALTIME_MODEL || 'qwen3.5-omni-flash-realtime';
+const QWEN_INTERPRET_REALTIME_MODELS = Object.freeze([
+  'qwen3.8-livetranslate-flash-realtime',
+  'qwen3.5-livetranslate-flash-realtime'
+]);
+const QWEN_INTERPRET_REALTIME_MODEL = QWEN_INTERPRET_REALTIME_MODELS[0];
 const DEFAULT_TIMEOUT_MS = 90000;
 
 function isQwenRealtimeModelName(modelName) {
@@ -27,6 +32,13 @@ function isVoiceCallRealtimeModel(modelName) {
   if (!n.includes('omni')) return false;
   if (n.includes('livetranslate') || n.includes('asr') || n.includes('tts')) return false;
   return true;
+}
+
+function isInterpretationRealtimeModel(modelName) {
+  const n = String(modelName || '').trim().toLowerCase();
+  return n.startsWith('qwen')
+    && n.includes('livetranslate')
+    && n.endsWith('realtime');
 }
 
 /**
@@ -50,6 +62,81 @@ function realtimeWsUrlFromCompatibleBase(baseUrl, model) {
   }
   const modelQ = encodeURIComponent(String(model || QWEN_AUDIO_REALTIME_MODEL).trim());
   return `wss://${u.host}/api-ws/v1/realtime?model=${modelQ}`;
+}
+
+function checkInterpretationRealtimeModel(settings, model, timeoutMs = 10000) {
+  return new Promise((resolve) => {
+    if (!settings?.api_key || !isInterpretationRealtimeModel(model)) {
+      resolve(false);
+      return;
+    }
+
+    let settled = false;
+    let ws;
+    const finish = (available) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        ws?.close();
+      } catch {
+        /* ignore */
+      }
+      resolve(available);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+
+    try {
+      ws = new WebSocket(realtimeWsUrlFromCompatibleBase(settings.base_url, model), {
+        headers: {
+          Authorization: `Bearer ${settings.api_key}`,
+          'x-dashscope-dataInspection': 'disable'
+        }
+      });
+      ws.on('open', () => {
+        ws.send(JSON.stringify({
+          type: 'session.update',
+          session: {
+            modalities: ['text'],
+            input_audio_format: 'pcm',
+            output_audio_format: 'pcm',
+            translation: { language: 'en' }
+          }
+        }));
+      });
+      ws.on('message', (raw) => {
+        try {
+          const event = JSON.parse(String(raw));
+          if (event.type === 'session.updated') finish(true);
+          if (event.type === 'error') finish(false);
+        } catch {
+          finish(false);
+        }
+      });
+      ws.on('error', () => finish(false));
+      ws.on('close', () => finish(false));
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+async function getAvailableInterpretationRealtimeModels(
+  settings,
+  candidates = QWEN_INTERPRET_REALTIME_MODELS
+) {
+  const modelIds = [...new Set(
+    candidates
+      .map((item) => String(item?.id || item || '').trim())
+      .filter(isInterpretationRealtimeModel)
+  )];
+  const checks = await Promise.all(
+    modelIds.map(async (id) => ({
+      id,
+      available: await checkInterpretationRealtimeModel(settings, id)
+    }))
+  );
+  return checks.filter((item) => item.available).map(({ id }) => ({ id }));
 }
 
 function pcm16leFromWav(wavBuf) {
@@ -228,6 +315,11 @@ function askQwenRealtime({
 
 module.exports = {
   QWEN_AUDIO_REALTIME_MODEL,
+  QWEN_INTERPRET_REALTIME_MODELS,
+  QWEN_INTERPRET_REALTIME_MODEL,
+  isInterpretationRealtimeModel,
+  checkInterpretationRealtimeModel,
+  getAvailableInterpretationRealtimeModels,
   isQwenRealtimeModelName,
   isVoiceCallRealtimeModel,
   realtimeWsUrlFromCompatibleBase,

@@ -64,13 +64,6 @@
         >
           {{ t('contacts.broadcast.button') }}
         </el-button>
-        <el-button
-          v-if="showScheduleCallButton"
-          :disabled="!canStartCall"
-          @click="goToCallCalendar"
-        >
-          {{ t('contacts.callAction') }}
-        </el-button>
         <el-button v-if="canEditContacts" @click="goToSiteParserPage">
           {{ t('contacts.parser.button') }}
         </el-button>
@@ -672,14 +665,23 @@ const ALL_MODE_CHUNK = 100;
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const router = useRouter();
 const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canBroadcast, canChatWithAdmins, canPersonalCalls, canScheduleCalls, canEditData, canEditContacts, canEditPersonalContactFields, canImportContacts, canManageTags } = usePermissions();
+const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
 const usePersonalTags = computed(() => canEditPersonalContactFields.value && !canManageTags.value);
 const showPersonalCallsButton = computed(() =>
-  canPersonalCalls.value && canAccessPath('/personal-calls')
+  canPersonalCalls.value
+  && Boolean(userId.value)
+  && (
+    canAccessPath('/personal-calls')
+    || canAccessPath(`/contacts/${userId.value}/conference`)
+  )
 );
 const showScheduleCallButton = computed(() =>
-  canScheduleCalls.value && canAccessPath('/contacts-list/calls/calendar')
+  canScheduleCalls.value
+  && (
+    canAccessPath('/contacts-list/calls/calendar')
+    || canAccessPath('/contacts/:id/conference')
+  )
 );
-const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
 const { getRoleDisplayName, getRoleClass, fetchRoles } = useRoles();
 const { onTagsUpdate } = useTagsWebSocket();
 const { onTableUpdate } = websocketServiceModule;
@@ -1743,7 +1745,15 @@ function goToPersonalMessages() {
 }
 
 function goToPersonalCalls() {
-  router.push({ name: 'personal-calls' });
+  const id = userId?.value;
+  if (!id) {
+    ElMessage.warning(t('contacts.calls.needAuth'));
+    return;
+  }
+  router.push({
+    name: 'contact-conference',
+    params: { id: String(id) },
+  });
 }
 
 function goToBroadcastPage() {
@@ -1764,7 +1774,7 @@ function goToBroadcastPage() {
   });
 }
 
-/** TZ_CALL_SYSTEM: 1–3 registered → Календарь (не silent create). */
+/** Чекбоксы → календарь звонков контакта (/contacts/:id/conference). */
 function goToCallCalendar() {
   const ids = selectedRegisteredUserIds.value;
   if (!ids.length) {
@@ -1782,9 +1792,12 @@ function goToCallCalendar() {
   if (selectedGuestCount.value > 0) {
     ElMessage.info(t('contacts.conference.bulk.guestsExcluded'));
   }
+  const primaryId = ids[0];
+  const extra = ids.slice(1);
   router.push({
-    name: 'contacts-calls-calendar',
-    query: { ids: ids.join(',') }
+    name: 'contact-conference',
+    params: { id: String(primaryId) },
+    query: extra.length ? { participantIds: extra.join(',') } : {},
   });
 }
 

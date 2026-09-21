@@ -162,8 +162,9 @@ async function fetchSessionById(conferenceId) {
 async function listSessionsForContact(contactUserId, { limit = 20 } = {}) {
   const userId = await assertRegisteredUser(contactUserId);
   const encryptionKey = getEncryptionKey();
-  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
 
+  // Личный календарь: сессии, где пользователь — основной контакт, host или участник.
   const { rows } = await db.getQuery()(
     `SELECT
        s.*,
@@ -172,8 +173,15 @@ async function listSessionsForContact(contactUserId, { limit = 20 } = {}) {
        CASE WHEN s.presentation_outline_encrypted IS NULL OR s.presentation_outline_encrypted = '' THEN NULL
             ELSE decrypt_text(s.presentation_outline_encrypted, $2) END AS presentation_outline
      FROM conference_sessions s
-     WHERE s.contact_user_id = $1
-     ORDER BY s.updated_at DESC
+     WHERE (
+         s.contact_user_id = $1
+         OR s.created_by = $1
+         OR EXISTS (
+           SELECT 1 FROM conference_participants cp
+           WHERE cp.conference_id = s.id AND cp.user_id = $1
+         )
+       )
+     ORDER BY COALESCE(s.scheduled_at, s.updated_at) DESC NULLS LAST
      LIMIT $3`,
     [userId, encryptionKey, safeLimit]
   );
@@ -1085,13 +1093,9 @@ async function listCallCalendarSlots(actorId, { peerIds = [], from, to } = {}) {
     seen.add(id);
     peers.push(await assertRegisteredUser(id));
   }
-  if (!peers.length) {
-    const err = new Error('Выберите хотя бы одного участника');
-    err.status = 400;
-    err.code = 'NO_PEERS';
-    throw err;
-  }
-  if (peers.length > MAX_PARTICIPANTS) {
+  // Своя карточка /contacts/:myId/conference: peer = host → режим solo (только окна host).
+  const solo = !peers.length;
+  if (!solo && peers.length > MAX_PARTICIPANTS) {
     const err = new Error(`Максимум ${MAX_PARTICIPANTS} участника`);
     err.status = 400;
     err.code = 'MULTI_COUNT';
@@ -1109,7 +1113,7 @@ async function listCallCalendarSlots(actorId, { peerIds = [], from, to } = {}) {
     to
   );
 
-  const involved = [hostId, ...peers];
+  const involved = solo ? [hostId] : [hostId, ...peers];
   const { rows } = await db.getQuery()(
     `SELECT DISTINCT s.scheduled_at
      FROM conference_sessions s
@@ -1129,7 +1133,7 @@ async function listCallCalendarSlots(actorId, { peerIds = [], from, to } = {}) {
   const taken = new Set(rows.map((r) => new Date(r.scheduled_at).toISOString()));
 
   return {
-    mode: peers.length === 1 ? 'one_to_one' : 'multi',
+    mode: solo ? 'solo' : peers.length === 1 ? 'one_to_one' : 'multi',
     peer_ids: peers,
     slot_minutes: slotMinutes,
     time_zone: hours.timeZone,

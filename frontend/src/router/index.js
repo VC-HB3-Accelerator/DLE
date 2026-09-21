@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
- * 
+ *
  * This software is proprietary and confidential.
  * Unauthorized copying, modification, or distribution is prohibited.
- * 
+ *
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
  * GitHub: https://github.com/VC-HB3-Accelerator
@@ -22,12 +22,12 @@ import { PERMISSIONS } from './permissions.js';
 import {
   ensureScreenAccessLoaded,
   canAccessPath,
-  syncScreenAccessRole
+  syncScreenAccessRole,
 } from '@/composables/useScreenAccess.js';
 import {
   ensureActionAccessLoaded,
   syncActionAccessRole,
-  hasActionAccess
+  hasActionAccess,
 } from '@/composables/useActionAccess.js';
 import { userId as sessionUserId } from '@/composables/useAuth';
 
@@ -49,7 +49,11 @@ const routes = [
     path: '/blog/feed-settings',
     name: 'blog-feed-settings',
     component: () => import('../views/BlogFeedSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'blog', permissionFallback: 'blog' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'blog',
+      permissionFallback: 'blog',
+    },
   },
   {
     path: '/blog/my-subscriptions',
@@ -89,7 +93,11 @@ const routes = [
         path: 'dle-v2-deploy',
         name: 'settings-dle-v2-deploy',
         component: () => import('../views/settings/DleDeployFormView.vue'),
-        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-security', permissionFallback: 'settings-security' },
+        meta: {
+          permission: PERMISSIONS.MANAGE_SETTINGS,
+          closeFallback: 'settings-security',
+          permissionFallback: 'settings-security',
+        },
       },
       {
         path: 'security/rpc',
@@ -107,7 +115,11 @@ const routes = [
         path: 'security/roles',
         name: 'settings-security-roles',
         component: () => import('../views/settings/UserRolesSettingsView.vue'),
-        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-security', permissionFallback: 'settings-security' },
+        meta: {
+          permission: PERMISSIONS.MANAGE_SETTINGS,
+          closeFallback: 'settings-security',
+          permissionFallback: 'settings-security',
+        },
       },
       {
         path: 'security/roles/messages',
@@ -140,7 +152,11 @@ const routes = [
         path: 'updates',
         name: 'settings-updates',
         component: () => import('@/views/settings/UpdatesSettingsView.vue'),
-        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+        meta: {
+          permission: PERMISSIONS.MANAGE_SETTINGS,
+          closeFallback: 'settings-index',
+          permissionFallback: 'settings-index',
+        },
       },
       {
         path: 'telegram',
@@ -154,38 +170,62 @@ const routes = [
         path: 'sidebar',
         name: 'settings-sidebar',
         component: () => import('@/views/settings/SidebarSettingsView.vue'),
-        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+        meta: {
+          permission: PERMISSIONS.MANAGE_SETTINGS,
+          closeFallback: 'settings-index',
+          permissionFallback: 'settings-index',
+        },
         redirect: { name: 'settings-sidebar-text' },
         children: [
           {
             path: 'text',
             name: 'settings-sidebar-text',
             component: () => import('@/views/settings/SidebarTextSettingsTab.vue'),
-            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+            meta: {
+              permission: PERMISSIONS.MANAGE_SETTINGS,
+              closeFallback: 'settings-index',
+              permissionFallback: 'settings-index',
+            },
           },
           {
             path: 'languages',
             name: 'settings-sidebar-languages',
             component: () => import('@/views/settings/SidebarLanguagesSettingsTab.vue'),
-            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+            meta: {
+              permission: PERMISSIONS.MANAGE_SETTINGS,
+              closeFallback: 'settings-index',
+              permissionFallback: 'settings-index',
+            },
           },
           {
             path: 'auth',
             name: 'settings-sidebar-auth',
             component: () => import('@/views/settings/SidebarAuthMethodsSettingsTab.vue'),
-            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+            meta: {
+              permission: PERMISSIONS.MANAGE_SETTINGS,
+              closeFallback: 'settings-index',
+              permissionFallback: 'settings-index',
+            },
           },
           {
             path: 'buttons',
             name: 'settings-sidebar-buttons',
             component: () => import('@/views/settings/SidebarButtonsSettingsTab.vue'),
-            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+            meta: {
+              permission: PERMISSIONS.MANAGE_SETTINGS,
+              closeFallback: 'settings-index',
+              permissionFallback: 'settings-index',
+            },
           },
           {
             path: 'regions',
             name: 'settings-sidebar-regions',
             component: () => import('@/views/settings/RegionSettingsView.vue'),
-            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-index', permissionFallback: 'settings-index' },
+            meta: {
+              permission: PERMISSIONS.MANAGE_SETTINGS,
+              closeFallback: 'settings-index',
+              permissionFallback: 'settings-index',
+            },
           },
         ],
       },
@@ -197,43 +237,77 @@ const routes = [
         path: 'regions',
         redirect: { name: 'settings-sidebar-regions' },
       },
-    ]
+    ],
   },
   {
     path: '/settings/ai/openai',
     name: 'openai-settings',
     component: () => import('@/views/settings/AI/OpenAISettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/deepseek',
     name: 'deepseek-settings',
     component: () => import('@/views/settings/AI/DeepSeekSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/qwencloud',
     name: 'qwencloud-settings',
     component: () => import('@/views/settings/AI/QwenCloudSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
+  },
+  {
+    path: '/settings/ai/translation',
+    name: 'ai-translation-settings',
+    component: () => import('@/views/settings/AI/AiTranslationSettingsView.vue'),
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/vpn',
     name: 'vpn-settings',
     component: () => import('@/views/settings/AI/VpnSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/ollama',
     name: 'ollama-settings',
     component: () => import('@/views/settings/AI/OllamaSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/security/database',
     name: 'database-settings',
     component: () => import('@/views/settings/AI/DatabaseSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-security', permissionFallback: 'settings-security' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-security',
+      permissionFallback: 'settings-security',
+    },
   },
   {
     path: '/settings/ai/database',
@@ -243,7 +317,11 @@ const routes = [
     path: '/settings/ai/assistant',
     name: 'ai-assistant-settings',
     component: () => import('@/views/settings/AI/AiAssistantSettings.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/agent-access',
@@ -254,52 +332,60 @@ const routes = [
     path: '/settings/ai/voice-call',
     name: 'ai-voice-call-settings',
     component: () => import('@/views/settings/AI/AiVoiceCallSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/rag',
     name: 'ai-rag-settings',
     component: () => import('@/views/settings/AI/AiRagSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/interface/webssh',
     name: 'webssh-settings',
     component: () => import('@/views/settings/Interface/InterfaceWebSshView.vue'),
-    meta: { requiresAuth: true, closeFallback: '/vds?tab=hosting' }
+    meta: { requiresAuth: true, closeFallback: '/vds?tab=hosting' },
   },
   {
     path: '/tables',
     name: 'tables-list',
     meta: { closeFallback: 'crm' },
-    component: () => import('../views/tables/TablesListView.vue')
+    component: () => import('../views/tables/TablesListView.vue'),
   },
   {
     path: '/tables/create',
     name: 'create-table',
     meta: { closeFallback: 'tables-list' },
-    component: () => import('../views/tables/CreateTableView.vue')
+    component: () => import('../views/tables/CreateTableView.vue'),
   },
   {
     path: '/tables/:id',
     name: 'user-table-view',
     meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/TableView.vue'),
-    props: true
+    props: true,
   },
   {
     path: '/tables/:id/edit',
     name: 'edit-table',
     meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/EditTableView.vue'),
-    props: true
+    props: true,
   },
   {
     path: '/tables/:id/delete',
     name: 'delete-table',
     meta: { closeFallback: 'tables-list' },
     component: () => import('../views/tables/DeleteTableView.vue'),
-    props: true
+    props: true,
   },
   {
     path: '/book-call',
@@ -358,6 +444,12 @@ const routes = [
             component: () => import('../views/contacts/ConferenceSettingsView.vue'),
           },
           {
+            path: 'create',
+            name: 'contact-conference-create',
+            meta: { editorOnly: true, closeFallback: 'contact-conference' },
+            component: () => import('../views/contacts/ConferenceCallFormView.vue'),
+          },
+          {
             path: 'agent',
             name: 'contact-conference-agent',
             component: () => import('../views/contacts/ConferenceAgentView.vue'),
@@ -378,7 +470,7 @@ const routes = [
     name: 'contact-delete-confirm',
     component: () => import('../views/contacts/ContactDeleteConfirm.vue'),
     props: true,
-    meta: { permission: PERMISSIONS.DELETE_USER_DATA }
+    meta: { permission: PERMISSIONS.DELETE_USER_DATA },
   },
   {
     path: '/conferences',
@@ -486,19 +578,19 @@ const routes = [
     path: '/admin-chat/:adminId',
     name: 'admin-chat',
     component: () => import('../views/AdminChatView.vue'),
-    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'personal-messages' }
+    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'personal-messages' },
   },
   {
     path: '/personal-messages',
     name: 'personal-messages',
     component: () => import('../views/PersonalMessagesView.vue'),
-    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'crm' }
+    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS, closeFallback: 'crm' },
   },
   {
     path: '/personal-calls',
     name: 'personal-calls',
     component: () => import('../views/PersonalCallsView.vue'),
-    meta: { permission: PERMISSIONS.PERSONAL_CALLS, closeFallback: 'crm' }
+    meta: { permission: PERMISSIONS.PERSONAL_CALLS, closeFallback: 'crm' },
   },
   {
     path: '/contacts-list/calls/calendar',
@@ -506,21 +598,29 @@ const routes = [
     component: () => import('../views/contacts/CallsCalendarView.vue'),
     meta: {
       anyPermission: [PERMISSIONS.SCHEDULE_CALLS],
-      closeFallback: 'contacts-list'
-    }
+      closeFallback: 'contacts-list',
+    },
   },
 
   {
     path: '/settings/ai/telegram',
     name: 'telegram-settings',
     component: () => import('@/views/settings/AI/TelegramSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/settings/ai/email',
     name: 'email-settings',
     component: () => import('@/views/settings/AI/EmailSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'settings-ai', permissionFallback: 'settings-ai' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_SETTINGS,
+      closeFallback: 'settings-ai',
+      permissionFallback: 'settings-ai',
+    },
   },
   {
     path: '/content',
@@ -532,43 +632,71 @@ const routes = [
     path: '/content/moderation',
     name: 'content-moderation',
     component: () => import('../views/content/ModerationQueueView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-list', permissionFallback: 'content-list' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'content-list',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/content/media',
     name: 'content-media',
     component: () => import('../views/content/ContentMediaLibraryView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-list', permissionFallback: 'content-list' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'content-list',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/content/store',
     name: 'content-store',
     component: () => import('../views/content/StoreCatalogEditorView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'crm', permissionFallback: 'crm-store' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'crm',
+      permissionFallback: 'crm-store',
+    },
   },
   {
     path: '/content/store/settings',
     name: 'content-store-settings',
     component: () => import('../views/content/StoreSettingsView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'crm', permissionFallback: 'crm-store' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'crm',
+      permissionFallback: 'crm-store',
+    },
   },
   {
     path: '/content/store/sections',
     name: 'content-store-sections',
     component: () => import('../views/content/StoreSectionsManageView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store', permissionFallback: 'content-list' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'content-store',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/content/store/sections/new',
     name: 'content-store-section-new',
     component: () => import('../views/content/StoreSectionEditView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store-sections', permissionFallback: 'content-list' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'content-store-sections',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/content/store/sections/:id',
     name: 'content-store-section-edit',
     component: () => import('../views/content/StoreSectionEditView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, closeFallback: 'content-store-sections', permissionFallback: 'content-list' },
+    meta: {
+      permission: PERMISSIONS.MANAGE_LEGAL_DOCS,
+      closeFallback: 'content-store-sections',
+      permissionFallback: 'content-list',
+    },
   },
   {
     path: '/content/store/product/new',
@@ -685,13 +813,13 @@ const routes = [
     path: '/management',
     name: 'management',
     meta: { closeFallback: 'home' },
-    component: () => import('../views/ManagementView.vue')
+    component: () => import('../views/ManagementView.vue'),
   },
   {
     path: '/management/dle',
     name: 'management-dle',
     meta: { closeFallback: 'management' },
-    component: () => import('../views/smartcontracts/DleManagementView.vue')
+    component: () => import('../views/smartcontracts/DleManagementView.vue'),
   },
   {
     path: '/management/dle-management',
@@ -701,61 +829,85 @@ const routes = [
     path: '/management/dle-blocks',
     name: 'management-dle-blocks',
     meta: { closeFallback: 'management' },
-    component: () => import('../views/smartcontracts/DleBlocksManagementView.vue')
+    component: () => import('../views/smartcontracts/DleBlocksManagementView.vue'),
   },
   {
     path: '/management/proposals',
     name: 'management-proposals',
     meta: { closeFallback: 'management-dle-blocks' },
-    component: () => import('../views/smartcontracts/DleProposalsView.vue')
+    component: () => import('../views/smartcontracts/DleProposalsView.vue'),
   },
   {
     path: '/management/create-proposal',
     name: 'management-create-proposal',
     meta: { closeFallback: 'management-dle-blocks' },
-    component: () => import('../views/smartcontracts/CreateProposalView.vue')
+    component: () => import('../views/smartcontracts/CreateProposalView.vue'),
   },
   {
     path: '/management/add-module',
     name: 'management-add-module',
     component: () => import('../views/smartcontracts/AddModuleFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+    meta: {
+      permission: PERMISSIONS.GOVERNANCE_PROPOSAL,
+      permissionFallback: 'management-create-proposal',
+      closeFallback: 'management-create-proposal',
+    },
   },
   {
     path: '/management/transfer-tokens',
     name: 'management-transfer-tokens',
     component: () => import('../views/smartcontracts/TransferTokensFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+    meta: {
+      permission: PERMISSIONS.GOVERNANCE_PROPOSAL,
+      permissionFallback: 'management-create-proposal',
+      closeFallback: 'management-create-proposal',
+    },
   },
   {
     path: '/management/dle-core-op',
     name: 'management-dle-core-op',
     component: () => import('../views/smartcontracts/DleCoreOpFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+    meta: {
+      permission: PERMISSIONS.GOVERNANCE_PROPOSAL,
+      permissionFallback: 'management-create-proposal',
+      closeFallback: 'management-create-proposal',
+    },
   },
   {
     path: '/management/remove-module',
     name: 'management-remove-module',
     component: () => import('../views/smartcontracts/RemoveModuleFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+    meta: {
+      permission: PERMISSIONS.GOVERNANCE_PROPOSAL,
+      permissionFallback: 'management-create-proposal',
+      closeFallback: 'management-create-proposal',
+    },
   },
   {
     path: '/management/module-bridge-op',
     name: 'management-module-bridge-op',
     component: () => import('../views/smartcontracts/ModuleBridgeOpFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+    meta: {
+      permission: PERMISSIONS.GOVERNANCE_PROPOSAL,
+      permissionFallback: 'management-create-proposal',
+      closeFallback: 'management-create-proposal',
+    },
   },
   {
     path: '/management/treasury-bridge-op',
     name: 'management-treasury-bridge-op',
     component: () => import('../views/smartcontracts/TreasuryBridgeOpFormView.vue'),
-    meta: { permission: PERMISSIONS.GOVERNANCE_PROPOSAL, permissionFallback: 'management-create-proposal', closeFallback: 'management-create-proposal' },
+    meta: {
+      permission: PERMISSIONS.GOVERNANCE_PROPOSAL,
+      permissionFallback: 'management-create-proposal',
+      closeFallback: 'management-create-proposal',
+    },
   },
   {
     path: '/management/modules',
     name: 'management-modules',
     meta: { closeFallback: 'management-dle-blocks' },
-    component: () => import('../views/smartcontracts/ModulesView.vue')
+    component: () => import('../views/smartcontracts/ModulesView.vue'),
   },
   // {
   //   path: '/management/multisig',
@@ -768,47 +920,54 @@ const routes = [
     path: '/management/analytics',
     name: 'management-analytics',
     meta: { closeFallback: 'management-dle-blocks' },
-    component: () => import('../views/smartcontracts/AnalyticsView.vue')
+    component: () => import('../views/smartcontracts/AnalyticsView.vue'),
   },
   {
     path: '/management/history',
     name: 'management-history',
     meta: { closeFallback: 'management-dle-blocks' },
-    component: () => import('../views/smartcontracts/HistoryView.vue')
+    component: () => import('../views/smartcontracts/HistoryView.vue'),
   },
   {
     path: '/management/settings',
     name: 'management-settings',
     meta: { closeFallback: 'management-dle-blocks' },
-    component: () => import('../views/smartcontracts/SettingsView.vue')
+    component: () => import('../views/smartcontracts/SettingsView.vue'),
   },
   {
     path: '/vds',
     name: 'vds-management',
     component: () => import('../views/VdsManagementView.vue'),
-    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'management' }
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, closeFallback: 'management' },
   },
   {
     path: '/connect-wallet',
     name: 'connect-wallet',
-    component: () => import('../views/ConnectWalletView.vue')
+    component: () => import('../views/ConnectWalletView.vue'),
+  },
+  {
+    path: '/conference',
+    component: () => import('../views/contacts/ConferenceParticipantLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: 'live/:sessionId',
+        name: 'conference-participant-live',
+        component: () => import('../views/contacts/ConferenceLiveView.vue'),
+        meta: { requiresAuth: true, closeFallback: 'contacts-list' },
+      },
+    ],
   },
   {
     path: '/conference/join',
     name: 'conference-join',
-    component: () => import('../views/ConferenceJoinView.vue')
-  },
-  {
-    path: '/conference/live/:sessionId',
-    name: 'conference-participant-live',
-    component: () => import('../views/contacts/ConferenceLiveView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/ConferenceJoinView.vue'),
   },
   {
     path: '/groups',
     name: 'groups',
     meta: { closeFallback: 'crm' },
-    component: () => import('../views/groups/GroupsView.vue')
+    component: () => import('../views/groups/GroupsView.vue'),
   },
 ];
 
@@ -823,12 +982,14 @@ function isOwnContactScreen(to, meOverride) {
   if (me == null || id == null || id === 'new') return false;
   if (String(id).startsWith('guest_')) return false;
   if (String(id) !== String(me)) return false;
-  return to.name === 'contact-details'
-    || to.name === 'contact-profile'
-    || to.name === 'contact-orders'
-    || to.name === 'contact-cart'
-    || to.name === 'contact-conference'
-    || to.name === 'contact-conference-live';
+  return (
+    to.name === 'contact-details' ||
+    to.name === 'contact-profile' ||
+    to.name === 'contact-orders' ||
+    to.name === 'contact-cart' ||
+    to.name === 'contact-conference' ||
+    to.name === 'contact-conference-live'
+  );
 }
 
 /** Главная `/` — только для гостя; вошедший → своя карточка. */
@@ -862,7 +1023,13 @@ router.beforeEach(async (to, from, next) => {
     await ensureActionAccessLoaded();
     // Маршруты с permission (admin-chat и т.п.) сначала синхронизируют роль ниже —
     // иначе устаревший кэш матрицы режет /admin-chat/:id до syncScreenAccessRole.
-    if (!canAccessPath(to.path) && !requiredPermission && !anyPermission && !requiresAuth && !editorOnly) {
+    if (
+      !canAccessPath(to.path) &&
+      !requiredPermission &&
+      !anyPermission &&
+      !requiresAuth &&
+      !editorOnly
+    ) {
       console.log('[Router] Экран скрыт матрицей ролей:', to.path);
       if (isOwnContactScreen(to, sessionUserId?.value)) {
         return next();
@@ -966,11 +1133,14 @@ router.beforeEach(async (to, from, next) => {
     if (!permissionOk) {
       const level = userAccessLevel?.level;
       const governanceFallback =
-        requiredPermission === PERMISSIONS.GOVERNANCE_PROPOSAL
-        && userAccessLevel?.hasAccess
-        && (level === 'readonly' || level === 'editor');
+        requiredPermission === PERMISSIONS.GOVERNANCE_PROPOSAL &&
+        userAccessLevel?.hasAccess &&
+        (level === 'readonly' || level === 'editor');
       if (!governanceFallback) {
-        console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права`, anyPermission || requiredPermission);
+        console.log(
+          `[Router] Доступ запрещен: роль ${userRole} не имеет права`,
+          anyPermission || requiredPermission
+        );
         if (to.meta?.permissionFallback) {
           return next({ name: to.meta.permissionFallback });
         }

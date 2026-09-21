@@ -19,8 +19,12 @@ const {
   QWEN_AUDIO_REALTIME_MODEL
 } = require('./qwenRealtimeService');
 
-/** runtime state: conferenceId → { agentRunning, agentMuted, pendingCommands[] } */
+/**
+ * runtime state: conferenceId →
+ * { agentRunning, agentMuted, interpretationRunning, pendingCommands[] }
+ */
 const liveState = new Map();
+const closedConferences = new Set();
 
 function getEncryptionKey() {
   const encryptionUtils = require('../utils/encryptionUtils');
@@ -33,6 +37,7 @@ function getState(conferenceId) {
     liveState.set(id, {
       agentRunning: false,
       agentMuted: false,
+      interpretationRunning: false,
       pendingCommands: []
     });
   }
@@ -171,7 +176,14 @@ async function listTranscript(conferenceId, { includeCoach = false } = {}) {
 }
 
 async function appendTranscript(conferenceId, role, text, { translatedText = null } = {}) {
-  const allowed = new Set(['participant', 'agent', 'host_coach', 'host']);
+  const allowed = new Set([
+    'participant',
+    'agent',
+    'host_coach',
+    'host',
+    'interpret_to_host',
+    'interpret_to_primary'
+  ]);
   if (!allowed.has(role)) {
     const err = new Error('Некорректная роль транскрипта');
     err.status = 400;
@@ -415,18 +427,41 @@ async function createRealtimeSession(conferenceId, actorId) {
   }
 
   const resolved = await resolveRealtimeProvider(settings);
-  const confWithActor = { ...conf, _actorId: uid };
+  const actorLanguage = isHost
+    ? (conf.host_language || 'ru')
+    : (conf.guest_language || 'en');
+  const confWithActor = {
+    ...conf,
+    _actorId: uid,
+    _agentLanguage: actorLanguage,
+    _agentRole: isHost ? 'host' : 'participant'
+  };
 
-  if (resolved.mode === 'qwen_ws') {
-    return createQwenRealtimeSession(confWithActor, resolved);
+  const result = resolved.mode === 'qwen_ws'
+    ? await createQwenRealtimeSession(confWithActor, resolved)
+    : await createOpenAiRealtimeSession(confWithActor, settings, resolved.provider);
+  if (closedConferences.has(Number(conferenceId))) {
+    const err = new Error('Конференция уже завершена');
+    err.status = 400;
+    err.code = 'CONFERENCE_ENDED';
+    throw err;
   }
-  return createOpenAiRealtimeSession(conf, settings, resolved.provider);
+  require('./conferenceMediaProxy').openConferenceMedia(conferenceId);
+  return result;
 }
 
-async function createInterpretationHostSession(conferenceId, actorId) {
+async function createInterpretationSession(conferenceId, actorId) {
   const { session: conf, isHost } = await assertConferenceMember(conferenceId, actorId);
-  if (!isHost) {
-    const err = new Error('Синхрон доступен только редактору');
+  if (!['draft', 'scheduled', 'live'].includes(conf.status)) {
+    const err = new Error('Конференция не активна');
+    err.status = 400;
+    err.code = 'CONFERENCE_ENDED';
+    throw err;
+  }
+  const uid = Number(actorId);
+  const isPrimary = Number(conf.contact_user_id) === uid;
+  if (!isHost && !isPrimary) {
+    const err = new Error('Синхрон доступен редактору и основному участнику');
     err.status = 403;
     throw err;
   }
@@ -436,14 +471,27 @@ async function createInterpretationHostSession(conferenceId, actorId) {
     err.code = 'INTERPRETATION_DISABLED';
     throw err;
   }
-  const ticket = conferenceRealtimeTicketService.issueTicket(conferenceId, actorId, 'host');
+  if (!getState(conferenceId).interpretationRunning) {
+    const err = new Error('Лайв-перевод не запущен');
+    err.status = 400;
+    err.code = 'INTERPRETATION_NOT_RUNNING';
+    throw err;
+  }
+  const role = isHost ? 'host' : 'primary';
+  const ticket = conferenceRealtimeTicketService.issueTicket(conferenceId, actorId, role);
   return {
-    mode: 'interpret_host_ws',
+    mode: role === 'host' ? 'interpret_host_ws' : 'interpret_primary_ws',
+    role,
     ws_path: `/ws?conference_interpret_ticket=${encodeURIComponent(ticket)}`,
     guest_language: conf.guest_language,
     host_language: conf.host_language,
     conference_id: conf.id
   };
+}
+
+/** @deprecated имя; используйте createInterpretationSession */
+async function createInterpretationHostSession(conferenceId, actorId) {
+  return createInterpretationSession(conferenceId, actorId);
 }
 
 /** @deprecated используйте createRealtimeSession */
@@ -453,6 +501,13 @@ async function createRealtimeClientSecret(conferenceId, actorId) {
 
 async function startAgent(conferenceId, actorId) {
   await assertConferenceMember(conferenceId, actorId);
+  const settings = await conferenceAiAgentService.getSettings();
+  if (!settings.enabled) {
+    const err = new Error('ИИ-агент конференции выключен в настройках');
+    err.status = 400;
+    err.code = 'AGENT_DISABLED';
+    throw err;
+  }
   const state = getState(conferenceId);
   state.agentRunning = true;
   state.agentMuted = false;
@@ -460,7 +515,10 @@ async function startAgent(conferenceId, actorId) {
     type: 'start_presentation',
     text: 'Начните аудио-презентацию для клиента по outline и RAG. Говорите на guest_language.'
   });
-  return getLiveSnapshot(conferenceId, { includeCoach: true });
+  return getLiveSnapshot(conferenceId, {
+    includeCoach: true,
+    actorId
+  });
 }
 
 async function setAgentMuted(conferenceId, muted, actorId) {
@@ -470,11 +528,77 @@ async function setAgentMuted(conferenceId, muted, actorId) {
   pushCommand(conferenceId, {
     type: muted ? 'mute' : 'unmute'
   });
-  return getLiveSnapshot(conferenceId, { includeCoach: true });
+  return getLiveSnapshot(conferenceId, {
+    includeCoach: true,
+    actorId
+  });
+}
+
+async function setInterpretationRunning(conferenceId, running, actorId) {
+  const { session: conf, isHost } = await assertConferenceMember(conferenceId, actorId);
+  const uid = Number(actorId);
+  const isPrimary = Number(conf.contact_user_id) === uid;
+  if (!isHost && !isPrimary) {
+    const err = new Error('Лайв-перевод доступен редактору и основному участнику');
+    err.status = 403;
+    err.code = 'INTERPRETATION_PRIMARY_ONLY';
+    throw err;
+  }
+  if (running && !['draft', 'scheduled', 'live'].includes(conf.status)) {
+    const err = new Error('Конференция не активна');
+    err.status = 400;
+    err.code = 'CONFERENCE_ENDED';
+    throw err;
+  }
+  if (running && !conf.interpretation_enabled) {
+    const err = new Error('Лайв-перевод выключен в настройках конференции');
+    err.status = 400;
+    err.code = 'INTERPRETATION_DISABLED';
+    throw err;
+  }
+  if (running) {
+    const qwen = await aiProviderSettingsService.getProviderSettings('qwencloud');
+    if (!qwen?.api_key || !qwen?.base_url) {
+      const err = new Error('Для лайв-перевода настройте ключ и Base URL Qwen Cloud');
+      err.status = 400;
+      err.code = 'QWENCLOUD_INTERPRETATION_NOT_CONFIGURED';
+      throw err;
+    }
+    if (closedConferences.has(Number(conferenceId))) {
+      const err = new Error('Конференция уже завершена');
+      err.status = 400;
+      err.code = 'CONFERENCE_ENDED';
+      throw err;
+    }
+    require('./conferenceInterpretationHub').openRoom(conferenceId);
+  }
+  const state = getState(conferenceId);
+  state.interpretationRunning = Boolean(running);
+  return getLiveSnapshot(conferenceId, {
+    includeCoach: isHost,
+    actorId
+  });
+}
+
+function clearLiveState(conferenceId) {
+  liveState.delete(Number(conferenceId));
+}
+
+function markConferenceClosed(conferenceId) {
+  const id = Number(conferenceId);
+  closedConferences.add(id);
+}
+
+function unmarkConferenceClosed(conferenceId) {
+  closedConferences.delete(Number(conferenceId));
+}
+
+function isInterpretationRunning(conferenceId) {
+  return getState(conferenceId).interpretationRunning;
 }
 
 async function searchCompanyDocs(conferenceId, query, actorId) {
-  const { session: conf } = await assertConferenceMember(conferenceId, actorId);
+  await assertConferenceMember(conferenceId, actorId);
   const settings = await conferenceAiAgentService.getSettings();
   const q = String(query || '').trim();
   if (!q) {
@@ -588,17 +712,33 @@ async function getLiveSnapshot(
     }
   }
 
-  const [coachRules, transcript] = await Promise.all([
+  const [coachRules, transcript, settings] = await Promise.all([
     includeCoach ? listCoachRules(conferenceId) : Promise.resolve([]),
-    listTranscript(conferenceId, { includeCoach })
+    listTranscript(conferenceId, { includeCoach }),
+    conferenceAiAgentService.getSettings()
   ]);
+
+  let visibleTranscript = transcript;
+  if (actorId != null) {
+    const uid = Number(actorId);
+    const { session: conf } = await conferenceService.getSession(Number(conferenceId));
+    const isHostViewer = conf && Number(conf.created_by) === uid;
+    const isPrimaryViewer = conf && Number(conf.contact_user_id) === uid;
+    visibleTranscript = transcript.filter((item) => {
+      if (item.role === 'interpret_to_host') return isHostViewer;
+      if (item.role === 'interpret_to_primary') return isPrimaryViewer;
+      return true;
+    });
+  }
 
   return {
     agentRunning: state.agentRunning,
     agentMuted: state.agentMuted,
+    agentEnabled: Boolean(settings.enabled),
+    interpretationRunning: state.interpretationRunning,
     pendingCommands: commands,
     coachRules: includeCoach ? coachRules : [],
-    transcript
+    transcript: visibleTranscript
   };
 }
 
@@ -611,11 +751,17 @@ module.exports = {
   buildAgentInstructions,
   resolveRealtimeProvider,
   createRealtimeSession,
+  createInterpretationSession,
   createInterpretationHostSession,
   createRealtimeClientSecret,
   startAgent,
   setAgentMuted,
+  setInterpretationRunning,
+  isInterpretationRunning,
   searchCompanyDocs,
   getLiveSnapshot,
-  drainCommands
+  drainCommands,
+  clearLiveState,
+  markConferenceClosed,
+  unmarkConferenceClosed
 };

@@ -6,7 +6,10 @@
  * Держать в sync с backend/utils/conferenceInterpretDisplay.js
  */
 
-export function displayTextForViewer(item, { isHostViewer = false } = {}) {
+export function displayTextForViewer(
+  item,
+  { isHostViewer = false, isPrimaryViewer = false } = {}
+) {
   if (!item) return '';
   const role = item.role;
   const original = item.text || '';
@@ -20,6 +23,12 @@ export function displayTextForViewer(item, { isHostViewer = false } = {}) {
   }
   if (role === 'agent') {
     return isHostViewer ? (translated || original) : original;
+  }
+  if (role === 'interpret_to_host') {
+    return isHostViewer ? original : '';
+  }
+  if (role === 'interpret_to_primary') {
+    return isPrimaryViewer ? original : '';
   }
   return original;
 }

@@ -340,6 +340,7 @@ async function getAllLLMModels() {
     const allModels = [];
     
     for (const provider of providers) {
+      if (provider.provider === 'qwencloud_interpretation') continue;
       if (provider.selected_model) {
         // Фильтруем embedding модели - они не должны быть в списке LLM
         const modelName = provider.selected_model.toLowerCase();

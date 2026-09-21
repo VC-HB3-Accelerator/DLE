@@ -129,7 +129,7 @@ async function saveSchedule(payload = {}) {
   };
 }
 
-async function bookSlot(owner, startsAt, { pageId = null } = {}) {
+async function bookSlot(owner, startsAt, { pageId = null, title = null, notes = null } = {}) {
   await ensureVoiceCallSchema();
   if (owner.ownerType !== 'user') {
     const err = new Error('Чтобы записаться, войдите в аккаунт');
@@ -161,20 +161,32 @@ async function bookSlot(owner, startsAt, { pageId = null } = {}) {
     throw err;
   }
 
-  let conferenceTitle = 'Запись на звонок с сотрудником';
+  let conferenceTitle = String(title || '').trim() || 'Запись на звонок с сотрудником';
   let listingMeta = null;
   const listingPageId = Number(pageId);
   if (Number.isInteger(listingPageId) && listingPageId > 0) {
     try {
       const listingContactService = require('./listingContactService');
       listingMeta = await listingContactService.resolvePageMeta(listingPageId);
-      if (listingMeta) {
+      if (listingMeta && !String(title || '').trim()) {
         conferenceTitle = `Звонок по объявлению: ${listingMeta.title}`;
       }
     } catch (_) {
       /* ignore */
     }
   }
+
+  const customNotes = String(notes || '').trim();
+  const listingNotes = listingMeta
+    ? [
+        `Объявление: ${listingMeta.title}`,
+        `Ссылка: ${listingMeta.url}`,
+        listingMeta.owner_user_id ? `ID автора: ${listingMeta.owner_user_id}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : '';
+  const sessionNotes = [customNotes, listingNotes].filter(Boolean).join('\n\n') || undefined;
 
   const id = crypto.randomUUID();
   try {
@@ -198,15 +210,7 @@ async function bookSlot(owner, startsAt, { pageId = null } = {}) {
     {
       create_new: true,
       title: conferenceTitle,
-      notes: listingMeta
-        ? [
-            `Объявление: ${listingMeta.title}`,
-            `Ссылка: ${listingMeta.url}`,
-            listingMeta.owner_user_id ? `ID автора: ${listingMeta.owner_user_id}` : null,
-          ]
-            .filter(Boolean)
-            .join('\n')
-        : undefined,
+      notes: sessionNotes,
       scheduled_at: start.toISOString(),
       schedule: true,
       notify_email: true,

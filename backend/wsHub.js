@@ -76,10 +76,10 @@ function initWSS(server) {
 
       const interpretTicket = new URL(req.url || '', 'http://localhost').searchParams.get('conference_interpret_ticket');
       if (interpretTicket) {
-        const { handleInterpretationHostSocket } = require('./services/conferenceInterpretationMediaProxy');
+        const { handleInterpretationSocket } = require('./services/conferenceInterpretationMediaProxy');
         logger.info(`[WebSocket] interpret ticket=${String(interpretTicket).slice(0, 8)}`);
-        handleInterpretationHostSocket(ws, interpretTicket).catch((error) => {
-          logger.warn('[WebSocket] interpret host:', error.message);
+        handleInterpretationSocket(ws, interpretTicket).catch((error) => {
+          logger.warn('[WebSocket] interpret:', error.message);
           try { ws.close(); } catch (_) { /* ignore */ }
         });
         return;

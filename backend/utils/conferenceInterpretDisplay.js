@@ -5,7 +5,10 @@
  * Текст транскрипта на языке зрителя (host vs participant).
  */
 
-function displayTextForViewer(item, { isHostViewer = false } = {}) {
+function displayTextForViewer(
+  item,
+  { isHostViewer = false, isPrimaryViewer = false } = {}
+) {
   if (!item) return '';
   const role = item.role;
   const original = item.text || '';
@@ -19,6 +22,12 @@ function displayTextForViewer(item, { isHostViewer = false } = {}) {
   }
   if (role === 'agent') {
     return isHostViewer ? (translated || original) : original;
+  }
+  if (role === 'interpret_to_host') {
+    return isHostViewer ? original : '';
+  }
+  if (role === 'interpret_to_primary') {
+    return isPrimaryViewer ? original : '';
   }
   return original;
 }

@@ -518,12 +518,112 @@ async function notifyMultiParticipants(conferenceId) {
   };
 }
 
+/**
+ * Live: host жмёт «Подтвердить» — короткое уведомление в личку участникам (согласие/приглашение войти).
+ */
+async function notifyCallConfirm(conferenceId, actorId) {
+  const sessionData = await conferenceService.getSession(conferenceId);
+  const conf = sessionData.session;
+  if (!conf) {
+    const err = new Error('Конференция не найдена');
+    err.status = 404;
+    throw err;
+  }
+
+  const hostId = Number(conf.created_by);
+  const actor = Number(actorId);
+  if (!hostId || hostId !== actor) {
+    const err = new Error('Подтвердить звонок может только ведущий');
+    err.status = 403;
+    err.code = 'HOST_ONLY';
+    throw err;
+  }
+
+  const recipientIds = new Set();
+  if (conf.contact_user_id && Number(conf.contact_user_id) !== hostId) {
+    recipientIds.add(Number(conf.contact_user_id));
+  }
+  const { rows: parts } = await db.getQuery()(
+    `SELECT user_id FROM conference_participants
+     WHERE conference_id = $1 AND role = 'participant'`,
+    [conf.id]
+  );
+  for (const row of parts) {
+    const uid = Number(row.user_id);
+    if (uid && uid !== hostId) recipientIds.add(uid);
+  }
+
+  if (!recipientIds.size) {
+    const err = new Error('Нет участников для уведомления');
+    err.status = 400;
+    err.code = 'NO_RECIPIENTS';
+    throw err;
+  }
+
+  const conversationService = require('./conversationService');
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+  const title = conf.title || `Конференция #${conf.id}`;
+  const results = [];
+
+  for (const userId of recipientIds) {
+    const item = { userId, inbox: false, linkUrl: null, errors: [] };
+    try {
+      const created = await createMagicLink(conf.id, { userId });
+      item.linkUrl = created.linkUrl;
+      const conversation = await conversationService.getOrCreatePrivateConversation(hostId, userId);
+      const inboxText =
+        `Звонок подтверждён: «${title}».\n` +
+        `Подключайтесь к комнате по ссылке или через «Личные сообщения» → Старт:\n${created.linkUrl}`;
+
+      await db.getQuery()(
+        `INSERT INTO messages (
+           conversation_id, sender_id,
+           sender_type_encrypted, content_encrypted, channel_encrypted,
+           role_encrypted, direction_encrypted,
+           message_type, user_id, role, direction, created_at
+         ) VALUES (
+           $1, $2,
+           encrypt_text('editor', $5),
+           encrypt_text($3, $5),
+           encrypt_text('web', $5),
+           encrypt_text('editor', $5),
+           encrypt_text('outgoing', $5),
+           'admin_chat', $4, 'editor', 'outgoing', NOW()
+         )`,
+        [conversation.id, hostId, inboxText, userId, encryptionKey]
+      );
+      await conversationService.touchConversation(conversation.id);
+      item.inbox = true;
+    } catch (e) {
+      item.errors.push(e.message || String(e));
+      logger.error(`[conferenceMagicLink] confirm-notify user=${userId}:`, e);
+    }
+    results.push(item);
+  }
+
+  try {
+    const { broadcastConferenceInvitesUpdate, broadcastMessagesUpdate } = require('../wsHub');
+    broadcastConferenceInvitesUpdate();
+    broadcastMessagesUpdate?.();
+  } catch {
+    /* ignore */
+  }
+
+  return {
+    conferenceId: conf.id,
+    notified: results.filter((r) => r.inbox).length,
+    results
+  };
+}
+
 module.exports = {
   DEFAULT_TTL_HOURS,
   createMagicLink,
   sendMagicLinkEmail,
   sendMagicLinkNotifications,
   notifyMultiParticipants,
+  notifyCallConfirm,
   consumeMagicLink,
   hashToken,
   buildJoinUrl
