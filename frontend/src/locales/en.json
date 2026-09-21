@@ -2589,6 +2589,7 @@
         "emptyDay": "There are no available slots on this day.",
         "scheduledDay": "Scheduled calls",
         "viewLabel": "View",
+        "today": "Today",
         "busySlot": "Busy",
         "freeSlot": "Available",
         "selectedSlot": "Selected",

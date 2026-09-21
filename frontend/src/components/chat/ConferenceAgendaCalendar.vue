@@ -19,6 +19,29 @@
           {{ opt.label }}
         </option>
       </select>
+      <div class="agenda-cal__nav">
+        <div class="agenda-cal__nav-group">
+          <button
+            type="button"
+            class="agenda-cal__nav-btn"
+            :aria-label="t('common.prev')"
+            @click="goPrev"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            class="agenda-cal__nav-btn"
+            :aria-label="t('common.next')"
+            @click="goNext"
+          >
+            ›
+          </button>
+        </div>
+        <button type="button" class="agenda-cal__nav-btn agenda-cal__nav-btn--today" @click="goToday">
+          {{ t('contacts.conference.calendar.today') }}
+        </button>
+      </div>
     </div>
     <p v-if="hourBandMode" class="agenda-cal__hint">
       {{ t('contacts.conference.calendar.hourBandHint', { minutes: slotStep }) }}
@@ -100,13 +123,7 @@
   const slotPickerOptions = ref([]);
   const slotPickerHourStart = ref(null);
 
-  const ALLOWED_BASE = [
-    'timeGridDay',
-    'timeGridWeek',
-    'timeGridSevenDay',
-    'dayGridMonth',
-    'multiMonthYear',
-  ];
+  const ALLOWED_BASE = ['timeGridDay', 'timeGridWeek', 'dayGridMonth', 'multiMonthYear'];
 
   const slotStep = computed(() => Math.max(10, Number(props.slotMinutes) || 30));
 
@@ -125,7 +142,6 @@
     const opts = [
       { value: 'timeGridDay', label: t('contacts.conference.calendar.views.day') },
       { value: 'timeGridWeek', label: t('contacts.conference.calendar.views.week') },
-      { value: 'timeGridSevenDay', label: t('contacts.conference.calendar.views.sevenDay') },
       { value: 'dayGridMonth', label: t('contacts.conference.calendar.views.month') },
       { value: 'multiMonthYear', label: t('contacts.conference.calendar.views.year') },
     ];
@@ -182,6 +198,7 @@
 
   function normalizeViewType(type) {
     if (allowedViews.value.has(type)) return type;
+    if (type === 'timeGridSevenDay') return 'timeGridWeek';
     if (type === 'dayGridDay' || type === 'listDay') return 'timeGridDay';
     if (type === 'listWeek' && !props.showScheduleView) return DEFAULT_VIEW;
     return DEFAULT_VIEW;
@@ -413,6 +430,18 @@
     }
   }
 
+  function goPrev() {
+    getApi()?.prev();
+  }
+
+  function goNext() {
+    getApi()?.next();
+  }
+
+  function goToday() {
+    getApi()?.today();
+  }
+
   function openDayView(dateInput) {
     keepSelectionOnce.value = true;
     currentView.value = 'timeGridDay';
@@ -513,7 +542,7 @@
     plugins: [dayGridPlugin, timeGridPlugin, listPlugin, multiMonthPlugin, interactionPlugin],
     initialView: DEFAULT_VIEW,
     headerToolbar: {
-      left: 'prev,next today',
+      left: props.hideToolbar ? 'prev,next today' : '',
       center: 'title',
       right: '',
     },
@@ -540,11 +569,6 @@
     businessHours: businessHoursOption.value,
     events: calendarEvents.value,
     views: {
-      timeGridSevenDay: {
-        type: 'timeGrid',
-        duration: { days: 7 },
-        buttonText: '7',
-      },
       listWeek: {
         type: 'list',
         duration: { days: 7 },
@@ -660,8 +684,15 @@
   }
 
   .agenda-cal__view-label {
-    font-size: 0.9rem;
-    color: var(--color-grey, #666);
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .agenda-cal__view-select {
@@ -672,6 +703,46 @@
     background: var(--color-surface, #fff);
     color: inherit;
     font: inherit;
+  }
+
+  .agenda-cal__nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .agenda-cal__nav-group {
+    display: inline-flex;
+  }
+
+  .agenda-cal__nav-btn {
+    min-width: 36px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border, #d0d5dd);
+    background: var(--color-surface, #fff);
+    color: inherit;
+    font: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .agenda-cal__nav-group .agenda-cal__nav-btn:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+
+  .agenda-cal__nav-group .agenda-cal__nav-btn:last-child {
+    border-radius: 0 6px 6px 0;
+    margin-left: -1px;
+  }
+
+  .agenda-cal__nav-btn--today {
+    border-radius: 6px;
+  }
+
+  .agenda-cal__nav-btn:hover,
+  .agenda-cal__nav-btn:focus {
+    background: var(--color-neutral-bg, #f3f4f6);
   }
 
   .agenda-cal__hint {

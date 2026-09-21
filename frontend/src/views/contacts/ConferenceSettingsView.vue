@@ -34,7 +34,6 @@
             :time-zone="calendarTimeZone"
             :can-select-slot="canManageConference"
             :show-schedule-view="canManageConference"
-            hide-toolbar
             @range-change="onCalendarRangeChange"
             @select-slot="selectCalendarSlot"
             @select-session="onCalendarSelectSession"

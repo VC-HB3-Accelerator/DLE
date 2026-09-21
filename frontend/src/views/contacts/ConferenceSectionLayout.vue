@@ -19,7 +19,7 @@ import ConferenceNav from './ConferenceNav.vue';
 
 const route = useRoute();
 const isLive = computed(() => route.name === 'contact-conference-live');
-/** На create/agent — без «Планировщик» и селекта режима. */
+/** На create/agent — без ссылки «Настройки». */
 const showSubNav = computed(
   () =>
     !isLive.value &&

@@ -2605,6 +2605,7 @@
         "emptyDay": "На этот день нет свободных окон.",
         "scheduledDay": "Запланированные звонки",
         "viewLabel": "Режим",
+        "today": "Сегодня",
         "busySlot": "Занято",
         "freeSlot": "Свободно",
         "selectedSlot": "Выбрано",
