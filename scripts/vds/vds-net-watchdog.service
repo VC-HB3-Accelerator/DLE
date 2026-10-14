@@ -1,9 +1,0 @@
-[Unit]
-Description=VDS outbound network watchdog (one shot)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/vds-net-watchdog.sh
-Nice=10

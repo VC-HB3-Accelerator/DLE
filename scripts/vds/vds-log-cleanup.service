@@ -1,8 +1,0 @@
-[Unit]
-Description=VDS log cleanup (one shot)
-After=docker.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/vds-log-cleanup.sh
-Nice=10
