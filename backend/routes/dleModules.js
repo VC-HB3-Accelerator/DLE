@@ -1874,7 +1874,7 @@ async function createStandardJsonInput(contractName, moduleAddress, dleAddress, 
 }
 
 // Мультиинициализация модулей во всех сетях
-router.post('/initialize-modules-all-networks', async (req, res) => {
+router.post('/initialize-modules-all-networks', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress } = req.body;
     if (!dleAddress) {
@@ -1990,7 +1990,7 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
 });
 
 // Мультиверификация модулей во всех сетях
-router.post('/verify-modules-all-networks', async (req, res) => {
+router.post('/verify-modules-all-networks', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress } = req.body;
     if (!dleAddress) {
@@ -2435,7 +2435,7 @@ router.post('/check-module-deployment-status', async (req, res) => {
 });
 
 // Деплой одного модуля во всех сетях
-router.post('/deploy-module-all-networks', async (req, res) => {
+router.post('/deploy-module-all-networks', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress, moduleType, maxRetries = 1, retryDelay = 45000 } = req.body;
     
@@ -2592,7 +2592,7 @@ router.post('/deploy-module-all-networks', async (req, res) => {
 });
 
 // Верификация DLE контракта во всех сетях
-router.post('/verify-dle-all-networks', async (req, res) => {
+router.post('/verify-dle-all-networks', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress, maxRetries = 1, retryDelay = 60000 } = req.body;
     
@@ -2918,7 +2918,7 @@ router.post('/verify-dle-all-networks', async (req, res) => {
 });
 
 // Верификация одного модуля во всех сетях
-router.post('/verify-module-all-networks', async (req, res) => {
+router.post('/verify-module-all-networks', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress, moduleType, maxRetries = 1, retryDelay = 60000 } = req.body;
     
@@ -3054,7 +3054,7 @@ router.post('/verify-module-all-networks', async (req, res) => {
 });
 
 // Инициализация одного модуля во всех сетях
-router.post('/initialize-module-all-networks', async (req, res) => {
+router.post('/initialize-module-all-networks', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { dleAddress, moduleType, maxRetries = 1, retryDelay = 30000 } = req.body;
     

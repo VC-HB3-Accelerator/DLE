@@ -482,114 +482,12 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-// Аутентификация через Telegram
-router.post('/telegram/verify', async (req, res) => {
-  try {
-    const { telegramId, verificationCode } = req.body;
-
-    if (!telegramId || !verificationCode) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields',
-      });
-    }
-
-    // Сохраняем гостевой ID из текущей сессии
-    const guestId = req.session.guestId;
-
-    // Передаем сессию в метод верификации
-    const verificationResult = await authService.verifyTelegramAuth(
-      telegramId,
-      verificationCode,
-      req.session
-    );
-
-    if (!verificationResult.success) {
-      return res.status(400).json({
-        success: false,
-        error: verificationResult.error || 'Verification failed',
-      });
-    }
-
-    // ---> ШАГ 4: РОЛЬ ЧЕРЕЗ ACCESS RESOLVER <---
-    let linkedWalletAddress = null;
-    let resolvedAccess = null;
-
-    try {
-        const accessResolver = require('../services/accessResolverService');
-        resolvedAccess = await accessResolver.recompute(verificationResult.userId);
-        logger.info(`[telegram/verify] Role recomputed for user ${verificationResult.userId}: ${resolvedAccess.role}`);
-
-        const walletIdentity = await identityService.findIdentity(verificationResult.userId, 'wallet');
-        if (walletIdentity) {
-            linkedWalletAddress = walletIdentity.provider_id;
-        }
-    } catch (error) {
-        logger.error(`[telegram/verify] Error recomputing role for user ${verificationResult.userId}:`, error);
-    }
-    // ---> КОНЕЦ ШАГОВ 4 И 5 <---
-
-    // Создаем новую сессию для этого telegramId
-    req.session.regenerate(async (err) => {
-      if (err) {
-        logger.error('[telegram/verify] Error regenerating session:', err);
-        return res.status(500).json({
-          success: false,
-          error: 'Session error',
-        });
-      }
-
-      // Устанавливаем данные в новой сессии
-      req.session.userId = verificationResult.userId;
-      req.session.telegramId = telegramId;
-      req.session.authType = 'telegram';
-      req.session.authenticated = true;
-      let walletLevel = null;
-      if (linkedWalletAddress) {
-        try {
-          walletLevel = await authService.getUserAccessLevel(linkedWalletAddress);
-        } catch (walletErr) {
-          logger.warn(`[telegram/verify] getUserAccessLevel: ${walletErr.message}`);
-        }
-      }
-      const userAccessLevel = authService.userAccessLevelFromAccess(resolvedAccess, walletLevel);
-      req.session.userAccessLevel = userAccessLevel;
-
-      // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ (ЕСЛИ НАЙДЕН) <---
-      if (linkedWalletAddress) {
-        req.session.address = linkedWalletAddress;
-      }
-      // ---> КОНЕЦ ДОБАВЛЕНИЯ АДРЕСА <---
-
-      // Восстанавливаем гостевой ID, если он был
-      if (guestId) {
-        req.session.guestId = guestId;
-      }
-
-      // Сохраняем сессию
-      await sessionService.saveSession(req.session);
-
-      // Связываем гостевые сообщения только один раз
-      if (guestId) {
-        await sessionService.linkGuestMessages(req.session, verificationResult.userId);
-      }
-
-      return res.json({
-        success: true,
-        userId: verificationResult.userId,
-        userAccessLevel,
-        telegramId,
-        isNewUser: verificationResult.isNewUser,
-        address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
-      });
-    });
-  } catch (error) {
-    logger.error('[telegram/verify] Error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
-  }
+// Вход через Telegram — только через бота (POST /telegram/init → deep link)
+router.post('/telegram/verify', (req, res) => {
+  return res.status(410).json({
+    success: false,
+    error: 'Используйте вход через Telegram-бота',
+  });
 });
 
 // Публичная политика: нужна ли корп. почта для новой регистрации
@@ -1041,8 +939,6 @@ router.get('/check-access', requireAuth, async (req, res) => {
 // Обновление сессии
 router.post('/refresh-session', async (req, res) => {
   try {
-    const { address } = req.body;
-
     if (req.session && req.session.authenticated) {
       logger.info('Обновление сессии для пользователя:', req.session.userId);
 
@@ -1053,35 +949,6 @@ router.post('/refresh-session', async (req, res) => {
       await sessionService.saveSession(req.session);
 
       return res.json({ success: true });
-    } else if (address) {
-      // Если сессия не аутентифицирована, но есть адрес
-      try {
-        const user = await identityService.findUserByIdentity('wallet', address.toLowerCase());
-
-        if (user) {
-          // Обновляем сессию
-          req.session.authenticated = true;
-          req.session.userId = user.id;
-          req.session.address = address.toLowerCase();
-          let userAccessLevel;
-          if (user.role === 'editor') {
-            userAccessLevel = { level: 'editor', tokenCount: 5999998, hasAccess: true };
-          } else if (user.role === 'readonly') {
-            userAccessLevel = { level: 'readonly', tokenCount: 100, hasAccess: true };
-          } else {
-            userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
-          }
-          req.session.userAccessLevel = userAccessLevel;
-          req.session.authType = 'wallet';
-
-          // Сохраняем обновленную сессию
-          await sessionService.saveSession(req.session);
-
-          return res.json({ success: true });
-        }
-      } catch (error) {
-        logger.error('Ошибка при проверке пользователя:', error);
-      }
     }
 
     // Если не удалось обновить сессию, возвращаем успех=false, но не ошибку
