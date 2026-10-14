@@ -187,7 +187,8 @@ async function deleteProviderSettings(provider) {
   await encryptedDb.deleteData(TABLE, { provider: provider });
 }
 
-async function getProviderModels(provider, settings = {}) {
+async function getProviderModels(provider, settings = {}, options = {}) {
+  const liveOnly = Boolean(options.liveOnly);
   try {
     if (provider === 'openai') {
       const client = openaiProxy.createOpenAIClient({
@@ -208,26 +209,41 @@ async function getProviderModels(provider, settings = {}) {
       return mapOpenAiModelsList(res);
     }
     if (provider === 'qwencloud') {
+      const registry = require('./orchProviderRegistry');
+      if (registry.qwenKeyType(settings.base_url) === 'qwen_token') {
+        try {
+          const planModels = await registry.fetchTokenPlanCatalog();
+          if (planModels.length) {
+            const selected = String(settings.selected_model || '').trim();
+            const merged = [...planModels];
+            if (!liveOnly && selected && !merged.some((m) => String(m.id) === selected)) {
+              merged.unshift({ id: selected });
+            }
+            return merged;
+          }
+        } catch (planErr) {
+          if (liveOnly && options.throwOnError) throw planErr;
+          const logger = require('../utils/logger');
+          logger.warn(`[aiProviderSettings] qwencloud token plan catalog: ${planErr.message}`);
+        }
+      }
       const client = createQwenCloudClient(settings);
       let listed = [];
       try {
         const res = await client.models.list();
         listed = mapOpenAiModelsList(res);
       } catch (listErr) {
+        if (liveOnly && options.throwOnError) throw listErr;
         const logger = require('../utils/logger');
         logger.warn(`[aiProviderSettings] qwencloud models.list fallback: ${listErr.message}`);
       }
-      const fallback = qwenCloudFallbackModels();
-      const merged = listed.length ? [...listed] : [...fallback];
-      for (const fb of fallback) {
-        if (!merged.some((m) => String(m.id) === String(fb.id))) {
-          merged.push(fb);
-        }
-      }
       const selected = String(settings.selected_model || '').trim();
+      // Каталог ключа. Зашитый список — только если /models ничего не вернул.
+      const merged = listed.length ? [...listed] : qwenCloudFallbackModels();
       if (selected && !merged.some((m) => String(m.id) === selected)) {
         merged.unshift({ id: selected });
       }
+      if (liveOnly) return listed.length ? [...listed] : [];
       return merged;
     }
     if (provider === 'anthropic') {
@@ -257,10 +273,29 @@ async function getProviderModels(provider, settings = {}) {
     }
     return [];
   } catch (error) {
+    if (options.throwOnError) throw error;
     const logger = require('../utils/logger');
     logger.warn(`[aiProviderSettings] getProviderModels(${provider}):`, error.message);
     return [];
   }
+}
+
+async function discoverProviderCapabilities(provider, settings = {}) {
+  if (provider !== 'qwencloud') {
+    return {
+      connection: null,
+      plan: { status: 'blocked', reason: 'provider_discovery_not_registered' },
+      models: [],
+      persisted: false,
+    };
+  }
+  const registry = require('./orchProviderRegistry');
+  return registry.discoverQwenConnection(settings, {
+    listModels: () => getProviderModels(provider, settings, {
+      liveOnly: true,
+      throwOnError: true,
+    }),
+  });
 }
 
 async function verifyProviderKey(provider, settings = {}) {
@@ -465,6 +500,7 @@ module.exports = {
   upsertProviderSettings,
   deleteProviderSettings,
   getProviderModels,
+  discoverProviderCapabilities,
   verifyProviderKey,
   getAllLLMModels,
   getAllEmbeddingModels,

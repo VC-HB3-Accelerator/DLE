@@ -28,16 +28,16 @@
       </div>
 
       <div class="header-center">
-        <div v-if="dleDisplayName" class="footer-dle-info">
+        <div v-if="headerBrandLine" class="footer-dle-info">
           <img
             v-if="headerLogoUrl"
             :src="headerLogoUrl"
-            :alt="dleDisplayName.name"
+            :alt="headerBrandLine"
             class="footer-dle-logo"
             @error="handleLogoError"
           />
           <div class="footer-dle-text">
-            <span class="dle-name">{{ dleDisplayName.name }} ({{ dleDisplayName.symbol }})</span>
+            <span class="dle-name">{{ headerBrandLine }}</span>
             <span v-if="headerDescription" class="dle-header-desc">{{ headerDescription }}</span>
           </div>
         </div>
@@ -76,6 +76,7 @@ import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../composables/useAuth';
 import { useFooterDle } from '../composables/useFooterDle';
 import { useSiteBrand } from '../composables/useSiteBrand';
+import { formatDleDisplayTitle } from '../utils/sitePageTitle';
 import { usePageClose } from '../composables/usePageClose';
 import eventBus from '../utils/eventBus';
 import UiGlyph from './UiGlyph.vue';
@@ -116,20 +117,25 @@ const { isAuthenticated } = auth;
 
 const { footerDle } = useFooterDle();
 const {
+  headerTitle,
   headerDescription,
   headerLogoUrl,
   loadSiteBrand,
 } = useSiteBrand();
 
-const dleDisplayName = computed(() => {
-  if (!footerDle.value || !footerDle.value.name || !footerDle.value.symbol) return null;
+const blockchainDisplayTitle = computed(() => {
+  if (!footerDle.value?.name) return '';
   if (footerDle.value.name.startsWith('DLE ') && footerDle.value.name.includes('...')) {
-    return null;
+    return '';
   }
-  return {
-    name: footerDle.value.name,
-    symbol: footerDle.value.symbol
-  };
+  return formatDleDisplayTitle(footerDle.value.name, footerDle.value.symbol);
+});
+
+/** Название в шапке: поле из настроек; если пусто — fallback с книги (без авто-записи в БД). */
+const headerBrandLine = computed(() => {
+  const custom = String(headerTitle.value || '').trim();
+  if (custom) return custom;
+  return blockchainDisplayTitle.value;
 });
 
 const handleLogoError = (event) => {

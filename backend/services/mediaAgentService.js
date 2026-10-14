@@ -13,23 +13,177 @@ const crypto = require('crypto');
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { getProviderSettings } = require('./aiProviderSettingsService');
-const {
-  resolveChatLlmRoute,
-  generateQwenCloudChatResponse,
-  generateOpenAiChatResponse,
-  generateDeepseekChatResponse,
-} = require('./chatLlmRouter');
-const ollamaConfig = require('./ollamaConfig');
 const contentMediaStore = require('./contentMediaStore');
 const mediaAgentSkills = require('./mediaAgentSkills');
+const orchJobStore = require('./orchJobStore');
+const {
+  evaluateImageReferencePolicy,
+  looksLikeNamedEquipment,
+  referenceQuestion,
+} = require('./mediaImagePolicy');
 
 const QWEN_COMPAT_DEFAULT = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 const JOBS = new Map();
 const JOB_TTL_MS = 30 * 60 * 1000;
 
-const IMAGE_MODELS = ['wan2.2-t2i-flash', 'wan2.5-t2i-preview', 'wanx2.1-t2i-turbo', 'wanx-v1'];
-const VIDEO_MODELS = ['wan2.2-t2v-plus', 'wan2.5-t2v-preview', 'wanx2.1-t2v-turbo'];
+function compatRoot(compatUrl) {
+  return String(compatUrl || QWEN_COMPAT_DEFAULT).trim().replace(/\/+$/, '');
+}
 
+function extractCompatImageUrl(data) {
+  if (Array.isArray(data?.data) && data.data[0]?.url) return data.data[0].url;
+  const content =
+    data?.output?.choices?.[0]?.message?.content || data?.choices?.[0]?.message?.content;
+  if (Array.isArray(content)) {
+    const block = content.find((c) => (c.type === 'image' && c.image) || c.image);
+    if (block?.image) return block.image;
+  }
+  return firstImageUrl(data);
+}
+
+function providerError(data, status, headers, fallback) {
+  const err = new Error(data?.message || data?.error?.message || data?.code || fallback);
+  err.status = Number(status) || 502;
+  err.code = data?.code || data?.error?.code;
+  err.headers = headers;
+  return err;
+}
+
+async function generateViaImagesApi({ route, prompt, size, reference }) {
+  const root = compatRoot(route.baseUrl);
+  const { data, status, headers } = await axios.post(
+    `${root}/images/generations`,
+    {
+      model: route.model,
+      prompt: String(prompt),
+      n: 1,
+      size: size && String(size).includes('*') ? 'auto' : (size || 'auto'),
+      prompt_extend: true,
+      prompt_extend_mode: 'direct',
+      enable_thinking: false,
+      watermark: false,
+      ...(reference ? { image: `data:${reference.mime};base64,${reference.base64}` } : {}),
+    },
+    {
+      headers: dashHeaders(route.apiKey),
+      timeout: 180000,
+      validateStatus: () => true,
+    }
+  );
+  if (status >= 400) {
+    throw providerError(data, status, headers, `images/generations HTTP ${status}`);
+  }
+  const url = extractCompatImageUrl(data);
+  if (!url) throw new Error('images/generations: нет URL картинки');
+  return { url, model: route.model };
+}
+
+async function generateViaMultimodalImage({ route, prompt, size, reference }) {
+  const apiBase = nativeApiBase(route.baseUrl);
+  const { data, status, headers } = await axios.post(
+    `${apiBase}/services/aigc/multimodal-generation/generation`,
+    {
+      model: route.model,
+      input: {
+        messages: [{
+          role: 'user',
+          content: [
+            ...(reference
+              ? [{ image: `data:${reference.mime};base64,${reference.base64}` }]
+              : []),
+            { text: String(prompt) },
+          ],
+        }],
+      },
+      parameters: {
+        n: 1,
+        size: size || '1280*1280',
+        watermark: false,
+        prompt_extend: true,
+        enable_thinking: false,
+      },
+    },
+    {
+      headers: dashHeaders(route.apiKey),
+      timeout: 180000,
+      validateStatus: () => true,
+    }
+  );
+  if (status >= 400 || (data?.code && !extractCompatImageUrl(data))) {
+    throw providerError(data, status >= 400 ? status : 502, headers, `multimodal HTTP ${status}`);
+  }
+  const url = extractCompatImageUrl(data);
+  if (!url) throw new Error('multimodal: нет URL картинки');
+  return { url, model: route.model };
+}
+
+async function generateViaAsyncT2i({ route, prompt, size, reference }) {
+  if (reference) {
+    const error = new Error('Выбранный adapter не поддерживает исходное изображение');
+    error.code = 'ROUTE_UNAVAILABLE';
+    throw error;
+  }
+  const apiBase = nativeApiBase(route.baseUrl);
+  const taskId = await submitAsync({
+    apiBase,
+    apiKey: route.apiKey,
+    pathSuffix: '/services/aigc/text2image/image-synthesis',
+    model: route.model,
+    input: { prompt },
+    parameters: { size: size || '1280*1280', n: 1 },
+  });
+  const done = await pollDashScopeTask({
+    apiBase,
+    apiKey: route.apiKey,
+    taskId,
+    timeoutMs: 4 * 60 * 1000,
+  });
+  const url = firstImageUrl(done);
+  if (!url) throw new Error('Нет URL картинки в ответе');
+  return { url, model: route.model };
+}
+
+async function generateImage({ route, prompt, size, reference }) {
+  switch (route.adapter.id) {
+    case 'images_generations':
+      return generateViaImagesApi({ route, prompt, size, reference });
+    case 'multimodal_image':
+      return generateViaMultimodalImage({ route, prompt, size, reference });
+    case 'async_t2i':
+      return generateViaAsyncT2i({ route, prompt, size, reference });
+    default: {
+      const error = new Error(`Неподдерживаемый image adapter: ${route.adapter.id}`);
+      error.code = 'ADAPTER_UNAVAILABLE';
+      throw error;
+    }
+  }
+}
+
+async function generateVideo({ route, prompt, duration }) {
+  if (route.adapter.id !== 'video_synthesis') {
+    const error = new Error(`Неподдерживаемый video adapter: ${route.adapter.id}`);
+    error.code = 'ADAPTER_UNAVAILABLE';
+    throw error;
+  }
+  const apiBase = nativeApiBase(route.baseUrl);
+  const taskId = await submitAsync({
+    apiBase,
+    apiKey: route.apiKey,
+    pathSuffix: '/services/aigc/video-generation/video-synthesis',
+    model: route.model,
+    input: { prompt },
+    parameters: { duration: Number(duration) || 5 },
+  });
+  const done = await pollDashScopeTask({
+    apiBase,
+    apiKey: route.apiKey,
+    taskId,
+    timeoutMs: 8 * 60 * 1000,
+  });
+  const url = firstVideoUrl(done);
+  if (!url) throw new Error('Нет URL видео в ответе');
+  return { url, model: route.model };
+}
 const SYSTEM_INTENT = `Ты агент студии медиа для объявлений (авто, спецтехника, оборудование).
 По описанию, примерам и активному skill решаешь: ответить текстом, задать уточнения карточками, сделать картинку или видео.
 
@@ -81,17 +235,6 @@ function nativeApiBase(compatUrl) {
   return 'https://dashscope-intl.aliyuncs.com/api/v1';
 }
 
-async function getQwenSettings() {
-  const settings = await getProviderSettings('qwencloud');
-  if (!settings?.api_key) {
-    const err = new Error('Qwen Cloud API key не настроен (Настройки → ИИ → Qwen Cloud)');
-    err.status = 400;
-    err.code = 'QWENCLOUD_KEY_MISSING';
-    throw err;
-  }
-  return settings;
-}
-
 function dashHeaders(apiKey, extra = {}) {
   return {
     Authorization: `Bearer ${apiKey}`,
@@ -133,50 +276,13 @@ function guessKindFromText(text) {
 }
 
 async function completeChat(messages) {
-  let assistantModel = 'qwen-plus';
-  try {
-    assistantModel = (ollamaConfig.getDefaultModel && ollamaConfig.getDefaultModel()) || 'qwen-plus';
-  } catch {
-    assistantModel = 'qwen-plus';
-  }
-  const route = await resolveChatLlmRoute(assistantModel);
-  const qwen = await getProviderSettings('qwencloud').catch(() => null);
-  if (qwen?.api_key) {
-    const model = (isLikelyQwenChat(route.model) && route.provider === 'qwencloud')
-      ? route.model
-      : 'qwen-plus';
-    return generateQwenCloudChatResponse({
-      settings: qwen,
-      model,
-      messages,
-          llmParameters: { temperature: 0.4, maxTokens: 1800 },
-    }).then(asText);
-  }
-  if (route.provider === 'openai' && route.settings?.api_key) {
-    return generateOpenAiChatResponse({
-      settings: route.settings,
-      model: route.model,
-      messages,
-          llmParameters: { temperature: 0.4, maxTokens: 1800 },
-    }).then(asText);
-  }
-  if (route.provider === 'deepseek' && route.settings?.api_key) {
-    return generateDeepseekChatResponse({
-      settings: route.settings,
-      model: route.model,
-      messages,
-          llmParameters: { temperature: 0.4, maxTokens: 1800 },
-    }).then(asText);
-  }
-  const err = new Error('Нет облачной LLM. Укажите ключ Qwen Cloud.');
-  err.status = 400;
-  err.code = 'MEDIA_AGENT_LLM_MISSING';
-  throw err;
-}
-
-function isLikelyQwenChat(model) {
-  const n = String(model || '').toLowerCase();
-  return n.startsWith('qwen') && !n.includes('realtime') && !n.includes('asr') && !n.includes('tts');
+  // Роль brief_chat — оркестратор сам выбирает модель под задачу (не хардкод Settings).
+  const router = require('./orchModelRouter');
+  const res = await router.chatForRole('brief_chat', messages, {
+    temperature: 0.4,
+    maxTokens: 1800,
+  });
+  return asText(res?.content ?? res?.text ?? res);
 }
 
 function toVisionContent(text, images) {
@@ -265,11 +371,17 @@ async function pollDashScopeTask({ apiBase, apiKey, taskId, timeoutMs }) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     await new Promise((r) => setTimeout(r, 2500));
-    const { data } = await axios.get(`${apiBase}/tasks/${encodeURIComponent(taskId)}`, {
+    const { data, status: httpStatus, headers } = await axios.get(
+      `${apiBase}/tasks/${encodeURIComponent(taskId)}`,
+      {
       headers: dashHeaders(apiKey),
       timeout: 30000,
       validateStatus: () => true,
-    });
+      }
+    );
+    if (httpStatus >= 400) {
+      throw providerError(data, httpStatus, headers, `DashScope task HTTP ${httpStatus}`);
+    }
     const status = data?.output?.task_status || data?.task_status;
     if (status === 'SUCCEEDED') return data;
     if (status === 'FAILED' || status === 'CANCELED' || status === 'UNKNOWN') {
@@ -299,7 +411,7 @@ function firstVideoUrl(payload) {
 }
 
 async function submitAsync({ apiBase, apiKey, pathSuffix, model, input, parameters }) {
-  const { data } = await axios.post(
+  const { data, status, headers } = await axios.post(
     `${apiBase}${pathSuffix}`,
     { model, input, parameters },
     {
@@ -308,11 +420,8 @@ async function submitAsync({ apiBase, apiKey, pathSuffix, model, input, paramete
       validateStatus: () => true,
     }
   );
-  if (data?.code && !data?.output?.task_id) {
-    const err = new Error(data.message || data.code);
-    err.status = 502;
-    err.code = String(data.code);
-    throw err;
+  if (status >= 400 || (data?.code && !data?.output?.task_id)) {
+    throw providerError(data, status >= 400 ? status : 502, headers, `DashScope HTTP ${status}`);
   }
   const taskId = data?.output?.task_id;
   if (!taskId) {
@@ -324,69 +433,14 @@ async function submitAsync({ apiBase, apiKey, pathSuffix, model, input, paramete
   return taskId;
 }
 
-async function generateImage({ settings, prompt, size }) {
-  const apiBase = nativeApiBase(settings.base_url);
-  const apiKey = settings.api_key;
-  let lastErr = null;
-  for (const model of IMAGE_MODELS) {
-    try {
-      const taskId = await submitAsync({
-        apiBase,
-        apiKey,
-        pathSuffix: '/services/aigc/text2image/image-synthesis',
-        model,
-        input: { prompt },
-        parameters: { size: size || '1280*1280', n: 1 },
-      });
-      const done = await pollDashScopeTask({
-        apiBase,
-        apiKey,
-        taskId,
-        timeoutMs: 4 * 60 * 1000,
-      });
-      const url = firstImageUrl(done);
-      if (!url) throw new Error('Нет URL картинки в ответе');
-      return { url, model };
-    } catch (e) {
-      lastErr = e;
-      logger.warn(`[mediaAgent] image model ${model}: ${e.message}`);
-    }
-  }
-  throw lastErr || new Error('Не удалось сгенерировать изображение');
-}
-
-async function generateVideo({ settings, prompt, duration }) {
-  const apiBase = nativeApiBase(settings.base_url);
-  const apiKey = settings.api_key;
-  let lastErr = null;
-  for (const model of VIDEO_MODELS) {
-    try {
-      const taskId = await submitAsync({
-        apiBase,
-        apiKey,
-        pathSuffix: '/services/aigc/video-generation/video-synthesis',
-        model,
-        input: { prompt },
-        parameters: { duration: Number(duration) || 5 },
-      });
-      const done = await pollDashScopeTask({
-        apiBase,
-        apiKey,
-        taskId,
-        timeoutMs: 8 * 60 * 1000,
-      });
-      const url = firstVideoUrl(done);
-      if (!url) throw new Error('Нет URL видео в ответе');
-      return { url, model };
-    } catch (e) {
-      lastErr = e;
-      logger.warn(`[mediaAgent] video model ${model}: ${e.message}`);
-    }
-  }
-  throw lastErr || new Error('Не удалось сгенерировать видео');
-}
-
-async function ingestRemoteUrl({ url, fileName, mimeHint, ownerUserId, authorAddress }) {
+async function ingestRemoteUrl({
+  url,
+  fileName,
+  mimeHint,
+  ownerUserId,
+  authorAddress,
+  idempotencyKey,
+}) {
   const res = await axios.get(url, {
     responseType: 'arraybuffer',
     timeout: 180000,
@@ -413,6 +467,7 @@ async function ingestRemoteUrl({ url, fileName, mimeHint, ownerUserId, authorAdd
       size: stat.size,
       authorAddress: authorAddress || 'media-agent',
       ownerUserId,
+      idempotencyKey,
     });
     return contentMediaStore.uploadResponse(row);
   } catch (e) {
@@ -427,23 +482,65 @@ async function ingestRemoteUrl({ url, fileName, mimeHint, ownerUserId, authorAdd
   }
 }
 
-function putJob(job) {
+async function putJob(job) {
   gcJobs();
   JOBS.set(job.id, job);
+  await orchJobStore.saveJob(job);
   return job;
 }
 
-function getJob(id) {
+async function getJob(id) {
   gcJobs();
-  return JOBS.get(String(id || '')) || null;
+  const key = String(id || '');
+  const cached = JOBS.get(key);
+  if (cached) return cached;
+  const restored = await orchJobStore.getJob(key);
+  if (restored) JOBS.set(key, restored);
+  return restored;
 }
 
-async function runGenerationJob(job, { settings, intent, ownerUserId, authorAddress }) {
+async function cancelJob(id) {
+  const job = await getJob(id);
+  if (!job) return null;
+  if (job.status === 'done' || job.status === 'error' || job.status === 'cancelled') {
+    return publicJob(job);
+  }
+  job.status = 'cancelled';
+  job.error = 'Отменено новым сообщением редактора';
+  job.updatedAt = Date.now();
+  await putJob(job);
+  logger.info(`[mediaAgent] job ${job.id} cancelled`);
+  return publicJob(job);
+}
+
+async function runGenerationJob(job, {
+  route,
+  intent,
+  reference,
+  ownerUserId,
+  authorAddress,
+}) {
+  if (job.status === 'cancelled') return;
   job.status = 'generating';
+  job.updatedAt = Date.now();
+  await putJob(job);
   try {
-    const gen = intent.kind === 'video'
-      ? await generateVideo({ settings, prompt: intent.prompt, duration: intent.duration })
-      : await generateImage({ settings, prompt: intent.prompt, size: intent.size });
+    const { executeRoute } = require('./orchRouteExecution');
+    const gen = await executeRoute(
+      route,
+      () => (
+        intent.kind === 'video'
+          ? generateVideo({ route, prompt: intent.prompt, duration: intent.duration })
+          : generateImage({
+            route,
+            prompt: intent.prompt,
+            size: intent.size,
+            reference,
+          })
+      )
+    );
+    const latest = await getJob(job.id);
+    if (latest?.status === 'cancelled' || job.status === 'cancelled') return;
     const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
     const fileName = intent.kind === 'video'
       ? `listing_animation_${stamp}.mp4`
@@ -454,18 +551,22 @@ async function runGenerationJob(job, { settings, intent, ownerUserId, authorAddr
       mimeHint: intent.kind === 'video' ? 'video/mp4' : 'image/jpeg',
       ownerUserId,
       authorAddress,
+      idempotencyKey: `${job.id}:media-ingest`,
     });
+    if (job.status === 'cancelled') return;
     job.status = 'done';
     job.media = media;
     job.model = gen.model;
     job.error = null;
   } catch (e) {
+    if (job.status === 'cancelled') return;
     logger.error('[mediaAgent] generation failed:', e.message);
     job.status = 'error';
     job.error = e.message || 'Ошибка генерации';
     job.code = e.code || 'MEDIA_AGENT_GEN_FAILED';
   }
   job.updatedAt = Date.now();
+  await putJob(job);
 }
 
 function absMediaPath(rel) {
@@ -508,9 +609,15 @@ async function startTurn({
   skillId,
   ownerUserId,
   authorAddress,
+  targetOwnerUserId,
+  csvText,
+  sourceFile,
+  documents,
+  sessionId,
 }) {
   const text = String(message || '').trim();
-  if (!text && !(images && images.length)) {
+  const hasDocs = Boolean(documents && documents.length);
+  if (!text && !(images && images.length) && !String(csvText || '').trim() && !hasDocs) {
     const err = new Error('Напишите описание или приложите пример');
     err.status = 400;
     err.code = 'EMPTY_TURN';
@@ -518,6 +625,105 @@ async function startTurn({
   }
 
   const hasFiles = Boolean(images && images.length);
+  const listingCsv = require('./listingCsv');
+  const csvParsed = csvText ? listingCsv.parseListingCsv(csvText) : { candidates: [] };
+  const planner = require('./orchPlanner');
+  const goal = await planner.classifyGoalLead({
+    message: text,
+    csvText,
+    images,
+    csvParsed,
+    documents,
+  });
+  const cardGoal = goal === 'listing_card' || goal === 'store_card' || goal === 'tables';
+  const skipImageGate = cardGoal
+    || hasDocs
+    || Boolean(csvParsed.candidates.length)
+    || planner.defersMedia(text)
+    || /объявлен|карточк|описан/i.test(planner.normalizeGoalText(text));
+  const guessedKind = guessKindFromText(text);
+  const policyKind = looksLikeNamedEquipment(text) || guessedKind === 'image'
+    ? 'image'
+    : guessedKind;
+  const imagePolicy = evaluateImageReferencePolicy({
+    message: text,
+    kind: policyKind,
+    hasReference: hasFiles || Boolean(csvParsed.candidates.length) || hasDocs,
+  });
+  /* Гейт исходника для карточки — после принятого описания (orchCardMedia), не здесь. */
+  if (!skipImageGate && !imagePolicy.allowed) {
+    logger.info('[media-agent] turn', {
+      goal,
+      code: 'NEED_INPUT',
+      reason: imagePolicy.reason,
+      preview: text.slice(0, 160),
+    });
+    return {
+      kind: 'ask',
+      code: 'NEED_INPUT',
+      reply: imagePolicy.reason === 'named_equipment_requires_reference'
+        ? 'Не запускаю генерацию конкретной техники без исходного фото.'
+        : 'Сначала выберите источник изображения.',
+      questions: [referenceQuestion(imagePolicy.reason)],
+      actions: [],
+      job: null,
+    };
+  }
+
+  const continued = await planner.continueCardBrief({
+    message: text,
+    ownerUserId,
+    sessionId,
+  });
+  if (continued) {
+    logger.info('[media-agent] turn', {
+      goal,
+      kind: continued.kind,
+      job: continued.job?.id || null,
+      stage: 'continue_brief',
+      preview: text.slice(0, 160),
+    });
+    return continued;
+  }
+
+  const enriched = await planner.continueTableEnrich({
+    message: text,
+    ownerUserId,
+  });
+  if (enriched) {
+    logger.info('[media-agent] turn', {
+      goal,
+      kind: enriched.kind,
+      job: enriched.job?.id || null,
+      stage: 'table_enrich',
+      preview: text.slice(0, 160),
+    });
+    return enriched;
+  }
+
+  const planned = await planner.startFromTurn({
+    message: text,
+    csvText,
+    csvParsed,
+    images,
+    documents,
+    ownerUserId,
+    targetOwnerUserId: targetOwnerUserId || ownerUserId,
+    sourceFile,
+    skillId,
+    sessionId,
+  });
+  if (planned) {
+    logger.info('[media-agent] turn', {
+      goal,
+      kind: planned.kind,
+      options: (planned.options || []).map((item) => item.id),
+      job: planned.job?.id || null,
+      preview: text.slice(0, 160),
+    });
+    return planned;
+  }
+
   const intent = await parseIntent({
     message: text || 'Сделай продающее фото по приложенным примерам.',
     history,
@@ -525,6 +731,30 @@ async function startTurn({
     skillId,
   });
   const actions = normalizeActions(intent.actions, { hasFiles, kind: intent.kind });
+  const latePolicy = evaluateImageReferencePolicy({
+    message: text,
+    kind: intent.kind,
+    hasReference: hasFiles,
+  });
+  if (!skipImageGate && !latePolicy.allowed) {
+    logger.info('[media-agent] turn', {
+      goal,
+      code: 'NEED_INPUT',
+      reason: latePolicy.reason,
+      stage: 'late',
+      preview: text.slice(0, 160),
+    });
+    return {
+      kind: 'ask',
+      code: 'NEED_INPUT',
+      reply: latePolicy.reason === 'named_equipment_requires_reference'
+        ? 'Не запускаю генерацию конкретной техники без исходного фото.'
+        : 'Сначала выберите источник изображения.',
+      questions: [referenceQuestion(latePolicy.reason)],
+      actions,
+      job: null,
+    };
+  }
 
   if (intent.kind === 'chat' || intent.kind === 'ask') {
     return {
@@ -536,31 +766,21 @@ async function startTurn({
     };
   }
 
-  const settings = await getQwenSettings();
-  const job = putJob({
-    id: crypto.randomUUID(),
-    status: 'queued',
-    kind: intent.kind,
-    prompt: intent.prompt,
-    media: null,
-    error: null,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+  const mediaPlan = await planner.startFromTurn({
+    message: text,
+    images,
+    ownerUserId,
+    targetOwnerUserId: targetOwnerUserId || ownerUserId,
+    sourceFile,
+    skillId,
   });
-  setImmediate(() => {
-    runGenerationJob(job, { settings, intent, ownerUserId, authorAddress }).catch((e) => {
-      job.status = 'error';
-      job.error = e.message;
-      job.updatedAt = Date.now();
-    });
-  });
-
+  if (mediaPlan) return mediaPlan;
   return {
-    kind: intent.kind,
-    reply: intent.reply,
-    questions: [],
+    kind: 'ask',
+    reply: intent.reply || 'Нужен явный выбор варианта до генерации.',
+    questions: intent.questions || [],
     actions,
-    job: publicJob(job),
+    job: null,
   };
 }
 
@@ -574,6 +794,26 @@ function publicJob(job) {
     error: job.error || null,
     code: job.code || null,
   };
+}
+
+function filesToDocuments(files) {
+  const out = [];
+  for (const f of files || []) {
+    const mime = String(f.mimetype || '');
+    const name = String(f.originalname || '');
+    if (mime.startsWith('image/')) continue;
+    if (!f.buffer || !f.buffer.length || f.buffer.length > 8 * 1024 * 1024) continue;
+    out.push({
+      buffer: f.buffer,
+      filename: name,
+      mime,
+      text: /csv|text\//i.test(mime) || /\.(csv|tsv|txt)$/i.test(name)
+        ? f.buffer.toString('utf8')
+        : '',
+    });
+    if (out.length >= 4) break;
+  }
+  return out;
 }
 
 function filesToImages(files) {
@@ -613,7 +853,12 @@ module.exports = {
   startTurn,
   getJob,
   publicJob,
+  cancelJob,
+  generateImage,
+  generateVideo,
+  storeGeneratedFrame: ingestRemoteUrl,
   filesToImages,
+  filesToDocuments,
   imagesFromDriveIds,
   parseHistory,
   parseIdList,

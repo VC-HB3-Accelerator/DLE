@@ -28,4 +28,27 @@ module.exports = [
       'no-duplicate-imports': 'error',
     },
   },
+  {
+    files: ['services/**/*.js'],
+    ignores: [
+      'services/orchModelRouter.js',
+      'services/aiProviderSettingsService.js',
+      'services/qwenRealtimeService.js',
+      'services/conferenceInterpretationAsr.js',
+      'services/conferenceInterpretationTts.js',
+      'services/whisperSttService.js',
+      'services/voiceCallKnowledgeService.js',
+      'services/conferenceTranslateService.js',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "Literal[value=/^(?:qwen(?:-plus|-turbo|-max|-vl|3\\.|-image)|wan(?:2\\.|x)|deepseek-chat)[\\w.-]*$/]",
+          message: 'W17: model-id только в orchModelRouter / Settings (см. t1 allowlist)',
+        },
+      ],
+    },
+  },
 ]; 

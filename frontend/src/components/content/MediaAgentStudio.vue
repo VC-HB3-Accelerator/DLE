@@ -3,11 +3,25 @@
   All rights reserved.
 -->
 <template>
-  <div class="work" :class="{ 'work--preview': preview }" @click="onShellClick">
+  <div
+    class="work"
+    :class="{ 'work--preview': preview, 'work--embedded': showAiToggle || hideComposer }"
+    @click="onShellClick"
+  >
     <aside class="work__rail">
       <div class="work__brand">
         <span class="work__logo">{{ productName }}</span>
         <span class="work__brand-btns">
+          <button
+            v-if="showAiToggle"
+            type="button"
+            class="work__ai"
+            :class="{ 'is-on': aiActive }"
+            :title="t('chat.aiOrchestratorToggle')"
+            @click="$emit('toggle-ai')"
+          >
+            AI
+          </button>
           <button type="button" :title="t('common.search')" @click="pane = 'skills'">
             <UiGlyph name="search" :size="16" />
           </button>
@@ -54,39 +68,55 @@
         <UiGlyph name="folder" :size="16" />
         {{ t('content.media.agent.drive') }}
       </button>
+      <button
+        type="button"
+        class="work__nav"
+        :class="{ 'is-on': pane === 'jobs' }"
+        @click="openJobs"
+      >
+        <UiGlyph name="file" :size="16" />
+        {{ t('content.media.agent.jobs') }}
+      </button>
 
       <button type="button" class="work__recent-toggle" @click="recentOpen = !recentOpen">
         {{ t('content.media.agent.recent') }}
+        <span v-if="sessionsWithHistory.length" class="work__recent-count">{{ sessionsWithHistory.length }}</span>
         <UiGlyph :name="recentOpen ? 'chevron-down' : 'chevron-right'" :size="14" />
       </button>
-      <button
-        v-for="s in recentOpen ? sessions : []"
+      <div
+        v-for="s in recentOpen ? sessionsWithHistory : []"
         :key="s.id"
-        type="button"
         class="work__task"
         :class="{ 'is-on': s.id === activeId && pane === 'home' }"
+        role="button"
+        tabindex="0"
         @click="openSession(s.id)"
+        @keydown.enter.prevent="openSession(s.id)"
       >
-        {{ s.title }}
-      </button>
+        <span class="work__task-title">{{ s.title }}</span>
+        <button
+          type="button"
+          class="work__task-del"
+          :title="t('content.media.agent.deleteTask')"
+          @click.stop.prevent="deleteSession(s.id)"
+        >
+          <UiGlyph name="times" :size="12" />
+        </button>
+      </div>
     </aside>
 
     <section class="work__main">
       <template v-if="pane === 'home'">
         <div v-if="!hasThread" class="home">
-          <div class="home__hero">
-            <div class="home__mascot">
-              <img v-if="headerLogoUrl" :src="headerLogoUrl" alt="">
-              <span v-else class="home__blob" aria-hidden="true" />
-            </div>
-            <h1>{{ greeting }}, {{ orgName }}</h1>
-            <p>{{ t('content.media.agent.whereStart') }}</p>
-          </div>
           <MediaAgentComposer
+            v-if="!hideComposer"
             v-model="draft"
             :sending="sending"
             :pending-files="pendingFiles"
             :pending-drive="pendingDrive"
+            :pending-csv="pendingCsv"
+            :owner-label="ownerLabel"
+            :can-pick-owner="false"
             :plus-open="plusOpen"
             :skill-open="skillOpen"
             :installed-skills="installedSkills"
@@ -95,12 +125,15 @@
             @plus="togglePlus"
             @skills-menu="toggleSkillMenu"
             @add-files="fileRef?.click()"
+            @add-csv="csvRef?.click()"
             @drive="drivePicker = true"
             @open-skills="pane = 'skills'"
             @use-skill="applySkill"
             @remove-file="removeFile"
             @remove-drive="removeDrive"
+            @remove-csv="pendingCsv = null"
             @skills-page="pane = 'skills'"
+            @pick-owner="ownerOpen = true"
           />
         </div>
 
@@ -129,9 +162,254 @@
                     {{ a.label }}
                   </span>
                 </div>
-                <div v-if="m.questions?.length" class="qcard">
+                <div v-if="m.filePreview?.columns?.length" class="preview">
+                  <strong>{{ t('content.media.agent.filePreviewTitle') }}</strong>
+                  <p class="preview__hint">{{ t('content.media.agent.filePreviewHint') }}</p>
+                  <p v-if="m.filePreview.table_name" class="preview__name">{{ m.filePreview.table_name }}</p>
+                  <div class="preview__table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th v-for="col in m.filePreview.columns" :key="col">
+                            {{ col }}
+                            <em
+                              v-if="(m.filePreview.column_meta || []).find((c) => c.name === col)?.role === 'enrich'"
+                              class="preview__enrich"
+                            >{{ t('content.media.agent.filePreviewEnrich') }}</em>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, ri) in (m.filePreview.rows || []).slice(0, 12)" :key="ri">
+                          <td v-for="col in m.filePreview.columns" :key="col">{{ row[col] }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    v-if="!m.tableWritten"
+                    type="button"
+                    class="brief__open"
+                    :disabled="sending"
+                    @click="openTableForm(m)"
+                  >
+                    {{ t('content.media.agent.filePreviewOpenEmpty') }}
+                  </button>
+                  <button
+                    v-if="!m.tableWritten"
+                    type="button"
+                    class="preview__write"
+                    :disabled="sending"
+                    @click="commitFilePreview(m)"
+                  >
+                    {{ t('content.media.agent.filePreviewWrite') }}
+                  </button>
+                  <p v-else class="preview__done">{{ t('content.media.agent.filePreviewWritten') }}</p>
+                  <button
+                    v-if="m.tableWritten && m.tableId"
+                    type="button"
+                    class="brief__open"
+                    @click="openTableForm(m)"
+                  >
+                    {{ t('content.media.agent.filePreviewOpenDraft') }}
+                  </button>
+                  <button
+                    v-if="m.tableWritten && m.tableId && !m.enrichApplied"
+                    type="button"
+                    class="preview__write"
+                    :disabled="sending"
+                    @click="proposeTableEnrich(m)"
+                  >
+                    {{ t('content.media.agent.enrichSearch') }}
+                  </button>
+                </div>
+                <div
+                  v-if="m.tableId && !m.filePreview?.columns?.length && !m.enrichApplied"
+                  class="preview"
+                >
+                  <button
+                    type="button"
+                    class="brief__open"
+                    @click="openTableForm(m)"
+                  >
+                    {{ t('content.media.agent.filePreviewOpenDraft') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="preview__write"
+                    :disabled="sending"
+                    @click="proposeTableEnrich(m)"
+                  >
+                    {{ t('content.media.agent.enrichSearch') }}
+                  </button>
+                </div>
+                <div v-if="m.enrichDiff?.length" class="enrich">
+                  <strong>{{ t('content.media.agent.enrichTitle') }}</strong>
+                  <p class="preview__hint">{{ t('content.media.agent.enrichHint') }}</p>
+                  <ul>
+                    <li v-for="(d, i) in m.enrichDiff" :key="i">
+                      {{ d.column }}: {{ d.after }}
+                      <a
+                        v-if="d.source?.url"
+                        :href="d.source.url"
+                        target="_blank"
+                        rel="noreferrer"
+                      >{{ d.source.title || d.source.url }}</a>
+                    </li>
+                  </ul>
+                  <button
+                    v-if="m.tableId && !m.enrichApplied && enrichWritable(m.enrichDiff)"
+                    type="button"
+                    class="preview__write"
+                    :disabled="sending"
+                    @click="applyTableEnrich(m)"
+                  >
+                    {{ t('content.media.agent.enrichWrite') }}
+                  </button>
+                  <p v-else-if="m.enrichApplied" class="preview__done">{{ t('content.media.agent.enrichWritten') }}</p>
+                </div>
+                <div v-if="(m.cardBrief?.kind === 'listing' || m.cardBrief?.kind === 'store') && !m.filePreview?.columns?.length" class="brief">
+                  <strong>{{ t('content.media.agent.briefTitle') }}</strong>
+                  <p class="brief__hint">{{ t('content.media.agent.briefHint') }}</p>
+                  <label>
+                    {{ t('content.media.agent.briefTitleField') }}
+                    <input
+                      :value="m.cardBrief.title"
+                      :disabled="Boolean(m.cardDraftId) || sending"
+                      @input="setBriefField(m, 'title', $event.target.value)"
+                    >
+                  </label>
+                  <label>
+                    {{ t('content.media.agent.briefExcerpt') }}
+                    <textarea
+                      :value="m.cardBrief.excerpt"
+                      :disabled="Boolean(m.cardDraftId) || sending"
+                      rows="2"
+                      @input="setBriefField(m, 'excerpt', $event.target.value)"
+                    />
+                  </label>
+                  <label>
+                    {{ t('content.media.agent.briefDescription') }}
+                    <textarea
+                      :value="m.cardBrief.description"
+                      :disabled="Boolean(m.cardDraftId) || sending"
+                      rows="3"
+                      @input="setBriefField(m, 'description', $event.target.value)"
+                    />
+                  </label>
+                  <template v-if="m.cardBrief.kind === 'store'">
+                    <label>
+                      {{ t('content.media.agent.briefPrice') }}
+                      <input
+                        :value="m.cardBrief.store?.price_units"
+                        :disabled="Boolean(m.cardDraftId) || sending"
+                        @input="setBriefStoreField(m, 'price_units', $event.target.value)"
+                      >
+                    </label>
+                    <label>
+                      {{ t('content.media.agent.briefToken') }}
+                      <input
+                        :value="m.cardBrief.store?.pay_token_address"
+                        :disabled="Boolean(m.cardDraftId) || sending"
+                        @input="setBriefStoreField(m, 'pay_token_address', $event.target.value)"
+                      >
+                    </label>
+                  </template>
+                  <button
+                    type="button"
+                    class="brief__open"
+                    :disabled="sending"
+                    @click="openCardForm(m)"
+                  >
+                    {{ m.cardDraftId
+                      ? t('content.media.agent.briefOpenDraft')
+                      : t('content.media.agent.briefOpenEmpty') }}
+                  </button>
+                  <button
+                    v-if="!m.cardDraftId"
+                    type="button"
+                    class="brief__write"
+                    :disabled="sending"
+                    @click="commitCardDraft(m)"
+                  >
+                    {{ t('content.media.agent.briefWrite') }}
+                  </button>
+                  <p v-else class="brief__done">
+                    {{ t('content.media.agent.briefWritten', { id: m.cardDraftId }) }}
+                  </p>
+                  <button
+                    v-if="m.cardDraftId && !m.cardPublished"
+                    type="button"
+                    class="brief__write"
+                    :disabled="sending"
+                    @click="publishCardDraft(m)"
+                  >
+                    {{ t('content.media.agent.briefPublish') }}
+                  </button>
+                  <p v-else-if="m.cardPublished" class="brief__done">
+                    {{ t('content.media.agent.briefPublished', { status: m.cardPublishStatus }) }}
+                  </p>
+                </div>
+                <div v-if="m.mediaPlan" class="media-plan">
+                  <strong>{{ t('content.media.agent.mediaPlanTitle') }}</strong>
+                  <p class="media-plan__hint">{{ t('content.media.agent.mediaPlanHint') }}</p>
+                  <ul v-if="m.mediaPlan.slots?.length">
+                    <li v-for="slot in m.mediaPlan.slots" :key="slot.id">
+                      <span>{{ slot.id }}</span>
+                      <em>{{ slot.status }}</em>
+                      <p>{{ slot.prompt }}</p>
+                    </li>
+                  </ul>
+                  <button
+                    v-if="!m.mediaPlan.ready"
+                    type="button"
+                    class="media-plan__btn"
+                    :disabled="sending"
+                    @click="planCardMedia(m)"
+                  >
+                    {{ t('content.media.agent.mediaPlanAsk') }}
+                  </button>
+                </div>
+                <div v-if="m.sources?.length" class="sources">
+                  <strong>{{ t('content.media.agent.sourcesTitle') }}</strong>
+                  <p class="sources__hint">{{ t('content.media.agent.sourcesHint') }}</p>
+                  <ul>
+                    <li v-for="(src, si) in m.sources" :key="src.url || si">
+                      <span class="sources__sys">{{ src.system }}</span>
+                      <a
+                        v-if="src.url"
+                        :href="src.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >{{ src.title || src.url }}</a>
+                      <span v-else>{{ src.title || t('content.media.agent.sourcesKnowledge') }}</span>
+                      <time v-if="src.fetched_at">{{ formatSourceDate(src.fetched_at) }}</time>
+                    </li>
+                  </ul>
+                </div>
+                <div v-if="m.options?.length" class="options">
+                  <strong>{{ t('content.media.agent.optionsTitle') }}</strong>
+                  <p class="options__hint">{{ t('content.media.agent.optionsHint') }}</p>
+                  <button
+                    v-for="opt in m.options"
+                    :key="opt.id"
+                    type="button"
+                    class="options__card"
+                    :class="{ 'is-on': m.selectedOptionId === opt.id }"
+                    :disabled="m.optionsLocked || sending"
+                    @click="choosePlanOption(m, opt)"
+                  >
+                    <span class="options__title">{{ opt.title }}</span>
+                    <span class="options__sum">{{ opt.summary }}</span>
+                    <span v-if="opt.cost_hint" class="options__cost">
+                      {{ t('content.media.agent.optionCost', { hint: opt.cost_hint }) }}
+                    </span>
+                    <em>{{ t('content.media.agent.optionChoose') }}</em>
+                  </button>
+                </div>
+                <div v-if="visibleQuestions(m).length" class="qcard">
                   <p v-if="m.questionsLocked" class="qcard__flag">{{ t('content.media.agent.answered') }}</p>
-                  <div v-for="q in m.questions" :key="q.id" class="qcard__q">
+                  <div v-for="q in visibleQuestions(m)" :key="q.id" class="qcard__q">
                     <p>{{ q.prompt }}</p>
                     <button
                       v-for="opt in q.options"
@@ -159,6 +437,18 @@
                     <span v-else><UiGlyph name="play" :size="18" /></span>
                   </button>
                 </div>
+                <MediaAgentBatchPanel
+                  v-if="m.batch?.id"
+                  :batch="m.batch"
+                  @update:batch="(b) => onBatchUpdate(m.id, b)"
+                  @preview="selectPreview"
+                />
+                <MediaAgentPoolGrid
+                  v-else-if="m.pool?.photos?.length"
+                  :pool="m.pool"
+                  @update:pool="(p) => onPoolUpdate(m.id, p)"
+                  @preview="selectPreview"
+                />
                 <p v-if="m.status === 'generating'" class="status">
                   {{ t('content.media.agent.generating') }}
                 </p>
@@ -166,26 +456,15 @@
               </div>
             </article>
           </div>
-          <div class="dock">
-            <button type="button" class="dock__files" @click="filesOpen = !filesOpen">
-              <UiGlyph name="file" :size="14" />
-              {{ t('content.media.agent.allFiles') }}
-            </button>
-            <div v-if="filesOpen" class="dock__list">
-              <button
-                v-for="f in sessionFiles"
-                :key="f.url"
-                type="button"
-                @click="selectPreview(f)"
-              >{{ f.name }}</button>
-              <p v-if="!sessionFiles.length">{{ t('content.media.agent.noFiles') }}</p>
-            </div>
-          </div>
           <MediaAgentComposer
+            v-if="!hideComposer"
             v-model="draft"
             :sending="sending"
             :pending-files="pendingFiles"
             :pending-drive="pendingDrive"
+            :pending-csv="pendingCsv"
+            :owner-label="ownerLabel"
+            :can-pick-owner="false"
             :plus-open="plusOpen"
             :skill-open="skillOpen"
             :installed-skills="installedSkills"
@@ -193,12 +472,15 @@
             @plus="togglePlus"
             @skills-menu="toggleSkillMenu"
             @add-files="fileRef?.click()"
+            @add-csv="csvRef?.click()"
             @drive="drivePicker = true"
             @open-skills="pane = 'skills'"
             @use-skill="applySkill"
             @remove-file="removeFile"
             @remove-drive="removeDrive"
+            @remove-csv="pendingCsv = null"
             @skills-page="pane = 'skills'"
+            @pick-owner="ownerOpen = true"
           />
         </div>
       </template>
@@ -215,6 +497,20 @@
         <h2>{{ t('content.media.agent.drive') }}</h2>
         <p>{{ t('content.media.agent.driveLead') }}</p>
         <ContentMediaGrid mode="pick" @select="onDriveSelect" />
+      </div>
+      <div v-else-if="pane === 'jobs'" class="jobs">
+        <h2>{{ t('content.media.agent.jobs') }}</h2>
+        <p v-if="jobsError" class="jobs__error">{{ jobsError }}</p>
+        <p v-else-if="!jobs.length">{{ t('content.media.agent.jobsEmpty') }}</p>
+        <button
+          v-for="job in jobs"
+          :key="job.id"
+          type="button"
+          class="jobs__row"
+        >
+          <strong>{{ job.kind || job.id }}</strong>
+          <span>{{ job.status }} · {{ job.run_mode || '—' }}</span>
+        </button>
       </div>
     </section>
 
@@ -244,11 +540,41 @@
     <input
       ref="fileRef"
       type="file"
-      accept="image/*"
+      accept="image/*,.csv,.tsv,.txt,.pdf,.xlsx,.xls"
       multiple
       class="work__hidden"
       @change="onFiles"
     >
+    <input
+      ref="csvRef"
+      type="file"
+      accept=".csv,text/csv,text/plain"
+      class="work__hidden"
+      @change="onCsv"
+    >
+    <div v-if="ownerOpen" class="owner-pick" @click.self="ownerOpen = false">
+      <div class="owner-pick__card">
+        <strong>{{ t('content.media.agent.ownerLabel') }}</strong>
+        <input
+          v-model="ownerQuery"
+          type="search"
+          :placeholder="t('content.media.agent.ownerSearch')"
+          @input="searchOwners"
+        >
+        <button type="button" class="owner-pick__row" @click="pickOwner(sessionUserId)">
+          {{ t('content.media.agent.ownerMe', { id: sessionUserId || '—' }) }}
+        </button>
+        <button
+          v-for="hit in ownerHits"
+          :key="hit.id"
+          type="button"
+          class="owner-pick__row"
+          @click="pickOwner(hit.id)"
+        >
+          {{ hit.label }}
+        </button>
+      </div>
+    </div>
     <ContentMediaPickerModal
       :open="drivePicker"
       kind="any"
@@ -261,135 +587,359 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import UiGlyph from '@/components/UiGlyph.vue';
 import ContentMediaGrid from '@/components/content/ContentMediaGrid.vue';
 import ContentMediaPickerModal from '@/components/content/ContentMediaPickerModal.vue';
 import MediaAgentSkillsPane from '@/components/content/MediaAgentSkillsPane.vue';
 import MediaAgentComposer from '@/components/content/MediaAgentComposer.vue';
-import { useSiteBrand } from '@/composables/useSiteBrand';
+import MediaAgentPoolGrid from '@/components/content/MediaAgentPoolGrid.vue';
+import MediaAgentBatchPanel from '@/components/content/MediaAgentBatchPanel.vue';
+import { useAuthContext } from '@/composables/useAuth';
+import contactsService from '@/services/contactsService';
 import {
+  cancelMediaAgentJob,
+  createMediaAgentSession,
+  startFreshMediaAgentSession,
+  resumeMediaAgentSession,
+  deleteMediaAgentSession,
+  fetchListingBatches,
   fetchMediaAgentJob,
+  fetchMediaAgentJobs,
+  fetchMediaAgentSessions,
   fetchMediaAgentSkills,
   fetchMediaAgentStatus,
   postMediaAgentTurn,
+  saveMediaAgentSession,
+  chooseOrchestratorPlan,
+  execOrchestratorTool,
 } from '@/services/mediaAgentService';
 
-const STORAGE_KEY = 'media-agent-sessions-v2';
+function cardEditorPath(kind, id) {
+  const draftId = id == null || id === '' ? '' : String(id);
+  if (kind === 'store') {
+    return draftId ? `/content/store/product/${draftId}` : '/content/store/product/new';
+  }
+  return draftId
+    ? `/content/create?edit=${encodeURIComponent(draftId)}`
+    : '/content/create?visibility=public&show_in_blog=1';
+}
+
+function tableEditorPath(id) {
+  const draftId = id == null || id === '' ? '' : String(id);
+  return draftId ? `/tables/${draftId}` : '/tables/create';
+}
+
+function openTableForm(message) {
+  const path = message?.tableId
+    ? tableEditorPath(message.tableId)
+    : (message?.filePreview?.editor_path || tableEditorPath(null));
+  router.push(path);
+}
+
+function openCardForm(message) {
+  const kind = message?.cardBrief?.kind || message?.cardDraftKind || 'listing';
+  const path = message?.cardDraftId
+    ? cardEditorPath(kind, message.cardDraftId)
+    : (message?.formPath || cardEditorPath(kind, null));
+  router.push(path);
+}
+
+const props = defineProps({
+  /** Contact user id — history scoped by contact in DB; empty = studio */
+  storageNamespace: { type: String, default: '' },
+  showAiToggle: { type: Boolean, default: false },
+  aiActive: { type: Boolean, default: false },
+  /** Скрыть свой композер — ввод идёт из ChatInterface контакта */
+  hideComposer: { type: Boolean, default: false },
+});
+defineEmits(['toggle-ai']);
+
+const LEGACY_STORAGE_BASE = 'media-agent-sessions-v2';
+
+const contactId = computed(() => {
+  const raw = String(props.storageNamespace || '').trim();
+  if (!raw || raw.startsWith('guest_')) return '';
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? String(n) : '';
+});
+
 const { t } = useI18n();
-const { headerDescription, headerLogoUrl } = useSiteBrand();
+const router = useRouter();
+const { userId: sessionUserId } = useAuthContext();
 
 const pane = ref('home');
+const jobs = ref([]);
+const jobsError = ref('');
 const recentOpen = ref(true);
 const plusOpen = ref(false);
 const skillOpen = ref(false);
-const filesOpen = ref(false);
 const drivePicker = ref(false);
 const fileRef = ref(null);
+const csvRef = ref(null);
 const threadRef = ref(null);
 const draft = ref('');
 const sending = ref(false);
 const pendingFiles = ref([]);
 const pendingDrive = ref([]);
+const pendingCsv = ref(null);
+const ownerOpen = ref(false);
+const ownerQuery = ref('');
+const ownerHits = ref([]);
+const targetOwnerUserId = ref(null);
+let ownerSearchTimer = null;
 const sessions = ref([]);
 const activeId = ref('');
 const preview = ref(null);
 const qwenOk = ref(false);
 const installedSkills = ref([]);
 let pollTimer = null;
+let persistTimer = null;
+let persistSeq = 0;
+/** Очередь turn'ов, пока идёт генерация / другой turn */
+const turnQueue = [];
+let activeJobId = null;
+let activeAssistantId = null;
+let interruptRequested = false;
+let drainingQueue = false;
 
 const productName = computed(() => t('content.media.agent.product'));
-
-const orgName = computed(() => {
-  const value = String(headerDescription.value || '').trim();
-  const part = value.split(/\s+[—–-]\s+/)[0].trim();
-  return (part || value || t('content.media.agent.orgFallback')).slice(0, 80);
-});
-
-const greeting = computed(() => {
-  const h = new Date().getHours();
-  if (h < 6 || h >= 22) return t('content.media.agent.goodNight');
-  if (h < 12) return t('content.media.agent.goodMorning');
-  if (h < 18) return t('content.media.agent.goodAfternoon');
-  return t('content.media.agent.goodEvening');
-});
+const SERVER_SESSION_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function emptySession() {
+function isServerSessionId(id) {
+  return SERVER_SESSION_RE.test(String(id || ''));
+}
+
+function mapServerSession(row) {
   return {
-    id: uid(),
-    title: t('content.media.agent.defaultTitle'),
-    skillId: '',
-    messages: [],
-    updatedAt: Date.now(),
+    id: row.id,
+    title: row.title || t('content.media.agent.defaultTitle'),
+    skillId: row.skillId || '',
+    messages: sanitizeSessionMessages(row.messages || []),
+    archived: Boolean(row.archived),
+    updatedAt: row.updatedAt || Date.now(),
   };
 }
 
+function adoptServerId(localId, serverId) {
+  if (!isServerSessionId(serverId) || String(localId) === String(serverId)) return;
+  const row = sessions.value.find((item) => item.id === localId);
+  if (row) row.id = serverId;
+  if (activeId.value === localId) activeId.value = serverId;
+}
+
 const current = computed(() => (
-  sessions.value.find((s) => s.id === activeId.value) || sessions.value[0] || emptySession()
+  sessions.value.find((s) => s.id === activeId.value) || sessions.value[0] || {
+    id: '',
+    title: t('content.media.agent.defaultTitle'),
+    skillId: '',
+    messages: [],
+    updatedAt: 0,
+  }
 ));
 
 const hasThread = computed(() => (current.value.messages || []).length > 0);
 
-const sessionFiles = computed(() => {
-  const out = [];
-  for (const m of current.value.messages || []) {
-    for (const p of m.previews || []) out.push(p);
+const sessionsWithHistory = computed(() =>
+  sessions.value.filter((s) => (s.messages || []).length > 0)
+);
+
+const resolvedOwnerId = computed(() => {
+  const mine = Number(sessionUserId.value);
+  return Number.isInteger(mine) && mine > 0 ? mine : null;
+});
+
+const ownerLabel = computed(() => {
+  const id = resolvedOwnerId.value;
+  if (!id) return '';
+  if (Number(id) === Number(sessionUserId.value)) {
+    return t('content.media.agent.ownerMe', { id });
   }
-  return out;
+  return t('content.media.agent.ownerPicked', { id });
 });
 
 function persist() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void flushPersist();
+  }, 400);
+}
+
+async function flushPersist() {
+  const seq = ++persistSeq;
   const slim = sessions.value
     .filter((s) => (s.messages || []).length)
-    .map((s) => ({ ...s, messages: (s.messages || []).slice(-40) }))
+    .map((s) => ({
+      ...s,
+      messages: (s.messages || []).slice(-40),
+    }))
     .slice(0, 24);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+  const cid = contactId.value || null;
+  for (const s of slim) {
+    if (seq !== persistSeq) return;
+    try {
+      let id = s.id;
+      if (!isServerSessionId(id)) {
+        const opened = await openLiveSession();
+        adoptServerId(id, opened.id);
+        id = opened.id;
+      }
+      const data = await saveMediaAgentSession({ ...s, id }, cid);
+      const serverId = data?.session?.id;
+      if (isServerSessionId(serverId)) adoptServerId(id, serverId);
+    } catch {
+      /* keep UI; next persist retries */
+    }
+  }
 }
 
-function loadSessions() {
+/** Старая история только в localStorage — больше не поднимаем, только чистим. */
+function wipeLegacyLocalHistory() {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    if (Array.isArray(raw) && raw.length) {
-      sessions.value = raw;
-      activeId.value = raw[0].id;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(LEGACY_STORAGE_BASE)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
+
+async function openLiveSession() {
+  const data = await createMediaAgentSession(contactId.value || undefined);
+  const row = data?.session;
+  if (!row || !isServerSessionId(row.id)) {
+    throw new Error('SESSION_ID');
+  }
+  return mapServerSession(row);
+}
+
+async function loadSessions() {
+  wipeLegacyLocalHistory();
+  try {
+    const data = await fetchMediaAgentSessions(contactId.value || undefined);
+    const list = (Array.isArray(data?.sessions) ? data.sessions : [])
+      .filter((s) => isServerSessionId(s.id));
+    if (list.length) {
+      sessions.value = list.map(mapServerSession);
+      const live = sessions.value.find((s) => !s.archived) || sessions.value[0];
+      activeId.value = live.id;
       return;
     }
-  } catch { /* ignore */ }
-  const s = emptySession();
+  } catch { /* открыть через POST */ }
+  try {
+    const s = await openLiveSession();
+    sessions.value = [s];
+    activeId.value = s.id;
+  } catch {
+    sessions.value = [];
+    activeId.value = '';
+  }
+}
+
+async function ensureServerSession() {
+  const currentRow = sessions.value.find((x) => x.id === activeId.value && isServerSessionId(x.id));
+  if (currentRow) return currentRow;
+  const any = sessions.value.find((x) => isServerSessionId(x.id));
+  if (any) {
+    activeId.value = any.id;
+    return any;
+  }
+  const s = await openLiveSession();
   sessions.value = [s];
   activeId.value = s.id;
+  return sessions.value[0];
 }
 
-function ensureSession() {
-  let s = sessions.value.find((x) => x.id === activeId.value);
-  if (!s) {
-    s = emptySession();
-    sessions.value = [s, ...sessions.value];
-    activeId.value = s.id;
+async function newTask() {
+  try {
+    const data = await startFreshMediaAgentSession(contactId.value || undefined);
+    const fresh = mapServerSession(data?.session || {});
+    if (!isServerSessionId(fresh.id)) return;
+    const kept = sessions.value
+      .filter((s) => s.id !== fresh.id && (s.messages || []).length)
+      .map((s) => ({ ...s, archived: true }));
+    sessions.value = [fresh, ...kept];
+    activeId.value = fresh.id;
+    pane.value = 'home';
+    preview.value = null;
+    draft.value = '';
+    pendingFiles.value = [];
+    pendingDrive.value = [];
+  } catch {
+    /* кнопка не затирает текущий чат, если сервер не выдал новый id */
   }
-  return s;
 }
 
-function newTask() {
-  const s = emptySession();
-  sessions.value = [s, ...sessions.value.filter((x) => (x.messages || []).length)];
-  activeId.value = s.id;
-  pane.value = 'home';
-  preview.value = null;
-  draft.value = '';
-  pendingFiles.value = [];
-  pendingDrive.value = [];
-}
-
-function openSession(id) {
+async function openSession(id) {
+  const s = sessions.value.find((x) => x.id === id);
+  if (s?.archived) {
+    try {
+      const data = await resumeMediaAgentSession(id);
+      const live = mapServerSession(data?.session || s);
+      sessions.value = sessions.value.map((row) => {
+        if (row.id === live.id) return { ...row, ...live, archived: false };
+        return { ...row, archived: true };
+      });
+    } catch {
+      return;
+    }
+  }
+  const opened = sessions.value.find((x) => x.id === id);
+  if (opened) opened.messages = sanitizeSessionMessages(opened.messages || []);
   activeId.value = id;
   pane.value = 'home';
-  const last = [...(current.value.messages || [])].reverse().find((m) => m.previews?.length);
-  preview.value = last?.previews?.[0] || null;
+  preview.value = null;
+  nextTick(() => scrollBottom());
+}
+
+async function deleteSession(id) {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  persistSeq += 1;
+
+  preview.value = null;
+  pane.value = 'home';
+
+  try {
+    const data = await deleteMediaAgentSession(id);
+    const row = data?.session;
+    const rest = sessions.value.filter((s) => s.id !== id);
+    if (row && isServerSessionId(row.id) && !rest.some((s) => s.id === row.id)) {
+      sessions.value = [mapServerSession(row), ...rest];
+    } else {
+      sessions.value = rest;
+    }
+    if (activeId.value === id) {
+      const live = sessions.value.find((s) => !s.archived) || sessions.value[0];
+      activeId.value = live?.id || '';
+    }
+    return;
+  } catch {
+    /* при ошибке сети оставляем список и пробуем открыть живую беседу */
+  }
+  const rest = sessions.value.filter((s) => s.id !== id && isServerSessionId(s.id));
+  if (rest.length) {
+    sessions.value = rest;
+    if (activeId.value === id) activeId.value = rest[0].id;
+    return;
+  }
+  try {
+    const s = await openLiveSession();
+    sessions.value = [s];
+    activeId.value = s.id;
+  } catch {
+    sessions.value = sessions.value.filter((s) => s.id !== id);
+    if (activeId.value === id) activeId.value = sessions.value[0]?.id || '';
+  }
 }
 
 function splitParas(text) {
@@ -412,10 +962,45 @@ function onShellClick() {
 }
 
 function onFiles(ev) {
-  const list = Array.from(ev.target.files || []).filter((f) => f.type.startsWith('image/'));
-  pendingFiles.value = [...pendingFiles.value, ...list].slice(0, 4);
+  const list = Array.from(ev.target.files || []);
+  pendingFiles.value = [...pendingFiles.value, ...list].slice(0, 6);
   plusOpen.value = false;
   ev.target.value = '';
+}
+
+function onCsv(ev) {
+  const file = ev.target.files?.[0];
+  if (file) pendingCsv.value = file;
+  plusOpen.value = false;
+  ev.target.value = '';
+}
+
+function pickOwner(id) {
+  const n = Number(id);
+  targetOwnerUserId.value = Number.isInteger(n) && n > 0 ? n : null;
+  ownerOpen.value = false;
+  ownerQuery.value = '';
+  ownerHits.value = [];
+}
+
+function searchOwners() {
+  if (ownerSearchTimer) clearTimeout(ownerSearchTimer);
+  ownerSearchTimer = setTimeout(async () => {
+    const q = String(ownerQuery.value || '').trim();
+    if (!q) {
+      ownerHits.value = [];
+      return;
+    }
+    try {
+      const data = await contactsService.getContacts({ q, limit: 8 });
+      ownerHits.value = (data.contacts || []).map((c) => ({
+        id: c.id,
+        label: `${c.display_name || c.name || c.email || '—'} #${c.id}`,
+      }));
+    } catch {
+      ownerHits.value = [];
+    }
+  }, 250);
 }
 
 function removeFile(i) {
@@ -475,8 +1060,13 @@ function skillIntro(skill) {
   };
 }
 
-function applySkill(skill) {
-  const s = emptySession();
+async function applySkill(skill) {
+  let s;
+  try {
+    s = await ensureServerSession();
+  } catch {
+    return;
+  }
   s.title = skill.title || skill.name || s.title;
   s.skillId = skill.id || skill.name || '';
   const intro = skillIntro(skill);
@@ -488,7 +1078,7 @@ function applySkill(skill) {
     closing: intro.closing || '',
     askLabel: intro.askLabel || '',
   }];
-  sessions.value = [s, ...sessions.value.filter((x) => (x.messages || []).length)];
+  sessions.value = [s];
   activeId.value = s.id;
   pane.value = 'home';
   plusOpen.value = false;
@@ -511,10 +1101,60 @@ function patchMessage(id, patch) {
   persist();
 }
 
+function onPoolUpdate(messageId, pool) {
+  patchMessage(messageId, {
+    pool,
+    text: pool.ready
+      ? t('content.media.agent.poolReadyMsg', {
+        brand: pool.brand,
+        model: pool.model,
+        n: pool.count,
+      })
+      : t('content.media.agent.poolProgressMsg', {
+        brand: pool.brand,
+        model: pool.model,
+        count: pool.count,
+        target: pool.target,
+      }),
+  });
+}
+
+function onBatchUpdate(messageId, batch) {
+  patchMessage(messageId, {
+    batch,
+    pool: batch?.pool || null,
+    text: batch?.reply_hint || t('content.media.agent.batchRunning'),
+    status: batch?.status === 'done' || batch?.status === 'partial' || batch?.status === 'cancelled'
+      ? 'done'
+      : batch?.status === 'waiting_human'
+        ? 'done'
+        : 'generating',
+  });
+}
+
 async function scrollBottom() {
   await nextTick();
   const el = threadRef.value;
   if (el) el.scrollTop = el.scrollHeight;
+}
+
+function visibleQuestions(message) {
+  const text = String(message?.text || '').trim();
+  return (message?.questions || []).filter((q) => {
+    const prompt = String(q?.prompt || q?.text || '').trim();
+    return prompt && prompt !== text;
+  });
+}
+
+function isMediaRunning(data) {
+  if (!data) return false;
+  if (data.kind === 'plan_options' || data.kind === 'ask' || data.kind === 'card_brief'
+    || data.kind === 'file_preview' || data.kind === 'plan_selected' || data.kind === 'table_enrich') {
+    return false;
+  }
+  if (data.batch && data.batch.status === 'running') return true;
+  const status = String(data.job?.status || '');
+  return Boolean(data.job?.id && (status === 'running' || status === 'leased' || status === 'generating'));
 }
 
 function stopPoll() {
@@ -524,15 +1164,50 @@ function stopPoll() {
   }
 }
 
+async function requestInterrupt(reason = '') {
+  interruptRequested = true;
+  stopPoll();
+  const jobId = activeJobId;
+  if (jobId) {
+    activeJobId = null;
+    try {
+      await cancelMediaAgentJob(jobId);
+    } catch { /* job мог уже завершиться */ }
+  }
+  if (activeAssistantId) {
+    patchMessage(activeAssistantId, {
+      status: 'done',
+      text: reason || t('content.media.agent.turnInterrupted'),
+    });
+    activeAssistantId = null;
+  }
+}
+
 async function pollJob(jobId, assistantId) {
   stopPoll();
+  activeJobId = jobId;
+  activeAssistantId = assistantId;
   const tick = async () => {
+    if (interruptRequested) {
+      stopPoll();
+      return;
+    }
     try {
       const data = await fetchMediaAgentJob(jobId);
       const job = data?.job;
       if (!job) return;
+      if (job.status === 'cancelled') {
+        stopPoll();
+        if (activeJobId === jobId) activeJobId = null;
+        patchMessage(assistantId, {
+          status: 'done',
+          text: t('content.media.agent.turnInterrupted'),
+        });
+        return;
+      }
       if (job.status === 'done' && job.media) {
         stopPoll();
+        if (activeJobId === jobId) activeJobId = null;
         const kind = String(job.media.type || job.kind) === 'video' ? 'video' : 'image';
         const item = {
           url: job.media.url,
@@ -540,11 +1215,11 @@ async function pollJob(jobId, assistantId) {
           name: job.media.filename || job.media.originalName || 'ai-media',
         };
         patchMessage(assistantId, { status: 'done', previews: [item] });
-        preview.value = item;
         persist();
         scrollBottom();
       } else if (job.status === 'error') {
         stopPoll();
+        if (activeJobId === jobId) activeJobId = null;
         patchMessage(assistantId, {
           status: 'error',
           error: job.error || t('content.media.agent.genFailed'),
@@ -553,35 +1228,87 @@ async function pollJob(jobId, assistantId) {
     } catch { /* keep polling */ }
   };
   await tick();
-  pollTimer = setInterval(tick, 2500);
+  if (!interruptRequested && activeJobId === jobId) {
+    pollTimer = setInterval(tick, 2500);
+    await new Promise((resolve) => {
+      const watch = setInterval(() => {
+        if (!pollTimer || interruptRequested || activeJobId !== jobId) {
+          clearInterval(watch);
+          resolve();
+        }
+      }, 200);
+    });
+  }
 }
 
-async function send(opts) {
-  const silent = Boolean(opts && opts.silent);
-  const text = String((opts && opts.forcedText) ?? draft.value).trim();
-  const files = silent ? [] : pendingFiles.value.slice();
-  const driveIds = silent ? [] : pendingDrive.value.map((d) => d.id).filter(Boolean);
-  if (sending.value || (!text && !files.length && !driveIds.length)) return;
-  sending.value = true;
-  const s = ensureSession();
-  pane.value = 'home';
-  if (!silent && !(s.messages || []).some((m) => m.role === 'user') && text) {
-    s.title = text.slice(0, 48);
+async function drainTurnQueue() {
+  if (drainingQueue || sending.value) return;
+  const next = turnQueue.shift();
+  if (!next) return;
+  drainingQueue = true;
+  try {
+    await executeTurn(next);
+  } finally {
+    drainingQueue = false;
+    if (turnQueue.length && !sending.value) {
+      void drainTurnQueue();
+    }
   }
-  if (!silent) {
+}
+
+/**
+ * @param {{ text: string, files: File[], driveIds: string[], silent?: boolean, userAlreadyPushed?: boolean }} payload
+ */
+async function executeTurn(payload) {
+  const text = String(payload.text || '').trim();
+  const files = Array.isArray(payload.files) ? payload.files.filter(Boolean) : [];
+  const driveIds = Array.isArray(payload.driveIds) ? payload.driveIds.filter(Boolean) : [];
+  const csvText = String(payload.csvText || '');
+  const csvName = String(payload.csvName || '');
+  const silent = Boolean(payload.silent);
+  const userAlreadyPushed = Boolean(payload.userAlreadyPushed);
+
+  if (sending.value) {
+    turnQueue.push({
+      text,
+      files,
+      driveIds,
+      silent: true,
+      userAlreadyPushed: true,
+    });
+    return;
+  }
+
+  sending.value = true;
+  interruptRequested = false;
+  let s;
+  try {
+    s = await ensureServerSession();
+  } catch {
+    sending.value = false;
+    return;
+  }
+  pane.value = 'home';
+
+  if (!userAlreadyPushed && !silent) {
+    if (!(s.messages || []).some((m) => m.role === 'user') && text) {
+      s.title = text.slice(0, 48);
+    }
     s.messages.push({
       id: uid(),
       role: 'user',
       text: text || t('content.media.agent.examplesOnly'),
     });
-    pendingFiles.value = [];
-    pendingDrive.value = [];
   }
-  draft.value = '';
+
+  recentOpen.value = true;
+  sessions.value = [s, ...sessions.value.filter((x) => x.id !== s.id)];
+  activeId.value = s.id;
   persist();
   await scrollBottom();
 
   const assistantId = uid();
+  activeAssistantId = assistantId;
   s.messages.push({
     id: assistantId,
     role: 'assistant',
@@ -594,45 +1321,485 @@ async function send(opts) {
   try {
     const data = await postMediaAgentTurn({
       message: text,
-      history: silent ? historyForApi() : historyForApi().slice(0, -1),
+      history: historyForApi().slice(0, -1),
       files,
       driveIds,
       skillId: s.skillId || '',
+      sessionId: s.id,
+      targetOwnerUserId: resolvedOwnerId.value,
+      csvText,
+      csvName,
     });
+
+    if (interruptRequested) {
+      if (data?.job?.id) {
+        try { await cancelMediaAgentJob(data.job.id); } catch { /* ignore */ }
+      }
+      patchMessage(assistantId, {
+        status: 'done',
+        text: t('content.media.agent.turnInterrupted'),
+      });
+      return;
+    }
+
     patchMessage(assistantId, {
       text: data.reply || t('content.media.agent.working'),
-      status: data.job ? 'generating' : 'done',
+      status: isMediaRunning(data) ? 'generating' : 'done',
       questions: data.questions || [],
       answers: {},
       questionsLocked: false,
+      options: data.options || [],
+      optionsLocked: false,
+      selectedOptionId: null,
+      planJobId: data.job?.id || null,
+      filePreview: data.file_preview || null,
+      enrichDiff: data.enrich_diff || null,
+      enrichCanApply: Boolean(data.can_apply),
+      enrichApplied: false,
+      tableId: data.table_id || null,
+      tableWritten: Boolean(data.table_id),
+      cardBrief: data.card_brief || null,
+      cardDraftId: null,
+      cardDraftKind: null,
+      cardPublished: false,
+      cardPublishStatus: '',
+      mediaPlan: data.media_plan || null,
+      formPath: data.form_path || null,
+      sources: data.sources || [],
       actions: data.actions || [],
+      pool: data.pool || null,
+      batch: data.batch || null,
     });
-    if (data.job?.id) await pollJob(data.job.id, assistantId);
+    if (isMediaRunning(data) && data.job?.id) await pollJob(data.job.id, assistantId);
   } catch (e) {
-    const msg = e.response?.data?.error || e.message || t('content.media.agent.genFailed');
-    patchMessage(assistantId, { text: '', status: 'error', error: msg });
+    if (!interruptRequested) {
+      const msg = e.response?.data?.error || e.message || t('content.media.agent.genFailed');
+      patchMessage(assistantId, { text: '', status: 'error', error: msg });
+    }
   } finally {
     sending.value = false;
+    activeJobId = null;
+    activeAssistantId = null;
+    persist();
+    await scrollBottom();
+    if (turnQueue.length) void drainTurnQueue();
+  }
+}
+
+async function send(opts) {
+  const silent = Boolean(opts && opts.silent);
+  const text = String((opts && opts.forcedText) ?? draft.value).trim();
+  const forcedFiles = Array.isArray(opts?.forcedFiles) ? opts.forcedFiles.filter(Boolean) : null;
+  const files = silent ? [] : (forcedFiles || pendingFiles.value.slice());
+  const driveIds = silent || forcedFiles ? [] : pendingDrive.value.map((d) => d.id).filter(Boolean);
+  const csvFile = silent || forcedFiles ? null : pendingCsv.value;
+  if (!text && !files.length && !driveIds.length && !csvFile) return;
+  let csvText = '';
+  let csvName = '';
+  if (csvFile) {
+    csvText = await csvFile.text();
+    csvName = csvFile.name || 'upload.csv';
+  }
+
+  let s;
+  try {
+    s = await ensureServerSession();
+  } catch {
+    return;
+  }
+  let userAlreadyPushed = false;
+
+  if (!silent) {
+    if (!(s.messages || []).some((m) => m.role === 'user') && text) {
+      s.title = text.slice(0, 48);
+    }
+    s.messages.push({
+      id: uid(),
+      role: 'user',
+      text: text || t('content.media.agent.examplesOnly'),
+    });
+    userAlreadyPushed = true;
+    if (!forcedFiles) {
+      pendingFiles.value = [];
+      pendingDrive.value = [];
+      pendingCsv.value = null;
+    }
+    draft.value = '';
+    recentOpen.value = true;
+    sessions.value = [s, ...sessions.value.filter((x) => x.id !== s.id)];
+    activeId.value = s.id;
     persist();
     await scrollBottom();
   }
+
+  const payload = {
+    text,
+    files,
+    driveIds,
+    csvText,
+    csvName,
+    silent,
+    userAlreadyPushed: userAlreadyPushed || silent,
+  };
+
+  if (sending.value) {
+    // Оркестратор: остановиться и пересмотреть задачу по новому сообщению
+    turnQueue.push(payload);
+    await requestInterrupt(t('content.media.agent.turnInterrupted'));
+    // Текущий executeTurn выйдет в finally и вызовет drainTurnQueue
+    // Если sending уже false (гонка) — дренируем сами
+    if (!sending.value) void drainTurnQueue();
+    return;
+  }
+
+  await executeTurn(payload);
+}
+
+function formatSourceDate(raw) {
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return String(raw || '');
+  return d.toLocaleString();
 }
 
 async function answerQuestion(messageId, questionId, opt) {
   const s = sessions.value.find((x) => x.id === activeId.value);
   const m = s?.messages.find((x) => x.id === messageId);
   if (!m || m.questionsLocked) return;
-  m.answers = { ...(m.answers || {}), [questionId]: opt.id };
-  persist();
-  const unanswered = (m.questions || []).filter((q) => !m.answers[q.id]);
-  if (unanswered.length) return;
-  m.questionsLocked = true;
-  persist();
-  const lines = (m.questions || []).map((q) => {
-    const chosen = q.options.find((o) => o.id === m.answers[q.id]);
-    return `${q.prompt} ${chosen?.label || ''}`;
+  const qid = String(questionId || '');
+  if (!qid || !opt?.id) return;
+
+  const answers = { ...(m.answers || {}), [qid]: opt.id };
+  const questions = m.questions || [];
+  const complete = questions.length > 0 && questions.every((q) => answers[String(q.id)]);
+
+  // Обновляем через patchMessage — иначе Vue может не увидеть nested mutation
+  patchMessage(messageId, {
+    answers,
+    questionsLocked: complete,
+  });
+
+  if (!complete) return;
+
+  const lines = questions.map((q) => {
+    const chosen = (q.options || []).find((o) => o.id === answers[String(q.id)]);
+    return `${q.prompt} ${chosen?.label || ''}`.trim();
   });
   await send({ silent: true, forcedText: lines.join('\n') });
+}
+
+async function planCardMedia(message) {
+  const brief = message?.cardBrief;
+  if (!brief || sending.value) return;
+  sending.value = true;
+  try {
+    const planned = await execOrchestratorTool({
+      tool: 'card.plan_media',
+      args: { brief, text: message.text || '' },
+      jobId: message.planJobId,
+    });
+    patchMessage(message.id, {
+      mediaPlan: planned,
+      questions: planned.questions?.length ? planned.questions : message.questions || [],
+    });
+  } catch (e) {
+    patchMessage(message.id, {
+      status: 'error',
+      error: e.response?.data?.error || e.message || t('content.media.agent.mediaPlanFailed'),
+    });
+  } finally {
+    sending.value = false;
+    persist();
+  }
+}
+
+function setBriefField(message, field, value) {
+  if (!message?.cardBrief || message.cardDraftId) return;
+  patchMessage(message.id, {
+    cardBrief: { ...message.cardBrief, [field]: value },
+  });
+}
+
+function setBriefStoreField(message, field, value) {
+  if (!message?.cardBrief || message.cardDraftId) return;
+  patchMessage(message.id, {
+    cardBrief: {
+      ...message.cardBrief,
+      store: { ...(message.cardBrief.store || {}), [field]: value },
+    },
+  });
+}
+
+async function commitCardDraft(message) {
+  const brief = message?.cardBrief;
+  if (!brief || message.cardDraftId || sending.value) return;
+  const tool = brief.kind === 'store' ? 'store.create_draft' : 'listing.create_draft';
+  sending.value = true;
+  try {
+    const created = await execOrchestratorTool({
+      tool,
+      args: {
+        brief,
+        idempotency_key: `${message.planJobId || 'card'}:${tool}`,
+      },
+      jobId: message.planJobId,
+      decision: 'choose',
+    });
+    const id = created.page_id || created.product_id;
+    const editorPath = created.editor_path || cardEditorPath(brief.kind, id);
+    const planned = await execOrchestratorTool({
+      tool: 'card.plan_media',
+      args: { brief, text: message.text || '' },
+      jobId: message.planJobId,
+    });
+    const linked = created.media_attached?.attached?.length || 0;
+    patchMessage(message.id, {
+      cardDraftId: id,
+      cardDraftKind: brief.kind,
+      cardPublished: false,
+      formPath: editorPath,
+      mediaPlan: planned,
+      questions: planned.questions?.length ? planned.questions : message.questions || [],
+      text: linked
+        ? `${t('content.media.agent.briefWritten', { id })} К странице привязано кадров: ${linked}.`
+        : t('content.media.agent.briefWritten', { id }),
+    });
+    if (id) router.push(editorPath);
+  } catch (e) {
+    const questions = e.response?.data?.questions;
+    patchMessage(message.id, {
+      status: questions ? 'done' : 'error',
+      questions: questions || message.questions || [],
+      error: e.response?.data?.error || e.message || t('content.media.agent.briefWriteFailed'),
+    });
+  } finally {
+    sending.value = false;
+    persist();
+  }
+}
+
+async function publishCardDraft(message) {
+  const brief = message?.cardBrief;
+  const id = message?.cardDraftId;
+  if (!brief || !id || message.cardPublished || sending.value) return;
+  sending.value = true;
+  try {
+    const published = await execOrchestratorTool({
+      tool: 'card.publish',
+      args: {
+        brief,
+        page_id: brief.kind === 'store' ? undefined : id,
+        product_id: brief.kind === 'store' ? id : undefined,
+        idempotency_key: `${message.planJobId || 'card'}:card.publish`,
+      },
+      jobId: message.planJobId,
+      decision: 'approve',
+      text: '',
+    });
+    patchMessage(message.id, {
+      cardPublished: true,
+      cardPublishStatus: published.status || (published.published ? 'published' : 'pending'),
+      text: t('content.media.agent.briefPublished', {
+        status: published.status || (published.published ? 'published' : 'pending'),
+      }),
+    });
+  } catch (e) {
+    const questions = e.response?.data?.questions;
+    patchMessage(message.id, {
+      status: questions ? 'done' : 'error',
+      questions: questions || message.questions || [],
+      error: e.response?.data?.error || e.message || t('content.media.agent.briefPublishFailed'),
+    });
+  } finally {
+    sending.value = false;
+    persist();
+  }
+}
+
+async function commitFilePreview(message) {
+  const preview = message?.filePreview;
+  if (!preview?.columns?.length || message.tableWritten || sending.value) return;
+  sending.value = true;
+  try {
+    const created = await execOrchestratorTool({
+      tool: 'tables.create',
+      args: {
+        name: preview.table_name || preview.filename || t('content.media.agent.filePreviewDefaultName'),
+        description: preview.description || '',
+        rag_source: false,
+        idempotency_key: `${message.planJobId || 'preview'}:tables.create`,
+      },
+      jobId: message.planJobId,
+      decision: 'choose',
+    });
+    const cols = await execOrchestratorTool({
+      tool: 'tables.add_columns',
+      args: {
+        table_id: created.table_id,
+        columns: (preview.column_meta || preview.columns).map((col) => (
+          typeof col === 'string' ? { name: col, type: 'text' } : col
+        )),
+        idempotency_key: `${message.planJobId || 'preview'}:tables.add_columns`,
+      },
+      jobId: message.planJobId,
+      decision: 'choose',
+    });
+    await execOrchestratorTool({
+      tool: 'tables.add_rows',
+      args: {
+        table_id: created.table_id,
+        columns: cols.columns,
+        rows: preview.rows,
+        idempotency_key: `${message.planJobId || 'preview'}:tables.add_rows`,
+      },
+      jobId: message.planJobId,
+      decision: 'choose',
+    });
+    const editorPath = created.editor_path || tableEditorPath(created.table_id);
+    patchMessage(message.id, {
+      tableWritten: true,
+      tableId: created.table_id,
+      formPath: editorPath,
+      text: t('content.media.agent.filePreviewWrittenId', { id: created.table_id }),
+    });
+    if (created.table_id) router.push(editorPath);
+  } catch (e) {
+    patchMessage(message.id, {
+      status: 'error',
+      error: e.response?.data?.error || e.message || t('content.media.agent.filePreviewWriteFailed'),
+    });
+  } finally {
+    sending.value = false;
+    persist();
+  }
+}
+
+function enrichWritable(diff) {
+  return (Array.isArray(diff) ? diff : []).some((item) => (
+    item?.row_id && item?.column_id && String(item.after || '').trim()
+  ));
+}
+
+async function proposeTableEnrich(message) {
+  if (!message?.tableId || sending.value) return;
+  sending.value = true;
+  try {
+    const data = await execOrchestratorTool({
+      tool: 'tables.enrich',
+      args: {
+        table_id: message.tableId,
+        apply: false,
+        message: '',
+      },
+      jobId: message.planJobId,
+    });
+    const diff = data.diff || data.enrich_diff || [];
+    patchMessage(message.id, {
+      enrichDiff: diff,
+      enrichCanApply: Boolean(data.can_apply) || enrichWritable(diff),
+      enrichApplied: false,
+      tableId: data.table_id || message.tableId,
+      tableWritten: true,
+      text: data.reply || message.text,
+      questions: data.questions || [],
+      status: 'done',
+    });
+  } catch (e) {
+    patchMessage(message.id, {
+      status: 'error',
+      error: e.response?.data?.error || e.message || t('content.media.agent.enrichFailed'),
+    });
+  } finally {
+    sending.value = false;
+    persist();
+  }
+}
+
+async function applyTableEnrich(message) {
+  const patches = (message.enrichDiff || []).filter((item) => (
+    item?.row_id && item?.column_id && String(item.after || '').trim()
+  ));
+  if (!message?.tableId || !patches.length || message.enrichApplied || sending.value) return;
+  sending.value = true;
+  try {
+    const stamp = patches.map((item) => `${item.row_id}:${item.column_id}`).join(',');
+    const data = await execOrchestratorTool({
+      tool: 'tables.enrich',
+      args: {
+        table_id: message.tableId,
+        apply: true,
+        patches,
+        idempotency_key: `${message.planJobId || 'enrich'}:tables.enrich:${message.tableId}:${stamp}`,
+      },
+      jobId: message.planJobId,
+      decision: 'choose',
+    });
+    patchMessage(message.id, {
+      enrichApplied: true,
+      formPath: data.editor_path || message.formPath || tableEditorPath(message.tableId),
+      text: data.reply || t('content.media.agent.enrichWritten'),
+    });
+  } catch (e) {
+    patchMessage(message.id, {
+      status: 'error',
+      error: e.response?.data?.error || e.message || t('content.media.agent.enrichFailed'),
+    });
+  } finally {
+    sending.value = false;
+    persist();
+  }
+}
+
+async function choosePlanOption(message, opt) {
+  if (!message?.planJobId || !opt?.id || message.optionsLocked || sending.value) return;
+  sending.value = true;
+  try {
+    const data = await chooseOrchestratorPlan(message.planJobId, {
+      optionId: opt.id,
+      decision: 'choose',
+    });
+    patchMessage(message.id, {
+      selectedOptionId: opt.id,
+      optionsLocked: true,
+      text: data.reply || message.text,
+      batch: data.batch || message.batch || null,
+      pool: data.pool || message.pool || null,
+      filePreview: data.file_preview || message.filePreview || null,
+      enrichDiff: data.enrich_diff || message.enrichDiff || null,
+      enrichCanApply: data.can_apply != null ? Boolean(data.can_apply) : message.enrichCanApply,
+      tableId: data.table_id || message.tableId || null,
+      tableWritten: Boolean(data.table_id || message.tableWritten),
+      cardBrief: data.card_brief || message.cardBrief || null,
+      mediaPlan: data.media_plan || message.mediaPlan || null,
+      formPath: data.form_path || data.editor_path || message.formPath || null,
+      sources: data.sources || message.sources || [],
+      questions: data.questions || message.questions || [],
+      status: isMediaRunning(data) ? 'generating' : 'done',
+    });
+    if (isMediaRunning(data) && data.job?.id) {
+      await pollJob(data.job.id, message.id);
+    }
+  } catch (e) {
+    patchMessage(message.id, {
+      status: 'error',
+      error: e.response?.data?.error || e.message || t('content.media.agent.optionsFailed'),
+    });
+  } finally {
+    sending.value = false;
+  }
+}
+
+function sanitizeSessionMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  return messages.map((m) => {
+    if (!m || !Array.isArray(m.questions) || !m.questions.length) return m;
+    const answers = m.answers && typeof m.answers === 'object' ? m.answers : {};
+    const complete = m.questions.every((q) => answers[String(q?.id)]);
+    // Не держим «Ответ отправлен», если выбраны не все варианты
+    if (m.questionsLocked && !complete) {
+      return { ...m, answers, questionsLocked: false };
+    }
+    return m;
+  });
 }
 
 async function openConnectors() {
@@ -642,6 +1809,28 @@ async function openConnectors() {
     qwenOk.value = Boolean(data.qwenConfigured);
   } catch {
     qwenOk.value = false;
+  }
+}
+
+async function openJobs() {
+  pane.value = 'jobs';
+  jobsError.value = '';
+  try {
+    const [orch, listing] = await Promise.all([
+      fetchMediaAgentJobs(),
+      fetchListingBatches().catch(() => ({ jobs: [] })),
+    ]);
+    const orchJobs = Array.isArray(orch.jobs) ? orch.jobs : [];
+    const listingJobs = Array.isArray(listing.jobs) ? listing.jobs : [];
+    const seen = new Set();
+    jobs.value = [...listingJobs, ...orchJobs].filter((job) => {
+      if (!job?.id || seen.has(job.id)) return false;
+      seen.add(job.id);
+      return true;
+    });
+  } catch (e) {
+    jobsError.value = e.response?.data?.error || e.message || t('content.media.agent.jobsFailed');
+    jobs.value = [];
   }
 }
 
@@ -655,13 +1844,34 @@ async function loadInstalled() {
 }
 
 watch(activeId, () => scrollBottom());
-onMounted(() => {
-  loadSessions();
+watch(
+  () => props.storageNamespace,
+  async () => {
+    stopPoll();
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
+    await loadSessions();
+    scrollBottom();
+  }
+);
+onMounted(async () => {
+  await loadSessions();
   loadInstalled();
   scrollBottom();
 });
 
-onBeforeUnmount(() => stopPoll());
+onBeforeUnmount(() => {
+  stopPoll();
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+    void flushPersist();
+  }
+});
+
+defineExpose({ send });
 </script>
 
 <style scoped>
@@ -673,6 +1883,12 @@ onBeforeUnmount(() => stopPoll());
   border-radius: 12px;
   overflow: hidden;
   position: relative;
+}
+
+.work--embedded {
+  min-height: 0;
+  height: 100%;
+  border-radius: 0;
 }
 
 .work--preview {
@@ -757,28 +1973,95 @@ onBeforeUnmount(() => stopPoll());
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.35rem;
   margin-top: 14px;
   padding: 8px 10px;
   color: #6b7280;
   font-size: 0.9rem;
 }
+.work__recent-count {
+  margin-left: auto;
+  margin-right: 4px;
+  min-width: 1.1rem;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
 
 .work__task {
-  padding: 7px 10px 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 7px 6px 7px 12px;
   border-radius: 8px;
+  font-size: 0.9rem;
+  color: #4b5563;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.work__task-title {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
-  color: #4b5563;
+}
+.work__task-del {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #9ca3af;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.work__task:hover .work__task-del,
+.work__task.is-on .work__task-del {
+  opacity: 1;
+}
+.work__task-del:hover {
+  color: #b00020;
+  background: rgba(176, 0, 32, 0.08);
+}
+.work__ai {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.work__ai.is-on {
+  background: #1a5f9e;
+  border-color: #1a5f9e;
+  color: #fff;
 }
 
 .work__main {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
   background: #fff;
+  overflow: hidden;
 }
 
 .home {
@@ -788,53 +2071,15 @@ onBeforeUnmount(() => stopPoll());
   align-items: center;
   justify-content: center;
   padding: 40px 24px 64px;
-}
-
-.home__hero {
-  text-align: center;
-  margin-bottom: 28px;
-}
-
-.home__hero h1 {
-  margin: 12px 0 0;
-  font-size: 1.7rem;
-  font-weight: 750;
-  color: #111827;
-}
-
-.home__hero p {
-  margin: 6px 0 0;
-  font-size: 1.7rem;
-  font-weight: 750;
-  color: #111827;
-}
-
-.home__mascot {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 8px;
-}
-
-.home__mascot img {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 50%;
-}
-
-.home__blob {
-  display: block;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #b9f36a, #3ecf4c 62%, #1faa3a);
+  min-height: 0;
 }
 
 .thread-wrap {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .thread-wrap__head {
@@ -842,6 +2087,7 @@ onBeforeUnmount(() => stopPoll());
   align-items: center;
   gap: 8px;
   padding: 16px 28px 0;
+  flex: 0 0 auto;
 }
 
 .thread-wrap__head h2 {
@@ -861,12 +2107,25 @@ onBeforeUnmount(() => stopPoll());
 }
 
 .thread {
-  flex: 1;
-  overflow: auto;
-  padding: 12px 24px 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 12px 24px 16px;
   max-width: 760px;
   width: 100%;
   margin: 0 auto;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.thread::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .msg {
@@ -952,6 +2211,9 @@ onBeforeUnmount(() => stopPoll());
   cursor: pointer;
   color: #111827;
   font-weight: 650;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .qcard__opt em {
@@ -960,11 +2222,12 @@ onBeforeUnmount(() => stopPoll());
 }
 
 .qcard__opt.is-on {
-  color: #111827;
+  color: #1a5f9e;
 }
 
 .qcard__opt:disabled {
   cursor: default;
+  opacity: 0.55;
 }
 
 .thumbs {
@@ -1005,67 +2268,47 @@ onBeforeUnmount(() => stopPoll());
   color: #b42318;
 }
 
-.dock {
-  max-width: 760px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 0 24px 8px;
-  position: relative;
-}
-
-.dock__files {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  border-radius: 999px;
-  padding: 6px 12px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.dock__list {
-  position: absolute;
-  bottom: 40px;
-  left: 24px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 8px;
-  min-width: 220px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  z-index: 5;
-}
-
-.dock__list button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: 0;
-  background: none;
-  padding: 6px 8px;
-  cursor: pointer;
-  border-radius: 8px;
-}
-
-.dock__list button:hover {
-  background: #f3f4f6;
-}
-
 .stub,
-.drive {
+.drive,
+.jobs {
   padding: 32px 36px;
 }
 
 .stub h2,
-.drive h2 {
+.drive h2,
+.jobs h2 {
   margin: 0 0 8px;
 }
 
 .stub p,
-.drive p {
+.drive p,
+.jobs p {
   color: #6b7280;
+}
+
+.jobs__error {
+  color: #b42318;
+}
+
+.jobs__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.jobs__row span {
+  color: #6b7280;
+  font-size: 0.85rem;
 }
 
 .preview {
@@ -1112,6 +2355,305 @@ onBeforeUnmount(() => stopPoll());
 
 .work__hidden {
   display: none;
+}
+
+.preview {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.preview__hint,
+.preview__done,
+.preview__name {
+  margin: 6px 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.preview__name {
+  color: #111;
+  font-weight: 600;
+}
+
+.preview__enrich {
+  display: block;
+  font-style: normal;
+  color: #6b7280;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.preview__table {
+  overflow: auto;
+  max-height: 240px;
+  margin: 8px 0;
+}
+
+.preview__table table {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.preview__table th,
+.preview__table td {
+  border: 1px solid #e5e7eb;
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.preview__write {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.enrich {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  display: grid;
+  gap: 8px;
+}
+
+.enrich ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+}
+
+.enrich a {
+  margin-left: 6px;
+  color: #2563eb;
+}
+
+.brief {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  display: grid;
+  gap: 8px;
+}
+
+.brief__hint,
+.brief__done {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.brief label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #374151;
+}
+
+.brief input,
+.brief textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  background: #fff;
+}
+
+.media-plan {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.media-plan__hint {
+  margin: 6px 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.media-plan ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.media-plan li p {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #374151;
+}
+
+.media-plan__btn {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.brief__write,
+.brief__open {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.brief__open {
+  background: #fff;
+  color: #111;
+}
+
+.sources {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.sources__hint {
+  margin: 6px 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.sources ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.sources li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.82rem;
+}
+
+.sources__sys {
+  color: #6b7280;
+  text-transform: lowercase;
+}
+
+.sources a {
+  color: #111;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sources time {
+  color: #9ca3af;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.options {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.options__hint {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.options__card {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.options__card.is-on,
+.options__card:hover:not(:disabled) {
+  border-color: #111827;
+}
+
+.options__card:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.options__title {
+  font-weight: 600;
+}
+
+.options__sum,
+.options__cost {
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.owner-pick {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.35);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.owner-pick__card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.owner-pick__card input {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.owner-pick__row {
+  border: 0;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.owner-pick__row:hover {
+  background: #e5e7eb;
 }
 
 @media (max-width: 900px) {

@@ -127,7 +127,7 @@ async function main() {
     dataScope: 'global',
     domain: null,
     isDomainAdmin: false,
-    permissions: { manage_domain_auth: true },
+    permissions: { manage_domain_auth: true, edit_contacts: true },
   };
 
   const createdIds = [];

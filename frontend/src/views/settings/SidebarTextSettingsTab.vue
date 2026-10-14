@@ -73,6 +73,31 @@
       </div>
 
       <label class="sidebar-text-tab__field">
+        <span class="form-label">{{ t('settings.sidebarNotice.headerTitleLabel') }}</span>
+        <input
+          v-model="headerTitle"
+          type="text"
+          class="form-control"
+          :placeholder="t('settings.sidebarNotice.headerTitlePlaceholder')"
+          :disabled="isSaving"
+          maxlength="200"
+        >
+        <span class="form-hint">{{ t('settings.sidebarNotice.headerTitleHint') }}</span>
+        <div class="sidebar-text-tab__title-actions">
+          <button
+            type="button"
+            class="btn btn-outline"
+            :disabled="isSaving || isLoadingBookTitle"
+            @click="applyTitleFromBook"
+          >
+            {{ isLoadingBookTitle
+              ? t('settings.sidebarNotice.headerTitleFromBookLoading')
+              : t('settings.sidebarNotice.headerTitleFromBook') }}
+          </button>
+        </div>
+      </label>
+
+      <label class="sidebar-text-tab__field">
         <span class="form-label">{{ t('settings.sidebarNotice.headerDescriptionLabel') }}</span>
         <textarea
           v-model="headerDescription"
@@ -135,16 +160,21 @@ import {
 import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
 import { applySiteMetaState } from '@/utils/siteMetaDescription';
 import { useSiteBrand } from '@/composables/useSiteBrand';
+import { useFooterDle } from '@/composables/useFooterDle';
+import { formatDleDisplayTitle } from '@/utils/sitePageTitle';
 
 const DEFAULT_OG = '/og-default.png';
 
 const { t } = useI18n();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 const { setSiteBrandLocal } = useSiteBrand();
+const { footerDle, selectedDleAddress, loadDleFromBlockchain } = useFooterDle();
 
 const body = ref('');
 const domainDescription = ref('');
+const headerTitle = ref('');
 const headerDescription = ref('');
+const isLoadingBookTitle = ref(false);
 const ogImageUrl = ref('');
 const hideOgImage = ref(false);
 const isSaving = ref(false);
@@ -173,6 +203,7 @@ function formatSaveError(error) {
 function applyLoaded(data) {
   body.value = data.body || '';
   domainDescription.value = data.domainDescription || '';
+  headerTitle.value = data.headerTitle || '';
   headerDescription.value = data.headerDescription || '';
   ogImageUrl.value = data.ogImageUrl || '';
   hideOgImage.value = Boolean(data.hideOgImage);
@@ -195,6 +226,28 @@ function triggerOgPick() {
 function clearOgImage() {
   ogImageUrl.value = '';
   if (ogFileRef.value) ogFileRef.value.value = '';
+}
+
+async function applyTitleFromBook() {
+  isLoadingBookTitle.value = true;
+  saveError.value = '';
+  try {
+    let dle = footerDle.value;
+    const address = selectedDleAddress.value || dle?.address;
+    if (address && (!dle?.name || dle.name.startsWith('DLE '))) {
+      dle = await loadDleFromBlockchain(address, dle?.chainId ?? null);
+    }
+    const line = formatDleDisplayTitle(dle?.name, dle?.symbol);
+    if (!line) {
+      saveError.value = t('settings.sidebarNotice.headerTitleFromBookEmpty');
+      return;
+    }
+    headerTitle.value = line.slice(0, 200);
+  } catch (error) {
+    saveError.value = formatSaveError(error);
+  } finally {
+    isLoadingBookTitle.value = false;
+  }
 }
 
 async function onOgFileChange(event) {
@@ -221,18 +274,22 @@ async function handleSave() {
     const data = await saveSidebarNotice({
       body: body.value,
       domainDescription: domainDescription.value,
+      headerTitle: headerTitle.value,
       headerDescription: headerDescription.value,
       ogImageUrl: ogImageUrl.value,
       hideOgImage: hideOgImage.value,
     });
     applyLoaded(data);
     setSiteBrandLocal({
+      headerTitle: headerTitle.value,
       headerDescription: headerDescription.value,
       ogImageUrl: ogImageUrl.value,
       hideOgImage: hideOgImage.value,
     });
     applySiteMetaState({
       domainDescription: domainDescription.value,
+      headerTitle: headerTitle.value,
+      headerDescription: headerDescription.value,
       ogImageUrl: ogImageUrl.value,
       hideOgImage: hideOgImage.value,
     });
@@ -293,7 +350,8 @@ onMounted(initPage);
   width: fit-content;
 }
 
-.sidebar-text-tab__og-actions {
+.sidebar-text-tab__og-actions,
+.sidebar-text-tab__title-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;

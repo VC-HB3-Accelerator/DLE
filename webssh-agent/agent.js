@@ -17,7 +17,11 @@ const { cleanupVdsServer, setupRootSshKeys, disablePasswordAuth, setupFirewall }
 const { createSshKeys } = require('./utils/localUtils');
 const { transferAppOverlay } = require('./utils/transferUtils');
 const crypto = require('crypto');
-const PUBLIC_KEY_PATH = path.join(os.homedir(), '.ssh', 'auto_lends_vds.pub');
+const PUBLIC_KEY_PATH = (() => {
+  const preferred = path.join(os.homedir(), '.ssh', 'b2_b4_vds.pub');
+  const legacy = path.join(os.homedir(), '.ssh', 'auto_lends_vds.pub');
+  return fs.existsSync(preferred) ? preferred : legacy;
+})();
 
 const app = express();
 const server = http.createServer(app);

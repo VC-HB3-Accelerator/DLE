@@ -86,6 +86,13 @@ async function startServer() {
   
   // Настройка NO_PROXY для RPC провайдеров из базы данных
   await configureNoProxyFromRpcProviders();
+
+  try {
+    const recovery = await require('./services/listingBatchService').resumeRecoverableJobs();
+    console.log(`[Server] ✅ Оркестратор восстановил batch jobs: ${recovery.recovered}`);
+  } catch (error) {
+    console.warn('[Server] ❌ Не удалось восстановить batch jobs:', error.message);
+  }
   
   // Инициализация AI ассистента В ФОНЕ (неблокирующая)
   seedAIAssistantSettings().catch(error => {

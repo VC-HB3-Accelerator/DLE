@@ -7,6 +7,7 @@
  */
 
 import { fetchSidebarNotice } from '@/services/sidebarNoticeService';
+import { buildPageTitle, siteNameFromHeaderTitle } from '@/utils/sitePageTitle';
 
 const DEFAULT_OG_IMAGE = '/og-default.png';
 
@@ -50,16 +51,6 @@ function applyFavicon(href) {
   document.head.appendChild(link);
 }
 
-function titleFromDescription(text) {
-  return String(text || '').trim().slice(0, 120);
-}
-
-function siteNameFromDescription(text) {
-  const value = String(text || '').trim();
-  const part = value.split(/\s+[—–-]\s+/)[0].trim();
-  return (part || value).slice(0, 80);
-}
-
 function resolveOgImage(state) {
   if (state?.hideOgImage) {
     return { url: '', hidden: true };
@@ -70,8 +61,10 @@ function resolveOgImage(state) {
 
 function applySiteMeta(state) {
   const custom = String(state?.description || '').trim();
-  const title = titleFromDescription(custom);
-  const siteName = siteNameFromDescription(custom);
+  const headerTitle = String(state?.headerTitle || '').trim();
+  const headerDescription = String(state?.headerDescription || '').trim();
+  const title = buildPageTitle(headerTitle, headerDescription, custom);
+  const siteName = siteNameFromHeaderTitle(headerTitle, custom);
   const og = resolveOgImage(state);
 
   updateOrCreateMeta('description', custom);
@@ -107,6 +100,12 @@ export function applySiteMetaDescription(text, extras = {}) {
   const custom = String(text || '').trim();
   cached = {
     description: custom,
+    headerTitle: extras.headerTitle !== undefined
+      ? String(extras.headerTitle || '').trim()
+      : (cached?.headerTitle || ''),
+    headerDescription: extras.headerDescription !== undefined
+      ? String(extras.headerDescription || '').trim()
+      : (cached?.headerDescription || ''),
     isCustom: Boolean(custom),
     ogImageUrl: extras.ogImageUrl !== undefined
       ? String(extras.ogImageUrl || '').trim()
@@ -121,6 +120,8 @@ export function applySiteMetaDescription(text, extras = {}) {
 export function applySiteMetaState(state) {
   cached = {
     description: String(state?.description || state?.domainDescription || '').trim(),
+    headerTitle: String(state?.headerTitle || '').trim(),
+    headerDescription: String(state?.headerDescription || '').trim(),
     isCustom: Boolean(String(state?.description || state?.domainDescription || '').trim()),
     ogImageUrl: String(state?.ogImageUrl || '').trim(),
     hideOgImage: Boolean(state?.hideOgImage),
@@ -137,6 +138,8 @@ export async function loadSiteMetaDescription() {
     const data = await fetchSidebarNotice();
     cached = {
       description: String(data?.domainDescription || '').trim(),
+      headerTitle: String(data?.headerTitle || '').trim(),
+      headerDescription: String(data?.headerDescription || '').trim(),
       isCustom: Boolean(String(data?.domainDescription || '').trim()),
       ogImageUrl: String(data?.ogImageUrl || '').trim(),
       hideOgImage: Boolean(data?.hideOgImage),
@@ -144,6 +147,8 @@ export async function loadSiteMetaDescription() {
   } catch {
     cached = {
       description: '',
+      headerTitle: '',
+      headerDescription: '',
       isCustom: false,
       ogImageUrl: '',
       hideOgImage: false,

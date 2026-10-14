@@ -1049,22 +1049,35 @@ router.get('/', async (req, res) => {
   let idx = 1;
 
   const accessResolver = require('../services/accessResolverService');
-  const profileOwnerId = accessResolver.parseProfileOwnerId(req.query.owner);
-  if (profileOwnerId) {
-    const gate = await accessResolver.assertCanAccessProfileOwnedData(req.session.userId, profileOwnerId);
-    if (!gate.ok) {
-      return res.status(gate.status || 403).json({ error: gate.error || 'Forbidden' });
-    }
+  const mine = req.query.mine === '1' || req.query.mine === 'true' || req.query.mine === true;
+  if (mine) {
     where.push(`owner_user_id = $${idx++}`);
-    params.push(profileOwnerId);
-  } else if (!blogContentAccess.canManageLegalGlobal(access)) {
-    idx = blogContentAccess.appendPagesScopeWhere(access, req.session.userId, where, params, idx);
+    params.push(req.session.userId);
+  } else {
+    const profileOwnerId = accessResolver.parseProfileOwnerId(req.query.owner);
+    if (profileOwnerId) {
+      const gate = await accessResolver.assertCanAccessProfileOwnedData(req.session.userId, profileOwnerId);
+      if (!gate.ok) {
+        return res.status(gate.status || 403).json({ error: gate.error || 'Forbidden' });
+      }
+      where.push(`owner_user_id = $${idx++}`);
+      params.push(profileOwnerId);
+    } else if (!blogContentAccess.canManageLegalGlobal(access)) {
+      idx = blogContentAccess.appendPagesScopeWhere(access, req.session.userId, where, params, idx);
+    }
   }
 
   const statusFilter = String(req.query.status || '').trim().toLowerCase();
   if (statusFilter && ['draft', 'pending', 'published', 'rejected'].includes(statusFilter)) {
     where.push(`status = $${idx++}`);
     params.push(statusFilter);
+  }
+
+  const showBlogRaw = String(req.query.show_in_blog || req.query.showInBlog || '').trim().toLowerCase();
+  if (showBlogRaw === '1' || showBlogRaw === 'true') {
+    where.push(`show_in_blog = TRUE`);
+  } else if (showBlogRaw === '0' || showBlogRaw === 'false') {
+    where.push(`(show_in_blog IS NULL OR show_in_blog = FALSE)`);
   }
 
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -1074,7 +1087,19 @@ router.get('/', async (req, res) => {
     ${whereClause}
     ORDER BY created_at DESC
   `, params);
-  
+
+  if (mine) {
+    const decrypted = [];
+    for (const row of rows) {
+      try {
+        decrypted.push(await decryptPageRow(row));
+      } catch {
+        decrypted.push(row);
+      }
+    }
+    return res.json(decrypted);
+  }
+
   res.json(rows);
 });
 

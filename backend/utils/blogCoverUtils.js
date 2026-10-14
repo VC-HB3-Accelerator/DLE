@@ -98,9 +98,82 @@ function extractCoverFromHtml(content) {
   };
 }
 
+function parsePageSettings(settings) {
+  if (!settings) return {};
+  if (typeof settings === 'object' && !Array.isArray(settings)) return settings;
+  if (typeof settings === 'string') {
+    try {
+      const parsed = JSON.parse(settings);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function parseListingMedia(settings) {
+  const lm = parsePageSettings(settings).listing_media;
+  if (!lm || typeof lm !== 'object') return { photos: [], video: null };
+  return {
+    photos: Array.isArray(lm.photos) ? lm.photos.filter(Boolean).map(String) : [],
+    video: lm.video ? String(lm.video) : null,
+  };
+}
+
+function stripWatermarkQuery(url) {
+  const src = String(url || '');
+  if (!src) return src;
+  return src
+    .replace(/([?&])wm=1\b/g, '$1')
+    .replace(/\?&/, '?')
+    .replace(/[?&]$/, '')
+    .replace(/\?&/, '?');
+}
+
+function guessVideoMime(url, explicit) {
+  if (explicit && String(explicit).startsWith('video/')) return String(explicit);
+  const p = stripWatermarkQuery(url).split('?')[0].toLowerCase();
+  if (p.endsWith('.webm')) return 'video/webm';
+  if (p.endsWith('.ogg') || p.endsWith('.ogv')) return 'video/ogg';
+  if (p.endsWith('.mov')) return 'video/quicktime';
+  return 'video/mp4';
+}
+
+function urlsMatch(a, b) {
+  return Boolean(stripWatermarkQuery(a)) && stripWatermarkQuery(a) === stripWatermarkQuery(b);
+}
+
+function resolveSharePreview(settings, listingMedia) {
+  const s = parsePageSettings(settings);
+  const lm = listingMedia || parseListingMedia(s);
+  const photos = lm.photos || [];
+  const video = lm.video || null;
+  const raw = s.share_preview && typeof s.share_preview === 'object' ? s.share_preview : null;
+  const url = raw?.url ? String(raw.url) : '';
+  const type = raw?.type === 'image' || raw?.type === 'video' ? raw.type : null;
+  if (type === 'image' && photos.some((p) => urlsMatch(p, url))) {
+    const match = photos.find((p) => urlsMatch(p, url));
+    return { type: 'image', url: match, mime: null };
+  }
+  if (type === 'video' && video && urlsMatch(video, url)) {
+    return { type: 'video', url: video, mime: guessVideoMime(video, raw.mime) };
+  }
+  if (photos[0]) return { type: 'image', url: photos[0], mime: null };
+  if (video) return { type: 'video', url: video, mime: guessVideoMime(video, raw?.mime) };
+  return null;
+}
+
+function coverFromListingOrHtml(page) {
+  const lm = parseListingMedia(page?.settings);
+  if (lm.photos[0]) return { cover_url: lm.photos[0], cover_type: 'image' };
+  if (lm.video) return { cover_url: lm.video, cover_type: 'video' };
+  return extractCoverFromHtml(page?.content);
+}
+
 function attachCoverToPage(page) {
   if (!page) return page;
-  const { cover_url, cover_type } = extractCoverFromHtml(page.content);
+  const { cover_url, cover_type } = coverFromListingOrHtml(page);
   return {
     ...page,
     cover_url,
@@ -154,35 +227,73 @@ function resolveSocialPreviewImage({
   seo = null,
   cover = null,
   content = '',
+  settings = null,
+  listingMedia = null,
   baseUrl = '',
   fallbackPath = '/og-default.png'
 } = {}) {
+  const lm = listingMedia || parseListingMedia(settings);
+  const share = resolveSharePreview(settings, lm);
+  if (share?.type === 'image' && share.url) {
+    return absolutizeMediaUrl(stripWatermarkQuery(share.url), baseUrl);
+  }
+  if (share?.type === 'video') {
+    if (lm.photos[0]) {
+      return absolutizeMediaUrl(stripWatermarkQuery(lm.photos[0]), baseUrl);
+    }
+    return absolutizeMediaUrl(fallbackPath, baseUrl);
+  }
+
   const seoObj = parsePageSeo(seo);
   const explicit = seoObj.og_image || seoObj.image || seoObj.social_image || null;
   if (explicit) {
-    return absolutizeMediaUrl(explicit, baseUrl);
+    return absolutizeMediaUrl(stripWatermarkQuery(explicit), baseUrl);
   }
 
   if (cover?.cover_url && cover.cover_type === 'image') {
-    return absolutizeMediaUrl(cover.cover_url, baseUrl);
+    return absolutizeMediaUrl(stripWatermarkQuery(cover.cover_url), baseUrl);
   }
 
   const candidates = collectMediaCandidates(content || '');
   const image = candidates.find((c) => c.cover_type === 'image');
   if (image?.cover_url) {
-    return absolutizeMediaUrl(image.cover_url, baseUrl);
+    return absolutizeMediaUrl(stripWatermarkQuery(image.cover_url), baseUrl);
   }
 
   return absolutizeMediaUrl(fallbackPath, baseUrl);
 }
 
-function resolveSocialPreviewVideo({ cover = null, content = '', baseUrl = '' } = {}) {
+function resolveSocialPreviewVideo({
+  cover = null,
+  content = '',
+  settings = null,
+  listingMedia = null,
+  baseUrl = '',
+} = {}) {
+  const lm = listingMedia || parseListingMedia(settings);
+  const share = resolveSharePreview(settings, lm);
+  if (share?.type === 'image') {
+    return null;
+  }
+  if (share?.type === 'video' && share.url) {
+    return {
+      url: absolutizeMediaUrl(stripWatermarkQuery(share.url), baseUrl),
+      mime: share.mime || guessVideoMime(share.url),
+    };
+  }
+
+  if (lm.photos.length || lm.video) {
+    return null;
+  }
+
   if (cover?.cover_url && cover.cover_type === 'video') {
-    return absolutizeMediaUrl(cover.cover_url, baseUrl);
+    const url = absolutizeMediaUrl(stripWatermarkQuery(cover.cover_url), baseUrl);
+    return url ? { url, mime: guessVideoMime(cover.cover_url) } : null;
   }
   const video = collectMediaCandidates(content || '').find((c) => c.cover_type === 'video');
   if (video?.cover_url) {
-    return absolutizeMediaUrl(video.cover_url, baseUrl);
+    const url = absolutizeMediaUrl(stripWatermarkQuery(video.cover_url), baseUrl);
+    return url ? { url, mime: guessVideoMime(video.cover_url) } : null;
   }
   return null;
 }
@@ -194,6 +305,11 @@ module.exports = {
   isUploadMediaUrl,
   buildCoverHtml,
   parsePageSeo,
+  parsePageSettings,
+  parseListingMedia,
+  resolveSharePreview,
+  stripWatermarkQuery,
+  guessVideoMime,
   absolutizeMediaUrl,
   resolveSocialPreviewImage,
   resolveSocialPreviewVideo,

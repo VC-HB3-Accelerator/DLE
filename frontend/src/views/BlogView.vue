@@ -44,6 +44,14 @@
             {{ t('blog.newPost') }}
           </button>
           <button
+            v-if="canCreatePage"
+            type="button"
+            class="blog-drafts-btn"
+            @click="goToDrafts"
+          >
+            {{ t('blog.drafts.button') }}
+          </button>
+          <button
             v-if="isAuthenticated"
             type="button"
             class="blog-my-subs"
@@ -192,6 +200,10 @@ function openFeedSettings() {
 
 function goToMySubscriptions() {
   router.push({ name: 'blog-my-subscriptions' });
+}
+
+function goToDrafts() {
+  router.push({ name: 'blog-drafts' });
 }
 
 function goToCreate() {
@@ -559,6 +571,7 @@ onBeforeUnmount(() => {
 }
 
 .blog-new-post,
+.blog-drafts-btn,
 .blog-my-subs,
 .empty-create {
   flex-shrink: 0;
@@ -574,6 +587,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.blog-drafts-btn,
 .blog-my-subs {
   background: transparent;
   color: var(--color-primary);
@@ -581,6 +595,7 @@ onBeforeUnmount(() => {
 }
 
 .blog-new-post:hover,
+.blog-drafts-btn:hover,
 .blog-my-subs:hover,
 .empty-create:hover {
   opacity: 0.92;

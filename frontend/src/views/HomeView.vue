@@ -124,7 +124,6 @@
   function updateHomeSeo() {
     const origin = window.location.origin;
     const canonicalUrl = `${origin}/`;
-    document.title = t('home.pageTitle');
     let canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement('link');

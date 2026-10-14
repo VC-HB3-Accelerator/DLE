@@ -5,8 +5,9 @@ const path = require('path');
 const log = require('./logger');
 
 const sshDir = path.join(os.homedir(), '.ssh');
-const privateKeyPath = path.join(sshDir, 'auto_lends_vds');
+const privateKeyPath = path.join(sshDir, 'b2_b4_vds');
 const publicKeyPath = `${privateKeyPath}.pub`;
+const legacyPrivateKeyPath = path.join(sshDir, 'auto_lends_vds');
 const sshConfigPath = path.join(sshDir, 'config');
 
 /**
@@ -35,10 +36,16 @@ const createSshKeys = async (email) => {
 
   const privateExists = await fs.pathExists(privateKeyPath);
   const publicExists = await fs.pathExists(publicKeyPath);
+  const legacyExists = await fs.pathExists(legacyPrivateKeyPath);
 
   if (privateExists && publicExists) {
     log.info('SSH ключи уже существуют – используем текущую пару');
     await execLocalCommand(`chmod 600 "${privateKeyPath}" && chmod 644 "${publicKeyPath}"`);
+    return;
+  }
+  if (legacyExists && await fs.pathExists(`${legacyPrivateKeyPath}.pub`)) {
+    log.info('Найден legacy auto_lends_vds – используем его');
+    await execLocalCommand(`chmod 600 "${legacyPrivateKeyPath}" && chmod 644 "${legacyPrivateKeyPath}.pub"`);
     return;
   }
 

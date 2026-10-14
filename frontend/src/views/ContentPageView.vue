@@ -23,17 +23,17 @@
       <!-- Основной контент с тенью -->
       <div class="content-block">
         <form class="content-form" @submit.prevent="handleSubmit">
-          <!-- Параметры документа -->
-          <div class="form-section">
+          <!-- Параметры документа (не блог) / чипы каталога (блог) -->
+          <div v-if="!isListingSimple" class="form-section">
             <h2>{{ t('content.editor.documentParams') }}</h2>
-            <div v-if="!isListingSimple" class="form-group">
+            <div class="form-group">
               <label for="visibility">{{ t('content.editor.visibility') }}</label>
               <select v-model="form.visibility" id="visibility" class="form-select">
                 <option value="public">{{ t('content.editor.visibilityPublic') }}</option>
                 <option value="internal">{{ t('content.editor.visibilityInternal') }}</option>
               </select>
             </div>
-            <div class="form-group" v-if="!isListingSimple && form.visibility === 'internal'">
+            <div class="form-group" v-if="form.visibility === 'internal'">
               <label for="required-permission">{{ t('content.editor.accessLevel') }}</label>
               <select
                 v-model="form.requiredPermission"
@@ -46,7 +46,7 @@
                 <option :value="PERMISSIONS.MANAGE_LEGAL_DOCS">{{ t('content.editor.roleEditor') }}</option>
               </select>
             </div>
-            <div v-if="!isListingSimple" class="form-group">
+            <div class="form-group">
               <label for="format">{{ t('content.editor.format') }}</label>
               <select v-model="form.format" id="format" class="form-select">
                 <option value="html">{{ t('content.editor.formatHtml') }}</option>
@@ -54,7 +54,7 @@
                 <option value="image" disabled>{{ t('content.editor.formatImageSoon') }}</option>
               </select>
             </div>
-            <div class="form-group" v-if="!isListingSimple && form.visibility === 'public'">
+            <div class="form-group" v-if="form.visibility === 'public'">
               <label class="checkbox-label">
                 <input
                   v-model="form.showInBlog"
@@ -67,7 +67,7 @@
                 {{ t('content.editor.showInBlogHint') }}
               </p>
             </div>
-            <div class="form-group" v-if="!isListingSimple && form.visibility === 'public' && form.showInBlog">
+            <div class="form-group" v-if="form.visibility === 'public' && form.showInBlog">
               <span class="form-label-text">{{ t('content.editor.feedFilters') }}</span>
               <p class="form-hint">{{ t('content.editor.feedFiltersHint') }}</p>
               <div v-if="feedFilterOptionsError" class="form-hint form-hint--error">
@@ -94,63 +94,52 @@
             </div>
             <div class="form-group" v-if="form.visibility === 'public' && form.showInBlog">
               <span class="form-label-text">{{ t('content.editor.catalogFilters') }}</span>
-              <p v-if="!isListingSimple" class="form-hint">{{ t('content.editor.catalogFiltersHint') }}</p>
-              <div v-if="isListingSimple" class="listing-chips" role="list">
-                <button
-                  v-if="catalogSectionLabel || catalogSectionId"
-                  type="button"
-                  class="listing-chips__chip"
-                  role="listitem"
-                  :title="t('catalogFilters.removeChip', { label: catalogSectionLabel || catalogSectionId })"
-                  @click="clearListingFrom('section')"
-                >
-                  <span class="listing-chips__text">{{ catalogSectionLabel || catalogSectionId }}</span>
-                  <span class="listing-chips__x" aria-hidden="true">×</span>
-                </button>
-                <button
-                  v-for="chip in listingChips"
-                  :key="chip.key"
-                  type="button"
-                  class="listing-chips__chip"
-                  role="listitem"
-                  :title="t('catalogFilters.removeChip', { label: chip.label })"
-                  @click="clearListingFrom(chip.key)"
-                >
-                  <span class="listing-chips__text">{{ chip.label }}</span>
-                  <span class="listing-chips__x" aria-hidden="true">×</span>
-                </button>
-              </div>
+              <p class="form-hint">{{ t('content.editor.catalogFiltersHint') }}</p>
               <CatalogEntityAttrsEditor
-                v-else
                 v-model:section-id="catalogSectionId"
                 v-model:attrs="catalogAttrs"
               />
             </div>
-            <p v-if="!isListingSimple" class="form-hint">
+            <p class="form-hint">
               {{ t('content.editor.variablesHint') }}
             </p>
           </div>
-          <!-- Основная информация -->
+
+          <!-- 1. Галерея (пост блога) -->
+          <div v-if="isListingSimple" class="form-section">
+            <h2>{{ t('content.listingGallery.sectionTitle') }}</h2>
+            <div class="form-group">
+              <ListingMediaGallery
+                v-model="listingMedia"
+                v-model:share-preview="sharePreview"
+                :disabled="isSubmitting"
+                :media-draft="listingMediaDraft"
+                :draft-photo-target="8"
+              />
+            </div>
+          </div>
+
+          <!-- 2. Название и описание -->
           <div class="form-section">
             <h2>{{ t('content.editor.mainInfo') }}</h2>
             <div class="form-group">
-              <label for="title">{{ t('content.editor.pageTitle') }}</label>
+              <label for="title">{{ isListingSimple ? t('content.editor.pageTitlePlain') : t('content.editor.pageTitle') }}</label>
               <input 
                 v-model="form.title" 
                 id="title" 
                 type="text" 
-                required 
+                :required="!isListingSimple"
                 :placeholder="isListingSimple ? t('content.listingGallery.titlePlaceholder') : t('content.editor.pageTitlePlaceholder')"
                 class="form-input"
                 @input="onMainTitleInput"
               />
             </div>
             <div class="form-group">
-              <label for="summary">{{ t('content.editor.summary') }}</label>
+              <label for="summary">{{ isListingSimple ? t('content.editor.summaryPlain') : t('content.editor.summary') }}</label>
               <textarea 
                 v-model="form.summary" 
                 id="summary" 
-                required 
+                :required="!isListingSimple"
                 rows="3" 
                 :placeholder="isListingSimple ? t('content.listingGallery.summaryPlaceholder') : t('content.editor.summaryPlaceholder')"
                 class="form-textarea"
@@ -182,14 +171,11 @@
             </div>
           </div>
 
-          <!-- Контент / галерея объявления -->
+          <!-- 3. Редактор -->
           <div class="form-section">
-            <h2>{{ isListingSimple ? t('content.listingGallery.sectionTitle') : t('content.editor.contentSection') }}</h2>
-            <div v-if="isListingSimple" class="form-group">
-              <ListingMediaGallery v-model="listingMedia" :disabled="isSubmitting" />
-            </div>
-            <div class="form-group" v-else-if="form.format === 'html'">
-              <label for="content">{{ t('content.editor.mainContent') }}</label>
+            <h2>{{ t('content.editor.contentSection') }}</h2>
+            <div v-if="isListingSimple || form.format === 'html'" class="form-group">
+              <label for="content">{{ isListingSimple ? t('content.editor.mainContentPlain') : t('content.editor.mainContent') }}</label>
               <RichTextEditor
                 v-model="form.content"
                 :placeholder="t('content.editor.mainContentPlaceholder')"
@@ -203,6 +189,37 @@
               <label for="file">{{ t('content.editor.file') }}</label>
               <input id="file" type="file" accept="application/pdf,image/png,image/jpeg" @change="onFileChange" class="form-input" />
               <p class="form-hint" v-if="fileName">{{ t('content.editor.fileSelected', { name: fileName }) }}</p>
+            </div>
+          </div>
+
+          <div
+            v-if="isListingSimple && (catalogSectionLabel || catalogSectionId || listingChips.length)"
+            class="form-section"
+          >
+            <div class="listing-chips" role="list">
+              <button
+                v-if="catalogSectionLabel || catalogSectionId"
+                type="button"
+                class="listing-chips__chip"
+                role="listitem"
+                :title="t('catalogFilters.removeChip', { label: catalogSectionLabel || catalogSectionId })"
+                @click="clearListingFrom('section')"
+              >
+                <span class="listing-chips__text">{{ catalogSectionLabel || catalogSectionId }}</span>
+                <span class="listing-chips__x" aria-hidden="true">×</span>
+              </button>
+              <button
+                v-for="chip in listingChips"
+                :key="chip.key"
+                type="button"
+                class="listing-chips__chip"
+                role="listitem"
+                :title="t('catalogFilters.removeChip', { label: chip.label })"
+                @click="clearListingFrom(chip.key)"
+              >
+                <span class="listing-chips__text">{{ chip.label }}</span>
+                <span class="listing-chips__x" aria-hidden="true">×</span>
+              </button>
             </div>
           </div>
 
@@ -297,6 +314,15 @@
               <UiGlyph name="eye" />
               {{ t('content.editor.preview') }}
             </button>
+            <button
+              v-if="isListingSimple"
+              type="button"
+              class="btn btn-outline"
+              :disabled="isSubmitting"
+              @click="saveDraft"
+            >
+              {{ t('content.editor.saveDraft') }}
+            </button>
             <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
               <UiGlyph name="globe" />
               {{ submitButtonLabel }}
@@ -333,41 +359,28 @@
             <p v-if="!isListingSimple && form.format !== 'html'" class="preview-dialog__empty">
               {{ t('content.editor.previewFileOnly') }}
             </p>
-            <!-- Предпросмотр объявления: как карточка ленты -->
-            <article v-else-if="isListingSimple" class="preview-listing-card">
-              <div v-if="listingMediaHasSlides" class="preview-listing-card__media">
+            <article v-else-if="isListingSimple" class="preview-listing-post">
+              <div v-if="listingMediaHasSlides" class="preview-listing-post__media">
                 <ListingMediaCarousel :media="listingMedia" :alt="form.title" />
               </div>
-              <div v-else class="preview-listing-card__media preview-listing-card__media--empty">
-                {{ t('content.listingGallery.previewNoMedia') }}
+              <h1 class="preview-listing-post__title">
+                {{ form.title.trim() || t('content.listingGallery.titlePlaceholder') }}
+              </h1>
+              <p v-if="form.summary.trim()" class="preview-listing-post__summary">{{ form.summary }}</p>
+              <div v-if="listingPreviewTags.length" class="preview-listing-post__tags">
+                <span
+                  v-for="(tag, idx) in listingPreviewTags"
+                  :key="`pt-${idx}`"
+                  class="preview-listing-post__tag"
+                >{{ tag }}</span>
               </div>
-
-              <div class="preview-listing-card__actions">
-                <button
-                  type="button"
-                  class="preview-listing-card__icon-btn"
-                  disabled
-                  :title="t('blog.listingContact.call')"
-                  :aria-label="t('blog.listingContact.call')"
-                >
-                  <BlogGlyph name="phone" />
-                </button>
-              </div>
-
-              <div class="preview-listing-card__body">
-                <h2 class="preview-listing-card__title">
-                  {{ form.title.trim() || t('content.listingGallery.titlePlaceholder') }}
-                </h2>
-                <div v-if="listingPreviewTags.length" class="preview-listing-card__tags">
-                  <span
-                    v-for="(tag, idx) in listingPreviewTags"
-                    :key="`pt-${idx}`"
-                    class="preview-listing-card__tag"
-                  >{{ tag }}</span>
-                </div>
-                <p v-if="form.summary.trim()" class="preview-listing-card__summary">{{ form.summary }}</p>
-                <p v-else class="preview-dialog__empty">{{ t('content.listingGallery.summaryPlaceholder') }}</p>
-              </div>
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div
+                v-if="previewHtml"
+                class="preview-article__content"
+                v-html="previewHtml"
+              />
+              <p v-else class="preview-dialog__empty">{{ t('content.editor.previewEmpty') }}</p>
             </article>
             <article v-else class="preview-article">
               <h1>{{ form.title.trim() || t('content.editor.pageTitlePlaceholder') }}</h1>
@@ -397,7 +410,6 @@ import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import ContentMediaPickerModal from '../components/content/ContentMediaPickerModal.vue';
 import ListingMediaGallery from '../components/content/ListingMediaGallery.vue';
 import ListingMediaCarousel from '../components/blog/ListingMediaCarousel.vue';
-import BlogGlyph from '../components/blog/BlogGlyph.vue';
 import pagesService from '../services/pagesService';
 import blogFeedService from '../services/blogFeedService';
 import CatalogEntityAttrsEditor from '../components/catalog/CatalogEntityAttrsEditor.vue';
@@ -493,6 +505,8 @@ const isListingSimple = computed(() => (
   form.value.visibility === 'public' && form.value.showInBlog === true
 ));
 const listingMedia = ref({ photos: [], video: null });
+const sharePreview = ref(null);
+const listingMediaDraft = computed(() => form.value.settings?.listing_media_draft === true);
 const listingFilterKeys = ref([]);
 const listingChips = computed(() => {
   const map = {};
@@ -596,40 +610,71 @@ function clearListingFrom(key) {
   syncAutoFillFromCatalog();
 }
 
-function escapeHtmlAttr(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+function stripWmQuery(url) {
+  return String(url || '')
+    .replace(/[?&]wm=1\b/g, '')
+    .replace(/\?&/, '?')
+    .replace(/[?&]$/, '');
 }
 
-function listingMediaToHtml(media) {
-  const photos = Array.isArray(media?.photos) ? media.photos.filter(Boolean) : [];
-  const video = media?.video || null;
-  const parts = ['<div class="listing-media">'];
-  for (const url of photos) {
-    parts.push(`<p><img src="${escapeHtmlAttr(url)}" alt=""></p>`);
+function guessVideoMime(url, fileType) {
+  if (fileType && String(fileType).startsWith('video/')) return fileType;
+  const p = stripWmQuery(url).split('?')[0].toLowerCase();
+  if (p.endsWith('.webm')) return 'video/webm';
+  if (p.endsWith('.ogg') || p.endsWith('.ogv')) return 'video/ogg';
+  if (p.endsWith('.mov')) return 'video/quicktime';
+  return 'video/mp4';
+}
+
+function isLegacyListingMediaHtml(html) {
+  const raw = String(html || '');
+  if (!/<div[^>]*class=["'][^"']*listing-media/.test(raw)) return false;
+  const stripped = raw
+    .replace(/<div[^>]*class=["'][^"']*listing-media[^"']*["'][^>]*>[\s\S]*?<\/div>/i, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, '')
+    .replace(/\s+/g, '')
+    .trim();
+  return stripped.length === 0;
+}
+
+function resolveSharePreviewForSave(photos, video) {
+  const raw = sharePreview.value;
+  const url = raw?.url ? stripWmQuery(raw.url) : '';
+  const type = raw?.type;
+  const photoMatch = (photos || []).find((p) => stripWmQuery(p) === url);
+  if (type === 'image' && photoMatch) {
+    return { type: 'image', url: photoMatch };
   }
-  if (video) {
-    parts.push(`<p><video src="${escapeHtmlAttr(video)}" controls preload="metadata"></video></p>`);
+  if (type === 'video' && video && stripWmQuery(video) === url) {
+    return { type: 'video', url: video, mime: guessVideoMime(video, raw?.mime) };
   }
-  parts.push('</div>');
-  return parts.join('');
+  if (photos[0]) return { type: 'image', url: photos[0] };
+  if (video) return { type: 'video', url: video, mime: guessVideoMime(video, raw?.mime) };
+  return null;
 }
 
 function applyListingMediaToForm() {
   const photos = Array.isArray(listingMedia.value?.photos) ? listingMedia.value.photos.filter(Boolean) : [];
   const video = listingMedia.value?.video || null;
+  const share = resolveSharePreviewForSave(photos, video);
   form.value.format = 'html';
-  form.value.content = listingMediaToHtml({ photos, video });
-  if (photos[0]) form.value.seo.og_image = photos[0];
-  form.value.settings = {
+  if (share?.type === 'image') {
+    form.value.seo.og_image = share.url;
+  } else if (share?.type === 'video') {
+    form.value.seo.og_image = photos[0] || '';
+  } else {
+    form.value.seo.og_image = '';
+  }
+  const nextSettings = {
     ...(form.value.settings || {}),
     autoPublish: false,
     compose_mode: 'listing',
     listing_media: { photos, video },
   };
+  if (share) nextSettings.share_preview = share;
+  else delete nextSettings.share_preview;
+  form.value.settings = nextSettings;
 }
 
 function onMainTitleInput() {
@@ -689,9 +734,7 @@ const ogImagePreviewUrl = computed(() => {
 
 const previewOpen = ref(false);
 const previewHtml = computed(() => {
-  const raw = isListingSimple.value
-    ? listingMediaToHtml(listingMedia.value)
-    : (form.value.content || '');
+  const raw = form.value.content || '';
   if (!String(raw).trim()) return '';
   return sanitizeCmsHtml(raw, { config: CMS_HTML_SANITIZE });
 });
@@ -902,6 +945,19 @@ async function loadPageForEdit() {
       } else {
         listingMedia.value = { photos: [], video: null };
       }
+      const sp = settings.share_preview;
+      if (sp && typeof sp === 'object' && (sp.type === 'image' || sp.type === 'video') && sp.url) {
+        sharePreview.value = {
+          type: sp.type,
+          url: sp.url,
+          ...(sp.mime ? { mime: sp.mime } : {}),
+        };
+      } else {
+        sharePreview.value = null;
+      }
+      if (isLegacyListingMediaHtml(form.value.content)) {
+        form.value.content = '';
+      }
       const cat = editorStateFromCatalog(page);
       catalogSectionId.value = cat.sectionId || '';
       catalogAttrs.value = cat.attrs || [];
@@ -936,40 +992,39 @@ async function loadPageForEdit() {
   }
 }
 
-async function handleSubmit() {
-  if (!form.value.title.trim()) {
-    alert(t('content.editor.titleRequired'));
-    return;
-  }
-
-  if (!form.value.summary.trim()) {
-    alert(t('content.editor.summaryRequired'));
-    return;
+async function persistPage({ asDraft = false } = {}) {
+  if (!isListingSimple.value) {
+    if (!form.value.title.trim()) {
+      alert(t('content.editor.titleRequired'));
+      return;
+    }
+    if (!form.value.summary.trim()) {
+      alert(t('content.editor.summaryRequired'));
+      return;
+    }
+    if (form.value.format === 'html') {
+      const textContent = String(form.value.content || '').replace(/<[^>]*>/g, '').trim();
+      if (!textContent) {
+        alert(t('content.editor.contentRequired'));
+        return;
+      }
+    } else if (!fileBlob.value) {
+      alert(t('content.editor.fileRequired'));
+      return;
+    }
   }
 
   if (isListingSimple.value) {
     form.value.format = 'html';
     form.value.visibility = 'public';
     form.value.showInBlog = true;
-    const photos = Array.isArray(listingMedia.value?.photos) ? listingMedia.value.photos.filter(Boolean) : [];
-    if (!photos.length) {
-      alert(t('content.listingGallery.photoRequired'));
-      return;
-    }
     applyListingMediaToForm();
-  } else if (form.value.format === 'html') {
-    // Проверяем, что контент не пустой (учитываем только видимый текст, без HTML тегов)
-    const textContent = form.value.content.replace(/<[^>]*>/g, '').trim();
-    if (!textContent) {
-      alert(t('content.editor.contentRequired'));
-      return;
-    }
-  } else {
-    if (!fileBlob.value) {
-      alert(t('content.editor.fileRequired'));
-      return;
-    }
   }
+
+  const status = asDraft
+    ? 'draft'
+    : (canModerate.value ? 'published' : 'pending');
+  const submitForReview = asDraft ? false : !canModerate.value;
 
   try {
     isSubmitting.value = true;
@@ -982,20 +1037,18 @@ async function handleSubmit() {
           attrs: catalogAttrs.value,
         })
       : { catalog_section_id: null, catalog_attrs: [] };
-    
+
     let page;
-    if (isEditMode.value) {
-      // Режим редактирования
+    const editingId = editId.value;
+    if (editingId) {
       if (form.value.format === 'html') {
         const pageData = {
           title: form.value.title.trim(),
           summary: form.value.summary.trim(),
-          // Сохраняем контент без обрезки пробелов в начале/конце, чтобы сохранить форматирование
-          // Удаляем только пробелы в самом начале и конце, но сохраняем пробелы внутри
-          content: form.value.content.replace(/^\s+/, '').replace(/\s+$/, ''),
+          content: String(form.value.content || '').replace(/^\s+/, '').replace(/\s+$/, ''),
           seo: form.value.seo,
-          status: canModerate.value ? 'published' : 'pending',
-          submit_for_review: !canModerate.value,
+          status,
+          submit_for_review: submitForReview,
           settings: form.value.settings,
           visibility: form.value.visibility,
           required_permission: form.value.visibility === 'internal' && form.value.requiredPermission
@@ -1010,24 +1063,19 @@ async function handleSubmit() {
           catalog_section_id: catalogPayload.catalog_section_id,
           catalog_attrs: catalogPayload.catalog_attrs,
         };
-        page = await pagesService.updatePage(editId.value, pageData);
+        page = await pagesService.updatePage(editingId, pageData);
       } else {
-        // Отправляем как FormData для редактирования
         const fd = new FormData();
         fd.append('title', form.value.title.trim());
         fd.append('summary', form.value.summary.trim());
         fd.append('seo', JSON.stringify(form.value.seo));
-        fd.append('status', canModerate.value ? 'published' : 'pending');
-        fd.append('submit_for_review', canModerate.value ? 'false' : 'true');
+        fd.append('status', status);
+        fd.append('submit_for_review', submitForReview ? 'true' : 'false');
         fd.append('settings', JSON.stringify(form.value.settings));
         fd.append('visibility', form.value.visibility);
-        // Всегда отправляем required_permission:
-        // - Если visibility = public, отправляем пустую строку (будет установлен null на бэкенде)
-        // - Если visibility = internal, отправляем значение или пустую строку
         if (form.value.visibility === 'internal' && form.value.requiredPermission) {
           fd.append('required_permission', form.value.requiredPermission.trim());
         } else {
-          // Явно устанавливаем пустое значение для public страниц
           fd.append('required_permission', '');
         }
         fd.append('format', form.value.format);
@@ -1043,79 +1091,92 @@ async function handleSubmit() {
         if (fileBlob.value) {
           fd.append('file', fileBlob.value);
         }
-        page = await pagesService.updatePage(editId.value, fd, true);
+        page = await pagesService.updatePage(editingId, fd, true);
       }
+    } else if (form.value.format === 'html') {
+      const pageData = {
+        title: form.value.title.trim(),
+        summary: form.value.summary.trim(),
+        content: String(form.value.content || '').replace(/^\s+/, '').replace(/\s+$/, ''),
+        seo: form.value.seo,
+        status,
+        submit_for_review: submitForReview,
+        settings: form.value.settings,
+        visibility: form.value.visibility,
+        required_permission: form.value.visibility === 'internal' && form.value.requiredPermission
+          ? form.value.requiredPermission.trim()
+          : null,
+        format: form.value.format,
+        mime_type: 'text/html',
+        storage_type: 'embedded',
+        category: form.value.category || null,
+        show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false,
+        feed_filter_ids: feedFilterIdsPayload,
+        catalog_section_id: catalogPayload.catalog_section_id,
+        catalog_attrs: catalogPayload.catalog_attrs,
+      };
+      page = await pagesService.createPage(pageData);
     } else {
-      // Режим создания
-      if (form.value.format === 'html') {
-        const pageData = {
-          title: form.value.title.trim(),
-          summary: form.value.summary.trim(),
-          // Сохраняем контент без обрезки пробелов в начале/конце, чтобы сохранить форматирование
-          // Удаляем только пробелы в самом начале и конце, но сохраняем пробелы внутри
-          content: form.value.content.replace(/^\s+/, '').replace(/\s+$/, ''),
-          seo: form.value.seo,
-          status: canModerate.value ? 'published' : 'pending',
-          submit_for_review: !canModerate.value,
-          settings: form.value.settings,
-          visibility: form.value.visibility,
-          required_permission: form.value.visibility === 'internal' && form.value.requiredPermission
-            ? form.value.requiredPermission.trim()
-            : null,
-          format: form.value.format,
-          mime_type: 'text/html',
-          storage_type: 'embedded',
-          category: form.value.category || null,
-          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false,
-          feed_filter_ids: feedFilterIdsPayload,
-          catalog_section_id: catalogPayload.catalog_section_id,
-          catalog_attrs: catalogPayload.catalog_attrs,
-        };
-        page = await pagesService.createPage(pageData);
+      const fd = new FormData();
+      fd.append('title', form.value.title.trim());
+      fd.append('summary', form.value.summary.trim());
+      fd.append('seo', JSON.stringify(form.value.seo));
+      fd.append('status', status);
+      fd.append('submit_for_review', submitForReview ? 'true' : 'false');
+      fd.append('settings', JSON.stringify(form.value.settings));
+      fd.append('visibility', form.value.visibility);
+      if (form.value.visibility === 'internal' && form.value.requiredPermission) {
+        fd.append('required_permission', form.value.requiredPermission.trim());
       } else {
-        // Отправляем как FormData
-        const fd = new FormData();
-        fd.append('title', form.value.title.trim());
-        fd.append('summary', form.value.summary.trim());
-        fd.append('seo', JSON.stringify(form.value.seo));
-        fd.append('status', canModerate.value ? 'published' : 'pending');
-        fd.append('submit_for_review', canModerate.value ? 'false' : 'true');
-        fd.append('settings', JSON.stringify(form.value.settings));
-        fd.append('visibility', form.value.visibility);
-        // Всегда отправляем required_permission:
-        // - Если visibility = public, отправляем пустую строку (будет установлен null на бэкенде)
-        // - Если visibility = internal, отправляем значение или пустую строку
-        if (form.value.visibility === 'internal' && form.value.requiredPermission) {
-          fd.append('required_permission', form.value.requiredPermission.trim());
-        } else {
-          // Явно устанавливаем пустое значение для public страниц
-          fd.append('required_permission', '');
-        }
-        fd.append('format', form.value.format);
-        if (form.value.visibility === 'public') {
-          fd.append('show_in_blog', form.value.showInBlog ? 'true' : 'false');
-        } else {
-          fd.append('show_in_blog', 'false');
-        }
-        fd.append('category', form.value.category || '');
-        fd.append('feed_filter_ids', JSON.stringify(feedFilterIdsPayload));
-        fd.append('catalog_section_id', catalogPayload.catalog_section_id || '');
-        fd.append('catalog_attrs', JSON.stringify(catalogPayload.catalog_attrs || []));
-        fd.append('file', fileBlob.value);
-        page = await pagesService.createPage(fd, true);
+        fd.append('required_permission', '');
       }
+      fd.append('format', form.value.format);
+      if (form.value.visibility === 'public') {
+        fd.append('show_in_blog', form.value.showInBlog ? 'true' : 'false');
+      } else {
+        fd.append('show_in_blog', 'false');
+      }
+      fd.append('category', form.value.category || '');
+      fd.append('feed_filter_ids', JSON.stringify(feedFilterIdsPayload));
+      fd.append('catalog_section_id', catalogPayload.catalog_section_id || '');
+      fd.append('catalog_attrs', JSON.stringify(catalogPayload.catalog_attrs || []));
+      fd.append('file', fileBlob.value);
+      page = await pagesService.createPage(fd, true);
     }
-    
+
     if (!page || !page.id) {
-      throw new Error(isEditMode.value ? t('content.editor.notUpdated') : t('content.editor.notCreated'));
+      throw new Error(editingId ? t('content.editor.notUpdated') : t('content.editor.notCreated'));
     }
+
+    form.value.status = page.status || status;
 
     if (page.feed_filter_error) {
       alert(t('content.editor.feedFilterSyncError', { message: page.feed_filter_error }));
     }
 
+    if (asDraft) {
+      if (!editingId) {
+        await router.replace({
+          name: 'content-create',
+          query: {
+            ...route.query,
+            edit: String(page.id),
+            visibility: 'public',
+            show_in_blog: '1',
+          },
+        });
+      }
+      return;
+    }
+
     const seo = page.seoHtml || null;
     const inBlog = form.value.visibility === 'public' && form.value.showInBlog;
+
+    if (!canModerate.value && page.status === 'pending') {
+      alert(t('content.editor.submittedForReview'));
+      router.push({ name: 'content-list' });
+      return;
+    }
 
     if (seo && seo.ready && seo.url) {
       const openBlog = inBlog && window.confirm(
@@ -1133,11 +1194,8 @@ async function handleSubmit() {
       );
     }
 
-    // Перенаправляем на список блога или страниц
     if (inBlog && seo?.ready) {
       router.push({ name: 'blog' });
-    } else if (!canModerate.value && page.status === 'pending') {
-      router.push({ name: 'content-list' });
     } else {
       router.push({ name: 'content-list' });
     }
@@ -1151,6 +1209,14 @@ async function handleSubmit() {
   } finally {
     isSubmitting.value = false;
   }
+}
+
+function saveDraft() {
+  return persistPage({ asDraft: true });
+}
+
+function handleSubmit() {
+  return persistPage({ asDraft: false });
 }
 
 async function moderateApprove() {
@@ -1764,100 +1830,46 @@ onUnmounted(() => {
   min-height: 280px;
 }
 
-.preview-listing-card {
-  max-width: 560px;
+.preview-listing-post {
+  max-width: 720px;
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--theme-text, #111) 8%, transparent);
+}
+
+.preview-listing-post__media {
+  width: 100%;
+  margin: 0 0 20px;
   border-radius: 14px;
   overflow: hidden;
-  background: var(--color-white, #fff);
-}
-
-.preview-listing-card__media {
-  width: 100%;
-  aspect-ratio: 4 / 3;
   background: #111;
-  overflow: hidden;
 }
 
-.preview-listing-card__media img,
-.preview-listing-card__media video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.preview-listing-post__title {
+  margin: 0 0 12px;
+  font-size: 1.85rem;
+  line-height: 1.25;
+  color: var(--color-dark, #1f2a37);
 }
 
-.preview-listing-card__media--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-grey);
-  background: var(--color-light, #f4f6f8);
-  font-size: var(--font-size-sm);
-  text-align: center;
-  padding: 16px;
+.preview-listing-post__summary {
+  margin: 0 0 16px;
+  color: var(--color-grey-dark, #606266);
+  font-size: 1.05rem;
+  line-height: 1.5;
 }
 
-.preview-listing-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--theme-text, #111) 8%, transparent);
-}
-
-.preview-listing-card__icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 8px;
-  border: none;
-  border-radius: var(--radius-md, 8px);
-  background: transparent;
-  color: var(--theme-text, #111);
-  opacity: 0.7;
-  cursor: default;
-}
-
-.preview-listing-card__body {
-  padding: 14px 16px 18px;
-}
-
-.preview-listing-card__title {
-  margin: 0 0 8px;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.35;
-  color: var(--theme-text, #111);
-}
-
-.preview-listing-card__tags {
+.preview-listing-post__tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0 0 10px;
+  margin: 0 0 20px;
 }
 
-.preview-listing-card__tag {
-  display: inline-flex;
-  max-width: 100%;
-  padding: 3px 8px;
+.preview-listing-post__tag {
+  font-size: 0.8rem;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--theme-text, #111) 6%, transparent);
-  color: var(--theme-text-muted, var(--color-grey));
-  font-size: 12px;
-  line-height: 1.3;
-}
-
-.preview-listing-card__summary {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--theme-text, #222);
-  white-space: pre-wrap;
+  background: var(--color-light, #f4f6f8);
+  color: var(--color-grey-dark, #606266);
 }
 
 @media (max-width: 640px) {

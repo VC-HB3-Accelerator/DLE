@@ -156,6 +156,7 @@ router.put('/sidebar-notice', requireAuth, requirePermission(PERMISSIONS.MANAGE_
     const {
       body,
       domainDescription,
+      headerTitle,
       headerDescription,
       ogImageUrl,
       hideOgImage,
@@ -167,6 +168,7 @@ router.put('/sidebar-notice', requireAuth, requirePermission(PERMISSIONS.MANAGE_
     const data = await sidebarNoticeService.setNotice({
       body,
       domainDescription,
+      headerTitle,
       headerDescription,
       ogImageUrl,
       hideOgImage,

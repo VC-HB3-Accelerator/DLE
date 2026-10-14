@@ -39,8 +39,10 @@
       <h3>{{ t('content.media.empty') }}</h3>
     </div>
     <div v-else class="media-grid__cards">
+      <template v-for="group in groupedItems" :key="group.id">
+        <h3 v-if="groupedItems.length > 1" class="media-grid__folder">{{ group.label }}</h3>
       <article
-        v-for="item in items"
+        v-for="item in group.items"
         :key="itemKey(item)"
         class="media-card"
         :class="{ 'media-card--pick': mode === 'pick' }"
@@ -83,12 +85,17 @@
           </button>
         </div>
       </article>
+      </template>
     </div>
 
-    <div v-if="hasMore && !isForbidden" class="media-grid__more">
-      <button type="button" class="media-grid__more-btn" :disabled="isLoading" @click="loadMore">
-        {{ t('content.media.loadMore') }}
-      </button>
+    <div
+      v-if="hasMore && !isForbidden && items.length"
+      ref="loadSentinel"
+      class="media-grid__sentinel"
+      aria-hidden="true"
+    />
+    <div v-if="isLoading && items.length" class="media-grid__loading-more">
+      <div class="media-grid__spinner media-grid__spinner--sm" />
     </div>
 
     <div v-if="previewItem" class="modal-overlay" @click="previewItem = null">
@@ -127,7 +134,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import {
+  computed, onMounted, onUnmounted, ref, watch, watchEffect,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import BlogFeedToolbar from '../blog/BlogFeedToolbar.vue';
 import UiGlyph from '../UiGlyph.vue';
@@ -153,6 +162,8 @@ const debouncedQ = ref('');
 const activeFilter = ref(props.forcedType || 'all');
 const sourceFilter = ref('all');
 const previewItem = ref(null);
+const loadSentinel = ref(null);
+const deletingKeys = new Set();
 let searchTimer = null;
 
 const typeFilters = computed(() => ([
@@ -183,8 +194,42 @@ const listScope = computed(() => {
 
 const hasMore = computed(() => items.value.length < total.value);
 
+function folderOf(item) {
+  const p = String(item.file_path || item.album_path || item.url || '');
+  const listing = p.match(/listings\/([^/]+)/i);
+  if (listing) return listing[1];
+  return t('content.media.folderLibrary');
+}
+
+const groupedItems = computed(() => {
+  const map = new Map();
+  for (const item of items.value) {
+    const id = folderOf(item);
+    if (!map.has(id)) map.set(id, []);
+    map.get(id).push(item);
+  }
+  return [...map.entries()].map(([id, groupItems]) => ({
+    id,
+    label: id,
+    items: groupItems,
+  }));
+});
+
 function itemKey(item) {
   return `${item.source || 'cms'}:${item.id}`;
+}
+
+function mergeUnique(existing, incoming) {
+  if (!incoming.length) return existing;
+  const seen = new Set(existing.map((row) => itemKey(row)));
+  const merged = [...existing];
+  for (const row of incoming) {
+    const key = itemKey(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+  }
+  return merged;
 }
 
 function sourceBadge(item) {
@@ -197,12 +242,13 @@ function sourceBadge(item) {
 async function fetchPage({ append } = {}) {
   if (isLoading.value) return;
   isLoading.value = true;
+  const requestOffset = append ? offset.value : 0;
   try {
     const res = await contentMediaService.list({
       media_type: mediaTypeQuery.value,
       q: debouncedQ.value || undefined,
       limit: LIMIT,
-      offset: append ? offset.value : 0,
+      offset: requestOffset,
       scope: listScope.value,
       source: props.mode === 'manage' && sourceFilter.value !== 'all'
         ? sourceFilter.value
@@ -213,11 +259,12 @@ async function fetchPage({ append } = {}) {
     const data = Array.isArray(res.data) ? res.data : [];
     total.value = Number(res.total) || 0;
     if (append) {
-      items.value = items.value.concat(data);
+      items.value = mergeUnique(items.value, data);
+      offset.value = requestOffset + data.length;
     } else {
       items.value = data;
+      offset.value = data.length;
     }
-    offset.value = items.value.length;
   } catch (err) {
     if (err.response && err.response.status === 403) {
       isForbidden.value = true;
@@ -236,7 +283,8 @@ function reload() {
 
 defineExpose({ reload });
 
-function loadMore() {
+function tryLoadMore() {
+  if (isForbidden.value || isLoading.value || !hasMore.value) return;
   fetchPage({ append: true });
 }
 
@@ -253,20 +301,28 @@ function openPreview(item) {
 }
 
 async function onDelete(item) {
+  const key = itemKey(item);
+  if (deletingKeys.has(key)) return;
+  deletingKeys.add(key);
   const src = item.source || 'cms';
-  const msg = (src === 'chat' || src === 'guest')
-    ? t('content.media.confirmDeleteChat')
-    : t('content.media.confirmDelete');
-  if (!confirm(msg)) return;
   try {
     await contentMediaService.remove(item.id, src);
-    items.value = items.value.filter((row) => itemKey(row) !== itemKey(item));
+    items.value = items.value.filter((row) => itemKey(row) !== key);
     total.value = Math.max(0, total.value - 1);
-    if (previewItem.value && itemKey(previewItem.value) === itemKey(item)) {
+    if (previewItem.value && itemKey(previewItem.value) === key) {
       previewItem.value = null;
+    }
+    if (hasMore.value) {
+      if (!items.value.length) {
+        await fetchPage({ append: false });
+      } else if (items.value.length < LIMIT) {
+        await fetchPage({ append: true });
+      }
     }
   } catch (err) {
     alert(t('content.media.deleteFailed'));
+  } finally {
+    deletingKeys.delete(key);
   }
 }
 
@@ -289,8 +345,26 @@ watch(() => props.ownerUserId, () => {
   reload();
 });
 
+watchEffect((onCleanup) => {
+  if (isForbidden.value || !hasMore.value || !items.value.length) return;
+  const el = loadSentinel.value;
+  if (!el) return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) tryLoadMore();
+    },
+    { root: null, rootMargin: '240px 0px', threshold: 0 },
+  );
+  observer.observe(el);
+  onCleanup(() => observer.disconnect());
+});
+
 onMounted(() => {
   reload();
+});
+
+onUnmounted(() => {
+  clearTimeout(searchTimer);
 });
 </script>
 
@@ -440,19 +514,30 @@ onMounted(() => {
   color: #c92a2a;
 }
 
-.media-grid__more {
-  display: flex;
-  justify-content: center;
-  margin-top: 16px;
+.media-grid__folder {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: #868e96;
+  font-weight: 600;
 }
 
-.media-grid__more-btn {
-  background: #fff;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font: inherit;
+.media-grid__sentinel {
+  width: 100%;
+  height: 1px;
+  margin-top: 8px;
+}
+
+.media-grid__loading-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 20px;
+}
+
+.media-grid__spinner--sm {
+  width: 28px;
+  height: 28px;
+  margin: 0;
 }
 
 .modal-overlay {

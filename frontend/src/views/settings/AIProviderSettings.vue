@@ -65,7 +65,7 @@
         <label class="form-label">{{ $t('settings.ai.providerSettings.llmModel') }}</label>
         <select v-model="selectedModel" class="form-control">
           <option v-for="model in models" :key="model.id || model.name || model" :value="model.id || model.name || model">
-            {{ model.id || model.name || model }}
+            {{ model.label || model.id || model.name || model }}
           </option>
         </select>
       </div>

@@ -1,0 +1,6 @@
+# Ссылка ssl -> ../ssl. Каталога нет в git (ключи не коммитятся).
+# Без этого BuildKit падает: invalid file request ssl
+ssl
+node_modules
+.git
+*.log

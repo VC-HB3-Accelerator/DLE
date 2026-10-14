@@ -18,6 +18,7 @@ const PERMISSIONS = Object.freeze({
   PERSONAL_CALLS: 'personal_calls',
   SCHEDULE_CALLS: 'schedule_calls',
   GENERATE_AI_REPLIES: 'generate_ai_replies',
+  USE_ORCHESTRATOR: 'use_orchestrator',
   EDIT_USER_DATA: 'edit_user_data',
   EDIT_CONTACTS: 'edit_contacts',
   DELETE_USER_DATA: 'delete_user_data',
@@ -105,7 +106,12 @@ const ACTION_GROUPS = Object.freeze([
   },
   {
     id: 'chat',
-    keys: Object.freeze([PERMISSIONS.SEND_TO_USERS, PERMISSIONS.CHAT_WITH_ADMINS, PERMISSIONS.GENERATE_AI_REPLIES])
+    keys: Object.freeze([
+      PERMISSIONS.SEND_TO_USERS,
+      PERMISSIONS.CHAT_WITH_ADMINS,
+      PERMISSIONS.GENERATE_AI_REPLIES,
+      PERMISSIONS.USE_ORCHESTRATOR
+    ])
   },
   {
     id: 'calls',

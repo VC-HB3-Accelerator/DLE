@@ -1,0 +1,22 @@
+# Не тащить в build context (иначе BuildKit/WSL падает на symlinks в .bin)
+**/node_modules
+node_modules
+.git
+.cursor
+**/dist
+**/coverage
+**/.cache
+*.log
+.env
+.env.*
+!.env.example
+ssl/keys
+ssl/certs
+**/full_db_encryption.key
+ops-private
+update-packs
+data
+backups
+*.bak
+*.backup
+agent-transcripts

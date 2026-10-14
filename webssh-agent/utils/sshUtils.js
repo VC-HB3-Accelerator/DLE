@@ -5,9 +5,14 @@ const path = require('path');
 const log = require('./logger');
 
 const sshDir = path.join(os.homedir(), '.ssh');
-const privateKeyPath = path.join(sshDir, 'auto_lends_vds');
-const publicKeyPath = `${privateKeyPath}.pub`;
 const sshConfigPath = path.join(sshDir, 'config');
+
+function resolveVdsKeyPaths() {
+  const preferred = path.join(sshDir, 'b2_b4_vds');
+  const legacy = path.join(sshDir, 'auto_lends_vds');
+  const privateKeyPath = fs.existsSync(preferred) ? preferred : legacy;
+  return { privateKeyPath, publicKeyPath: `${privateKeyPath}.pub` };
+}
 
 const COMMON_SSH_OPTS = [
   '-o', 'StrictHostKeyChecking=no',
@@ -28,6 +33,7 @@ function sleep(ms) {
 
 const ensureSshPermissions = async () => {
   try {
+    const { privateKeyPath, publicKeyPath } = resolveVdsKeyPaths();
     await fs.ensureDir(sshDir);
     await fs.chmod(sshDir, 0o700).catch(() => {});
     await fs.chmod(privateKeyPath, 0o600).catch(() => {});
@@ -59,6 +65,7 @@ function buildPasswordSsh(user, host, port, remoteCommand) {
 }
 
 function buildKeySsh(user, host, port, remoteCommand) {
+  const { privateKeyPath } = resolveVdsKeyPaths();
   return `ssh -i ${posixSingleQuote(privateKeyPath)} ${COMMON_SSH_OPTS} -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -p ${port} ${user}@${host} ${posixSingleQuote(remoteCommand)}`;
 }
 
@@ -67,6 +74,7 @@ function buildPasswordScp(user, host, port, sourcePath, targetPath) {
 }
 
 function buildKeyScp(user, host, port, sourcePath, targetPath) {
+  const { privateKeyPath } = resolveVdsKeyPaths();
   return `scp -i ${posixSingleQuote(privateKeyPath)} ${COMMON_SSH_OPTS} -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -P ${port} ${posixSingleQuote(sourcePath)} ${user}@${host}:${posixSingleQuote(targetPath)}`;
 }
 
@@ -84,6 +92,7 @@ const execSshCommand = async (command, options = {}) => {
   const user = String(sshConnectUser || 'root').trim();
   const host = String((sshHost || vdsIp || '')).trim();
   const password = sshConnectPassword ? String(sshConnectPassword).trim() : '';
+  const { privateKeyPath } = resolveVdsKeyPaths();
   const privateKeyExists = await fs.pathExists(privateKeyPath);
 
   if (!host) {
@@ -141,6 +150,7 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
   const user = String(sshConnectUser || 'root').trim();
   const host = String((sshHost || vdsIp || '')).trim();
   const password = sshConnectPassword ? String(sshConnectPassword).trim() : '';
+  const { privateKeyPath } = resolveVdsKeyPaths();
   const privateKeyExists = await fs.pathExists(privateKeyPath);
 
   if (!host) {

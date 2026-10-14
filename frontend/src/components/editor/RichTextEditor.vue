@@ -1,24 +1,95 @@
 <!--
   Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
-  
-  This software is proprietary and confidential.
-  Unauthorized copying, modification, or distribution is prohibited.
-  
-  For licensing inquiries: info@hb3-accelerator.com
-  Website: https://hb3-accelerator.com
-  GitHub: https://github.com/VC-HB3-Accelerator
--->
 
+  Редактор HTML CMS: TipTap (MIT). v-model — HTML в content.
+-->
 <template>
-  <div class="rich-text-editor">
+  <div ref="rootRef" class="rich-text-editor">
     <div v-if="uploadProgress" class="rte-progress-row">
       <p class="rte-progress">{{ uploadProgress }}</p>
       <button type="button" class="rte-cancel" @click="onCancelUpload">
         {{ t('editor.uploadCancel') }}
       </button>
     </div>
-    <div ref="editorContainer" class="editor-container"></div>
+
+    <div class="rte-shell">
+      <div class="rte-toolbar" role="toolbar" :aria-label="t('editor.toolbar')">
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('bold') }" :title="t('editor.bold')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleBold().run())">
+          <RteToolbarIcon name="bold" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('italic') }" :title="t('editor.italic')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleItalic().run())">
+          <RteToolbarIcon name="italic" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('underline') }" :title="t('editor.underline')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleUnderline().run())">
+          <RteToolbarIcon name="underline" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('strike') }" :title="t('editor.strike')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleStrike().run())">
+          <RteToolbarIcon name="strike" />
+        </button>
+        <span class="rte-sep" />
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('heading', { level: 2 }) }" :title="t('editor.heading2')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleHeading({ level: 2 }).run())">
+          <RteToolbarIcon name="h2" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('heading', { level: 3 }) }" :title="t('editor.heading3')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleHeading({ level: 3 }).run())">
+          <RteToolbarIcon name="h3" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('bulletList') }" :title="t('editor.bulletList')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleBulletList().run())">
+          <RteToolbarIcon name="ul" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('orderedList') }" :title="t('editor.orderedList')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleOrderedList().run())">
+          <RteToolbarIcon name="ol" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('blockquote') }" :title="t('editor.blockquote')" :disabled="!editor" @click="run((ed) => ed.chain().focus().toggleBlockquote().run())">
+          <RteToolbarIcon name="quote" />
+        </button>
+        <span class="rte-sep" />
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn({ textAlign: 'left' }) }" :title="t('editor.alignLeft')" :disabled="!editor" @click="run((ed) => ed.chain().focus().setTextAlign('left').run())">
+          <RteToolbarIcon name="alignLeft" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn({ textAlign: 'center' }) }" :title="t('editor.alignCenter')" :disabled="!editor" @click="run((ed) => ed.chain().focus().setTextAlign('center').run())">
+          <RteToolbarIcon name="alignCenter" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn({ textAlign: 'right' }) }" :title="t('editor.alignRight')" :disabled="!editor" @click="run((ed) => ed.chain().focus().setTextAlign('right').run())">
+          <RteToolbarIcon name="alignRight" />
+        </button>
+        <span class="rte-sep" />
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('link') }" :title="t('editor.link')" :disabled="!editor" @click="onLink">
+          <RteToolbarIcon name="link" />
+        </button>
+        <button type="button" class="rte-btn" :title="t('editor.image')" :disabled="!editor" @click="handleImageClick">
+          <RteToolbarIcon name="image" />
+        </button>
+        <button type="button" class="rte-btn" :title="t('editor.video')" :disabled="!editor" @click="handleVideoClick">
+          <RteToolbarIcon name="video" />
+        </button>
+        <button type="button" class="rte-btn" :title="t('editor.clear')" :disabled="!editor" @click="run((ed) => ed.chain().focus().unsetAllMarks().clearNodes().run())">
+          <RteToolbarIcon name="clear" />
+        </button>
+      </div>
+
+      <editor-content v-if="editor" :editor="editor" class="rte-surface" />
+      <bubble-menu
+        v-if="editor"
+        class="rte-bubble"
+        :editor="editor"
+        :append-to="appendBubbleTo"
+      >
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('bold') }" :title="t('editor.bold')" @click="run((ed) => ed.chain().focus().toggleBold().run())">
+          <RteToolbarIcon name="bold" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('italic') }" :title="t('editor.italic')" @click="run((ed) => ed.chain().focus().toggleItalic().run())">
+          <RteToolbarIcon name="italic" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('link') }" :title="t('editor.link')" @click="onLink">
+          <RteToolbarIcon name="link" />
+        </button>
+        <button type="button" class="rte-btn" :class="{ 'is-on': isOn('heading', { level: 2 }) }" :title="t('editor.heading2')" @click="run((ed) => ed.chain().focus().toggleHeading({ level: 2 }).run())">
+          <RteToolbarIcon name="h2" />
+        </button>
+      </bubble-menu>
+    </div>
+
     <ContentMediaPickerModal
       :open="pickerKind !== null"
       :kind="pickerKind || 'image'"
@@ -38,74 +109,200 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Quill from 'quill';
-import 'quill/dist/quill.snow.css';
+import { useEditor, EditorContent } from '@tiptap/vue-3';
+import { BubbleMenu } from '@tiptap/vue-3/menus';
+import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import { Color, TextStyle } from '@tiptap/extension-text-style';
+import Highlight from '@tiptap/extension-highlight';
+import Youtube from '@tiptap/extension-youtube';
+import { Placeholder } from '@tiptap/extensions';
 import ContentMediaPickerModal from '../content/ContentMediaPickerModal.vue';
 import { uploadContentMedia, abortContentMediaUpload, isAbortError } from '../../composables/useChunkedMediaUpload';
 import { isLocalCmsMediaUrl, toRelativeCmsMediaUrl } from '../../utils/cmsMediaUrl';
+import { TiptapVideo, isYoutubeUrl } from './tiptapVideo';
+import RteToolbarIcon from './RteToolbarIcon.vue';
 
 const { t } = useI18n();
-
-async function loadImageResizeModule() {
-  try {
-    const module = await import('quill-image-resize-module');
-    const ImageResize = module.default || module.ImageResize || module;
-    if (ImageResize && typeof ImageResize === 'function') {
-      Quill.register('modules/imageResize', ImageResize);
-      return true;
-    } else if (ImageResize && ImageResize.default && typeof ImageResize.default === 'function') {
-      Quill.register('modules/imageResize', ImageResize.default);
-      return true;
-    }
-  } catch (error) {
-    // ignore
-  }
-  return false;
-}
 
 const props = defineProps({
   modelValue: {
     type: String,
-    default: ''
+    default: '',
   },
   placeholder: {
     type: String,
-    default: ''
-  }
+    default: '',
+  },
 });
 
 const emit = defineEmits(['update:modelValue']);
 
-const editorContainer = ref(null);
+const rootRef = ref(null);
 const hiddenFileInput = ref(null);
 const pickerKind = ref(null);
 const pendingKind = ref('image');
+const pickerAccept = ref('image/*');
 const uploadProgress = ref('');
 const activeUploadFile = ref(null);
 const uploadAbortController = ref(null);
-let savedRange = null;
-let quill = null;
+let savedSelection = null;
 
-const pickerAccept = ref('image/*');
+const editor = useEditor({
+  content: props.modelValue || '',
+  extensions: [
+    StarterKit.configure({
+      heading: { levels: [1, 2, 3, 4, 5, 6] },
+    }),
+    Underline,
+    TextStyle,
+    Color,
+    Highlight,
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    Link.configure({
+      openOnClick: false,
+      autolink: true,
+      HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+    }),
+    Image.configure({ inline: false, allowBase64: false }),
+    Youtube.configure({
+      HTMLAttributes: { class: 'rte-video' },
+    }),
+    TiptapVideo,
+    Placeholder.configure({
+      placeholder: () => props.placeholder || t('editor.placeholder'),
+    }),
+  ],
+  editorProps: {
+    attributes: {
+      class: 'rte-prose',
+    },
+  },
+  onUpdate: ({ editor: ed }) => {
+    emit('update:modelValue', ed.getHTML());
+  },
+});
+
+function appendBubbleTo() {
+  return rootRef.value || document.body;
+}
+
+function isOn(name, attrs) {
+  if (!editor.value) return false;
+  if (name && typeof name === 'object') {
+    return editor.value.isActive(name);
+  }
+  return editor.value.isActive(name, attrs);
+}
+
+function run(fn) {
+  if (!editor.value) return;
+  fn(editor.value);
+}
 
 function rememberRange() {
-  if (!quill) {
-    savedRange = { index: 0, length: 0 };
-    return;
-  }
-  savedRange = quill.getSelection() || { index: Math.max(quill.getLength() - 1, 0), length: 0 };
+  if (!editor.value) return;
+  const { from, to } = editor.value.state.selection;
+  savedSelection = { from, to };
+}
+
+function restoreFocus() {
+  if (!editor.value) return;
+  const chain = editor.value.chain().focus();
+  if (savedSelection) chain.setTextSelection(savedSelection);
+  chain.run();
 }
 
 function closePicker() {
   pickerKind.value = null;
 }
 
-function currentRange() {
-  if (savedRange) return savedRange;
-  if (!quill) return { index: 0, length: 0 };
-  return quill.getSelection() || { index: Math.max(quill.getLength() - 1, 0), length: 0 };
+watch(() => props.modelValue, (value) => {
+  const ed = editor.value;
+  if (!ed) return;
+  const next = value || '';
+  if (ed.getHTML() === next) return;
+  ed.commands.setContent(next, { emitUpdate: false });
+});
+
+function insertImageAtRange(url) {
+  const rel = toRelativeCmsMediaUrl(url);
+  restoreFocus();
+  editor.value?.chain().focus().setImage({ src: rel }).run();
+}
+
+function insertVideoAtRange(url) {
+  const rel = toRelativeCmsMediaUrl(url);
+  restoreFocus();
+  if (isYoutubeUrl(rel) && editor.value?.commands.setYoutubeVideo) {
+    editor.value.chain().focus().setYoutubeVideo({ src: rel }).run();
+    return;
+  }
+  editor.value?.chain().focus().setVideo({
+    src: rel,
+    embed: !isLocalCmsMediaUrl(rel) && /^https?:/i.test(rel) && !/\.(mp4|webm|ogg|ogv|mov)(\?|#|$)/i.test(rel),
+  }).run();
+}
+
+function handleImageClick() {
+  rememberRange();
+  pendingKind.value = 'image';
+  pickerAccept.value = 'image/*';
+  pickerKind.value = 'image';
+}
+
+function handleVideoClick() {
+  rememberRange();
+  pendingKind.value = 'video';
+  pickerAccept.value = 'video/*';
+  pickerKind.value = 'video';
+}
+
+function onLink() {
+  const ed = editor.value;
+  if (!ed) return;
+  if (ed.isActive('link')) {
+    ed.chain().focus().unsetLink().run();
+    return;
+  }
+  const prev = ed.getAttributes('link').href || 'https://';
+  const href = window.prompt(t('editor.linkPrompt'), prev);
+  if (!href) return;
+  ed.chain().focus().setLink({ href, target: '_blank' }).run();
+}
+
+function onPickerDevice() {
+  closePicker();
+  nextTick(() => {
+    hiddenFileInput.value?.click();
+  });
+}
+
+function onPickerSelect(item) {
+  closePicker();
+  if (!item || !item.url) return;
+  if (pendingKind.value === 'video') insertVideoAtRange(item.url);
+  else insertImageAtRange(item.url);
+}
+
+function onPickerUrl() {
+  closePicker();
+  const url = prompt(t('editor.videoUrlPrompt'));
+  if (url) insertVideoAtRange(url);
+}
+
+async function onCancelUpload() {
+  const file = activeUploadFile.value;
+  if (uploadAbortController.value) uploadAbortController.value.abort();
+  if (file) await abortContentMediaUpload(file);
+  uploadProgress.value = '';
+  activeUploadFile.value = null;
+  uploadAbortController.value = null;
 }
 
 function getUploadErrorMessage(error) {
@@ -154,189 +351,6 @@ function getUploadErrorMessage(error) {
   return t('common.unknownError');
 }
 
-function getVideoLoadingHtml(videoUrl) {
-  return `<div class="video-wrapper"><div class="video-loading-indicator" style="display: flex;"><div class="spinner"></div><span>${t('editor.loadingVideo')}</span></div><video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${videoUrl}"></video></div>`;
-}
-
-// Настройка Quill с панелью инструментов
-const toolbarOptions = [
-  [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-  [{ 'font': [] }],
-  [{ 'size': ['small', false, 'large', 'huge'] }],
-  ['bold', 'italic', 'underline', 'strike'],
-  [{ 'color': [] }, { 'background': [] }],
-  [{ 'script': 'sub'}, { 'script': 'super' }],
-  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-  [{ 'indent': '-1'}, { 'indent': '+1' }],
-  [{ 'align': [] }],
-  ['blockquote', 'code-block'],
-  ['link', 'image', 'video'],
-  ['clean']
-];
-
-onMounted(async () => {
-  if (!editorContainer.value) return;
-
-  // Загружаем модуль изменения размера изображений перед инициализацией
-  const imageResizeLoaded = await loadImageResizeModule();
-
-  // Конфигурация модулей
-  const modulesConfig = {
-      toolbar: {
-        container: toolbarOptions,
-        handlers: {
-          'image': handleImageClick,
-          'video': handleVideoClick
-        }
-    }
-  };
-
-  // Добавляем imageResize только если модуль загружен
-  if (imageResizeLoaded) {
-    modulesConfig.imageResize = {
-        parchment: Quill.import('parchment'),
-        modules: ['Resize', 'DisplaySize', 'Toolbar']
-    };
-    }
-
-  // Инициализация Quill
-  quill = new Quill(editorContainer.value, {
-    theme: 'snow',
-    placeholder: props.placeholder || t('editor.placeholder'),
-    modules: modulesConfig
-  });
-
-  // Устанавливаем начальное значение
-  if (props.modelValue) {
-    quill.root.innerHTML = props.modelValue;
-    // Обрабатываем существующие видео и настраиваем обработчики
-    setTimeout(() => {
-      wrapExistingVideos();
-      setupVideoLoadingHandlers();
-    }, 100);
-  }
-
-  // Слушаем изменения
-  quill.on('text-change', () => {
-    const html = quill.root.innerHTML;
-    emit('update:modelValue', html);
-    // Настраиваем обработчики для новых видео после изменений
-    setTimeout(() => {
-      setupVideoLoadingHandlers();
-    }, 100);
-  });
-});
-
-// Обновление при изменении modelValue извне
-watch(() => props.modelValue, (newValue) => {
-  if (quill && quill.root.innerHTML !== newValue) {
-    quill.root.innerHTML = newValue || '';
-    // Обрабатываем существующие видео в контенте
-    setTimeout(() => {
-      wrapExistingVideos();
-      setupVideoLoadingHandlers();
-    }, 100);
-  }
-});
-
-// Обертка существующих видео в контейнер с индикатором загрузки
-function wrapExistingVideos() {
-  if (!quill || !quill.root) return;
-  
-  const videoElements = quill.root.querySelectorAll('video.ql-video:not(.video-wrapper video)');
-  videoElements.forEach((video) => {
-    // Проверяем, не обернут ли уже видео
-    if (video.closest('.video-wrapper')) return;
-    
-    // Проверяем, является ли это локальный файл
-    const src = video.getAttribute('src');
-    if (src && isLocalCmsMediaUrl(src)) {
-      // Создаем обертку
-      const wrapper = document.createElement('div');
-      wrapper.className = 'video-wrapper';
-      
-      // Создаем индикатор загрузки
-      const loadingIndicator = document.createElement('div');
-      loadingIndicator.className = 'video-loading-indicator';
-      loadingIndicator.style.display = 'flex';
-      loadingIndicator.innerHTML = `<div class="spinner"></div><span>${t('editor.loadingVideo')}</span>`;
-      
-      // Вставляем обертку перед видео
-      video.parentNode?.insertBefore(wrapper, video);
-      
-      // Перемещаем видео и индикатор в обертку
-      wrapper.appendChild(loadingIndicator);
-      wrapper.appendChild(video);
-    }
-  });
-}
-
-function insertImageAtRange(url) {
-  const range = currentRange();
-  const rel = toRelativeCmsMediaUrl(url);
-  quill.insertEmbed(range.index, 'image', rel);
-  quill.setSelection(range.index + 1, 0);
-  emit('update:modelValue', quill.root.innerHTML);
-}
-
-function insertVideoAtRange(url) {
-  const range = currentRange();
-  const rel = toRelativeCmsMediaUrl(url);
-  if (isLocalCmsMediaUrl(rel)) {
-    quill.clipboard.dangerouslyPasteHTML(range.index, getVideoLoadingHtml(rel));
-    setupVideoLoadingHandlers();
-    setTimeout(() => setupVideoLoadingHandlers(), 50);
-    setTimeout(() => setupVideoLoadingHandlers(), 200);
-  } else {
-    quill.insertEmbed(range.index, 'video', rel);
-  }
-  quill.setSelection(range.index + 1, 0);
-  emit('update:modelValue', quill.root.innerHTML);
-}
-
-function handleImageClick() {
-  rememberRange();
-  pendingKind.value = 'image';
-  pickerAccept.value = 'image/*';
-  pickerKind.value = 'image';
-}
-
-function handleVideoClick() {
-  rememberRange();
-  pendingKind.value = 'video';
-  pickerAccept.value = 'video/*';
-  pickerKind.value = 'video';
-}
-
-function onPickerDevice() {
-  closePicker();
-  nextTick(() => {
-    if (hiddenFileInput.value) hiddenFileInput.value.click();
-  });
-}
-
-function onPickerSelect(item) {
-  closePicker();
-  if (!item || !item.url) return;
-  if (pendingKind.value === 'video') insertVideoAtRange(item.url);
-  else insertImageAtRange(item.url);
-}
-
-function onPickerUrl() {
-  closePicker();
-  const url = prompt(t('editor.videoUrlPrompt'));
-  if (url) insertVideoAtRange(url);
-}
-
-async function onCancelUpload() {
-  const file = activeUploadFile.value;
-  if (uploadAbortController.value) uploadAbortController.value.abort();
-  if (file) await abortContentMediaUpload(file);
-  uploadProgress.value = '';
-  activeUploadFile.value = null;
-  uploadAbortController.value = null;
-}
-
 async function onHiddenFile(event) {
   const file = event.target.files && event.target.files[0];
   event.target.value = '';
@@ -380,107 +394,18 @@ async function onHiddenFile(event) {
   }
 }
 
-// Настройка обработчиков событий для индикатора загрузки видео
-function setupVideoLoadingHandlers() {
-  if (!quill || !quill.root) return;
-  
-  const videoElements = quill.root.querySelectorAll('.video-wrapper video');
-  videoElements.forEach((video) => {
-    const wrapper = video.closest('.video-wrapper');
-    if (!wrapper) return;
-    
-    const loadingIndicator = wrapper.querySelector('.video-loading-indicator');
-    if (!loadingIndicator) return;
-    
-    // Показываем индикатор сразу (он должен быть виден по умолчанию)
-    loadingIndicator.style.display = 'flex';
-    
-    // Проверяем, не загружено ли уже видео
-    if (video.readyState >= 2) {
-      // Видео уже загружено, скрываем индикатор
-      loadingIndicator.style.display = 'none';
-    }
-    
-    // Показываем индикатор при начале загрузки
-    const handleLoadStart = () => {
-      if (loadingIndicator) {
-        loadingIndicator.style.display = 'flex';
-      }
-    };
-    
-    // Скрываем индикатор, когда видео готово к воспроизведению
-    const handleCanPlay = () => {
-      if (loadingIndicator) {
-        loadingIndicator.style.display = 'none';
-      }
-    };
-    
-    // Показываем индикатор, если видео буферизуется
-    const handleWaiting = () => {
-      if (loadingIndicator) {
-        loadingIndicator.style.display = 'flex';
-      }
-    };
-    
-    // Скрываем индикатор при воспроизведении
-    const handlePlaying = () => {
-      if (loadingIndicator) {
-        loadingIndicator.style.display = 'none';
-      }
-    };
-    
-    // Обработка ошибок
-    const handleError = () => {
-      if (loadingIndicator) {
-        loadingIndicator.style.display = 'none';
-      }
-    };
-    
-    // Добавляем обработчики событий (удаляем старые, если есть)
-    video.removeEventListener('loadstart', handleLoadStart);
-    video.removeEventListener('canplay', handleCanPlay);
-    video.removeEventListener('waiting', handleWaiting);
-    video.removeEventListener('playing', handlePlaying);
-    video.removeEventListener('error', handleError);
-    
-    video.addEventListener('loadstart', handleLoadStart);
-    video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('waiting', handleWaiting);
-    video.addEventListener('playing', handlePlaying);
-    video.addEventListener('error', handleError);
-  });
-}
-
-// Настраиваем обработчики при изменении контента
-watch(() => props.modelValue, () => {
-  if (quill) {
-    setTimeout(() => {
-      setupVideoLoadingHandlers();
-    }, 100);
-  }
-});
-
-onBeforeUnmount(() => {
-  if (quill) {
-    quill = null;
-  }
-});
-
-// Метод для получения HTML контента
 function getHTML() {
-  return quill ? quill.root.innerHTML : '';
+  return editor.value ? editor.value.getHTML() : '';
 }
 
-// Метод для установки HTML контента
 function setHTML(html) {
-  if (quill) {
-    quill.root.innerHTML = html || '';
-  }
+  if (!editor.value) return;
+  editor.value.commands.setContent(html || '', { emitUpdate: false });
 }
 
 defineExpose({
   getHTML,
-  setHTML
+  setHTML,
 });
 </script>
 
@@ -503,215 +428,155 @@ defineExpose({
 .rte-progress {
   margin: 0;
   font-size: 0.9rem;
-  color: #495057;
+  color: var(--color-grey, #6b7280);
 }
 
 .rte-cancel {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border, #d1d5db);
   background: #fff;
-  color: #374151;
+  color: var(--color-dark, #374151);
   border-radius: 8px;
   padding: 0.3rem 0.75rem;
   cursor: pointer;
   font-size: 0.85rem;
 }
 
-.editor-container {
-  min-height: 300px;
-}
-
-/* Переопределение стилей Quill для соответствия дизайну */
-:deep(.ql-container) {
-  font-family: inherit;
-  font-size: 1rem;
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-:deep(.ql-toolbar) {
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-  border: 1px solid #e9ecef;
-  background: #f8f9fa;
-}
-
-:deep(.ql-editor) {
-  min-height: 300px;
-  padding: 15px;
-}
-
-:deep(.ql-editor.ql-blank::before) {
-  font-style: normal;
-  color: #6c757d;
-}
-
-:deep(.ql-snow .ql-stroke) {
-  stroke: #495057;
-}
-
-:deep(.ql-snow .ql-fill) {
-  fill: #495057;
-}
-
-:deep(.ql-snow .ql-picker-label:hover),
-:deep(.ql-snow .ql-picker-item:hover) {
-  color: var(--color-primary);
-}
-
-:deep(.ql-snow .ql-tooltip) {
-  background: white;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-:deep(.ql-snow .ql-tooltip input[type=text]) {
-  border: 1px solid #e9ecef;
-  border-radius: 4px;
-  padding: 4px 8px;
-}
-
-:deep(.ql-snow img) {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  margin: 10px 0;
-}
-
-/* Стили для видео в редакторе - на всю ширину */
-:deep(.ql-snow video),
-:deep(.ql-editor video) {
-  max-width: 100%;
-  width: 100%;
-  height: auto;
-  min-height: 400px;
-  border-radius: 8px;
-  margin: 1.5rem 0;
-  display: block;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: #000;
-}
-
-:deep(.ql-snow video.ql-video),
-:deep(.ql-editor video.ql-video) {
-  width: 100%;
-  max-width: 100%;
-  min-height: 400px;
-}
-
-/* Стили для iframe в редакторе */
-:deep(.ql-snow iframe),
-:deep(.ql-editor iframe) {
-  max-width: 100%;
-  width: 100%;
-  height: auto;
-  min-height: 400px;
-  border-radius: 8px;
-  margin: 1.5rem 0;
-  display: block;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: #000;
-  border: none;
-}
-
-:deep(.ql-snow iframe.ql-video),
-:deep(.ql-editor iframe.ql-video) {
-  min-height: 400px;
-  aspect-ratio: 16 / 9;
-}
-
-/* Стили для изменения размера изображений */
-:deep(.ql-image-resize) {
-  display: inline-block;
-  position: relative;
-}
-
-:deep(.ql-image-resize .ql-image-resize-handle) {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 12px;
-  height: 12px;
-  background: var(--color-primary);
-  border: 2px solid white;
-  border-radius: 2px;
-  cursor: nwse-resize;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
-}
-
-/* Стили для обертки видео с индикатором загрузки */
-:deep(.video-wrapper) {
-  position: relative;
-  max-width: 100%;
-  width: 100%;
-  margin: 1.5rem 0;
-  border-radius: 8px;
+.rte-shell {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  background: #fff;
   overflow: hidden;
-  background: #000;
-  min-height: 400px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-:deep(.video-wrapper video) {
-  max-width: 100%;
-  width: 100%;
-  height: auto;
-  min-height: 400px;
-  border-radius: 8px;
-  display: block;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: #000;
-}
-
-/* Индикатор загрузки видео */
-:deep(.video-loading-indicator) {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+.rte-toolbar {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border, #eef0f3);
+  background: #fbfcfd;
+}
+
+.rte-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--color-border, #e5e7eb);
+}
+
+.rte-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  z-index: 10;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
 }
 
-:deep(.video-loading-indicator .spinner) {
-  width: 50px;
-  height: 50px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
+.rte-btn:hover:not(:disabled) {
+  background: #eef2f6;
 }
 
-:deep(.video-loading-indicator span) {
-  font-size: 1rem;
-  font-weight: 500;
+.rte-btn.is-on {
+  background: #e8eef5;
+  color: var(--color-primary, #1f2a37);
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.rte-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
+.rte-surface {
+  min-height: 280px;
+}
 
-/* TZ package D */
+.rte-bubble {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+:deep(.rte-prose) {
+  min-height: 280px;
+  padding: 16px 18px 24px;
+  outline: none;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--color-dark, #1f2937);
+}
+
+:deep(.rte-prose p) {
+  margin: 0.45em 0;
+}
+
+:deep(.rte-prose h1),
+:deep(.rte-prose h2),
+:deep(.rte-prose h3) {
+  margin: 1.1em 0 0.4em;
+  line-height: 1.25;
+  font-weight: 650;
+}
+
+:deep(.rte-prose img),
+:deep(.rte-prose .rte-video),
+:deep(.rte-prose iframe),
+:deep(.rte-prose video) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 1rem 0;
+  border-radius: 10px;
+}
+
+:deep(.rte-prose video),
+:deep(.rte-prose iframe.rte-video) {
+  min-height: 280px;
+  background: #111;
+}
+
+:deep(.rte-prose blockquote) {
+  margin: 0.8em 0;
+  padding: 0 0 0 14px;
+  border-left: 3px solid var(--color-border, #d1d5db);
+  color: #4b5563;
+}
+
+:deep(.rte-prose a) {
+  color: var(--color-primary, #1f2a37);
+}
+
+:deep(.rte-prose p.is-editor-empty:first-child::before),
+:deep(.rte-prose .is-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
 @media (max-width: 768px) {
-  .page, .panel, .view, .container, [class*="container"], [class*="panel"], [class*="wrapper"], [class*="list"], [class*="content"] {
-    max-width: 100%;
-    box-sizing: border-box;
+  .rte-toolbar {
+    gap: 0;
   }
-  .form-row, .row, .actions, .toolbar, .header-row, .filters {
-    flex-wrap: wrap;
-  }
-  [class*="grid"], .form-row {
-    grid-template-columns: 1fr !important;
+
+  .rte-btn {
+    min-width: 36px;
+    height: 36px;
   }
 }
 </style>
-

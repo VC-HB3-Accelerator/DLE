@@ -2,17 +2,16 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * API закрытой раздачи обновлений: /api/updates/*
+ * Приём обновлений с hub HB3: /api/updates/*
  */
 
 const express = require('express');
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const logger = require('../utils/logger');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const updatesService = require('../services/updatesService');
 const updatesApplyService = require('../services/updatesApplyService');
 const updatesHubSettingsService = require('../services/updatesHubSettingsService');
@@ -208,103 +207,6 @@ router.get('/apply-here/:jobId', requireAuth, async (req, res) => {
     return res.status(404).json({ success: false, error: 'Job not found' });
   }
   return res.json({ success: true, data: job });
-});
-
-/** Админ: настройки hub / Gitea (БД). */
-router.get('/admin/hub-settings', requireAdmin, async (req, res) => {
-  try {
-    const settings = await updatesHubSettingsService.getSettings();
-    return res.json({ success: true, data: updatesHubSettingsService.toPublic(settings) });
-  } catch (error) {
-    logger.error('[updates] hub-settings get:', error.message);
-    return res.status(error.status || 500).json({
-      success: false,
-      error: error.message || 'Failed to load hub settings',
-    });
-  }
-});
-
-router.put('/admin/hub-settings', requireAdmin, async (req, res) => {
-  try {
-    const saved = await updatesHubSettingsService.saveSettings(
-      req.body || {},
-      req.session?.userId || null
-    );
-    return res.json({ success: true, data: updatesHubSettingsService.toPublic(saved) });
-  } catch (error) {
-    logger.error('[updates] hub-settings save:', error.message);
-    return res.status(error.status || 500).json({
-      success: false,
-      error: error.message || 'Failed to save hub settings',
-    });
-  }
-});
-
-router.post('/admin/register', requireAdmin, async (req, res) => {
-  try {
-    const {
-      version,
-      minFrom,
-      changelog,
-      packFilename,
-      packSha256,
-      publish,
-      giteaAssetUrl,
-    } = req.body || {};
-    if (!version || !packFilename) {
-      return res.status(400).json({ success: false, error: 'version and packFilename required' });
-    }
-    const full = path.join(updatesService.PACK_DIR, packFilename);
-    let size = null;
-    if (fs.existsSync(full)) {
-      size = fs.statSync(full).size;
-    }
-    const row = await updatesService.registerRelease({
-      version,
-      minFrom,
-      changelog,
-      packFilename,
-      packSha256,
-      packSizeBytes: size,
-      publish: Boolean(publish),
-      giteaAssetUrl,
-    });
-    const hubSettings = await updatesHubSettingsService.getSettings();
-    return res.json({ success: true, data: row, stubMode: hubSettings.stub_mode });
-  } catch (error) {
-    logger.error('[updates] register:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/admin/packs', requireAdmin, async (req, res) => {
-  try {
-    const packs = await updatesService.listLocalPacks();
-    const hubSettings = await updatesHubSettingsService.getSettings();
-    return res.json({
-      success: true,
-      data: {
-        packs,
-        packDir: updatesService.PACK_DIR,
-        stubMode: hubSettings.stub_mode,
-      },
-    });
-  } catch (error) {
-    logger.error('[updates] list packs:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/admin/packs/:filename', requireAdmin, async (req, res) => {
-  try {
-    const file = await updatesService.resolveLocalPackFile(req.params.filename);
-    res.setHeader('Content-Type', 'application/gzip');
-    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
-    return fs.createReadStream(file.filePath).pipe(res);
-  } catch (error) {
-    const status = error.status || 500;
-    return res.status(status).json({ success: false, error: error.message });
-  }
 });
 
 module.exports = router;

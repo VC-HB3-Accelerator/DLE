@@ -183,6 +183,49 @@ async function findReadyByHash(fileHash) {
   return rows[0] || null;
 }
 
+
+/** Listing: тот же hash уже на этой карточке — один public_id, без listing_hash_alias. */
+async function findReadyByHashForPage(fileHash, pageId) {
+  const pid = Number(pageId);
+  if (!fileHash || !Number.isInteger(pid) || pid <= 0) return null;
+  const { rows } = await db.getQuery()(
+    `SELECT ${META_COLUMNS}
+     FROM content_media
+     WHERE file_hash = $1 AND page_id = $2 AND (status IS NULL OR status = 'ready')
+     ORDER BY id ASC
+     LIMIT 1`,
+    [fileHash, pid]
+  );
+  return rows[0] || null;
+}
+
+async function findReadyByIdempotencyKey(idempotencyKey) {
+  const key = String(idempotencyKey || '').trim();
+  if (!key) return null;
+  const { rows } = await db.getQuery()(
+    `SELECT ${META_COLUMNS.split(', ').map((column) => `cm.${column}`).join(', ')}
+     FROM orchestrator_media_effects effect
+     JOIN content_media cm ON cm.id = effect.media_id
+     WHERE effect.idempotency_key = $1
+       AND (cm.status IS NULL OR cm.status = 'ready')
+     LIMIT 1`,
+    [key]
+  );
+  return rows[0] || null;
+}
+
+async function bindMediaIdempotencyKey(idempotencyKey, mediaId) {
+  const key = String(idempotencyKey || '').trim();
+  if (!key) return null;
+  await db.getQuery()(
+    `INSERT INTO orchestrator_media_effects (idempotency_key, media_id)
+     VALUES ($1, $2)
+     ON CONFLICT (idempotency_key) DO NOTHING`,
+    [key, mediaId]
+  );
+  return findReadyByIdempotencyKey(key);
+}
+
 function diskFileAlive(row) {
   if (!row || row.storage !== 'disk' || !row.file_path) return false;
   try {
@@ -213,6 +256,8 @@ function toListItem(row) {
     storage: row.storage || 'bytea',
     status: row.status || 'ready',
     url: publicFileUrl(row),
+    file_path: row.file_path || null,
+    album_path: row.file_path || null,
   };
 }
 
@@ -280,7 +325,7 @@ async function listMedia({
       `SELECT ${META_COLUMNS}
        FROM content_media
        ${whereSql}
-       ORDER BY created_at DESC
+       ORDER BY created_at DESC, id DESC
        LIMIT $${i++} OFFSET $${i++}`,
       params
     );
@@ -397,7 +442,7 @@ async function listMedia({
   params.push(take, skip);
   const { rows } = await db.getQuery()(
     `${unionSql}
-     ORDER BY created_at DESC
+     ORDER BY created_at DESC, id DESC
      LIMIT $${i++} OFFSET $${i++}`,
     params
   );
@@ -437,21 +482,212 @@ async function unlinkIfOrphanHash(fileHash, filePath, storage) {
   }
 }
 
+function escapeListingHtmlAttr(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** Как ContentPageView.listingMediaToHtml — блок .listing-media для витрины. */
+function listingMediaBlockHtml(photos, video) {
+  const list = Array.isArray(photos) ? photos.filter(Boolean) : [];
+  const parts = ['<div class="listing-media">'];
+  for (const url of list) {
+    parts.push(`<p><img src="${escapeListingHtmlAttr(url)}" alt=""></p>`);
+  }
+  if (video) {
+    parts.push(
+      `<p><video src="${escapeListingHtmlAttr(video)}" controls preload="metadata"></video></p>`,
+    );
+  }
+  parts.push('</div>');
+  return parts.join('');
+}
+
+function syncListingContentHtml(rawContent, photos, video, composeListing) {
+  const block = listingMediaBlockHtml(photos, video);
+  if (composeListing) return block;
+  const html = String(rawContent || '');
+  if (/listing-media/i.test(html)) {
+    return html.replace(
+      /<div[^>]*class=["'][^"']*listing-media[^"']*["'][^>]*>[\s\S]*?<\/div>/i,
+      block,
+    );
+  }
+  return block;
+}
+
+/**
+ * Убрать /v/public_id из listing_media (и file_map) всех карточек — после удаления из медиатеки.
+ */
+async function detachListingMediaByPublicId(publicId) {
+  const pid = String(publicId || '').trim();
+  if (!/^[A-Za-z0-9_-]{6,32}$/.test(pid)) {
+    return { pagesTouched: 0, publicUrl: null };
+  }
+  const publicUrl = `/v/${pid}`;
+  const { rows: pages } = await db.getQuery()(
+    `SELECT id, settings, seo, content
+     FROM admin_pages_simple
+     WHERE settings->'listing_media'->'photos' ? $1
+        OR EXISTS (
+          SELECT 1
+          FROM jsonb_each_text(COALESCE(settings->'listing_media_objfix_file_map', '{}'::jsonb)) m
+          WHERE m.value = $1
+        )
+        OR COALESCE(seo->>'og_image', '') = $1
+        OR (COALESCE(content, '') LIKE '%' || $1 || '%')`,
+    [publicUrl],
+  );
+  let pagesTouched = 0;
+  for (const page of pages) {
+    const settings = page.settings && typeof page.settings === 'object' ? page.settings : {};
+    const seo = page.seo && typeof page.seo === 'object' ? page.seo : {};
+    const photos = (settings.listing_media?.photos || []).filter((u) => u !== publicUrl);
+    const map = { ...(settings.listing_media_objfix_file_map || {}) };
+    for (const [file, url] of Object.entries(map)) {
+      if (url === publicUrl) delete map[file];
+    }
+    const video = settings.listing_media?.video ?? null;
+    const settingsPatch = {
+      listing_media: {
+        photos,
+        video,
+      },
+      listing_media_objfix_file_map: map,
+      listing_media_draft: photos.length < 8,
+    };
+    const seoPatch = { ...seo };
+    if (seoPatch.og_image === publicUrl) {
+      seoPatch.og_image = photos[0] || null;
+    }
+    const rawContent = typeof page.content === 'string' ? page.content : '';
+    const composeListing = settings.compose_mode === 'listing';
+    const contentPatch = syncListingContentHtml(rawContent, photos, video, composeListing);
+    await db.getQuery()(
+      `UPDATE admin_pages_simple
+       SET settings = COALESCE(settings, '{}'::jsonb) || $2::jsonb,
+           seo = COALESCE(seo, '{}'::jsonb) || $3::jsonb,
+           content = $4,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [page.id, JSON.stringify(settingsPatch), JSON.stringify(seoPatch), contentPatch],
+    );
+    pagesTouched += 1;
+  }
+  return { pagesTouched, publicUrl };
+}
+
+const LISTING_OBJFIX_ROOT = () => String(process.env.OBJFIX_ROOT || '/tmp/objfix-b').trim() || '/tmp/objfix-b';
+
+/** plan B: {pageId}-b-{objfixFile} → удалить /objfix-b/{pageId}/{objfixFile} и убрать из manifest.picked */
+async function deleteListingObjfixSourceForMediaRow(row) {
+  const fileName = String(row.file_name || '').trim();
+  const m = fileName.match(/^(\d+)-b-(.+)$/i);
+  if (!m) return { objfixRemoved: false, reason: 'not_listing_b_name' };
+  const pageId = parseInt(m[1], 10);
+  const objfixFile = m[2].replace(/\\/g, '/').split('/').pop();
+  if (!Number.isInteger(pageId) || pageId <= 0 || !objfixFile || objfixFile.includes('..')) {
+    return { objfixRemoved: false, reason: 'bad_name' };
+  }
+  if (row.page_id != null && Number(row.page_id) !== pageId) {
+    /* file_name {pageId}-b-* — источник истины для каталога objfix */
+  }
+  const root = path.resolve(LISTING_OBJFIX_ROOT());
+  const dir = path.resolve(root, String(pageId));
+  const abs = path.resolve(dir, objfixFile);
+  if (!abs.startsWith(`${dir}${path.sep}`) && abs !== dir) {
+    return { objfixRemoved: false, reason: 'path_escape' };
+  }
+  let fileDeleted = false;
+  try {
+    await fsp.unlink(abs);
+    fileDeleted = true;
+  } catch (e) {
+    if (e.code !== 'ENOENT') {
+      return { objfixRemoved: false, reason: String(e.code || e.message) };
+    }
+  }
+  await fsp.unlink(`${abs}.ingest`).catch(() => {});
+  const manifestPath = path.join(dir, 'manifest.json');
+  try {
+    const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf8'));
+    const picked = manifest.picked || [];
+    const nextPicked = picked.filter((p) => p && p.file !== objfixFile);
+    if (nextPicked.length !== picked.length) {
+      manifest.picked = nextPicked;
+      manifest.saved = nextPicked.length;
+      if (manifest.ref?.file === objfixFile) manifest.ref = nextPicked[0] || null;
+      await fsp.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    }
+  } catch {
+    /* manifest optional */
+  }
+  const baseStem = objfixFile.replace(/\.[^.]+$/, '');
+  for (const ext of ['.png', '.webp', '.gif', '.jpeg']) {
+    const alt = `${baseStem}${ext}`;
+    if (alt === objfixFile) continue;
+    await fsp.unlink(path.join(dir, alt)).catch(() => {});
+    await fsp.unlink(path.join(dir, `${alt}.ingest`)).catch(() => {});
+  }
+  return { objfixRemoved: fileDeleted, pageId, objfixFile };
+}
+
 async function deleteMediaById(mediaId) {
   const id = parseInt(mediaId, 10);
   if (!id) return { deleted: false };
   const { rows } = await db.getQuery()(
-    `SELECT id, file_hash, storage, file_path, upload_id, status FROM content_media WHERE id = $1`,
+    `SELECT id, page_id, file_name, public_id, file_hash, storage, file_path, upload_id, status FROM content_media WHERE id = $1`,
     [id]
   );
   if (!rows.length) return { deleted: false };
   const row = rows[0];
-  await db.getQuery()('DELETE FROM content_media WHERE id = $1', [id]);
-  if (row.status === 'pending' && row.upload_id) {
-    await rmDirQuiet(path.join(uploadsContentRoot(), 'tmp', String(row.upload_id)));
+  let siblingRows = rows;
+  const fileName = String(row.file_name || '').trim();
+  if (fileName) {
+    const { rows: sameName } = await db.getQuery()(
+      `SELECT id, page_id, file_name, public_id, file_hash, storage, file_path, upload_id, status
+       FROM content_media WHERE file_name = $1`,
+      [fileName],
+    );
+    if (sameName.length) siblingRows = sameName;
   }
-  await unlinkIfOrphanHash(row.file_hash, row.file_path, row.storage);
-  return { deleted: true };
+  const detached = new Set();
+  let listingDetach = { pagesTouched: 0 };
+  for (const sib of siblingRows) {
+    if (sib.public_id && !detached.has(sib.public_id)) {
+      detached.add(sib.public_id);
+      const r = await detachListingMediaByPublicId(sib.public_id);
+      listingDetach = {
+        pagesTouched: listingDetach.pagesTouched + (r.pagesTouched || 0),
+        publicUrl: r.publicUrl || listingDetach.publicUrl,
+      };
+    }
+  }
+  const objfixCleanup = await deleteListingObjfixSourceForMediaRow(row);
+  const deletedIds = [];
+  const hashSeen = new Set();
+  for (const sib of siblingRows) {
+    await db.getQuery()('DELETE FROM content_media WHERE id = $1', [sib.id]);
+    deletedIds.push(sib.id);
+    if (sib.status === 'pending' && sib.upload_id) {
+      await rmDirQuiet(path.join(uploadsContentRoot(), 'tmp', String(sib.upload_id)));
+    }
+    const hk = `${sib.file_hash || ''}:${sib.file_path || ''}`;
+    if (!hashSeen.has(hk)) {
+      hashSeen.add(hk);
+      await unlinkIfOrphanHash(sib.file_hash, sib.file_path, sib.storage);
+    }
+  }
+  return {
+    deleted: true,
+    deletedIds,
+    listingDetach,
+    objfixCleanup,
+    siblingsRemoved: Math.max(0, siblingRows.length - 1),
+  };
 }
 
 /**
@@ -770,6 +1006,8 @@ async function ingestOneShotFromPath({
   pageId,
   ownerUserId = null,
   purpose = null,
+  forceOneShot = false,
+  idempotencyKey = null,
 }) {
   await ensureOwnerUserIdColumn();
   const kind = limits.isAllowedCmsMime(mimeType, originalName);
@@ -785,16 +1023,71 @@ async function ingestOneShotFromPath({
       ? 'Видео объявления слишком большое (макс. 80 МБ)'
       : 'Файл слишком большой');
   }
-  if (limits.shouldUseChunked(kind, bytes)) {
+  if (!forceOneShot && limits.shouldUseChunked(kind, bytes)) {
     await unlinkQuiet(tmpPath);
     throw httpError(413, 'USE_CHUNKED_UPLOAD', 'Для этого файла нужна загрузка частями');
   }
 
+  const existingEffect = await findReadyByIdempotencyKey(idempotencyKey);
+  if (existingEffect) {
+    await unlinkQuiet(tmpPath);
+    return { row: existingEffect, isDuplicate: true, skipped: 'already_done' };
+  }
+
   const fileHash = await hashFile(tmpPath);
+  const targetPageId = Number(pageId);
+  if (purpose === 'listing' && Number.isInteger(targetPageId) && targetPageId > 0) {
+    const onPage = await findReadyByHashForPage(fileHash, targetPageId);
+    if (onPage) {
+      const bound = await bindMediaIdempotencyKey(idempotencyKey, onPage.id);
+      await unlinkQuiet(tmpPath);
+      return {
+        row: bound || onPage,
+        isDuplicate: true,
+        skipped: 'listing_page_hash',
+      };
+    }
+  }
   const existing = await findReadyByHash(fileHash);
   if (existing) {
-    await unlinkQuiet(tmpPath);
-    return { row: existing, isDuplicate: true };
+    const listingPhoto = purpose === 'listing';
+    const ownerPageId = Number(existing.page_id);
+    const targetPageId = Number(pageId);
+    const sameListingPage = listingPhoto
+      && Number.isInteger(targetPageId) && targetPageId > 0
+      && ownerPageId === targetPageId;
+    const reuseHash = !listingPhoto || sameListingPage;
+    if (reuseHash) {
+      const bound = await bindMediaIdempotencyKey(idempotencyKey, existing.id);
+      await unlinkQuiet(tmpPath);
+      return {
+        row: bound || existing,
+        isDuplicate: true,
+        skipped: bound ? 'already_done' : null,
+      };
+    }
+    if (listingPhoto && existing.file_path) {
+      await unlinkQuiet(tmpPath);
+      const publicId = await uniquePublicId();
+      const row = await insertDiskRow({
+        publicId,
+        filePath: existing.file_path,
+        fileName: originalName || 'unnamed',
+        mimeType,
+        fileSize: bytes,
+        fileHash,
+        mediaType: kind,
+        authorAddress,
+        pageId,
+        ownerUserId,
+      });
+      const bound = await bindMediaIdempotencyKey(idempotencyKey, row.id);
+      if (bound && bound.id !== row.id) {
+        await db.getQuery()('DELETE FROM content_media WHERE id = $1', [row.id]);
+        return { row: bound, isDuplicate: true, skipped: 'already_done' };
+      }
+      return { row, isDuplicate: false, skipped: 'listing_hash_alias' };
+    }
   }
 
   const ext = extFromName(originalName, mimeType);
@@ -813,7 +1106,13 @@ async function ingestOneShotFromPath({
       pageId,
       ownerUserId,
     });
-    return { row, isDuplicate: false };
+    const bound = await bindMediaIdempotencyKey(idempotencyKey, row.id);
+    if (bound && bound.id !== row.id) {
+      await db.getQuery()('DELETE FROM content_media WHERE id = $1', [row.id]);
+      await unlinkQuiet(moved.abs);
+      return { row: bound, isDuplicate: true, skipped: 'already_done' };
+    }
+    return { row, isDuplicate: false, skipped: null };
   } catch (e) {
     await unlinkQuiet(moved.abs);
     throw e;
@@ -1115,6 +1414,8 @@ module.exports = {
   toListItem,
   listMedia,
   deleteMediaById,
+  detachListingMediaByPublicId,
+  syncListingContentHtml,
   deleteLibraryItem,
   streamChatAttachmentForEditor,
   mimeToMediaType,

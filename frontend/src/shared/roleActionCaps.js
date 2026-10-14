@@ -34,7 +34,12 @@ export const ACTION_GROUPS = Object.freeze([
   },
   {
     id: 'chat',
-    keys: Object.freeze([PERMISSIONS.SEND_TO_USERS, PERMISSIONS.CHAT_WITH_ADMINS, PERMISSIONS.GENERATE_AI_REPLIES])
+    keys: Object.freeze([
+      PERMISSIONS.SEND_TO_USERS,
+      PERMISSIONS.CHAT_WITH_ADMINS,
+      PERMISSIONS.GENERATE_AI_REPLIES,
+      PERMISSIONS.USE_ORCHESTRATOR
+    ])
   },
   {
     id: 'calls',

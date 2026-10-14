@@ -12,6 +12,7 @@ const PRIVACY_PATH = '/content/published?section=' + encodeURIComponent('пол�
 const MAX_BODY_LENGTH = 4000;
 const MAX_DOMAIN_DESCRIPTION_LENGTH = 2000;
 const MAX_HEADER_DESCRIPTION_LENGTH = 500;
+const MAX_HEADER_TITLE_LENGTH = 200;
 const MAX_OG_IMAGE_URL_LENGTH = 2000;
 const DEFAULT_OG_IMAGE = '/og-default.png';
 
@@ -36,6 +37,14 @@ function normalizeHeaderDescription(value) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, MAX_HEADER_DESCRIPTION_LENGTH);
+}
+
+function normalizeHeaderTitle(value) {
+  return String(value ?? '')
+    .replace(/\r\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_HEADER_TITLE_LENGTH);
 }
 
 function normalizeOgImageUrl(value) {
@@ -75,8 +84,19 @@ function titleFromDescription(text) {
   return String(text || '').trim().slice(0, 120);
 }
 
-function siteNameFromDescription(text) {
-  const value = String(text || '').trim();
+function buildPageTitle(headerTitle, headerDescription, domainDescriptionFallback = '') {
+  const name = normalizeHeaderTitle(headerTitle);
+  const sub = normalizeHeaderDescription(headerDescription);
+  if (name && sub) return `${name} — ${sub}`.slice(0, 120);
+  if (name) return name.slice(0, 120);
+  if (sub) return sub.slice(0, 120);
+  return titleFromDescription(domainDescriptionFallback);
+}
+
+function siteNameFromHeaderTitle(headerTitle, domainDescriptionFallback = '') {
+  const name = normalizeHeaderTitle(headerTitle);
+  if (name) return name.slice(0, 80);
+  const value = String(domainDescriptionFallback || '').trim();
   const part = value.split(/\s+[—–-]\s+/)[0].trim();
   return (part || value).slice(0, 80);
 }
@@ -132,11 +152,17 @@ function resolveOgImage({ ogImageUrl, hideOgImage }) {
   return { url: custom || DEFAULT_OG_IMAGE, hidden: false };
 }
 
-function patchIndexHtmlMeta({ description, ogImageUrl, hideOgImage }) {
+function patchIndexHtmlMeta({
+  description,
+  headerTitle,
+  headerDescription,
+  ogImageUrl,
+  hideOgImage,
+}) {
   const custom = normalizeDomainDescription(description);
   const text = custom;
-  const title = titleFromDescription(custom);
-  const siteName = siteNameFromDescription(custom);
+  const title = buildPageTitle(headerTitle, headerDescription, custom);
+  const siteName = siteNameFromHeaderTitle(headerTitle, custom);
   const og = resolveOgImage({ ogImageUrl, hideOgImage });
   const candidates = [
     '/app/frontend_dist/index.html',
@@ -191,6 +217,7 @@ function mapRow(row) {
   return {
     body: row?.body || '',
     domainDescription: row?.domain_description || '',
+    headerTitle: row?.header_title || '',
     headerDescription: row?.header_description || '',
     ogImageUrl: row?.og_image_url || '',
     hideOgImage: Boolean(row?.hide_og_image),
@@ -213,12 +240,16 @@ async function ensureBrandColumns() {
     ALTER TABLE sidebar_notice
       ADD COLUMN IF NOT EXISTS header_description TEXT NOT NULL DEFAULT ''
   `);
+  await db.getQuery()(`
+    ALTER TABLE sidebar_notice
+      ADD COLUMN IF NOT EXISTS header_title TEXT NOT NULL DEFAULT ''
+  `);
 }
 
 async function getNotice() {
   await ensureBrandColumns();
   const { rows } = await db.getQuery()(
-    `SELECT body, domain_description, header_description, og_image_url, hide_og_image,
+    `SELECT body, domain_description, header_title, header_description, og_image_url, hide_og_image,
             updated_at, updated_by
      FROM sidebar_notice
      WHERE id = 1`
@@ -234,6 +265,7 @@ async function getNotice() {
 async function setNotice({
   body,
   domainDescription,
+  headerTitle,
   headerDescription,
   ogImageUrl,
   hideOgImage,
@@ -244,6 +276,9 @@ async function setNotice({
   const normalizedDescription = domainDescription === undefined
     ? undefined
     : normalizeDomainDescription(domainDescription);
+  const normalizedHeaderTitle = headerTitle === undefined
+    ? undefined
+    : normalizeHeaderTitle(headerTitle);
   const normalizedHeader = headerDescription === undefined
     ? undefined
     : normalizeHeaderDescription(headerDescription);
@@ -259,6 +294,9 @@ async function setNotice({
   const nextDescription = normalizedDescription === undefined
     ? existing.domainDescription
     : normalizedDescription;
+  const nextHeaderTitle = normalizedHeaderTitle === undefined
+    ? existing.headerTitle
+    : normalizedHeaderTitle;
   const nextHeader = normalizedHeader === undefined
     ? existing.headerDescription
     : normalizedHeader;
@@ -269,24 +307,27 @@ async function setNotice({
 
   const { rows } = await db.getQuery()(
     `INSERT INTO sidebar_notice (
-       id, body, domain_description, header_description, og_image_url, hide_og_image, updated_at, updated_by
+       id, body, domain_description, header_title, header_description, og_image_url, hide_og_image, updated_at, updated_by
      )
-     VALUES (1, $1, $2, $3, $4, $5, NOW(), $6)
+     VALUES (1, $1, $2, $3, $4, $5, $6, NOW(), $7)
      ON CONFLICT (id) DO UPDATE SET
        body = EXCLUDED.body,
        domain_description = EXCLUDED.domain_description,
+       header_title = EXCLUDED.header_title,
        header_description = EXCLUDED.header_description,
        og_image_url = EXCLUDED.og_image_url,
        hide_og_image = EXCLUDED.hide_og_image,
        updated_at = NOW(),
        updated_by = EXCLUDED.updated_by
-     RETURNING body, domain_description, header_description, og_image_url, hide_og_image,
+     RETURNING body, domain_description, header_title, header_description, og_image_url, hide_og_image,
                updated_at, updated_by`,
-    [nextBody, nextDescription, nextHeader, nextOg, nextHide, userId]
+    [nextBody, nextDescription, nextHeaderTitle, nextHeader, nextOg, nextHide, userId]
   );
 
   patchIndexHtmlMeta({
     description: nextDescription,
+    headerTitle: nextHeaderTitle,
+    headerDescription: nextHeader,
     ogImageUrl: nextOg,
     hideOgImage: nextHide,
   });
@@ -302,5 +343,7 @@ module.exports = {
   MAX_BODY_LENGTH,
   MAX_DOMAIN_DESCRIPTION_LENGTH,
   MAX_HEADER_DESCRIPTION_LENGTH,
+  MAX_HEADER_TITLE_LENGTH,
+  buildPageTitle,
   DEFAULT_OG_IMAGE,
 };

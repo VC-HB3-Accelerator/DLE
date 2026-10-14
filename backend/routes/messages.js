@@ -218,6 +218,7 @@ router.get('/public', requireAuth, async (req, res) => {
     }
 
     const sameCard = String(targetUserId) === String(currentUserId);
+    let editorSeesAll = false;
     if (!sameCard && !String(targetUserId).startsWith('guest_')) {
       const accessResolver = require('../services/accessResolverService');
       const access = await accessResolver.resolveAccess(currentUserId);
@@ -225,32 +226,42 @@ router.get('/public', requireAuth, async (req, res) => {
       if (!ok) {
         return res.status(403).json({ success: false, error: 'Forbidden' });
       }
+      editorSeesAll = access?.role === ROLES.EDITOR || access?.dataScope === 'global';
     }
-    // Своя: ИИ + public-стена карточки. Чужая: public только между парой (TZ_CHAT_SYSTEM §3).
+    // Своя: ИИ + public-стена карточки.
+    // Чужая: public только между парой.
+    // Редактор: все сообщения этого пользователя.
     const { contactCardMessageIncludes } = require('../services/chatSystemRules');
     const {
       includePublicPeer,
       includePublicOnCard,
-      includeTargetUserChat
-    } = contactCardMessageIncludes({ sameCard });
+      includeTargetUserChat,
+      includeAllOfUser
+    } = contactCardMessageIncludes({ sameCard, editorSeesAll });
 
     // Если нужен только подсчет
     if (countOnly) {
       const countResult = await db.getQuery()(
         `SELECT COUNT(*) FROM messages 
          WHERE (
-           ($3::boolean AND message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
-           OR ($5::boolean AND message_type = 'public' AND user_id = $1)
-           OR ($4::boolean AND message_type = 'user_chat' AND user_id = $1)
+           ($6::boolean AND (user_id = $1 OR sender_id = $1))
+           OR (
+             NOT $6::boolean AND (
+               ($3::boolean AND message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
+               OR ($5::boolean AND message_type = 'public' AND user_id = $1)
+               OR ($4::boolean AND message_type = 'user_chat' AND user_id = $1)
+             )
+           )
          )`,
-        [targetUserId, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard]
+        [targetUserId, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard, includeAllOfUser]
       );
       const totalCount = parseInt(countResult.rows[0].count, 10);
       return res.json({ success: true, count: totalCount, total: totalCount });
     }
     
     // Своя карточка → user_chat (ИИ) + public на этой карточке (посетители + ИИ §3.4).
-    // Чужой peer → только public между парой (без чужого ИИ).
+    // Чужой peer → только public между парой.
+    // Редактор → все сообщения пользователя (user_id или sender_id).
     const result = await db.getQuery()(
       `SELECT m.id, m.user_id, m.sender_id, decrypt_text(m.sender_type_encrypted, $2) as sender_type, 
               decrypt_text(m.content_encrypted, $2) as content, 
@@ -263,24 +274,34 @@ router.get('/public', requireAuth, async (req, res) => {
        FROM messages m
        LEFT JOIN admin_read_messages arm ON arm.user_id = m.user_id AND arm.admin_id = $5
        WHERE (
-         ($6::boolean AND m.message_type = 'public' AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1)))
-         OR ($8::boolean AND m.message_type = 'public' AND m.user_id = $1)
-         OR ($7::boolean AND m.message_type = 'user_chat' AND m.user_id = $1)
+         ($9::boolean AND (m.user_id = $1 OR m.sender_id = $1))
+         OR (
+           NOT $9::boolean AND (
+             ($6::boolean AND m.message_type = 'public' AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1)))
+             OR ($8::boolean AND m.message_type = 'public' AND m.user_id = $1)
+             OR ($7::boolean AND m.message_type = 'user_chat' AND m.user_id = $1)
+           )
+         )
        )
        ORDER BY m.created_at ASC
        LIMIT $3 OFFSET $4`,
-      [targetUserId, encryptionKey, limit, offset, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard]
+      [targetUserId, encryptionKey, limit, offset, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard, includeAllOfUser]
     );
     
     // Получаем общее количество для пагинации
     const countResult = await db.getQuery()(
       `SELECT COUNT(*) FROM messages 
        WHERE (
-         ($3::boolean AND message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
-         OR ($5::boolean AND message_type = 'public' AND user_id = $1)
-         OR ($4::boolean AND message_type = 'user_chat' AND user_id = $1)
+         ($6::boolean AND (user_id = $1 OR sender_id = $1))
+         OR (
+           NOT $6::boolean AND (
+             ($3::boolean AND message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
+             OR ($5::boolean AND message_type = 'public' AND user_id = $1)
+             OR ($4::boolean AND message_type = 'user_chat' AND user_id = $1)
+           )
+         )
        )`,
-      [targetUserId, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard]
+      [targetUserId, currentUserId, includePublicPeer, includeTargetUserChat, includePublicOnCard, includeAllOfUser]
     );
     const totalCount = parseInt(countResult.rows[0].count, 10);
 

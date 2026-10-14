@@ -41,7 +41,6 @@
       <BlogMediaRail
         :compact="!listingMedia"
         collapse-overflow
-        like-in-more
         show-subscribe
         :subscribe-active="showSubscribeForm"
         :counts="reactionCounts"

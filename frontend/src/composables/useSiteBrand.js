@@ -12,6 +12,7 @@ import { applyFavicon, DEFAULT_OG_IMAGE } from '@/utils/siteMetaDescription';
 const DEFAULT_BRAND_IMAGE = DEFAULT_OG_IMAGE;
 const SITE_BRAND_KEY = Symbol('siteBrand');
 
+const headerTitle = ref('');
 const headerDescription = ref('');
 const brandImageUrl = ref('');
 const hideBrandImage = ref(false);
@@ -40,6 +41,7 @@ function syncFaviconFromBrand() {
 }
 
 function applyBrand(data) {
+  headerTitle.value = String(data?.headerTitle || '').trim();
   headerDescription.value = String(data?.headerDescription || '').trim();
   brandImageUrl.value = String(data?.ogImageUrl || '').trim();
   hideBrandImage.value = Boolean(data?.hideOgImage);
@@ -69,6 +71,9 @@ async function loadSiteBrand({ force = false } = {}) {
 }
 
 function setSiteBrandLocal(partial = {}) {
+  if (partial.headerTitle !== undefined) {
+    headerTitle.value = String(partial.headerTitle || '').trim();
+  }
   if (partial.headerDescription !== undefined) {
     headerDescription.value = String(partial.headerDescription || '').trim();
   }
@@ -86,6 +91,7 @@ watch([brandImageUrl, hideBrandImage], () => {
 });
 
 const siteBrandApi = {
+  headerTitle,
   headerDescription,
   brandImageUrl,
   hideBrandImage,

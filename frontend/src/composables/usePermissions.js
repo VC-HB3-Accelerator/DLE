@@ -89,6 +89,7 @@ export function usePermissions() {
   const canPersonalCalls = computed(() => hasPermission(PERMISSIONS.PERSONAL_CALLS));
   const canScheduleCalls = computed(() => hasPermission(PERMISSIONS.SCHEDULE_CALLS));
   const canGenerateAI = computed(() => hasPermission(PERMISSIONS.GENERATE_AI_REPLIES));
+  const canUseOrchestrator = computed(() => hasPermission(PERMISSIONS.USE_ORCHESTRATOR));
   const canBroadcast = computed(() =>
     hasPermission(PERMISSIONS.BROADCAST)
     || hasPermission(PERMISSIONS.BROADCAST_OWN_CONTACTS)
@@ -177,6 +178,7 @@ export function usePermissions() {
     canPersonalCalls,
     canScheduleCalls,
     canGenerateAI,
+    canUseOrchestrator,
     canBroadcast,
     
     // Управление

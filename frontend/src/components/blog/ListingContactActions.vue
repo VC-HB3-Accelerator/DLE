@@ -63,14 +63,11 @@ const props = defineProps({
   iconOnly: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['visible']);
-
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthContext();
 
 const editorConfigured = ref(false);
-const statusLoaded = ref(false);
 const busy = ref(false);
 const message = ref('');
 const intentHandled = ref(false);
@@ -96,8 +93,6 @@ async function loadStatus() {
     editorConfigured.value = Boolean(data?.editor_configured);
   } catch {
     editorConfigured.value = false;
-  } finally {
-    statusLoaded.value = true;
   }
 }
 
@@ -154,14 +149,6 @@ watch(
   () => [props.isAuthenticated, props.pageId, editorConfigured.value],
   () => {
     resumeIntent();
-  }
-);
-
-watch(
-  [visible, statusLoaded],
-  () => {
-    if (!statusLoaded.value) return;
-    emit('visible', visible.value);
   }
 );
 </script>

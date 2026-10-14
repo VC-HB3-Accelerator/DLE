@@ -62,6 +62,12 @@ const routes = [
     meta: { closeFallback: 'blog' },
   },
   {
+    path: '/blog/drafts',
+    name: 'blog-drafts',
+    component: () => import('../views/BlogDraftsView.vue'),
+    meta: { closeFallback: 'blog' },
+  },
+  {
     path: '/blog/:slug',
     name: 'blog-article',
     component: () => import('../views/BlogView.vue'),

@@ -48,6 +48,9 @@ __tests__/
 *.test.js
 *.spec.js
 
+# Зависимости (ставятся внутри образа через yarn)
+node_modules/
+
 # Кэш и сборка
 .cache/
 .parcel-cache/

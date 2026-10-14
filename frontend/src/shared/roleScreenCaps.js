@@ -17,6 +17,7 @@ export const SCREEN_GROUPS = Object.freeze([
       '/blog',
       '/blog/feed-settings',
       '/blog/my-subscriptions',
+      '/blog/drafts',
       '/management',
       '/store',
     ]),
@@ -297,6 +298,7 @@ function defaultUserScreens() {
     '/content/create',
     '/content/store/product/new',
     '/content/store/product/:id',
+    '/blog/drafts',
   ];
   for (const key of extra) {
     if (Object.prototype.hasOwnProperty.call(out, key)) out[key] = true;

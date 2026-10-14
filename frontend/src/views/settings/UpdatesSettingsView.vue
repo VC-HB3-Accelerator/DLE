@@ -97,74 +97,6 @@
         {{ isApplying ? t('settings.updates.applying') : t('settings.updates.applyHere') }}
       </button>
     </section>
-
-    <!-- Только раздающий hub (hub_url=self в БД). У клиентов блок скрыт — один код у всех. -->
-    <section v-if="isAdmin && isHubInstance" class="updates-settings__card panel">
-      <h3>{{ t('settings.updates.hubSettingsTitle') }}</h3>
-      <p class="form-hint">{{ t('settings.updates.hubSettingsHint') }}</p>
-
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.hubUrl') }}</span>
-        <input v-model="hubForm.hub_url" type="text" class="form-control" :disabled="isSavingHub" />
-      </label>
-      <label class="updates-settings__check">
-        <input v-model="hubForm.stub_mode" type="checkbox" :disabled="isSavingHub" />
-        <span>{{ t('settings.updates.stubMode') }}</span>
-      </label>
-
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.hubServiceToken') }}</span>
-        <input
-          v-model="hubForm.hub_service_token"
-          type="password"
-          class="form-control"
-          :placeholder="hubMeta.hub_service_token_set ? hubMeta.hub_service_token_hint : t('settings.updates.tokenPlaceholder')"
-          :disabled="isSavingHub"
-          autocomplete="new-password"
-        />
-      </label>
-      <p class="form-hint">{{ t('settings.updates.hubServiceTokenHint') }}</p>
-
-      <p class="form-hint">{{ t('settings.updates.giteaHubOnlyHint') }}</p>
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.giteaUrl') }}</span>
-        <input v-model="hubForm.gitea_url" type="text" class="form-control" :disabled="isSavingHub" />
-      </label>
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.giteaOrg') }}</span>
-        <input v-model="hubForm.gitea_org" type="text" class="form-control" :disabled="isSavingHub" />
-      </label>
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.giteaRepo') }}</span>
-        <input v-model="hubForm.gitea_repo" type="text" class="form-control" :disabled="isSavingHub" />
-      </label>
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.giteaAssetTemplate') }}</span>
-        <input v-model="hubForm.gitea_asset_template" type="text" class="form-control" :disabled="isSavingHub" />
-      </label>
-      <label class="updates-settings__field">
-        <span class="form-label">{{ t('settings.updates.giteaToken') }}</span>
-        <input
-          v-model="hubForm.gitea_token"
-          type="password"
-          class="form-control"
-          :placeholder="hubMeta.gitea_token_set ? hubMeta.gitea_token_hint : t('settings.updates.tokenPlaceholder')"
-          :disabled="isSavingHub"
-          autocomplete="new-password"
-        />
-      </label>
-
-      <p v-if="hubError" class="alert alert-danger">{{ hubError }}</p>
-      <p v-if="hubSuccess" class="alert alert-success">{{ hubSuccess }}</p>
-      <button
-        type="button"
-        class="btn btn-primary"
-        :disabled="isSavingHub"
-        @click="handleSaveHubSettings"
-      >
-        {{ isSavingHub ? t('settings.updates.saving') : t('settings.updates.saveHubSettings') }}
-      </button>
-    </section>
   </AdminPageShell>
 </template>
 
@@ -173,7 +105,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AdminPageShell from '@/components/admin/AdminPageShell.vue';
 import { useAuthContext } from '@/composables/useAuth';
-import { usePermissions } from '@/composables/usePermissions';
 import { getAllDLEs } from '@/services/dleV2Service';
 import {
   fetchUpdatesStatus,
@@ -181,15 +112,10 @@ import {
   applyUpdateHere,
   fetchApplyJob,
   fetchInstanceHealth,
-  fetchHubSettings,
-  saveHubSettings,
 } from '@/services/updatesService';
 
 const { t } = useI18n();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
-const { canManageSettings } = usePermissions();
-
-const isAdmin = computed(() => canManageSettings.value);
 
 const status = ref({});
 const latest = ref(null);
@@ -202,50 +128,6 @@ const applyPhase = ref('idle');
 const jobDetail = ref('');
 const applyJobId = ref('');
 const applyVersion = ref('');
-
-const hubMeta = ref({});
-const hubSettingsLoaded = ref(false);
-const hubForm = ref({
-  hub_url: '',
-  stub_mode: true,
-  gitea_url: '',
-  gitea_org: '',
-  gitea_repo: '',
-  gitea_asset_template: '',
-  gitea_token: '',
-  hub_service_token: '',
-});
-const hubError = ref('');
-const hubSuccess = ref('');
-const isSavingHub = ref(false);
-
-/**
- * Раздающий hub (HB3): в БД hub_url = self|local.
- * Один код у всех; у клиентов блок скрыт. После обновления инстанса видимость
- * не меняется — смотрим только значение в БД этого инстанса.
- */
-const isHubInstance = computed(() => {
-  if (!hubSettingsLoaded.value) return false;
-  const raw = String(hubForm.value.hub_url || status.value.hubUrl || '')
-    .trim()
-    .toLowerCase();
-  return raw === 'self' || raw === 'local';
-});
-
-function applyHubToForm(data) {
-  hubMeta.value = data || {};
-  hubForm.value = {
-    hub_url: data?.hub_url || '',
-    stub_mode: Boolean(data?.stub_mode),
-    gitea_url: data?.gitea_url || '',
-    gitea_org: data?.gitea_org || '',
-    gitea_repo: data?.gitea_repo || '',
-    gitea_asset_template: data?.gitea_asset_template || '',
-    gitea_token: '',
-    hub_service_token: '',
-  };
-  hubSettingsLoaded.value = true;
-}
 
 const APPLY_STORAGE_KEY = 'dle-updates-apply-job';
 const APPLY_STORAGE_MAX_MS = 45 * 60 * 1000;
@@ -309,15 +191,6 @@ async function loadPage() {
       }
     } catch {
       // DLE список опционален
-    }
-
-    if (isAdmin.value) {
-      try {
-        applyHubToForm(await fetchHubSettings());
-      } catch {
-        // нет прав / таблица ещё не смигрирована — блок hub не показываем
-        hubSettingsLoaded.value = true;
-      }
     }
   } catch (error) {
     loadError.value = error.response?.data?.error || error.message || t('settings.updates.loadError');
@@ -601,35 +474,6 @@ async function handleApplyHere() {
 function handleReloadPage() {
   clearPersistedApplyJob();
   window.location.reload();
-}
-
-async function handleSaveHubSettings() {
-  hubError.value = '';
-  hubSuccess.value = '';
-  isSavingHub.value = true;
-  try {
-    const payload = {
-      hub_url: hubForm.value.hub_url,
-      stub_mode: hubForm.value.stub_mode,
-      gitea_url: hubForm.value.gitea_url,
-      gitea_org: hubForm.value.gitea_org,
-      gitea_repo: hubForm.value.gitea_repo,
-      gitea_asset_template: hubForm.value.gitea_asset_template,
-    };
-    if (String(hubForm.value.hub_service_token || '').trim()) {
-      payload.hub_service_token = String(hubForm.value.hub_service_token).trim();
-    }
-    if (String(hubForm.value.gitea_token || '').trim()) {
-      payload.gitea_token = String(hubForm.value.gitea_token).trim();
-    }
-    applyHubToForm(await saveHubSettings(payload));
-    hubSuccess.value = t('settings.updates.hubSaved');
-    status.value = await fetchUpdatesStatus();
-  } catch (error) {
-    hubError.value = error.response?.data?.error || error.message || t('settings.updates.hubSaveError');
-  } finally {
-    isSavingHub.value = false;
-  }
 }
 
 watch(isAuthenticated, (ok) => {

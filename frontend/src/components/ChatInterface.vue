@@ -13,10 +13,14 @@
 <template>
   <div
     class="chat-container"
-    :class="{ 'chat-container--embedded': embedded }"
+    :class="{
+      'chat-container--embedded': embedded,
+      'chat-container--composer-only': hideMessages,
+    }"
   >
     <!-- Блок истории сообщений -->
     <div
+      v-show="!hideMessages"
       ref="messagesContainer"
       class="chat-messages"
       :style="panelWidthStyle(messagesWidth)"
@@ -115,6 +119,16 @@
       <div class="chat-compose-row">
         <div class="input-shell" :class="{ 'input-shell--multiline': isMultilineInput }">
           <button
+            v-if="props.canGenerateAI"
+            type="button"
+            class="ai-inline-btn"
+            :class="{ 'is-active': props.aiOrchestratorActive }"
+            :title="t('chat.aiOrchestratorToggle')"
+            @click="toggleAiOrchestrator"
+          >
+            <span class="ai-inline-btn__label">AI</span>
+          </button>
+          <button
             v-if="showPlusButton && isComposerMobile"
             ref="plusButtonRef"
             type="button"
@@ -141,27 +155,6 @@
             @focus="handleFocus"
             @blur="handleBlur"
           />
-          <button
-            v-if="props.canGenerateAI"
-            type="button"
-            class="ai-inline-btn"
-            :title="t('chat.generateAi')"
-            :disabled="isAiLoading"
-            @click="handleAiReply"
-          >
-            <svg v-if="isAiLoading" class="ai-spinner chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" fill="none" stroke-width="2" />
-            </svg>
-            <svg v-else class="chat-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v2" />
-              <path d="M12 19v2" />
-              <path d="M5.6 5.6l1.4 1.4" />
-              <path d="M17 17l1.4 1.4" />
-              <path d="M3 12h2" />
-              <path d="M19 12h2" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </button>
           <div ref="slotClusterRef" class="slot-cluster">
             <Teleport to="body">
               <div
@@ -318,7 +311,6 @@ import Message from './Message.vue';
 import VoiceMessageBubble from './chat/VoiceMessageBubble.vue';
 import VideoNoteBubble from './chat/VideoNoteBubble.vue';
 import VoiceCallModal from './chat/VoiceCallModal.vue';
-import messagesService from '../services/messagesService.js';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
 import { cloneDefaultCaps } from '@/shared/chatRoleCaps.js';
@@ -348,15 +340,17 @@ const props = defineProps({
   
   // Новые props для точного контроля прав
   canSend: { type: Boolean, default: true },           // Может отправлять сообщения
-  canGenerateAI: { type: Boolean, default: false },    // Может генерировать AI-ответы
+  canGenerateAI: { type: Boolean, default: false },    // Кнопка AI (оркестратор)
   canSelectMessages: { type: Boolean, default: false }, // Может выбирать сообщения
   canAttach: { type: Boolean, default: true },         // Может прикреплять файлы
+  aiOrchestratorActive: { type: Boolean, default: false },
   
   // Props для приватного чата
   isPrivateChat: { type: Boolean, default: false },    // Это приватный чат
   currentUserId: { type: [String, Number], default: null }, // ID текущего пользователя
   embedded: { type: Boolean, default: false }, // Встроенный режим: лента сверху, ввод снизу
-  clearOnSend: { type: Boolean, default: true } // очищать поле после emit send-message
+  clearOnSend: { type: Boolean, default: true }, // очищать поле после emit send-message
+  hideMessages: { type: Boolean, default: false }, // только композер (режим оркестратора)
 });
 
 const emit = defineEmits([
@@ -364,7 +358,7 @@ const emit = defineEmits([
   'update:attachments',
   'send-message',
   'load-more', // Событие для загрузки старых сообщений
-  'ai-reply',
+  'toggle-ai-orchestrator',
   'remove-consent-messages', // Событие для удаления системных сообщений о согласиях
 ]);
 
@@ -1332,8 +1326,6 @@ const handleInput = (event) => {
   adjustTextareaHeight();
 };
 
-const isAiLoading = ref(false);
-
 const selectedMessageIds = ref([]);
 
 function toggleSelectMessage(id) {
@@ -1344,36 +1336,8 @@ function toggleSelectMessage(id) {
   }
 }
 
-async function handleAiReply() {
-  if (isAiLoading.value) return;
-  // Если выбраны сообщения — отправляем их, иначе старое поведение
-  if (emit) {
-    const selectedMessages = props.messages.filter(m => selectedMessageIds.value.includes(m.id));
-    emit('ai-reply', selectedMessages);
-    return;
-  }
-  isAiLoading.value = true;
-  try {
-    const response = await messagesService.sendMessage({
-      message: props.newMessage,
-      attachments: []
-    });
-    if (response && response.aiMessage && response.aiMessage.content) {
-      emit('update:newMessage', response.aiMessage.content);
-    } else {
-      emit('update:newMessage', '');
-    }
-  } catch (e) {
-    console.error('Ошибка генерации ответа ИИ:', e);
-    // Используем более дружелюбное уведомление вместо alert
-    emit('error', {
-      type: 'ai-generation-error',
-      message: t('chat.aiGenerationError'),
-      details: e.message
-    });
-  } finally {
-    isAiLoading.value = false;
-  }
+function toggleAiOrchestrator() {
+  emit('toggle-ai-orchestrator');
 }
 
 </script>
@@ -1391,6 +1355,18 @@ async function handleAiReply() {
   position: relative;
   overflow: hidden;
   --chat-column-width: 680px;
+}
+
+.chat-container--composer-only {
+  grid-template-rows: auto;
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.chat-container--composer-only .chat-input {
+  grid-row: 1;
 }
 
 .chat-messages {
@@ -1490,11 +1466,12 @@ async function handleAiReply() {
 }
 
 .ai-inline-btn {
-  width: 36px;
+  min-width: 36px;
+  width: auto;
   height: 36px;
-  padding: 0;
+  padding: 0 8px;
   border: none;
-  border-radius: 50%;
+  border-radius: 999px;
   background: transparent;
   color: #64748b;
   display: flex;
@@ -1505,9 +1482,21 @@ async function handleAiReply() {
   transition: color 0.18s ease, background-color 0.18s ease;
 }
 
+.ai-inline-btn__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
 .ai-inline-btn:hover:not(:disabled) {
   color: #334155;
   background: rgba(15, 23, 42, 0.05);
+}
+
+.ai-inline-btn.is-active {
+  color: #fff;
+  background: #1a5f9e;
 }
 
 .ai-inline-btn:disabled {

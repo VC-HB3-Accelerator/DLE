@@ -70,12 +70,13 @@ function getLocalComposeRoot() {
 }
 
 function getVdsSshIdentityPath() {
-  const dedicated = '/root/.ssh/auto_lends_vds';
-  const fallback = '/root/.ssh/id_rsa';
-  if (fs.existsSync(dedicated)) {
-    return dedicated;
+  const candidates = ['/root/.ssh/b2_b4_vds', '/root/.ssh/auto_lends_vds', '/root/.ssh/id_rsa'];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
   }
-  return fallback;
+  return candidates[candidates.length - 1];
 }
 
 async function execLocalShellCommand(command) {
@@ -479,7 +480,7 @@ async function execSshCommandOnVds(command, settings) {
   // Базовые опции SSH
   const sshOptions = `-F /dev/null -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR`;
   
-  // Ключ auto-lends (предпочтительно) или общий id_rsa
+  // Ключ b2-b4 / auto-lends (предпочтительно) или общий id_rsa
   const privateKeyPath = getVdsSshIdentityPath();
   
   // Проверяем существование ключа и используем его явно

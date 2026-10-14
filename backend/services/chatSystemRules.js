@@ -77,13 +77,23 @@ function publicReplyPath(senderId) {
 /**
  * Фильтр ленты карточки (§3.1–3.2).
  * Своя: ИИ (user_chat) + public на этой карточке (стена посетителей, §3.4 ИИ-ответ).
- * Чужая: только public между мной и владельцем карточки.
+ * Чужая для обычного пользователя: только public между мной и владельцем карточки.
+ * Редактор на чужой карточке: все сообщения этого пользователя.
  */
-function contactCardMessageIncludes({ sameCard }) {
+function contactCardMessageIncludes({ sameCard, editorSeesAll = false }) {
+  if (editorSeesAll && !sameCard) {
+    return {
+      includePublicPeer: false,
+      includePublicOnCard: false,
+      includeTargetUserChat: false,
+      includeAllOfUser: true
+    };
+  }
   return {
     includePublicPeer: !sameCard,
     includePublicOnCard: sameCard,
-    includeTargetUserChat: sameCard
+    includeTargetUserChat: sameCard,
+    includeAllOfUser: false
   };
 }
 

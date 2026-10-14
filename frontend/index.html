@@ -69,10 +69,29 @@
           link.setAttribute('href', url);
           document.head.appendChild(link);
         }
+        function buildPageTitle(headerTitle, headerDescription, domainDesc) {
+          var name = String(headerTitle || '').replace(/\s+/g, ' ').trim();
+          var sub = String(headerDescription || '').replace(/\s+/g, ' ').trim();
+          var desc = String(domainDesc || '').trim();
+          if (name && sub) return (name + ' — ' + sub).slice(0, 120);
+          if (name) return name.slice(0, 120);
+          if (sub) return sub.slice(0, 120);
+          return desc.slice(0, 120);
+        }
+        function siteNameFromTitle(headerTitle, domainDesc) {
+          var name = String(headerTitle || '').replace(/\s+/g, ' ').trim();
+          if (name) return name.slice(0, 80);
+          var desc = String(domainDesc || '').trim();
+          return (desc.split(/\s+[—–-]\s+/)[0] || desc).slice(0, 80);
+        }
         function applyCustom(data) {
           var desc = String((data && data.domainDescription) || '').trim();
-          var title = desc.slice(0, 120);
-          var siteName = (desc.split(/\s+[—–-]\s+/)[0] || desc).slice(0, 80);
+          var title = buildPageTitle(
+            data && data.headerTitle,
+            data && data.headerDescription,
+            desc
+          );
+          var siteName = siteNameFromTitle(data && data.headerTitle, desc);
           document.title = title;
           setMeta('name', 'description', desc);
           setMeta('property', 'og:description', desc);

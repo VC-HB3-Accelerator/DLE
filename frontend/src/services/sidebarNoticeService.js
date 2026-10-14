@@ -12,6 +12,7 @@ export async function fetchSidebarNotice() {
     return response.data.data || {
       body: '',
       domainDescription: '',
+      headerTitle: '',
       headerDescription: '',
       ogImageUrl: '',
       hideOgImage: false,
@@ -21,6 +22,7 @@ export async function fetchSidebarNotice() {
   return {
     body: '',
     domainDescription: '',
+    headerTitle: '',
     headerDescription: '',
     ogImageUrl: '',
     hideOgImage: false,
@@ -31,6 +33,7 @@ export async function fetchSidebarNotice() {
 export async function saveSidebarNotice({
   body,
   domainDescription,
+  headerTitle,
   headerDescription,
   ogImageUrl,
   hideOgImage,
@@ -38,6 +41,7 @@ export async function saveSidebarNotice({
   const response = await api.put('/settings/sidebar-notice', {
     body,
     domainDescription,
+    headerTitle,
     headerDescription,
     ogImageUrl,
     hideOgImage,

@@ -4,7 +4,19 @@
 -->
 <template>
   <form class="composer" :class="{ 'composer--hero': hero }" @submit.prevent="$emit('send')" @click.stop>
-    <div v-if="pendingFiles.length || pendingDrive.length" class="composer__chips">
+    <div v-if="ownerLabel" class="composer__owner">
+      <span>{{ t('content.media.agent.ownerLabel') }}:</span>
+      <strong>{{ ownerLabel }}</strong>
+      <button
+        v-if="canPickOwner"
+        type="button"
+        class="composer__owner-btn"
+        @click="$emit('pick-owner')"
+      >
+        {{ t('content.media.agent.ownerSearch') }}
+      </button>
+    </div>
+    <div v-if="pendingFiles.length || pendingDrive.length || pendingCsv" class="composer__chips">
       <span v-for="(f, i) in pendingFiles" :key="`f-${i}`" class="chip">
         {{ f.name }}
         <button type="button" @click="$emit('remove-file', i)">×</button>
@@ -12,6 +24,10 @@
       <span v-for="(d, i) in pendingDrive" :key="`d-${i}`" class="chip">
         {{ d.name }}
         <button type="button" @click="$emit('remove-drive', i)">×</button>
+      </span>
+      <span v-if="pendingCsv" class="chip">
+        {{ t('content.media.agent.csvAttached', { name: pendingCsv.name }) }}
+        <button type="button" @click="$emit('remove-csv')">×</button>
       </span>
     </div>
     <div class="composer__box">
@@ -44,7 +60,7 @@
         <button
           type="submit"
           class="send"
-          :disabled="sending || (!modelValue.trim() && !pendingFiles.length && !pendingDrive.length)"
+          :disabled="sending || (!modelValue.trim() && !pendingFiles.length && !pendingDrive.length && !pendingCsv)"
         >
           <UiGlyph name="arrow-right" :size="16" />
         </button>
@@ -54,6 +70,10 @@
       <button type="button" @click="$emit('add-files')">
         <UiGlyph name="paperclip" :size="16" />
         {{ t('content.media.agent.addFiles') }}
+      </button>
+      <button type="button" @click="$emit('add-csv')">
+        <UiGlyph name="file" :size="16" />
+        {{ t('content.media.agent.attachCsv') }}
       </button>
       <button type="button" @click="$emit('drive')">
         <UiGlyph name="folder" :size="16" />
@@ -89,6 +109,9 @@ defineProps({
   sending: Boolean,
   pendingFiles: { type: Array, default: () => [] },
   pendingDrive: { type: Array, default: () => [] },
+  pendingCsv: { type: Object, default: null },
+  ownerLabel: { type: String, default: '' },
+  canPickOwner: { type: Boolean, default: false },
   plusOpen: Boolean,
   skillOpen: Boolean,
   installedSkills: { type: Array, default: () => [] },
@@ -96,8 +119,9 @@ defineProps({
 });
 
 defineEmits([
-  'update:modelValue', 'send', 'plus', 'skills-menu', 'add-files', 'drive',
-  'open-skills', 'use-skill', 'remove-file', 'remove-drive', 'skills-page',
+  'update:modelValue', 'send', 'plus', 'skills-menu', 'add-files', 'add-csv', 'drive',
+  'open-skills', 'use-skill', 'remove-file', 'remove-drive', 'remove-csv',
+  'skills-page', 'pick-owner',
 ]);
 
 const { t } = useI18n();
@@ -112,6 +136,26 @@ const { t } = useI18n();
 
 .composer--hero {
   width: min(680px, calc(100% - 32px));
+}
+
+.composer__owner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.composer__owner-btn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
 }
 
 .composer__chips {

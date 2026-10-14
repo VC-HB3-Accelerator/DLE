@@ -11,7 +11,7 @@ const settingsService = require('./voiceCallSettingsService');
 const unifiedMessageProcessor = require('./unifiedMessageProcessor');
 const { resolveSenderIdentifier } = require('../utils/senderIdentifier');
 
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://auto-lends.com').replace(/\/$/, '');
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://b2-b4.com').replace(/\/$/, '');
 
 function normalizeContact(raw) {
   const value = String(raw || '').trim();

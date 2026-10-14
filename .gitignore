@@ -99,7 +99,9 @@ typings/
 # IDE
 .vscode/
 .idea/
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 canvases/
 *.swp
 *.swo
@@ -130,15 +132,26 @@ tmp/
 backend/uploads/
 frontend/uploads/
 
-# Database migrations (may contain sensitive data)
-backend/db/migrations/
-
-# SSH Keys - КРИТИЧЕСКИ ВАЖНО!
+# SSH Keys - КРИТИЧЕСКИ ВАЖНО! (не коммитить ключи / authorized_keys)
+.ssh/
 id_rsa
+id_rsa.pub
 id_ed25519
+id_ed25519.pub
+*_rsa
+*_rsa.pub
+*_ed25519
+*_ed25519.pub
+hostland*
+hostland_serv80*
+auto_lends_vds*
+github_ed25519*
+hb3_accelerator*
 *.ppk
 ssh_host_*
 ssh_config
+authorized_keys
+authorized_keys.*
 
 # Keys and certificates - КРИТИЧЕСКИ ВАЖНО!
 *.key
@@ -153,9 +166,6 @@ ssl/certs/
 # Database encryption keys - КРИТИЧЕСКИ ВАЖНО!
 **/full_db_encryption.key
 **/ssl/full_db_encryption.key
-
-# Docker
-.dockerignore
 
 # Git tools
 bfg-*.jar
@@ -250,9 +260,6 @@ DLE_VERSION
 backend/DLE_VERSION
 # update.sh — в публичном репо (нужен клиентам для apply-here); pack-скрипты автора — выше в ignore
 
-# Database initialization helper script
-scripts/internal/db/db_init_helper.sh
-
 # Blog content (будет перенесен в блог приложения)
 blog-content/
 
@@ -267,9 +274,6 @@ docs.en/back-docs/
 
 # KB Wave 1 (внутренние инструкции/черновики, не коммитить)
 docs.ru/kb-wave1/
-
-# Local data and drafts
-data/
 
 # Investor pitch exports (локальные PDF/HTML/MD, не в git)
 investor-materials/

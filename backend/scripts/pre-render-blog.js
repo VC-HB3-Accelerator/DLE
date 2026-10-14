@@ -16,6 +16,8 @@ const http = require('http');
 const https = require('https');
 const { initDbPool, getQuery } = require('../db');
 const { extractCoverFromHtml, buildCoverHtml, resolveSocialPreviewImage, resolveSocialPreviewVideo, parsePageSeo } = require('../utils/blogCoverUtils');
+const { ensureOgShareJpeg, ensureDefaultOgShareJpeg } = require('../utils/ogSharePoster');
+const { getNotice } = require('../services/sidebarNoticeService');
 
 // URL бэкенда для запроса статей (тот же контейнер)
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
@@ -128,6 +130,12 @@ async function getAppShellTemplate() {
 function normalizeAppShell(html) {
   if (!html || typeof html !== 'string') return html;
 
+  // Скрипт шапки перезаписывает og:image на /og-default.png — для статьи это ломает превью.
+  html = html.replace(
+    /<script>\s*\(function \(\) \{[\s\S]*?fetch\(['"]\/api\/settings\/sidebar-notice['"]\)[\s\S]*?<\/script>\s*/i,
+    '\n'
+  );
+
   // Оставляем пустой корневой контейнер приложения перед </body>.
   const appWithBodyRegex = /<div id="app"[^>]*>[\s\S]*<\/div>\s*<\/body>/i;
   if (appWithBodyRegex.test(html)) {
@@ -140,6 +148,16 @@ function normalizeAppShell(html) {
 /**
  * Вставляет SEO-теги и контент в app-shell
  */
+function ogImageMetaTags({ ogImage, ogImageType, ogImageWidth, ogImageHeight }) {
+  if (!ogImage) return '';
+  const url = escapeHtml(ogImage);
+  let tags = `\n  <meta property="og:image" content="${url}">\n  <meta property="og:image:secure_url" content="${url}">`;
+  if (ogImageType) tags += `\n  <meta property="og:image:type" content="${escapeHtml(ogImageType)}">`;
+  if (ogImageWidth) tags += `\n  <meta property="og:image:width" content="${escapeHtml(String(ogImageWidth))}">`;
+  if (ogImageHeight) tags += `\n  <meta property="og:image:height" content="${escapeHtml(String(ogImageHeight))}">`;
+  return tags;
+}
+
 function applySeoToAppShell(template, seo) {
   const {
     canonical,
@@ -147,7 +165,12 @@ function applySeoToAppShell(template, seo) {
     description = '',
     ogType = 'website',
     ogImage = '',
+    ogImageType = '',
+    ogImageWidth = '',
+    ogImageHeight = '',
     ogVideo = '',
+    ogVideoType = 'video/mp4',
+    ogSiteName = '',
     bodyHtml = '',
     jsonLd = null,
     robots = 'index, follow',
@@ -178,8 +201,9 @@ function applySeoToAppShell(template, seo) {
     .replace(/<meta\s+property=["']og:title["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:description["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:type["'][^>]*>\s*/gi, '')
-    .replace(/<meta\s+property=["']og:image["'][^>]*>\s*/gi, '')
-    .replace(/<meta\s+property=["']og:video["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:site_name["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:image(?::[a-z_]+)?["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:video(?::[a-z_]+)?["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+name=["']twitter:card["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+name=["']twitter:title["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+name=["']twitter:description["'][^>]*>\s*/gi, '')
@@ -191,14 +215,15 @@ function applySeoToAppShell(template, seo) {
     ? `\n  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
     : '';
 
-  const ogImageTag = ogImage
-    ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">`
-    : '';
+  const ogImageTag = ogImageMetaTags({ ogImage, ogImageType, ogImageWidth, ogImageHeight });
   const ogVideoTag = ogVideo
-    ? `\n  <meta property="og:video" content="${escapeHtml(ogVideo)}">\n  <meta property="og:video:type" content="video/mp4">`
+    ? `\n  <meta property="og:video" content="${escapeHtml(ogVideo)}">\n  <meta property="og:video:type" content="${escapeHtml(ogVideoType || 'video/mp4')}">`
     : '';
   const twitterImageTag = ogImage
     ? `\n  <meta name="twitter:image" content="${escapeHtml(ogImage)}">`
+    : '';
+  const siteNameTag = ogSiteName
+    ? `\n  <meta property="og:site_name" content="${escapeHtml(ogSiteName)}">`
     : '';
 
   const ogBlock = `
@@ -206,13 +231,23 @@ function applySeoToAppShell(template, seo) {
   <meta property="og:title" content="${safeTitle}">
   <meta property="og:description" content="${safeDescription}">
   <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="${ogType}">${ogImageTag}${ogVideoTag}
+  <meta property="og:type" content="${ogType}">${siteNameTag}${ogImageTag}${ogVideoTag}
   <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
   <meta name="twitter:title" content="${safeTitle}">
   <meta name="twitter:description" content="${safeDescription}">${twitterImageTag}
-  <meta name="robots" content="${escapeHtml(robots)}">${jsonLdBlock}`;
+  <meta name="robots" content="${escapeHtml(robots)}">`;
 
-  html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
+  // OG сразу после charset: краулеры часто не читают теги после большого <script>.
+  if (/<meta\s+charset=/i.test(html)) {
+    html = html.replace(/(<meta\s+charset=["'][^"']+["']\s*\/?>)/i, `$1${ogBlock}`);
+  } else if (/<head[^>]*>/i.test(html)) {
+    html = html.replace(/<head[^>]*>/i, (m) => `${m}${ogBlock}`);
+  } else {
+    html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
+  }
+  if (jsonLdBlock) {
+    html = html.replace(/<\/head>/i, `${jsonLdBlock}\n</head>`);
+  }
 
   const appWithBodyRegex = /<div id="app"[^>]*>[\s\S]*<\/div>\s*<\/body>/i;
   if (appWithBodyRegex.test(html)) {
@@ -468,7 +503,54 @@ async function writeAliasRedirectStubs({ publicBaseUrl, pageId = null, onlyBlog 
  * Собирает HTML страницы статьи с абсолютным canonical
  * @param {string} pathPrefix - /blog или /content/published
  */
-function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blog') {
+async function loadOgSiteName() {
+  try {
+    const notice = await getNotice();
+    const name = String(notice.headerTitle || '').replace(/\s+/g, ' ').trim();
+    if (name) return name.slice(0, 80);
+    const value = String(notice.domainDescription || '').trim();
+    const part = value.split(/\s+[—–-]\s+/)[0].trim();
+    return (part || value).slice(0, 80);
+  } catch (e) {
+    console.warn('[pre-render] site_name:', e.message);
+    return '';
+  }
+}
+
+async function resolveArticleOgImage(article, cover, content, baseUrl, slug) {
+  const seoObj = parsePageSeo(article.seo);
+  const sourceUrl = resolveSocialPreviewImage({
+    seo: seoObj,
+    cover,
+    content,
+    settings: article.settings,
+    listingMedia: article.listing_media,
+    baseUrl,
+  });
+  let ogImage = sourceUrl || '';
+  let ogImageType = '';
+  let ogImageWidth = '';
+  let ogImageHeight = '';
+  try {
+    const poster = await ensureOgShareJpeg({
+      sourceUrl,
+      slug: sanitizeSlug(slug),
+      distRoot: path.dirname(OUTPUT_DIR),
+      baseUrl,
+    });
+    if (poster?.url) {
+      ogImage = poster.url;
+      ogImageType = poster.type;
+      ogImageWidth = poster.width;
+      ogImageHeight = poster.height;
+    }
+  } catch (e) {
+    console.warn('[pre-render] OG poster:', e.message);
+  }
+  return { ogImage, ogImageType, ogImageWidth, ogImageHeight };
+}
+
+async function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blog', ogSiteName = '') {
   const slug = (article.slug || '').trim();
   const canonical = `${baseUrl}${pathPrefix}/${encodeURIComponent(slug)}`;
   const title = article.title || 'Статья';
@@ -486,18 +568,22 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
     ? buildCoverHtml({ cover_url: coverUrl, cover_type: cover.cover_type }, title, escapeHtml)
     : '';
 
-  const seoObj = parsePageSeo(article.seo);
-  const ogImage = resolveSocialPreviewImage({
-    seo: seoObj,
+  const { ogImage, ogImageType, ogImageWidth, ogImageHeight } = await resolveArticleOgImage(
+    article,
     cover,
     content,
-    baseUrl
-  });
-  const ogVideo = resolveSocialPreviewVideo({
+    baseUrl,
+    slug,
+  );
+  const ogVideoMeta = resolveSocialPreviewVideo({
     cover,
     content,
+    settings: article.settings,
+    listingMedia: article.listing_media,
     baseUrl
   });
+  const ogVideo = ogVideoMeta?.url || '';
+  const ogVideoType = ogVideoMeta?.mime || 'video/mp4';
 
   const metaParts = [];
   if (dateLabel) {
@@ -545,7 +631,12 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
     description,
     ogType: 'article',
     ogImage,
+    ogImageType,
+    ogImageWidth,
+    ogImageHeight,
     ogVideo,
+    ogVideoType,
+    ogSiteName,
     bodyHtml: articleInnerHtml,
     jsonLd,
     robots: 'index, follow',
@@ -564,7 +655,7 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="article">${ogImage ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}${ogVideo ? `\n  <meta property="og:video" content="${escapeHtml(ogVideo)}">` : ''}
+  <meta property="og:type" content="article">${ogSiteName ? `\n  <meta property="og:site_name" content="${escapeHtml(ogSiteName)}">` : ''}${ogImageMetaTags({ ogImage, ogImageType, ogImageWidth, ogImageHeight })}${ogVideo ? `\n  <meta property="og:video" content="${escapeHtml(ogVideo)}">\n  <meta property="og:video:type" content="${escapeHtml(ogVideoType)}">` : ''}
   <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">${ogImage ? `\n  <meta name="twitter:image" content="${escapeHtml(ogImage)}">` : ''}
@@ -599,7 +690,16 @@ function listItemLabel(item) {
 /**
  * HTML для списковых страниц (/blog, /content/published)
  */
-function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, appShellTemplate }) {
+function buildListPageHtml({
+  title,
+  description,
+  pathPrefix,
+  items,
+  baseUrl,
+  appShellTemplate,
+  ogSiteName = '',
+  listOgPoster = null,
+}) {
   const canonical = `${baseUrl}${pathPrefix}`;
   const listable = (items || []).filter((a) => a && buildListItemHref(a, baseUrl, pathPrefix));
   const listItems = listable
@@ -671,16 +771,8 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
     }
   };
 
-  const first = listable[0];
-  const listOgImage = first
-    ? resolveSocialPreviewImage({
-      seo: first.og_image ? { og_image: first.og_image } : first.seo,
-      cover: first.cover_url
-        ? { cover_url: first.cover_url, cover_type: first.cover_type || 'image' }
-        : null,
-      content: first.content || '',
-      baseUrl
-    })
+  const listOgImage = (listOgPoster && listOgPoster.url)
+    ? listOgPoster.url
     : resolveSocialPreviewImage({ baseUrl });
 
   return applySeoToAppShell(appShellTemplate, {
@@ -689,6 +781,10 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
     description,
     ogType: 'website',
     ogImage: listOgImage,
+    ogImageType: listOgPoster?.type || '',
+    ogImageWidth: listOgPoster?.width || '',
+    ogImageHeight: listOgPoster?.height || '',
+    ogSiteName,
     bodyHtml,
     jsonLd,
     robots: 'index, follow',
@@ -934,6 +1030,7 @@ async function renderArticlesToDir({
   appShellTemplate,
   publicBaseUrl,
   specificSlug,
+  ogSiteName = '',
 }) {
   let articlesToRender = articles;
   if (specificSlug) {
@@ -955,7 +1052,7 @@ async function renderArticlesToDir({
       let articleHtml = null;
       try {
         const data = await fetchArticleFromApi(article.slug, pathPrefix);
-        articleHtml = buildArticleHtml(data, publicBaseUrl, appShellTemplate, pathPrefix);
+        articleHtml = await buildArticleHtml(data, publicBaseUrl, appShellTemplate, pathPrefix, ogSiteName);
       } catch (apiErr) {
         console.warn(`[pre-render] API (${pathPrefix}): ${apiErr.message}`);
       }
@@ -1001,6 +1098,11 @@ async function preRenderBlog(options = {}) {
 
   const publicBaseUrl = process.env.PUBLIC_SITE_URL ||
     (BASE_URL.startsWith('https') ? BASE_URL.replace(/\/$/, '') : 'https://hb3-accelerator.com');
+  const ogSiteName = await loadOgSiteName();
+  const listOgPoster = await ensureDefaultOgShareJpeg({
+    distRoot: path.dirname(OUTPUT_DIR),
+    baseUrl: publicBaseUrl,
+  });
 
   const appShellTemplate = await getAppShellTemplate();
   if (!appShellTemplate) {
@@ -1021,6 +1123,8 @@ async function preRenderBlog(options = {}) {
       items: blogArticles,
       baseUrl: publicBaseUrl,
       appShellTemplate,
+      ogSiteName,
+      listOgPoster,
     });
     if (listHtml) {
       saveHtml(listHtml, path.join(OUTPUT_DIR, 'index.html'), OUTPUT_DIR);
@@ -1035,6 +1139,8 @@ async function preRenderBlog(options = {}) {
       items: publishedPages,
       baseUrl: publicBaseUrl,
       appShellTemplate,
+      ogSiteName,
+      listOgPoster,
     });
     if (listHtml) {
       saveHtml(listHtml, path.join(PUBLISHED_OUTPUT_DIR, 'index.html'), PUBLISHED_OUTPUT_DIR);
@@ -1052,6 +1158,7 @@ async function preRenderBlog(options = {}) {
       appShellTemplate,
       publicBaseUrl,
       specificSlug,
+      ogSiteName,
     });
   }
 
@@ -1066,6 +1173,7 @@ async function preRenderBlog(options = {}) {
       appShellTemplate,
       publicBaseUrl,
       specificSlug,
+      ogSiteName,
     });
   }
 

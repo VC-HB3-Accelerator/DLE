@@ -31,6 +31,7 @@ const USER_OWN_WORKSPACE_SCREENS = Object.freeze([
   '/content/create',
   '/content/store/product/new',
   '/content/store/product/:id',
+  '/blog/drafts',
   '/tables',
   '/tables/create',
   '/tables/:id',

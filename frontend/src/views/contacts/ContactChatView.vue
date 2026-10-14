@@ -35,22 +35,34 @@
       />
     </div>
 
+    <MediaAgentStudio
+      v-if="orchestratorMode && canUseOrchestrator"
+      ref="studioRef"
+      class="contact-orch"
+      hide-composer
+      :storage-namespace="String(contact?.id || route.params.id || '')"
+    />
+
     <ChatInterface
       embedded
+      :hideMessages="orchestratorMode && canUseOrchestrator"
       :messages="messages"
       :isLoading="isLoadingMessages"
       :attachments="chatAttachments"
       :newMessage="chatNewMessage"
-      :canSend="broadcastDraftMode ? true : (canSendToUsers && !!currentUserId)"
+      :canSend="orchestratorMode && canUseOrchestrator
+        ? true
+        : (broadcastDraftMode ? true : (canSendToUsers && !!currentUserId))"
       :canAttach="!broadcastDraftMode"
-      :canGenerateAI="canGenerateAI && !broadcastDraftMode && !isGuestContact"
-      :canSelectMessages="canGenerateAI && !broadcastDraftMode && !isGuestContact"
+      :canGenerateAI="canUseOrchestrator"
+      :canSelectMessages="false"
+      :aiOrchestratorActive="orchestratorMode"
       :clearOnSend="!broadcastDraftMode"
       :currentUserId="currentUserId"
-      @send-message="handleSendMessage"
+      @send-message="onChatSend"
       @update:newMessage="onNewMessageUpdate"
       @update:attachments="val => chatAttachments = val"
-      @ai-reply="handleAiReply"
+      @toggle-ai-orchestrator="toggleOrchestratorMode"
     />
   </section>
 </template>
@@ -61,8 +73,10 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import ChatInterface from '@/components/ChatInterface.vue';
+import MediaAgentStudio from '@/components/content/MediaAgentStudio.vue';
 import messagesService from '@/services/messagesService.js';
 import { notifyStoreCabinetAsk } from '@/services/storeService.js';
+import { fetchContactAiMode, saveContactAiMode } from '@/services/mediaAgentService';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { useContactDetailsContext } from '@/composables/useContactDetails';
@@ -71,7 +85,7 @@ import websocketServiceModule from '@/services/websocketService';
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const { canSendToUsers, canGenerateAI } = usePermissions();
+const { canSendToUsers, canUseOrchestrator: hasOrchPermission } = usePermissions();
 const { userId: currentUserId } = useAuthContext();
 const { contact, userId, isCreateMode } = useContactDetailsContext();
 const { websocketService } = websocketServiceModule;
@@ -80,14 +94,16 @@ const isLoadingMessages = ref(false);
 const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
-const isAiLoading = ref(false);
 const conversationId = ref(null);
+const orchestratorMode = ref(false);
+const studioRef = ref(null);
 const draftSubject = ref('');
 const draftDirty = ref(false);
 const draftSaving = ref(false);
 let draftSaveTimer = null;
 let draftSaveQueued = false;
 let chatReloadTimer = null;
+let prefsLoadSeq = 0;
 
 function scheduleChatReloadFromWs() {
   if (chatReloadTimer) clearTimeout(chatReloadTimer);
@@ -97,12 +113,54 @@ function scheduleChatReloadFromWs() {
 }
 
 const isGuestContact = computed(() => String(contact.value?.id || '').startsWith('guest_'));
+const isOwnCard = computed(() => {
+  const me = Number(currentUserId.value);
+  const card = Number(contact.value?.id || route.params.id);
+  return Number.isInteger(me) && me > 0 && Number.isInteger(card) && card > 0 && me === card;
+});
+const canUseOrchestrator = computed(
+  () => hasOrchPermission.value && isOwnCard.value && !broadcastDraftMode.value && !isGuestContact.value
+);
+const contactIdForPrefs = computed(() => {
+  const raw = contact.value?.id ?? route.params.id;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+});
 const broadcastCampaignId = computed(() => {
   const raw = Number(route.query.broadcastCampaignId);
   return Number.isInteger(raw) && raw > 0 ? raw : null;
 });
 const broadcastDraftMode = computed(() => Boolean(broadcastCampaignId.value && contact.value?.id));
 
+async function loadOrchestratorPrefs() {
+  const seq = ++prefsLoadSeq;
+  const cid = contactIdForPrefs.value;
+  if (!cid || !canUseOrchestrator.value || isGuestContact.value || broadcastDraftMode.value) {
+    if (seq === prefsLoadSeq) orchestratorMode.value = false;
+    return;
+  }
+  try {
+    const data = await fetchContactAiMode(cid);
+    if (seq !== prefsLoadSeq) return;
+    orchestratorMode.value = Boolean(data?.prefs?.aiEnabled);
+  } catch {
+    if (seq === prefsLoadSeq) orchestratorMode.value = false;
+  }
+}
+
+async function toggleOrchestratorMode() {
+  if (!canUseOrchestrator.value) return;
+  const cid = contactIdForPrefs.value;
+  const next = !orchestratorMode.value;
+  orchestratorMode.value = next;
+  if (!cid) return;
+  try {
+    await saveContactAiMode(cid, next);
+  } catch {
+    orchestratorMode.value = !next;
+    ElMessage.error(t('content.media.agent.aiModeSaveFailed'));
+  }
+}
 async function saveBroadcastDraft() {
   if (!broadcastDraftMode.value) return;
   if (draftSaving.value) {
@@ -217,6 +275,20 @@ function saveDraftSoon() {
   }, 600);
 }
 
+async function onChatSend(payload) {
+  if (orchestratorMode.value && canUseOrchestrator.value) {
+    const text = String(payload?.message || '').trim();
+    const raw = Array.isArray(payload?.attachments) ? payload.attachments : [];
+    const files = raw
+      .map((a) => (a?.file instanceof File ? a.file : (a instanceof File ? a : null)))
+      .filter(Boolean);
+    if (!text && !files.length) return;
+    await studioRef.value?.send?.({ forcedText: text, forcedFiles: files });
+    return;
+  }
+  return handleSendMessage(payload);
+}
+
 async function handleSendMessage({ message, attachments = [], silent = false }) {
   if (!contact.value?.id) return false;
 
@@ -283,45 +355,17 @@ async function handleSendMessage({ message, attachments = [], silent = false }) 
   }
 }
 
-async function handleAiReply(selectedMessages = []) {
-  if (isAiLoading.value || broadcastDraftMode.value) return;
-
-  if (contact.value?.is_blocked) {
-    ElMessageBox.alert(t('contacts.details.userBlocked'), t('common.error'), { type: 'error' });
-    return;
-  }
-
-  if (!Array.isArray(selectedMessages) || selectedMessages.length === 0) {
-    alert(t('contacts.details.selectMessageForAi'));
-    return;
-  }
-
-  isAiLoading.value = true;
-  try {
-    const draftResp = await messagesService.generateAiDraft(conversationId.value, selectedMessages);
-    if (draftResp?.success && draftResp.aiMessage) {
-      chatNewMessage.value = draftResp.aiMessage;
-    } else {
-      alert(t('contacts.details.aiGenerateFailed'));
-    }
-  } catch (e) {
-    alert(t('contacts.details.aiGenerateError', { error: e?.message || e }));
-  } finally {
-    isAiLoading.value = false;
-  }
-}
-
-let storeAskSent = false;
-
 async function bootstrap() {
   if (isCreateMode.value) {
     router.replace({ name: 'contact-profile', params: { id: 'new' } });
     return;
   }
-  await loadMessages();
+  await Promise.all([loadMessages(), loadOrchestratorPrefs()]);
   await loadBroadcastDraft();
   await maybeSendStoreAsk();
 }
+
+let storeAskSent = false;
 
 async function maybeSendStoreAsk() {
   if (broadcastDraftMode.value || isCreateMode.value) return;
@@ -389,7 +433,7 @@ watch(userId, async () => {
 watch(() => contact.value?.id, async (newId, oldId) => {
   if (newId && newId !== oldId) {
     storeAskSent = false;
-    await loadMessages();
+    await Promise.all([loadMessages(), loadOrchestratorPrefs()]);
     await loadBroadcastDraft();
     await maybeSendStoreAsk();
   }
@@ -441,6 +485,30 @@ watch(() => route.query.storeAsk, async () => {
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+}
+
+.contact-chat-panel :deep(.chat-container--composer-only) {
+  flex: 0 0 auto;
+  height: auto !important;
+  min-height: 0;
+  max-height: none;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+.contact-orch {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.contact-chat-panel :deep(.contact-orch.work) {
+  min-height: 0;
+  height: 100%;
+  border-radius: 0;
 }
 
 @media (max-width: 768px) {

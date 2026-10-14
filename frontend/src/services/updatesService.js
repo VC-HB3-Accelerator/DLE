@@ -35,16 +35,6 @@ export async function fetchApplyJob(jobId) {
   return response.data?.data;
 }
 
-export async function fetchHubSettings() {
-  const response = await api.get('/updates/admin/hub-settings');
-  return response.data?.data || {};
-}
-
-export async function saveHubSettings(payload) {
-  const response = await api.put('/updates/admin/hub-settings', payload);
-  return response.data?.data || {};
-}
-
 /** Короткий ping, пока backend/nginx поднимаются после recreate. */
 export async function fetchInstanceHealth(timeoutMs = 20000) {
   const controller = new AbortController();
